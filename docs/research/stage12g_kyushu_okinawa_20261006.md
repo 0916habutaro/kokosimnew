@@ -78,13 +78,17 @@ Stage 12Gとして九州・沖縄8県の春秋16大会について、既存Stage
 - 沖縄春: https://www.hb-nippon.com/tournaments/1168
 - 沖縄秋公式: https://www.kouyaren-okinawa.jp/
 
-## 6. 検証予定
+## 6. 検証結果
 
-- Python unit tests 全件
-- Stage 12G九州・沖縄validation 15項目
-- season E2E県大会 94大会
-- prefectural_calendar_gap_count = 1 を期待
-- warnings = 0 を期待
+GitHub Actions上で実際に検証を実行し、以下を確認した。
+
+- unit test: **116 / 116 PASS**
+- Stage 12G九州・沖縄validation: **15 / 15 PASS**
+- season E2E県大会: **94 / 94 PASS**
+- `prefectural_calendar_gap_count = 1`
+- warnings: **0**
+
+実行ログでは `Ran 116 tests ... OK`、`PREFECTURAL_PASS=94`、`PREFECTURAL_TOTAL=94`、`CALENDAR_GAPS=1`、`WARNINGS=[]` を確認した。
 
 ## 7. 次工程
 
