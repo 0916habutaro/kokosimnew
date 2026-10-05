@@ -1,0 +1,14 @@
+﻿check,value,status
+school_rows,3201,ok
+program_rows,3201,ok
+prefecture_27_count,172,ok
+duplicate_school_id,0,ok
+duplicate_program_id,0,ok
+program_school_fk_missing,0,ok
+school_source_fk_missing,0,ok
+program_source_fk_missing,0,ok
+blank_municipality,0,ok
+near_match_queue_rows,0,ok
+exact_match_prefectures,44,ok
+remaining_prefectures,3,ok
+sources_rows,212,ok

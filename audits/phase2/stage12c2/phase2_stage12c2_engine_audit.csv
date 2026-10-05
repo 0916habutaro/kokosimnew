@@ -1,0 +1,16 @@
+﻿audit_id,scope,item,value,status,notes
+A12C2-001,stage,status,complete,PASS,異方式大会への共通エンジン拡張。
+A12C2-002,dispatch,supported_format_models,9,PASS,"FMT001,FMT005,FMT006,FMT009,FMT018,FMT019,FMT020,FMT021,FMT026"
+A12C2-003,regression,Gifu autumn,58 -> 16 seed + 42 gate -> 21 -> 37 MAIN,PASS,"main=37, tests inherited from 12C-1"
+A12C2-004,Kanagawa,round_robin_pools_cross_playoff,163 -> 162 qualifier -> 81 + 1 direct -> 82 MAIN,PASS,matches=237 warnings=0
+A12C2-005,Kanagawa,3/4-team pool mechanics,4team top2 / 3team top1 + runnerup cross playoff,PASS,FMT006 model-driven execution.
+A12C2-006,Chiba,global primary,140 -> 28 primary qualifiers,PASS,nonqualifiers=112
+A12C2-007,Chiba,global repechage,112 -> 19 repechage; +1 direct = 48 MAIN,PASS,main=48 warnings=0
+A12C2-008,Hokkaido,block winner knockout,192 -> 20 representatives,PASS,秋10支部、output_slots合計20。
+A12C2-009,Aomori,mixed models,FMT018/FMT019/FMT020/FMT021,PASS,"{'SGR000160': 'FMT018', 'SGR000161': 'FMT019', 'SGR000162': 'FMT020', 'SGR000163': 'FMT021'}"
+A12C2-010,Aomori,seed overlay,53 entrants retained + 16 seeds,PASS,"tiers={'seed_rank_1': 4, 'seed_rank_2': 4, 'seed_rank_3': 8}"
+A12C2-011,annual_input,direct MAIN entries,supported,PASS,direct_main_entry_school_ids is validated as subset of entrant_school_ids.
+A12C2-012,annual_input,official pool/ranking override,supported,PASS,group_pool_assignments / group_rankings.
+A12C2-013,rng,reproducibility,namespaced SHA-256,PASS,new format test repeats same Chiba run exactly.
+A12C2-014,testing,unittest,23/23 PASS,PASS,12C-1 regression 12 + 12C-2 11.
+A12C2-015,data_integrity,source ZIP diff,9 changed / 1 new / 0 missing before audit files,PASS,Changes limited to engine/readme/progress/dictionary/transition + new test.

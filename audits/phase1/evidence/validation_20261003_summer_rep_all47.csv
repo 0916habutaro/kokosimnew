@@ -1,0 +1,8 @@
+﻿check,result,actual,expected,notes
+2026_summer_scheme_count,PASS,47,47,47都道府県それぞれに年度別summer_representation scheme。
+2026_summer_area_count,PASS,49,49,北海道2＋東京2＋その他45＝49代表区分。
+programs_with_summer_membership,PASS,3746,3746,全硬式加盟校に1つの2026夏代表区分。
+summer_membership_total,PASS,3746,3746,1校1代表区分。
+duplicate_ids,PASS,0,0,scheme/area/membership ID重複。
+foreign_key_errors,PASS,0,0,scheme/area/program/source参照整合性。
+overall,PASS,0,0,全検証項目PASS。

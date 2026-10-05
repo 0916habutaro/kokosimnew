@@ -1,0 +1,40 @@
+﻿school_id,program_id,display_name,municipality,federation_branch_status,scheme_id,assigned_area_id,assigned_area_name,current_scheme_source_id,historical_order_source_id,historical_direct_source_ids,continuity_source_ids,evidence_level,verified_at,notes
+SCH002122,PRG002122,奈良県立高取国際高等学校,高取町,completed,ASM000087,AREA000226,4区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002123,PRG002123,奈良県立奈良商工高等学校,奈良市,completed,ASM000087,AREA000223,1区,SRC000346,SRC000350,SRC000347;SRC000348,SRC000351,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。 学校再編・現行校継承資料で接続。
+SCH002124,PRG002124,奈良県立磯城野高等学校,田原本町,completed,ASM000087,AREA000225,3区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002125,PRG002125,奈良女子大学附属中等教育学校,奈良市,completed,ASM000087,AREA000223,1区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002126,PRG002126,奈良県立大和広陵高等学校,広陵町,completed,ASM000087,AREA000224,2区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002127,PRG002127,奈良県立大学附属高等学校,奈良市,completed,ASM000087,AREA000223,1区,SRC000346,SRC000350,SRC000347;SRC000348,SRC000351,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。 学校再編・現行校継承資料で接続。
+SCH002128,PRG002128,奈良県立橿原高等学校,橿原市,completed,ASM000087,AREA000226,4区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002129,PRG002129,天理高等学校,天理市,completed,ASM000087,AREA000225,3区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002130,PRG002130,奈良県立畝傍高等学校,橿原市,completed,ASM000087,AREA000226,4区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002131,PRG002131,奈良県立添上高等学校,天理市,completed,ASM000087,AREA000225,3区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002132,PRG002132,奈良市立一条高等学校,奈良市,completed,ASM000087,AREA000223,1区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002133,PRG002133,奈良県立王寺工業高等学校,王寺町,completed,ASM000087,AREA000224,2区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002134,PRG002134,西大和学園高等学校,河合町,completed,ASM000087,AREA000224,2区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002135,PRG002135,奈良工業高等専門学校,大和郡山市,completed,ASM000087,AREA000224,2区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002136,PRG002136,奈良県立生駒高等学校,生駒市,completed,ASM000087,AREA000224,2区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002137,PRG002137,奈良県立商業高等学校,桜井市,completed,ASM000087,AREA000225,3区,SRC000346,SRC000350,SRC000347;SRC000348,SRC000352,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。 学校再編・現行校継承資料で接続。
+SCH002138,PRG002138,奈良県立青翔高等学校,御所市,completed,ASM000087,AREA000226,4区,SRC000346,SRC000350,SRC000347;SRC000348,SRC000354,multi_source_confirmed_auxiliary,2026-10-04,旧42加盟校一覧外。現行4区制、御所市所在の県公式資料、直接確認済みの4区南部校群との連続性により4区へ登録。
+SCH002139,PRG002139,奈良県立西和清陵高等学校,三郷町,completed,ASM000087,AREA000224,2区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002140,PRG002140,奈良県立十津川高等学校,十津川村,completed,ASM000087,AREA000226,4区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002141,PRG002141,奈良県立奈良南高等学校,大淀町,completed,ASM000087,AREA000226,4区,SRC000346,SRC000350,SRC000347;SRC000348,SRC000353,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。 学校再編・現行校継承資料で接続。
+SCH002142,PRG002142,奈良県立高円芸術高等学校,奈良市,completed,ASM000087,AREA000223,1区,SRC000346,SRC000350,SRC000347;SRC000348,SRC000351,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。 学校再編・現行校継承資料で接続。
+SCH002143,PRG002143,奈良県立奈良国際高等学校,奈良市,completed,ASM000087,AREA000223,1区,SRC000346,SRC000350,SRC000347;SRC000348,SRC000351,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。 学校再編・現行校継承資料で接続。
+SCH002144,PRG002144,奈良県立二階堂高等学校,天理市,completed,ASM000087,AREA000225,3区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002145,PRG002145,奈良県立山辺高等学校,奈良市,completed,ASM000087,AREA000224,2区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002146,PRG002146,奈良県立郡山高等学校,大和郡山市,completed,ASM000087,AREA000224,2区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002147,PRG002147,奈良県立高田高等学校,大和高田市,completed,ASM000087,AREA000224,2区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002148,PRG002148,奈良県立奈良高等学校,奈良市,completed,ASM000087,AREA000223,1区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002149,PRG002149,大和高田市立高田商業高等学校,大和高田市,completed,ASM000087,AREA000224,2区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002150,PRG002150,奈良大学附属高等学校,奈良市,completed,ASM000087,AREA000223,1区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002151,PRG002151,奈良県立香芝高等学校,香芝市,completed,ASM000087,AREA000224,2区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002152,PRG002152,智弁学園高等学校,五條市,completed,ASM000087,AREA000226,4区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002153,PRG002153,奈良県立御所実業高等学校,御所市,completed,ASM000087,AREA000226,4区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002154,PRG002154,帝塚山高等学校,奈良市,completed,ASM000087,AREA000223,1区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002155,PRG002155,奈良県立法隆寺国際高等学校,斑鳩町,completed,ASM000087,AREA000224,2区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002156,PRG002156,奈良県立桜井高等学校,桜井市,completed,ASM000087,AREA000225,3区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002157,PRG002157,奈良県立宇陀高等学校,宇陀市,completed,ASM000087,AREA000225,3区,SRC000346,SRC000350,SRC000347;SRC000348,SRC000351,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。 学校再編・現行校継承資料で接続。
+SCH002158,PRG002158,奈良県立奈良北高等学校,生駒市,completed,ASM000087,AREA000224,2区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002159,PRG002159,橿原学院高等学校,橿原市,completed,ASM000087,AREA000226,4区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。
+SCH002160,PRG002160,奈良県立五條高等学校,五條市,completed,ASM000087,AREA000226,4区,SRC000346,SRC000350,SRC000347;SRC000348,,multi_source_confirmed,2026-10-04,現行4区制＋旧加盟校連続順＋過年度地区直接アンカーを突合。

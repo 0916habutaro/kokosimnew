@@ -1,0 +1,36 @@
+﻿check_id,category,expected,observed,status,notes
+C4-001,prefectural_main_policy_rows,94,94,PASS,
+C4-002,prefectural_main_execution_rows,94,94,PASS,
+C4-003,prefectural_main_execution_pass,94/94,94/94,PASS,
+C4-004,played_match_formula,MAIN entrants - 1,all rows,PASS,
+C4-005,ranking_coverage,ranking_count == main_entrant_count,all rows,PASS,
+C4-006,bracket_size,power_of_two,all rows,PASS,
+C4-007,bye_accounting,bracket_size-main_entrant_count,all rows,PASS,
+C4-008,champion_resolution,94/94,94,PASS,
+C4-009,main_policy_format,94 single_elimination,94,PASS,bracket_generation_policiesの94県春秋MAINを確認
+C4-010,structural_main_played_matches,informational,4534,PASS,94大会structure harness合計
+C4-011,structural_main_byes,informational,2180,PASS,94大会structure harness合計
+C4-012,unittest,39/39 PASS,39/39 PASS,PASS,
+C4-013,cli_result_persistence,summary+matches+placements,3 files + output JSON,PASS,
+C4-014,main_draw_override,supported,tested,PASS,
+C4-015,main_winner_override,supported,tested,PASS,
+C4-016,main_seed_override,supported,implemented+validated subset,PASS,
+C4-017,fixed_bracket_gifu_37,64 bracket / 27 bye / 36 played,tested,PASS,
+C4-018,gui_bracket_links,next_match_id/next_match_side,emitted on MAIN matches,PASS,
+C4-019,result_cohorts,champion/runner-up/SF/QF/full ranking,implemented,PASS,
+C4-020,new_code_modules,main_tournament.py + results.py,True / True,PASS,
+C4-021,protected_byte_identical:competition_access_rules.csv,yes,yes,PASS,
+C4-022,protected_byte_identical:competition_seed_rules.csv,yes,yes,PASS,
+C4-023,protected_byte_identical:qualification_rules.csv,yes,yes,PASS,
+C4-024,protected_byte_identical:prefectural_branch_usage_2026.csv,yes,yes,PASS,
+C4-025,protected_byte_identical:competition_stage_format_models.csv,yes,yes,PASS,
+C4-026,protected_byte_identical:competition_stage_format_assignments.csv,yes,yes,PASS,
+C4-027,protected_byte_identical:competition_stage_format_parameters.csv,yes,yes,PASS,
+C4-028,protected_byte_identical:competition_stage_format_phases.csv,yes,yes,PASS,
+C4-029,protected_byte_identical:competition_stage_group_format_overrides.csv,yes,yes,PASS,
+C4-030,protected_byte_identical:competition_stages.csv,yes,yes,PASS,
+C4-031,protected_byte_identical:bracket_generation_policies.csv,yes,yes,PASS,
+C4-032,protected_byte_identical:school_area_memberships.csv,yes,yes,PASS,
+C4-033,official_draw_separation,bracket_generation_policies unchanged,byte-identical,PASS,simulation policyは別表main_tournament_engine_policies.csvに保持
+C4-034,hardcoded_school_names_new_main_code,0,0,PASS,MAIN新規コードはschool_id入力のみで学校名を固定しない
+C4-035,pycache_in_artifact,0,0,PASS,

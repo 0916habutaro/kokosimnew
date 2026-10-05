@@ -1,0 +1,2 @@
+﻿competition_id,prefecture_code,prefecture_name,season_segment,expected_main_team_count,simulated_main_team_count,status,notes
+CMP000016,13,東京都,autumn,64,269,GAP_INTERNAL_PREMAIN_STAGE_NOT_STRUCTURED,MAIN team_countと全加盟校直入れ結果が不一致。内部予選/一次予選等の追加構造化が必要

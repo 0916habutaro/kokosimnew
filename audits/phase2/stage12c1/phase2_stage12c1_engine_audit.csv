@@ -1,0 +1,11 @@
+﻿audit_id,scope,item,value,status,notes
+A12C001,engine_architecture,dispatch,format_model_id,PASS,大会名別Python分岐を避け、format model handlerで全国展開する設計。
+A12C002,engine_architecture,annual_participation,required,PASS,school_area_membershipsは地区所属。大会参加はAnnualCompetitionInputで分離。
+A12C003,format_handler,FMT009,implemented,PASS,seed ranking knockout + seed rule tier mapping + annual ranking override。
+A12C004,format_handler,FMT026,implemented,PASS,nonseed one-match gate + odd-count bye + winners to MAIN。
+A12C005,gifu_autumn,seed_slots,16,PASS,岐阜6/西濃3/中濃飛騨4/東濃3。
+A12C006,gifu_autumn,gate_path,42 -> 21,PASS,2026 Stage12B observed structure。
+A12C007,gifu_autumn,main_entry,16 + 21 = 37,PASS,MAIN入口まで実行。MAIN正式抽選は後続12C-2/3。
+A12C008,rng,reproducibility,SHA-256 namespaced RNG,PASS,同一seed＋同一入力で完全一致。
+A12C009,testing,unittest,12/12 PASS,PASS,CLI、annual override、odd bye、seed tier、dedupeを含む。
+A12C010,data_integrity,protected_stage11_12b_rules,6 key files byte-identical,PASS,access/seed/branch/qualification/format model/assignmentを保護。

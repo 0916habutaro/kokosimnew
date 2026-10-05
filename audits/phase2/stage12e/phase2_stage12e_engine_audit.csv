@@ -1,0 +1,16 @@
+﻿audit_id,check,status,actual,expected,notes
+E001,regional_feeder_rule_rows,PASS,96,96,spring8+autumn8 destinations
+E002,regional_destinations_structured,PASS,16,16,Stage12D 16 feeder gaps closed
+E003,regional_structure_slot_totals,PASS,16,16,direct slots + playoff winner slots match competitions.team_count
+E004,regional_competitions_executed,PASS,16,16,8 spring + 8 autumn
+E005,regional_exact_entrant_counts,PASS,16,16,
+E006,regional_playoffs,PASS,2,2,2026 autumn Kinki third-place qualification games
+E007,regional_bridge_gaps_remaining,PASS,0,0,
+E008,qualification_rules_resolved,PASS,59,59,summer49 + Jingu10
+E009,jingu_qualifiers,PASS,10,10,all ten autumn regional winners resolve
+E010,jingu_competition_executed,PASS,yes,yes,10-team structural tournament executed
+E011,spring_kyushu_senbatsu_slots,PASS,6,6,current Senbatsu participants from Kyushu plus prefectural slots
+E012,legacy_rule_tables_protected,PASS,14,14,Stage12D protected rule/data tables byte-identical
+E013,prefectural_execution,WARN,93,94,Tokyo autumn 269->MAIN64 front qualifier still unstructured
+E014,prefectural_calendar,WARN,3,94,91 spring/autumn prefectural calendars remain research_pending
+E015,unittest,PASS,60/60,60/60,Stage12C/D regression + Stage12E

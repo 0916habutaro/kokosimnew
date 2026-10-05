@@ -1,0 +1,6 @@
+﻿prefecture_code,prefecture_name,check_type,observed_value,decision,source_ids,notes
+27,大阪府,jhbf_2026_official_count,172,target_count,SRC000099,2026年5月末硬式加盟校数。
+27,大阪府,current_member_page,173 schools,needs_reference_date_filter,SRC000208,2026-10-03時点のOmyuTech加盟校一覧。
+27,大阪府,summer_2026,165 schools / 153 teams,cross_check,SRC000209,加盟172校のうち7校不参加。布施工科は連盟脱退。
+27,大阪府,post_baseline_new_member,明浄学院,exclude_from_may_end_baseline,SRC000210,2026年8月に府高野連へ新規加盟。5月末基準後のためPhase 1 2026基準集合から除外。
+27,大阪府,final_set,173 - 1 = 172,exact_match,SRC000099;SRC000208;SRC000209;SRC000210,JHBF 2026年5月末公式数に一致。

@@ -1,0 +1,14 @@
+﻿check,value,status
+school_rows,3554,ok
+program_rows,3554,ok
+prefecture_28_count,167,ok
+duplicate_school_id,0,ok
+duplicate_program_id,0,ok
+program_school_fk_missing,0,ok
+school_source_fk_missing,0,ok
+program_source_fk_missing,0,ok
+hyogo_blank_municipality,0,ok
+hyogo_summer_expanded,166,ok
+hyogo_summer_nonparticipant_fill,1,ok
+hyogo_final_exact,167,ok
+official_exact_match_prefectures,46,ok

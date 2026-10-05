@@ -1,0 +1,33 @@
+﻿check,status,details
+scheme_id_unique,PASS,83 rows
+area_id_unique,PASS,208 rows
+membership_id_unique,PASS,6689 rows
+membership_foreign_keys,PASS,bad=0
+scheme_source_foreign_keys,PASS,bad=0
+area_source_foreign_keys,PASS,bad=0
+parent_area_id_foreign_keys,PASS,bad=0
+program_scheme_unique,PASS,duplicate_pairs=0
+summer_representation_memberships_preserved,PASS,"actual=3746, expected=3746"
+JP15_membership_count,PASS,"actual=78, expected=78"
+JP15_distribution,PASS,"actual={'AREA000196': 38, 'AREA000197': 40}, expected={'AREA000196': 38, 'AREA000197': 40}"
+JP15_prefecture_match,PASS,mismatch=0
+JP15_unique_programs,PASS,"unique=78, expected=78"
+JP16_membership_count,PASS,"actual=43, expected=43"
+JP16_distribution,PASS,"actual={'AREA000200': 12, 'AREA000199': 17, 'AREA000201': 5, 'AREA000198': 9}, expected={'AREA000198': 9, 'AREA000199': 17, 'AREA000200': 12, 'AREA000201': 5}"
+JP16_prefecture_match,PASS,mismatch=0
+JP16_unique_programs,PASS,"unique=43, expected=43"
+JP17_membership_count,PASS,"actual=50, expected=50"
+JP17_distribution,PASS,"actual={'AREA000202': 14, 'AREA000203': 22, 'AREA000204': 14}, expected={'AREA000202': 14, 'AREA000203': 22, 'AREA000204': 14}"
+JP17_prefecture_match,PASS,mismatch=0
+JP17_unique_programs,PASS,"unique=50, expected=50"
+JP18_membership_count,PASS,"actual=28, expected=28"
+JP18_distribution,PASS,"actual={'AREA000208': 5, 'AREA000205': 10, 'AREA000207': 6, 'AREA000206': 7}, expected={'AREA000205': 10, 'AREA000206': 7, 'AREA000207': 6, 'AREA000208': 5}"
+JP18_prefecture_match,PASS,mismatch=0
+JP18_unique_programs,PASS,"unique=28, expected=28"
+JP19_status_research_pending,PASS,"{'prefecture_code': '19', 'prefecture_name': '山梨県', 'federation_branch_status': 'research_pending', 'scheme_id': '', 'school_count': '33', 'source_id': 'SRC000326', 'verified_at': '2026-10-04', 'notes': '2026公式行事予定でA〜Gの7地区制自体は確認済み。現行33校の学校別所属一覧が未取得のため推定登録を保留。'}"
+JP19_no_federation_branch_scheme,PASS,no scheme created
+JP19_no_federation_branch_memberships,PASS,no memberships created
+status_entries_15_19_present,PASS,all present
+new_source_ids_present,PASS,SRC000317-SRC000326
+policy_ARP000007_present,PASS,research_pending policy
+all_checks_pass,PASS,aggregate of preceding checks

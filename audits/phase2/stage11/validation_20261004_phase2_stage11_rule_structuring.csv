@@ -1,0 +1,44 @@
+﻿check_id,check_name,status,details
+P2S11V001,access_rule_count_17,PASS,actual=17
+P2S11V002,access_rule_id_unique,PASS,unique IDs
+P2S11V003,main_entry_bypass_rule_count_16,PASS,actual=16
+P2S11V004,mie_seed_event_bypass_rule_1,PASS,CMP000116 special
+P2S11V005,observed_main_entry_exemptions_45,PASS,2026 observed main-entry exemptions
+P2S11V006,access_destination_fk,PASS,all destination competition IDs exist
+P2S11V007,access_source_competition_fk,PASS,all concrete 2026 source competition IDs exist
+P2S11V008,access_source_fk,PASS,all access evidence source IDs exist
+P2S11V009,access_dedup_enabled,PASS,all access rules deduplicate by team
+P2S11V010,seed_rule_count_55,PASS,actual=55
+P2S11V011,seed_rule_id_unique,PASS,unique IDs
+P2S11V012,seed_competitions_9,PASS,actual=9
+P2S11V013,structured_seed_slots_93,PASS,actual=93
+P2S11V014,seed_destination_fk,PASS,all destination competition IDs exist
+P2S11V015,seed_scheme_fk,PASS,all branch scheme IDs exist
+P2S11V016,seed_area_fk,PASS,all source area IDs exist
+P2S11V017,seed_source_competition_fk,PASS,all concrete seed source competition IDs exist
+P2S11V018,seed_source_fk,PASS,all seed evidence source IDs exist
+P2S11V019,seed_dedup_enabled,PASS,all seed rules deduplicate by team
+P2S11V020,seed_slots_CMP000072,PASS,"expected=16, actual=16"
+P2S11V021,seed_slots_CMP000073,PASS,"expected=16, actual=16"
+P2S11V022,seed_slots_CMP000110,PASS,"expected=16, actual=16"
+P2S11V023,seed_slots_CMP000116,PASS,"expected=8, actual=8"
+P2S11V024,seed_slots_CMP000140,PASS,"expected=4, actual=4"
+P2S11V025,seed_slots_CMP000144,PASS,"expected=13, actual=13"
+P2S11V026,seed_slots_CMP000158,PASS,"expected=8, actual=8"
+P2S11V027,seed_slots_CMP000160,PASS,"expected=8, actual=8"
+P2S11V028,seed_slots_CMP000162,PASS,"expected=4, actual=4"
+P2S11V029,seed_only_coverage_9_of_9,PASS,all seed_only competitions covered
+P2S11V030,affected_competition_audit_rows_25,PASS,actual=25
+P2S11V031,no_school_id_column_access,PASS,access rules contain no school_id
+P2S11V032,no_school_id_column_seed,PASS,seed rules contain no school_id
+P2S11V033,no_hardcoded_2026_school_names,PASS,dynamic rule rows contain no 2026 school names
+P2S11V034,branch_usage_rows_94,PASS,actual=94
+P2S11V035,branch_usage_pending_0,PASS,research_pending=0
+P2S11V036,legacy_qualification_rules_59,PASS,actual=59
+P2S11V037,stage10_baseline_file_count_173,PASS,actual=173
+P2S11V038,stage10_unmodified_files_170,PASS,actual=170
+P2S11V039,stage10_allowed_changed_files_exact,PASS,changed=phase2_progress_summary.csv;phase2_sources.csv;phase2_table_dictionary.csv
+P2S11V040,stage10_no_missing_files,PASS,missing=
+P2S11V041,prefectural_branch_usage_byte_identical,PASS,Stage10 branch usage master unchanged
+P2S11V042,qualification_rules_byte_identical,PASS,legacy qualification_rules unchanged
+P2S11V043,stage11_new_structured_files_exact,PASS,added=competition_access_rules.csv;competition_seed_rules.csv;phase2_rule_engine_dictionary.csv;phase2_stage11_rule_structuring_audit.csv;validation_20261004_phase2_stage11_rule_structuring.csv

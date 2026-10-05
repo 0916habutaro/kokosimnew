@@ -1,0 +1,10 @@
+﻿check,value,status
+school_rows,1959,ok
+program_rows,1959,ok
+miyagi_04_count,65,ok
+akita_05_count,42,ok
+akita_branch_normalization,43 federation listing units -> 42 school entities,ok
+exact_match_prefectures,25,ok
+remaining_not_registered,22,ok
+source_rows,153,ok
+integrity_errors,0,ok

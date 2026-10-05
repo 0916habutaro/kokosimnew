@@ -1,0 +1,20 @@
+﻿prefecture_code,prefecture_name,check_type,observed_value,decision,source_ids,notes
+11,埼玉県,jhbf_2026_official_count,153,target_count,SRC000099,2026年5月末硬式加盟校数。
+11,埼玉県,summer_2026,150 schools / 139 teams,base_roster,SRC000154,3連合を学校単位へ展開した現行夏大会参加校。
+11,埼玉県,summer_union_1,幸手桜;吉川美南;松伏;三郷工業技術,expand_4,SRC000154,4校連合。
+11,埼玉県,summer_union_2,栗橋北彩;日高;新座総合技術;上尾橘;桶川西,expand_5,SRC000154,5校連合。
+11,埼玉県,summer_union_3,越生翔桜;児玉;小鹿野;深谷;小川,expand_5,SRC000154,5校連合。
+11,埼玉県,spring_nonparticipant_members,三郷;羽生実業,add_2,SRC000155,春季地区予選で不参加校として明記。
+11,埼玉県,spring_union_member_missing_from_summer,羽生第一,add_1,SRC000155,春季6校連合の構成校。夏150校には含まれない。
+11,埼玉県,final_set,150 + 3 = 153,exact_match,SRC000154;SRC000155;SRC000099,2026公式数と完全一致。
+29,奈良県,jhbf_2026_official_count,39,target_count,SRC000099,2026年5月末硬式加盟校数。
+29,奈良県,summer_2026,39 schools / 33 teams,expand_unions,SRC000157,2つの4校連合を学校単位へ展開。
+29,奈良県,union_A,高円芸術;奈良国際;二階堂;山辺,expand_4,SRC000157;SRC000158,4校連合。
+29,奈良県,union_B,青翔;西和清陵;十津川;奈良南,expand_4,SRC000157;SRC000158,4校連合。
+29,奈良県,final_set,39,exact_match,SRC000157;SRC000158;SRC000099,2026公式数と完全一致。
+43,熊本県,jhbf_2026_official_count,59,target_count,SRC000099,2026年5月末硬式加盟校数。
+43,熊本県,summer_2026,59 schools / 54 teams,expand_unions,SRC000159,3連合を学校単位へ展開。
+43,熊本県,union_1,熊本高専熊本;菊池農,expand_2,SRC000159,2校連合。
+43,熊本県,union_2,矢部;甲佐;湧心館;八代農,expand_4,SRC000159,4校連合。
+43,熊本県,union_3,天草拓心;牛深,expand_2,SRC000159,2校連合。
+43,熊本県,final_set,59,exact_match,SRC000159;SRC000099,2026公式数と完全一致。

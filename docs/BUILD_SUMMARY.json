@@ -1,0 +1,18 @@
+{
+  "build_date": "2026-10-05",
+  "phase1_completed_zip_files": 132,
+  "stage12f_zip_files": 255,
+  "phase1_files_common_with_stage12f": 131,
+  "phase1_common_sha_differences": 0,
+  "stage12g_schedule_rows": 12,
+  "stage12g_match_day_rows": 92,
+  "stage12g_new_phase2_source_rows": 7,
+  "phase2_sources_total_after_merge": 175,
+  "prefectural_official_schedule": 15,
+  "prefectural_research_pending": 79,
+  "unittest_pass": 74,
+  "unittest_fail": 0,
+  "season_cli_status": "PASS",
+  "season_prefectural_pass": "94/94",
+  "season_calendar_gap_count": 79
+}

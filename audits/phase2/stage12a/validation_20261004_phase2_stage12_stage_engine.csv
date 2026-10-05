@@ -1,0 +1,32 @@
+﻿check_id,check_name,status,details
+P2S12V001,stage_rows_207,PASS,actual=207
+P2S12V002,branch_qualifier_stage_35,PASS,actual=35
+P2S12V003,seed_event_stage_9,PASS,actual=9
+P2S12V004,gifu_first_tournament_stage_1,PASS,CMP000110 explicit 1st tournament
+P2S12V005,affected_stage_sequences_contiguous,PASS,bad=[]
+P2S12V006,qualifier_group_area_mapping_complete,PASS,unmapped=0
+P2S12V007,qualifier_slot_sums_match_35,PASS,bad=[]
+P2S12V008,access_rule_binding_17,PASS,actual=17 expected=17
+P2S12V009,seed_rule_binding_55,PASS,actual=55 expected=55
+P2S12V010,bindings_unique_rule,PASS,no duplicate rule binding
+P2S12V011,stage_group_stage_fk,PASS,all stage groups reference existing stage
+P2S12V012,transition_stage_fk,PASS,all transitions reference existing stages
+P2S12V013,gifu_seed_16,PASS,actual=16
+P2S12V014,gifu_seed_all_bypass,PASS,all 16 seed slots enter second_tournament
+P2S12V015,gifu_binding_bypass_first,PASS,all Gifu seed bindings bypass FIRST_TOURNAMENT
+P2S12V016,seed_slots_93,PASS,actual=93
+P2S12V017,no_school_id_columns_new_tables,PASS,no school_id column
+P2S12V018,byte_identical_competition_access_rules.csv,PASS,sha=48ce32922d4670199006ecc5447b7593af8d947eb46e2257917a8eae35580652
+P2S12V019,byte_identical_competition_seed_rules.csv,PASS,sha=a61b49efad346732539b3a37ceb2d99bba4594b2af19e4f80445f08c1ec766b3
+P2S12V020,byte_identical_prefectural_branch_usage_2026.csv,PASS,sha=4d406b6654cc174bff5a88a79b872083a08c19afc6e68afb8b7b4464c13f6b80
+P2S12V021,byte_identical_qualification_rules.csv,PASS,sha=ce8f96dcf370fd9a273bdcef63d245e94c39309243616a6864370e54c80b9b45
+P2S12V022,byte_identical_phase2_stage11_manifest.csv,PASS,sha=6c56460fc18059acae4857bf123b33c8b868afc7294a95718c49e0f1736fc0fd
+P2S12V023,only_4_existing_files_changed,PASS,"changed=['competition_stages.csv', 'phase2_progress_summary.csv', 'phase2_rule_engine_dictionary.csv', 'phase2_table_dictionary.csv']"
+P2S12V024,audit_rows_44,PASS,actual=44
+P2S12V025,audit_all_rule_affected_stages,PASS,35 qualifier + 9 seed_only
+P2S12V026,main_policy_94,PASS,actual=94
+P2S12V027,reference_engine_syntax,PASS,py_compile PASS
+P2S12V028,reference_engine_validate,PASS,"{   ""status"": ""PASS"",   ""errors"": [] }"
+P2S12V029,reference_plan_CMP000110,PASS,stages=3
+P2S12V030,reference_plan_CMP000004,PASS,stages=2
+P2S12V031,reference_plan_CMP000116,PASS,stages=2

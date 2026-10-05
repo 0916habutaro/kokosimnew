@@ -1,0 +1,98 @@
+﻿table_name,purpose,primary_key,phase
+phase2_sources.csv,Phase 2で追加した公式根拠。Phase 1 sources.csvを変更しないためP2SRC名前空間を使用。,source_id,2A
+baseball_regions.csv,高校野球の春季・秋季地区大会および選抜/神宮選考で使う広域地区。,region_id,2A
+prefecture_region_memberships.csv,都道府県と広域地区の季節別所属。東京は春=関東、秋=東京として表現。,membership_id,2A
+competitions.csv,大会インスタンスのマスター。2026年の全国・地区・夏地方大会を登録。,competition_id,2A
+competition_stages.csv,大会内ステージ。2Aでは本大会のみ、支部予選・県大会ラウンドは後続で追加。,stage_id,2A
+season_calendar.csv,大会会期・抽選日・会場。非連続開催日はgame_date_listに保持。,calendar_id,2A
+qualification_rules.csv,大会結果による自動進出。夏49代表→甲子園、秋10地区優勝→神宮を登録。,rule_id,2A
+selection_rules.csv,自動進出ではない選抜選考ルール。2026選抜32枠を登録。,selection_rule_id,2A
+prefectural_competition_index_2026.csv,47都道府県×春秋=94県大会本体とcompetition_idの対応表,,
+prefectural_branch_usage_2026.csv,各県大会でPhase 1恒常支部・地区を予選/シード/未使用のどれとして使うか、および本大会進出枠を管理,,
+phase2_stage2_tohoku_branch_usage_audit.csv,Phase 2段階2で確定した東北6県×春秋12大会のbranch usage、進出枠、直接出場、根拠を1行1大会で監査可能に保持。,audit_id,2B
+validation_20261004_phase2_stage2_tohoku_branch_usage.csv,段階2の構造・算術・参照整合性・非対象行不変を検証したチェック結果。,check_id,2B
+phase2_stage2_manifest.csv,段階2成果物ZIP内ファイルのSHA-256とbyte数。manifest自身は対象外。,file_name,2B
+phase2_stage3_kanto_branch_usage_audit.csv,Phase 2段階3で確定した関東7県×春秋14大会のbranch usage、進出枠、直接出場、根拠を1行1大会で監査可能に保持。,audit_id,2B
+validation_20261004_phase2_stage3_kanto_branch_usage.csv,段階3の構造・算術・参照整合性・非対象行不変を検証したチェック結果。,check_id,2B
+phase2_stage3_manifest.csv,段階3成果物ZIP内ファイルのSHA-256とbyte数。manifest自身は対象外。,file_name,2B
+phase2_stage4_hokushinetsu_branch_usage_audit.csv,Phase 2段階4で確定した北信越5県×春秋10大会のbranch usage、進出枠、直接出場、根拠を1行1大会で監査可能に保持。,audit_id,2B
+validation_20261004_phase2_stage4_hokushinetsu_branch_usage.csv,段階4の構造・算術・参照整合性・非対象行不変を検証したチェック結果。,check_id,2B
+phase2_stage4_manifest.csv,段階4成果物ZIP内ファイルのSHA-256とbyte数。manifest自身は対象外。,file_name,2B
+phase2_stage5_tokai_branch_usage_audit.csv,Phase 2段階5で確定した東海4県×春秋8大会のbranch usage、進出枠、直接出場、根拠を1行1大会で監査可能に保持。,audit_id,2B
+validation_20261004_phase2_stage5_tokai_branch_usage.csv,段階5の構造・算術・参照整合性・非対象行不変を検証したチェック結果。,check_id,2B
+phase2_stage5_manifest.csv,段階5成果物ZIP内ファイルのSHA-256とbyte数。manifest自身は対象外。,file_name,2B
+phase2_stage6_kinki_branch_usage_audit.csv,Phase 2段階6で確認した近畿6府県×春秋12大会のbranch usage、進出枠、直接出場、根拠を1行1大会で監査可能に保持。,audit_id,2B
+validation_20261004_phase2_stage6_kinki_branch_usage.csv,段階6の構造・算術・参照整合性・Stage 5非変更行不変を検証したチェック結果。,check_id,2B
+phase2_stage6_manifest.csv,段階6成果物ZIP内ファイルのSHA-256とbyte数。manifest自身は対象外。,file_name,2B
+phase2_stage7_chugoku_branch_usage_audit.csv,Phase 2段階7で確認した中国5県×春秋10大会のbranch usage、進出枠、直接出場、山口の周防・長門集約、根拠を1行1大会で監査可能に保持。,audit_id,2B
+validation_20261004_phase2_stage7_chugoku_branch_usage.csv,段階7の構造・算術・参照整合性・Stage 6非変更行/ファイル不変を検証したチェック結果。,check_id,2B
+phase2_stage7_manifest.csv,段階7成果物ZIP内ファイルのSHA-256とbyte数。manifest自身は対象外。,file_name,2B
+phase2_stage8_shikoku_branch_usage_audit.csv,Phase 2段階8で確認した四国4県×春秋8大会のbranch usage、seed_only、no_branch、根拠を1行1大会で監査可能に保持。,audit_id,2B
+validation_20261004_phase2_stage8_shikoku_branch_usage.csv,段階8の構造・算術・参照整合性・Stage 7非変更行/ファイル不変を検証したチェック結果。,check_id,2B
+phase2_stage8_manifest.csv,段階8成果物ZIP内ファイルのSHA-256とbyte数。manifest自身は対象外。,file_name,2B
+phase2_stage9_kyushu_branch_usage_audit.csv,Phase 2段階9で確認した九州8県×春秋16大会のbranch usage、qualifier/seed_only/not_used、進出枠、根拠を1行1大会で監査可能に保持。,audit_id,2B
+validation_20261004_phase2_stage9_kyushu_branch_usage.csv,段階9の構造・算術・参照整合性・Stage 8非変更行/ファイル不変を検証したチェック結果。,check_id,2B
+phase2_stage9_manifest.csv,段階9成果物ZIP内ファイルのSHA-256とbyte数。manifest自身は対象外。,file_name,2B
+phase2_stage10_hokkaido_branch_usage_audit.csv,Phase 2段階10で確認した北海道春秋2大会のbranch usage、支部別進出枠、春の選抜推薦枠、根拠を1行1大会で監査可能に保持。,audit_id,2B
+validation_20261004_phase2_stage10_hokkaido_branch_usage.csv,段階10の構造・算術・参照整合性・Stage 9非変更行/ファイル不変・94大会完全確定を検証したチェック結果。,check_id,2B
+phase2_stage10_manifest.csv,段階10成果物ZIP内ファイルのSHA-256とbyte数。manifest自身は対象外。,file_name,2B
+competition_access_rules.csv,前年順位・当年夏代表・選抜出場等から、地区予選免除・県大会直接出場・シード決め免除を学校名非依存で動的解決するルール。,access_rule_id,2C
+competition_seed_rules.csv,seed_only 9大会と三重秋の特例について、地区/新人大会結果から県大会シードを動的生成するルール。,seed_rule_id,2C
+phase2_rule_engine_dictionary.csv,competition_access_rules / competition_seed_rules の列・列挙値とゲームエンジン解釈。,,2C
+phase2_stage11_rule_structuring_audit.csv,特別枠・予選免除・seed_onlyの構造化対象25大会を1行1大会で監査。,audit_id,2C
+validation_20261004_phase2_stage11_rule_structuring.csv,Stage 11動的ルールの件数・参照整合性・2026再現値・学校名非固定・Stage10不変性を検証。,check_id,2C
+phase2_stage11_manifest.csv,Stage 11成果物ZIP内ファイルのSHA-256とbyte数。manifest自身は対象外。,file_name,2C
+competition_stage_groups.csv,地区・支部予選またはシード決定イベントをarea group単位へ正規化し、進出枠・seed生成数・参加校抽出元を定義。,stage_group_id,2D
+competition_stage_transitions.csv,予選→本戦、seed event→本戦、岐阜秋の1次免除など、stage間のteam集合移送規則。,transition_id,2D
+competition_stage_action_bindings.csv,Stage 11のaccess/seed全ルールを実行stage・適用タイミング・効果へ結合。,binding_id,2D
+bracket_generation_policies.csv,各県大会stageの組合せ生成ポリシーと、未確定方式を暗黙推定しないexecution readiness。,bracket_policy_id,2D
+phase2_stage12_stage_engine_audit.csv,Stage 12A対象44大会をstage graph・rule binding・組合せ準備状態で監査。,audit_id,2D
+validation_20261004_phase2_stage12_stage_engine.csv,Stage 12Aの件数、FK、進出枠算術、Stage 11不変性、reference engine実行を検証。,check_id,2D
+phase2_rule_engine_reference.py,CSV契約を読み込み、構造検証と大会別execution plan出力を行う参照実装。,,2D
+phase2_stage12_manifest.csv,Stage 12A成果物ZIP内ファイルのSHA-256とbyte数。manifest自身は対象外。,file_name,2D
+competition_stage_format_models.csv,地区予選・シード決定戦の再利用可能な内部方式モデル定義。,format_model_id,2L
+competition_stage_format_phases.csv,方式モデル内の一次予選・敗者復活・リーグ・順位決定等のphase定義。,format_phase_id,2L
+competition_stage_internal_transitions.csv,方式モデル内部phase間の参加者移送規則。,internal_transition_id,2L
+competition_stage_format_assignments.csv,35地区予選＋9シードイベントへの2026方式モデル割当。,format_assignment_id,2L
+competition_stage_group_format_overrides.csv,184地区group単位の方式・実行責務・出力先。,group_format_id,2L
+competition_stage_format_parameters.csv,大会/地区固有の枠数・リーグ数・補充戦等parameter。,parameter_id,2L
+phase2_stage12b_exact_format_audit.csv,Stage 12B対象44 stage＋岐阜秋1次補助stageの方式解消・global/mixed構造監査。,stage_id,2L
+validation_20261004_phase2_stage12b_exact_formats.csv,Stage 12BのFK・件数・保護ファイル・実行計画検証。,check_id,2L
+phase2_stage12b_manifest.csv,Stage 12B ZIP内ファイルのSHA-256 manifest。,file_name,2L
+phase2_stage12c1_engine_audit.csv,Stage 12C-1共通大会エンジンと岐阜秋実行経路の監査。,audit_id,2M
+validation_20261004_phase2_stage12c1_engine.csv,Stage 12C-1コード・件数・seed再現・保護ファイルの検証。,check_id,2M
+phase2_stage12c1_manifest.csv,Stage 12C-1 ZIP内ファイルのSHA-256 manifest。,file_name,2M
+phase2_stage12c2_engine_audit.csv,Stage 12C-2異方式共通大会エンジン、代表4方式と回帰結果の監査。,audit_id,2M
+validation_20261004_phase2_stage12c2_engine.csv,Stage 12C-2のformat handler・件数・seed再現・保護ファイル検証。,check_id,2M
+phase2_stage12c2_manifest.csv,Stage 12C-2 ZIP内ファイルのSHA-256 manifest。,file_name,2M
+phase2_stage12c3_engine_audit.csv,Stage 12C-3全26方式dispatch、追加17方式・23大会、全構造化大会実行結果の監査。,audit_id,2M
+stage12c3_structured_competition_execution.csv,Stage 12B format assignmentを持つ44大会のstructural harness実行サマリー。,competition_id,2M
+validation_20261004_phase2_stage12c3_engine.csv,Stage 12C-3の方式網羅、23/23・44/44実行、保護CSV不変性、テスト結果の検証。,check_id,2M
+phase2_stage12c3_manifest.csv,Stage 12C-3 ZIP内ファイルのSHA-256 manifest。manifest自身は対象外。,file_name,2M
+main_tournament_engine_policies.csv,94県春秋MAINのsimulation draw・bye・結果保存方針。公式抽選規則とは分離。,main_engine_policy_id,2M
+stage12c4_prefectural_main_execution.csv,47都道府県×春秋94大会のMAIN全ラウンド構造実行サマリー。,competition_id,2M
+phase2_stage12c4_engine_audit.csv,Stage 12C-4 MAIN bracket・順位・結果保存・全国実行の監査。,audit_id,2M
+validation_20261004_phase2_stage12c4_main_engine.csv,Stage 12C-4のコード・94大会・回帰・保護CSV不変性の検証。,check_id,2M
+phase2_stage12c4_manifest.csv,Stage 12C-4 ZIP内ファイルのSHA-256 manifest。manifest自身は対象外。,file_name,2M
+stage12d_prefectural_season_execution.csv,12D春秋94大会のseason resolver実行結果。,competition_id,2N
+stage12d_access_dependency_audit.csv,17 access ruleの前年秋/Senbatsu/当年夏result解決監査。,access_rule_id,2N
+stage12d_qualification_dependency_audit.csv,59 automatic qualification ruleのseason状態からの解決監査。,rule_id,2N
+stage12d_regional_bridge_gap_audit.csv,県大会→春秋地区大会の未構造化feeder 16件。,competition_id,2N
+stage12d_calendar_gap_audit.csv,県春秋94大会のcalendar未確定91件。,competition_id,2N
+stage12d_internal_structure_gap_audit.csv,season監査で検出した内部前段stage不足。,competition_id,2N
+stage12d_senbatsu_structural_bootstrap.csv,選抜32校の構造監査用deterministic fixture。実在2026校リストではない。,ordinal,2N
+stage12d_season_summary.json,Stage12D season audit集計。,year,2N
+phase2_stage12d_season_audit.csv,Stage12D高レベル監査。,audit_id,2N
+validation_20261005_phase2_stage12d_season_e2e.csv,Stage12Dのresolver・gap検出・回帰・保護データ検証。,check_id,2N
+phase2_stage12d_manifest.csv,Stage12D ZIP内ファイルSHA-256 manifest。manifest自身は対象外。,file_name,2N
+regional_feeder_rules.csv,春秋16地区大会への県大会順位・選抜推薦・決定戦候補の進出規則。,feeder_rule_id,2O
+regional_qualification_playoffs.csv,2026秋近畿の4府県3位校による2つの地区大会出場決定戦。,playoff_id,2O
+stage12e_regional_feeder_structure_audit.csv,春8＋秋8地区大会の規定枠合計監査。,competition_id,2O
+stage12e_regional_execution_audit.csv,Stage12E season実行で16地区大会の参加数・優勝まで検証。,competition_id,2O
+phase2_stage12e_engine_audit.csv,Stage12E高レベル監査。,audit_id,2O
+validation_20261005_phase2_stage12e_regional_feeders.csv,Stage12E feeder・playoff・Jingu接続・回帰検証。,check_id,2O
+phase2_stage12e_manifest.csv,Stage12E ZIP内ファイルSHA-256 manifest。manifest自身は対象外。,file_name,2O
+tokyo_autumn_preliminary_policies.csv,東京秋一次予選の31番号ブロックA/B代表・夏東西代表免除・2026参加学校/チーム単位差を保持。,policy_id,2P
+stage12f_tokyo_autumn_preliminary_audit.csv,Stage12F東京秋前段予選の構造・実行・gap解消監査。,audit_id,2P
+validation_20261005_phase2_stage12f_tokyo_preliminary.csv,Stage12Fの東京秋一次予選・アクセス・回帰・成果物検証。,check_id,2P
+phase2_stage12f_manifest.csv,Stage12F ZIP内ファイルSHA-256 manifest。manifest自身は対象外。,file_name,2P

@@ -1,0 +1,48 @@
+﻿prefecture_code,prefecture_name,expected_2026_hardball_count,registered_count,delta,validation_status,direct30_status,count_source_id,notes
+01,北海道,192,192,0,exact_match,completed_followup,SRC000225,北海道192校登録。2026夏185校を学校単位へ展開し、夏不参加7校を活動・学校公式情報・道高野連現行掲載で補完。道高野連現行加盟校ページの284表示は歴代合同チーム表記等が混在するため独立学校数として不採用。JHBF 2026年5月末公式192校と一致。
+02,青森県,53,53,0,exact_match,completed,SRC000099,
+03,岩手県,61,61,0,exact_match,completed_followup,SRC000099,岩手県61校登録。2026夏58校＋水沢農業・紫波総合・軽米3校でJHBF 2026年5月末公式61校と一致。
+04,宮城県,65,65,0,exact_match,completed_followup,SRC000099,宮城65校登録。JHBF 2026年5月末65校と一致。旧69校から亘理・柴田農林・登米・蔵王を除外し、石巻商業・村田は夏不参加でも保持。
+05,秋田県,42,42,0,exact_match,completed_followup,SRC000099,秋田42校登録。JHBF 2026年5月末42校と一致。県高野連公式ページ43掲載単位のうち、大曲農業太田分校は親校へ統合し活動情報を注記保持。
+06,山形県,42,42,0,exact_match,completed_followup,SRC000099,山形県42校登録。JHBF 2026年5月末公式加盟校数と一致。37チーム→4校連合（高畠・南陽・長井工・左沢）＋3校連合（天童・谷地・上山明新館）を展開して42校。
+07,福島県,67,67,0,exact_match,completed_followup,SRC000099,令和8年度福島県高野連公式加盟校一覧PDFから硬式67校を住所・設置区分付きで登録。日本高野連2026年5月末67校と一致。
+08,茨城県,100,100,0,exact_match,completed_followup,SRC000099,茨城県100校登録。OmyuTech加盟校99校＋2026夏7校連合に出場した茎崎1校でJHBF公式100校と一致。
+09,栃木県,62,62,0,exact_match,count_mismatch_pending_reconciliation,SRC000099,2026基準へ再照合完了。日光明峰・馬頭を2026硬式加盟対象から除外し62校。日本高野連2026年5月末公式62校と一致。
+10,群馬県,68,68,0,exact_match,completed_followup,SRC000099,群馬県68校登録。2026夏65校＋万場・嬬恋・板倉3校でJHBF公式68校と一致。
+11,埼玉県,153,153,0,exact_match,completed_followup,SRC000099,埼玉県153校登録。JHBF 2026年5月末公式加盟校数と一致。夏150校＋夏不参加の現役加盟3校（三郷・羽生実業・羽生第一）＝153校。
+12,千葉県,174,174,0,exact_match,completed,SRC000099,
+13,東京都,269,269,0,exact_match,completed,SRC000099,
+14,神奈川県,186,186,0,exact_match,completed_followup,SRC000099,神奈川186校登録。現行OmyuTech 181行から軟式重複1行を除き硬式180校、県高野連公式2026春季地区予選で確認した6校（厚木王子・平塚農商・小田原北・青葉総合・三浦初声・横浜瀬谷）を補完し、JHBF 2026年5月末公式186校と一致。夏不参加3校（横須賀南・吉田島・愛川）は加盟維持。
+15,新潟県,78,78,0,exact_match,completed,SRC000099,
+16,富山県,43,43,0,exact_match,completed_followup,SRC000099,富山県43校登録。JHBF 2026年5月末公式加盟校数と一致。夏42校＋中央農業1校。中央農業は2026春季4校連合で現役硬式参加を確認。
+17,石川県,50,50,0,exact_match,completed_followup,SRC000099,石川50校登録。JHBF 2026年5月末50校と一致。公式2026リンクは空のため、県高野連2025公式50校名簿＋現行Omyu51校との差分分析で国際高等専門学校を除外して確定。
+18,福井県,28,28,0,exact_match,completed_followup,SRC000099,福井県28校登録。JHBF 2026年5月末公式加盟校数と一致。27チーム枠→福井農林・奥越明成の2校連合を展開して28校。
+19,山梨県,33,33,0,exact_match,completed,SRC000099,
+20,長野県,82,82,0,exact_match,completed_followup,SRC000099,2026年度長野県高野連公式加盟校名簿PDFから硬式82校を住所・設置区分付きで登録。日本高野連2026年5月末82校と一致。
+21,岐阜県,67,67,0,exact_match,completed,SRC000099,
+22,静岡県,108,108,0,exact_match,completed_followup,SRC000099,静岡県108校登録。JHBF 2026年5月末公式加盟校数と一致。106チーム。沼津工・熱海の2校連合と、浜松湖北佐久間分校・新居の2校連合を展開して108校。
+23,愛知県,182,182,0,exact_match,needs_location_supplement,SRC000099,愛知県高野連2026-04-01硬式加盟校182校を登録し、日本高野連2026年5月末公式数182校と一致。
+24,三重県,63,63,0,exact_match,count_mismatch_pending_reconciliation,SRC000099,2026基準へ再照合完了。志摩・あけぼの学園・桜丘を除外し、熊野青藍を追加して63校。日本高野連2026年5月末公式63校と一致。
+25,滋賀県,52,52,0,exact_match,completed_followup,SRC000099,滋賀県52校登録。JHBF 2026年5月末公式加盟校数と一致。47チーム。安曇川・湖南農・石部・信楽・愛知・長浜農の6校連合を展開して52校。
+26,京都府,76,76,0,exact_match,needs_location_supplement,SRC000099,令和8年度京都府高野連硬式加盟校76校を登録し、2026公式数76校と一致。
+27,大阪府,172,172,0,exact_match,completed_followup,SRC000099,大阪府172校登録。現行加盟校一覧173校から2026年8月新規加盟の明浄学院を5月末基準外として除外。JHBF 2026年5月末公式172校と一致。布施工科は夏前に連盟脱退。
+28,兵庫県,167,167,0,exact_match,completed_followup,SRC000099,兵庫県167校登録。2026夏166校を学校単位へ展開し、夏不参加の生野を2026秋季大会活動確認で補完。JHBF 2026年5月末公式167校と一致。
+29,奈良県,39,39,0,exact_match,completed_followup,SRC000099,奈良県39校登録。JHBF 2026年5月末公式加盟校数と一致。33チームを2つの4校連合へ展開し39校。
+30,和歌山県,39,39,0,exact_match,needs_location_supplement,SRC000099,
+31,鳥取県,24,24,0,exact_match,completed,SRC000099,
+32,島根県,38,38,0,exact_match,completed,SRC000099,
+33,岡山県,59,59,0,exact_match,completed,SRC000099,
+34,広島県,94,94,0,exact_match,completed_followup,SRC000099,広島94校登録。県高野連およびJHBFの2026公式94校と一致。Omyu加盟校88校＋2026夏大会差分6校の和集合で学校名を復元。
+35,山口県,54,54,0,exact_match,completed_followup,SRC000099,山口県54校登録。JHBF 2026年5月末公式加盟校数と一致。夏53校＋岩国総合1校。岩国総合は2026現在も現役校で、旧名簿の廃校・再編校を除外して整合。
+36,徳島県,30,30,0,exact_match,completed,SRC000099,
+37,香川県,37,37,0,exact_match,completed_followup,SRC000099,香川県37校登録。JHBF 2026年5月末公式加盟校数と一致。35チーム→石田・琴平・飯山の3校連合を展開して37校。
+38,愛媛県,60,60,0,exact_match,completed,SRC000099,
+39,高知県,28,28,0,exact_match,completed_followup,SRC000099,高知県28校登録。2026夏26校＋嶺北・清水2校でJHBF公式28校と一致。嶺北は学校公式が2026-05-01時点の高野連所属継続を明記。
+40,福岡県,137,137,0,exact_match,completed,SRC000099,
+41,佐賀県,36,36,0,exact_match,completed_followup,SRC000099,佐賀県36校登録。JHBF 2026年5月末公式加盟校数と一致。2026夏は36校・連合なし。県公式の出場校36校とも一致。
+42,長崎県,53,53,0,exact_match,completed_followup,SRC000099,長崎県53校登録。JHBF 2026年5月末公式加盟校数と一致。夏52校＋国見1校。国見は現行県立学校公式サイトに野球部活動計画が掲載。
+43,熊本県,59,59,0,exact_match,completed_followup,SRC000099,熊本県59校登録。JHBF 2026年5月末公式加盟校数と一致。54チームを3連合へ展開し59校。
+44,大分県,44,44,0,exact_match,completed,SRC000099,
+45,宮崎県,47,47,0,exact_match,completed_followup,SRC000099,宮崎県47校登録。JHBF 2026年5月末公式加盟校数と一致。46チーム→高城・福島の2校連合を展開して47校。
+46,鹿児島県,71,71,0,exact_match,count_mismatch_pending_reconciliation,SRC000099,2026基準へ再照合完了。加世田常潤・串木野・鶴翔・古仁屋を2026硬式加盟対象から除外し71校。日本高野連2026年5月末公式71校と一致。
+47,沖縄県,62,62,0,exact_match,completed_followup,SRC000099,沖縄県62校登録。JHBF 2026年5月末公式加盟校数と一致。夏61校＋北部農林1校。北部農林は2026秋季4校連合で硬式活動を確認。

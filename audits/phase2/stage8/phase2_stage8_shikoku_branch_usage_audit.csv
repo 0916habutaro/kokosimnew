@@ -1,0 +1,9 @@
+﻿audit_id,reference_year,prefecture_code,prefecture_name,season_segment,competition_id,branch_scheme_id,branch_usage_type,branch_qualifier_exists,branch_slot_total,branch_slot_allocation,direct_entry_count,direct_entry_rule,primary_source_id,supporting_source_ids,evidence_summary,verification_status,verified_at
+P2S8AUD001,2026,36,徳島県,spring,CMP000139,ASM000079,not_used,no,0,南部ブロック:0;中央ブロック:0;西部ブロック:0,0,総体協賛ブロック大会は春季県大会の進出予選として使用しない,P2SRC096,P2SRC097,春季県大会は3月20日から県大会1回戦を直接実施。総体協賛ブロック大会は6月の別大会。,verified_2026_tournament_material,2026-10-04
+P2S8AUD002,2026,36,徳島県,autumn,CMP000140,ASM000079,seed_only,no,0,南部ブロック:0;中央ブロック:0;西部ブロック:0,0,新人ブロック・新人中央大会は秋季県大会参加資格の絞り込みには使用しない,P2SRC100,P2SRC098;P2SRC099,新人中央大会2回戦進出4校が秋季県大会の第1～第4シード抽選対象。27チームは県大会へ直接参加。,verified_2026_tournament_material,2026-10-04
+P2S8AUD003,2026,37,香川県,spring,CMP000141,,no_branch,no,0,,0,,P2SRC101,P2SRC102,Phase 1で恒常支部なしを確定済み。2026春も香川県大会を県単位で直接実施。,phase1_not_applicable_confirmed,2026-10-04
+P2S8AUD004,2026,37,香川県,autumn,CMP000142,,no_branch,no,0,,0,,P2SRC102,,Phase 1の恒常支部なし判定を維持。2026秋も香川県大会として県単位で実施。,phase1_not_applicable_confirmed,2026-10-04
+P2S8AUD005,2026,38,愛媛県,spring,CMP000143,ASM000054,not_used,no,0,東予地区:0;中予地区:0;南予地区:0,0,東予・中予・南予による春季県大会出場校の絞り込みなし,P2SRC103,P2SRC107,2026春季県大会は県内一括トーナメント。初期ラウンドから地区をまたぐ対戦を含み、地区別代表選抜ではない。,verified_2026_tournament_material,2026-10-04
+P2S8AUD006,2026,38,愛媛県,autumn,CMP000144,ASM000054,seed_only,no,0,東予地区:0;中予地区:0;南予地区:0,0,地区新人大会は出場資格ではなくシード決定に使用。県大会内の予選→本選は県内一括ステージ,P2SRC105,P2SRC104;P2SRC106,東予5・中予4・南予3の新人大会ブロック1位12校＋夏甲子園出場の新田が秋季県大会シード。地区別予選による出場校絞り込みではない。,verified_2026_tournament_material,2026-10-04
+P2S8AUD007,2026,39,高知県,spring,CMP000145,,no_branch,no,0,,0,,P2SRC108,,Phase 1で恒常支部なしを確定済み。2026春も高知県予選を県単位の本大会として実施。,phase1_not_applicable_confirmed,2026-10-04
+P2S8AUD008,2026,39,高知県,autumn,CMP000146,,no_branch,no,0,,0,,P2SRC109,,Phase 1の恒常支部なし判定を維持。2026秋も高知県予選を県単位の本大会として実施。,phase1_not_applicable_confirmed,2026-10-04

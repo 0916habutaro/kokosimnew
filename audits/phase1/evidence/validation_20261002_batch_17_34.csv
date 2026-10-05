@@ -1,0 +1,9 @@
+﻿check,value,status
+school_rows,1852,ok
+program_rows,1852,ok
+ishikawa_17_count,50,ok
+hiroshima_34_count,94,ok
+exact_match_prefectures,23,ok
+remaining_not_registered,24,ok
+source_rows,141,ok
+integrity_errors,0,ok

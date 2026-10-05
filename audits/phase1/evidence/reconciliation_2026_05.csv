@@ -1,0 +1,9 @@
+﻿prefecture_code,prefecture_name,check_type,observed_value,decision,source_ids,notes
+05,秋田県,official_north_rows,8,accept,SRC000149,令和8年度県北地区公式加盟校掲載単位。
+05,秋田県,official_central_rows,18,accept,SRC000150,令和8年度中央地区公式加盟校掲載単位。
+05,秋田県,official_south_rows,17,normalize_branch,SRC000151,令和8年度県南地区公式加盟校掲載単位。本校と太田分校を別行掲載。
+05,秋田県,official_page_total_rows,43,normalize_to_school_entity,SRC000149;SRC000150;SRC000151,8+18+17=43掲載単位。
+05,秋田県,jhbf_2026_official_count,42,target_count,SRC000099,日本高野連2026年5月末硬式加盟校数。
+05,秋田県,branch_unit,秋田県立大曲農業高等学校太田分校,merge_into_parent_school,SRC000151;SRC000153,Phase1ではschool_idを親校へ統合。分校の所在地・硬式野球活動は親校notesに保持。
+05,秋田県,summer_2026,35 teams,cross_check,SRC000152,連合チームを含む2026夏大会参加状況の補助照合。
+05,秋田県,final_count,42,exact_match,SRC000099;SRC000149;SRC000150;SRC000151,JHBF 2026公式数と完全一致。

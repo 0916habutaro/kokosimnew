@@ -1,0 +1,17 @@
+﻿competition_id,competition_name,season_segment,region_id,entrant_count,expected_team_count,champion_school_id,runner_up_school_id,match_count,status,notes
+CMP000014,,autumn,REG02,18,18,SCH001962,SCH001921,17,PASS,structural simulation; annual official draw/results may override
+CMP000015,,autumn,REG03,15,15,SCH000089,SCH003319,14,PASS,structural simulation; annual official draw/results may override
+CMP000017,,autumn,REG05,16,16,SCH001739,SCH001688,15,PASS,structural simulation; annual official draw/results may override
+CMP000018,,autumn,REG06,12,12,SCH000269,SCH001462,11,PASS,structural simulation; annual official draw/results may override
+CMP000019,,autumn,REG07,16,16,SCH003528,SCH003153,15,PASS,structural simulation; annual official draw/results may override
+CMP000020,,autumn,REG08,16,16,SCH000301,SCH000302,15,PASS,structural simulation; annual official draw/results may override
+CMP000021,,autumn,REG09,12,12,SCH001143,SCH001153,11,PASS,structural simulation; annual official draw/results may override
+CMP000022,,autumn,REG10,16,16,SCH000516,SCH001297,15,PASS,structural simulation; annual official draw/results may override
+CMP000005,,spring,REG02,14,14,SCH001603,SCH001588,13,PASS,structural simulation; annual official draw/results may override
+CMP000006,,spring,REG03,17,17,SCH003318,SCH000874,16,PASS,structural simulation; annual official draw/results may override
+CMP000007,,spring,REG05,8,8,SCH001692,SCH001717,7,PASS,structural simulation; annual official draw/results may override
+CMP000008,,spring,REG06,8,8,SCH002504,SCH000421,7,PASS,structural simulation; annual official draw/results may override
+CMP000009,,spring,REG07,8,8,SCH001350,SCH001205,7,PASS,structural simulation; annual official draw/results may override
+CMP000010,,spring,REG08,8,8,SCH002622,SCH000330,7,PASS,structural simulation; annual official draw/results may override
+CMP000011,,spring,REG09,8,8,SCH001139,SCH001244,7,PASS,structural simulation; annual official draw/results may override
+CMP000012,,spring,REG10,16,16,SCH002711,SCH002361,15,PASS,structural simulation; annual official draw/results may override

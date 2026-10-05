@@ -1,0 +1,24 @@
+﻿check_id,status,details
+S3-01,PASS,関東対象行=14（期待14）
+S3-02,PASS,関東14行にresearch_pendingなし
+S3-03,PASS,"分布={'qualifier': 8, 'not_used': 6}"
+S3-04,PASS,qualifier 8行はbranch_qualifier_exists=yes
+S3-05,PASS,qualifier 8行はbranch_slot_total>0
+S3-06,PASS,qualifier 8行のallocation合計=branch_slot_total
+S3-07,PASS,not_used 6行はqualifierなし
+S3-08,PASS,not_used 6行の進出枠=0
+S3-09,PASS,関東qualifierの地区・ブロック進出枠合計=393
+S3-10,PASS,関東14大会の直接出場・予選免除合計=23
+S3-11,PASS,関東14行のprimary_source_idがphase2_sources.csvに存在
+S3-12,PASS,関東14行の検証ステータス・日付統一
+S3-13,PASS,全94行のresearch_pending=54
+S3-14,PASS,prefectural_branch_usage_2026.csv=94行（期待94）
+S3-15,PASS,関東以外80行はStage2から内容不変
+S3-16,PASS,千葉春: 予選突破40枠を8ブロックへ再集計、免除8枠は別管理
+S3-17,PASS,千葉秋: 予選28＋敗者復活19=47枠、拓大紅陵直接1枠
+S3-18,PASS,神奈川春: 地区81枠＋推薦1枠
+S3-19,PASS,神奈川秋: 地区80枠＋推薦1枠
+S3-20,PASS,Stage3監査表14行が全件verified
+S3-21,PASS,phase2_sources.csvは25→41件（Stage3根拠16件追加）
+S3-22,PASS,"全94行の分布={'research_pending': 54, 'seed_only': 2, 'qualifier': 14, 'not_used': 10, 'no_branch': 14}"
+S3-23,PASS,"Stage2既存ファイルの変更=['phase2_progress_summary.csv', 'phase2_sources.csv', 'phase2_table_dictionary.csv', 'prefectural_branch_usage_2026.csv']（意図した4ファイルのみ）"

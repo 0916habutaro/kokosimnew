@@ -1,0 +1,13 @@
+﻿selection_rule_id,destination_competition_id,selection_scope,region_id,base_quota,bonus_quota,total_quota,selection_method,basis_season_year,primary_source_id,verified_at,notes
+SRL000001,CMP000001,北海道,REG01,1,0,1,committee_selection,2025,P2SRC006,2026-10-04,
+SRL000002,CMP000001,東北,REG02,3,0,3,committee_selection,2025,P2SRC006,2026-10-04,
+SRL000003,CMP000001,関東,REG03,4,0,4,committee_selection,2025,P2SRC006,2026-10-04,
+SRL000004,CMP000001,東京,REG04,1,0,1,committee_selection,2025,P2SRC006,2026-10-04,
+SRL000005,CMP000001,関東・東京,,1,0,1,committee_selection,2025,P2SRC006,2026-10-04,関東・東京の比較選考枠。
+SRL000006,CMP000001,北信越,REG05,2,0,2,committee_selection,2025,P2SRC006,2026-10-04,
+SRL000007,CMP000001,東海,REG06,3,0,3,committee_selection,2025,P2SRC006,2026-10-04,
+SRL000008,CMP000001,近畿,REG07,6,0,6,committee_selection,2025,P2SRC006,2026-10-04,
+SRL000009,CMP000001,中国,REG08,2,0,2,committee_selection,2025,P2SRC006,2026-10-04,
+SRL000010,CMP000001,四国,REG09,2,0,2,committee_selection,2025,P2SRC006,2026-10-04,
+SRL000011,CMP000001,九州,REG10,4,1,5,committee_selection,2025,P2SRC006,2026-10-04,九州のbonus_quota=1は前年明治神宮大会枠。
+SRL000012,CMP000001,21世紀枠,,2,0,2,21st_century_selection,2025,P2SRC006,2026-10-04,

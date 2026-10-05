@@ -1,0 +1,19 @@
+﻿check_id,check_description,status,detail
+C12C001,engine package exists,PASS,phase2_engine package
+C12C002,reference competition is Gifu autumn,PASS,CMP000110
+C12C003,demo entrant count,PASS,58
+C12C004,seed count,PASS,16
+C12C005,gate entrant count,PASS,42
+C12C006,gate match count,PASS,21
+C12C007,gate winner count,PASS,21
+C12C008,MAIN entrant count,PASS,37
+C12C009,no demo warnings,PASS,[]
+C12C010,transition TRN000040 ready,PASS,TRN000040
+C12C011,protected file byte-identical: competition_access_rules.csv,PASS,48ce32922d4670199006ecc5447b7593af8d947eb46e2257917a8eae35580652 / 48ce32922d4670199006ecc5447b7593af8d947eb46e2257917a8eae35580652
+C12C012,protected file byte-identical: competition_seed_rules.csv,PASS,a61b49efad346732539b3a37ceb2d99bba4594b2af19e4f80445f08c1ec766b3 / a61b49efad346732539b3a37ceb2d99bba4594b2af19e4f80445f08c1ec766b3
+C12C013,protected file byte-identical: prefectural_branch_usage_2026.csv,PASS,4d406b6654cc174bff5a88a79b872083a08c19afc6e68afb8b7b4464c13f6b80 / 4d406b6654cc174bff5a88a79b872083a08c19afc6e68afb8b7b4464c13f6b80
+C12C014,protected file byte-identical: qualification_rules.csv,PASS,ce8f96dcf370fd9a273bdcef63d245e94c39309243616a6864370e54c80b9b45 / ce8f96dcf370fd9a273bdcef63d245e94c39309243616a6864370e54c80b9b45
+C12C015,protected file byte-identical: competition_stage_format_models.csv,PASS,dc6228f974533f942a53471768df019e302a727664a70d7b0c86f9cd1ea0d603 / dc6228f974533f942a53471768df019e302a727664a70d7b0c86f9cd1ea0d603
+C12C016,protected file byte-identical: competition_stage_format_assignments.csv,PASS,a8b3856bc1bb34c0bc1f389b5b49fe5b5e9d932cba677be6d3063956d475358b / a8b3856bc1bb34c0bc1f389b5b49fe5b5e9d932cba677be6d3063956d475358b
+C12C017,engine source has no named-school hardcode,PASS,named-school scan
+C12C018,Stage12B planner still validates,PASS,validated separately after generation

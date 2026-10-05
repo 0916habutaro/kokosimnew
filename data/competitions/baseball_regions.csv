@@ -1,0 +1,11 @@
+﻿region_id,region_code,region_name,notes
+REG01,HOKKAIDO,北海道,
+REG02,TOHOKU,東北,
+REG03,KANTO,関東,
+REG04,TOKYO,東京,東京は春季は関東地区大会に参加し、秋季・選抜・神宮では東京地区として独立。
+REG05,HOKUSHINETSU,北信越,
+REG06,TOKAI,東海,
+REG07,KINKI,近畿,
+REG08,CHUGOKU,中国,
+REG09,SHIKOKU,四国,
+REG10,KYUSHU,九州,

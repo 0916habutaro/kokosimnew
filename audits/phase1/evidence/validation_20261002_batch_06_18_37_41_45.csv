@@ -1,0 +1,13 @@
+﻿check,value,status
+school_rows,2400,ok
+program_rows,2400,ok
+yamagata_06_count,42,ok
+fukui_18_count,28,ok
+kagawa_37_count,37,ok
+saga_41_count,36,ok
+miyazaki_45_count,47,ok
+new_registration_rows,190,ok
+exact_match_prefectures,33,ok
+remaining_not_registered,14,ok
+source_rows,174,ok
+integrity_errors,0,ok

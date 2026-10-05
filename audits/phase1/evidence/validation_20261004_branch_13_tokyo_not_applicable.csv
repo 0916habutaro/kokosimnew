@@ -1,0 +1,31 @@
+﻿check,status,details
+scheme_id_unique,PASS,86 rows
+area_id_unique,PASS,222 rows
+membership_id_unique,PASS,6832 rows
+source_id_unique,PASS,339 rows
+membership_scheme_fk,PASS,bad=0
+membership_area_fk,PASS,bad=0
+membership_program_fk,PASS,bad=0
+scheme_source_fk,PASS,bad=0
+area_source_fk,PASS,bad=0
+membership_source_fk,PASS,bad=0
+parent_area_fk,PASS,bad=0
+tokyo_school_count,PASS,actual=269 expected=269
+tokyo_status_not_applicable,PASS,not_applicable
+tokyo_branch_scheme_count,PASS,actual=0 expected=0
+tokyo_branch_membership_count,PASS,actual=0 expected=0
+tokyo_summer_scheme_preserved,PASS,"[('ASM000003', 'summer_representation')]"
+tokyo_summer_area_count,PASS,actual=2 expected=2
+tokyo_summer_membership_count,PASS,actual=269 expected=269
+tokyo_summer_distribution,PASS,"{'東東京': 140, '西東京': 129}"
+tokyo_new_sources_present,PASS,SRC000339-341
+summer_memberships_preserved,PASS,actual=3746 expected=3746
+branch_memberships_preserved,PASS,actual=3086 expected=3086
+area_schemes_rows,PASS,actual=86 expected=86
+competition_areas_rows,PASS,actual=222 expected=222
+school_area_memberships_rows,PASS,actual=6832 expected=6832
+progress_branch_registered,PASS,39
+progress_not_applicable,PASS,4
+progress_kanto_complete,PASS,7/7 complete
+progress_research_pending_zero,PASS,0
+all_checks_pass,PASS,pre-final aggregate

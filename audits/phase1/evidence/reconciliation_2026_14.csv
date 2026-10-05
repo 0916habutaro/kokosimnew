@@ -1,0 +1,7 @@
+﻿prefecture_code,prefecture_name,check_type,observed_value,decision,source_ids,notes
+14,神奈川県,jhbf_2026_official_count,186,target_count,SRC000099,2026年5月末硬式加盟校数。
+14,神奈川県,current_member_page,181 rows / 180 hardball unique,normalize_duplicate_rubberball_row,SRC000213,三浦学苑が硬式と軟式で2行掲載。軟式行を除外すると硬式ユニーク180校。
+14,神奈川県,missing_from_current_page_but_active,6 schools,add,SRC000214;SRC000216,厚木王子・平塚農商・小田原北・青葉総合・三浦初声・横浜瀬谷。県高野連公式2026春季地区予選で活動確認。
+14,神奈川県,summer_2026,183 schools / 172 teams / 186 members,cross_check,SRC000215;SRC000218,夏大会は172チーム。試合・連合表記を学校単位へ展開すると183校で、加盟186校との差は3校。
+14,神奈川県,summer_nonparticipants,3 schools: 横須賀南・吉田島・愛川,retain_as_members,SRC000213;SRC000218,現行硬式加盟校一覧には掲載される一方、夏参加校集合には不在。加盟186校と夏183校の差3校に一致。
+14,神奈川県,final_set,180 + 6 = 186,exact_match,SRC000099;SRC000213;SRC000214;SRC000215;SRC000216;SRC000218,JHBF 2026年5月末公式加盟校数186校と一致。

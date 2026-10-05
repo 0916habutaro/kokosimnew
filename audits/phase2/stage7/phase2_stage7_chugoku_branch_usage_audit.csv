@@ -1,0 +1,11 @@
+﻿audit_id,reference_year,prefecture_code,prefecture_name,season_segment,competition_id,branch_scheme_id,branch_usage_type,branch_qualifier_exists,branch_slot_total,branch_slot_allocation,direct_entry_count,direct_entry_rule,primary_source_id,supporting_source_ids,evidence_summary,verification_status,verified_at
+P2S7AUD001,2026,31,鳥取県,spring,CMP000129,,no_branch,no,0,,0,,P2SRC087,,Phase 1で恒常支部なしを確定済み。2026春も県大会を県単位で直接実施。,phase1_not_applicable_confirmed,2026-10-04
+P2S7AUD002,2026,31,鳥取県,autumn,CMP000130,,no_branch,no,0,,0,,P2SRC087,,Phase 1の恒常支部なし判定を維持。大会固有の抽選ブロックは恒常地理支部として扱わない。,phase1_not_applicable_confirmed,2026-10-04
+P2S7AUD003,2026,32,島根県,spring,CMP000131,ASM000075,not_used,no,0,松江地区:0;出雲地区:0;石見地区:0,0,松江・出雲・石見の地区大会は春季県大会の進出予選として使用しない,P2SRC088,,春季県大会は一次→二次16校→三次4校の県内一括方式。3地区大会は5月末～6月の別大会。,verified_2026_tournament_material,2026-10-04
+P2S7AUD004,2026,32,島根県,autumn,CMP000132,ASM000075,not_used,no,0,松江地区:0;出雲地区:0;石見地区:0,0,松江・出雲・石見の地区区分による秋季県大会進出校の絞り込みなし,P2SRC088,,秋季県大会も一次→二次16校→三次4校の県内一括方式で、3地区別の進出予選なし。,verified_2026_tournament_material,2026-10-04
+P2S7AUD005,2026,33,岡山県,spring,CMP000133,ASM000076,qualifier,yes,16,東部地区:7;西部地区:7;北部地区:2,8,前年秋季県大会ベスト8の8校は地区予選免除で県大会へ直接出場,P2SRC089,,地区予選16校＋前年秋季ベスト8の8校＝県大会24校。,verified_2026_tournament_material,2026-10-04
+P2S7AUD006,2026,33,岡山県,autumn,CMP000134,ASM000076,qualifier,yes,20,東部地区:9;西部地区:8;北部地区:3,0,なし,P2SRC090,,公式結果が県大会出場校を東部9・西部8・北部3と明記。,verified_2026_tournament_material,2026-10-04
+P2S7AUD007,2026,34,広島県,spring,CMP000135,ASM000077,qualifier,yes,32,広島西部地区:7;広島北部地区:7;広島南部地区:9;広島東部地区:9,0,なし,P2SRC091,,公式要項は県大会32校を各地区予選で決定。2026出場32校をPhase 1所属へ再集計し西7・北7・南9・東9。,verified_2026_tournament_material,2026-10-04
+P2S7AUD008,2026,34,広島県,autumn,CMP000136,ASM000077,qualifier,yes,32,広島西部地区:7;広島北部地区:6;広島南部地区:10;広島東部地区:9,0,なし,P2SRC091,,公式大会要項に32チーム＝西7・北6・南10・東9と明記。,verified_2026_tournament_material,2026-10-04
+P2S7AUD009,2026,35,山口県,spring,CMP000137,ASM000078,qualifier,yes,8,周防（岩柳地区+防徳地区）:4;長門（山宇萩地区+下関地区）:4,0,なし,P2SRC093,P2SRC092,公式日程は地区段階と県決勝を分離。2026県決勝8校をPhase 1所属へ再照合すると周防側4（岩柳1+防徳3）、長門側4（山宇萩2+下関2）。4支部個別固定枠ではない。,verified_2026_tournament_material,2026-10-04
+P2S7AUD010,2026,35,山口県,autumn,CMP000138,ASM000078,qualifier,yes,8,周防（岩柳地区+防徳地区）:4;長門（山宇萩地区+下関地区）:4,0,なし,P2SRC094,P2SRC095,県スポーツ大会要項が周防・長門各地区で組合せを決定し地区代表8校を選出と明記。2026県決勝8校も周防4・長門4。,verified_2026_tournament_material,2026-10-04

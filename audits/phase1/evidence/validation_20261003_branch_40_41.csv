@@ -1,0 +1,13 @@
+﻿check,status,actual,expected,notes
+40_membership_count,PASS,137,137,
+40_area_distribution,PASS,"{'北部': 64, '南部': 73}","{'北部': 64, '南部': 73}",
+40_unique_program,PASS,137,137,
+41_membership_count,PASS,36,36,
+41_area_distribution,PASS,"{'三神地区': 7, '佐賀地区': 10, '唐松地区': 9, '杵藤地区': 6, '伊西地区': 4}","{'三神地区': 7, '佐賀地区': 10, '唐松地区': 9, '杵藤地区': 6, '伊西地区': 4}",
+41_unique_program,PASS,36,36,
+membership_id_unique,PASS,4786,4786,
+scheme_id_unique,PASS,56,56,
+area_id_unique,PASS,88,88,
+membership_foreign_keys,PASS,0,0,
+summer_representation_all_schools,PASS,3746/3746,3746/3746,
+saga_agri_location_corrected,PASS,白石町 / 杵島郡白石町大字福田1660,白石町 / 杵島郡白石町大字福田1660,SRC000255

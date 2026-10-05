@@ -1,0 +1,38 @@
+﻿check_name,status,detail
+scheme_id_unique,PASS,rows=84 unique=84
+area_id_unique,PASS,rows=215 unique=215
+membership_id_unique,PASS,rows=6722 unique=6722
+source_id_unique,PASS,rows=329 unique=329
+membership_program_fk,PASS,bad=0
+membership_scheme_fk,PASS,bad=0
+membership_area_fk,PASS,bad=0
+membership_source_fk,PASS,bad=0
+scheme_source_fk,PASS,bad=0
+area_source_fk,PASS,bad=0
+parent_area_fk,PASS,bad=0
+yamanashi_scheme_exists,PASS,ASM000084=1
+yamanashi_scheme_type,PASS,federation_branch
+yamanashi_area_count,PASS,actual=7 expected=7
+yamanashi_membership_count,PASS,actual=33 expected=33
+yamanashi_program_unique,PASS,unique=33
+yamanashi_prefecture_match,PASS,mismatch=0
+yamanashi_reference_year,PASS,all=2026
+distribution_A・北地区,PASS,actual=5 expected=5
+distribution_B・西地区,PASS,actual=6 expected=6
+distribution_C・甲南地区,PASS,actual=4 expected=4
+distribution_D・甲北地区,PASS,actual=4 expected=4
+distribution_E・甲東地区,PASS,actual=6 expected=6
+distribution_F・東地区,PASS,actual=4 expected=4
+distribution_G・南地区,PASS,actual=4 expected=4
+program_scheme_unique,PASS,duplicates=0
+yamanashi_status_complete,PASS,"{'prefecture_code': '19', 'prefecture_name': '山梨県', 'federation_branch_status': 'complete', 'scheme_id': 'ASM000084', 'school_count': '33', 'source_id': 'SRC000326', 'verified_at': '2026-10-04', 'notes': 'A・北5 / B・西6 / C・甲南4 / D・甲北4 / E・甲東6 / F・東4 / G・南4。2026公式加盟校一覧と歴年公式担当地区資料で33校を確定。'}"
+research_pending_zero,PASS,pending=0
+summer_memberships_unchanged,PASS,actual=3746 expected=3746
+summer_programs_unique,PASS,unique=3746
+federation_branch_memberships_total,PASS,actual=2976 expected=2976
+area_schemes_total,PASS,actual=84 expected=84
+competition_areas_total,PASS,actual=215 expected=215
+memberships_total,PASS,actual=6722 expected=6722
+registration_audit_rows,PASS,actual=33 expected=33
+pending_file_removed,PASS,removed=true
+formal_source_chain_present,PASS,"sources=SRC000066,SRC000326,SRC000327,SRC000328,SRC000329,SRC000330,SRC000331"

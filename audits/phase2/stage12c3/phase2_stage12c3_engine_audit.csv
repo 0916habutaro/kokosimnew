@@ -1,0 +1,37 @@
+﻿audit_id,scope,item,value,status,notes
+A12C3-001,stage,status,complete,PASS,残り17方式を実装しStage 12Bの全26 format modelを共通engineへ接続。
+A12C3-002,dispatch,supported_format_models,26/26,PASS,"FMT001,FMT002,FMT003,FMT004,FMT005,FMT006,FMT007,FMT008,FMT009,FMT010,FMT011,FMT012,FMT013,FMT014,FMT015,FMT016,FMT017,FMT018,FMT019,FMT020,FMT021,FMT022,FMT023,FMT024,FMT025,FMT026"
+A12C3-003,dispatch,assigned_group_models_supported,25/25,PASS,"FMT001,FMT002,FMT003,FMT004,FMT005,FMT006,FMT007,FMT008,FMT009,FMT010,FMT011,FMT012,FMT013,FMT014,FMT015,FMT016,FMT017,FMT018,FMT019,FMT020,FMT021,FMT022,FMT023,FMT024,FMT025"
+A12C3-004,scope,new_models,17,PASS,"FMT002,FMT003,FMT004,FMT007,FMT008,FMT010,FMT011,FMT012,FMT013,FMT014,FMT015,FMT016,FMT017,FMT022,FMT023,FMT024,FMT025"
+A12C3-005,scope,new_model_competitions,23,PASS,17方式を使用する23大会。
+A12C3-006,execution,remaining_competitions,23/23 PASS,PASS,
+A12C3-007,execution,all_structured_competitions,44/44 PASS,PASS,Stage12B format assignmentを持つ44大会をstructural harnessで実行。
+A12C3-008,annual_input,group_entrant_school_ids,implemented,PASS,地区所属masterが空でも年度別参加校をgroupへ安全に注入。entrant集合の部分集合制約あり。
+A12C3-009,annual_input,draw_and_ranking_overrides,retained,PASS,group_pool_assignments / group_rankingsを維持。
+A12C3-010,rng,reproducibility,namespaced SHA-256,PASS,新方式代表5大会で同seed完全一致をunit test。
+A12C3-011,testing,unittest,31/31 PASS,PASS,12C-1/12C-2回帰23件＋12C-3 8件。
+A12C3-012,data_integrity,protected_rule_and_format_csvs,12/12 byte-identical,PASS,Stage12C-2基準。
+A12C3-013,competition,CMP000074,entrants=61;main=24;matches=101,PASS,models=FMT002; warnings=0
+A12C3-014,competition,CMP000075,entrants=61;main=22;matches=103,PASS,models=FMT002; warnings=0
+A12C3-015,competition,CMP000076,entrants=65;main=25;matches=103,PASS,models=FMT003; warnings=0
+A12C3-016,competition,CMP000077,entrants=65;main=27;matches=107,PASS,models=FMT003; warnings=0
+A12C3-017,competition,CMP000082,entrants=67;main=28;matches=108,PASS,models=FMT002; warnings=0
+A12C3-018,competition,CMP000083,entrants=67;main=31;matches=101,PASS,models=FMT002; warnings=0
+A12C3-019,competition,CMP000085,entrants=100;main=34;matches=183,PASS,models=FMT004; warnings=0
+A12C3-020,competition,CMP000107,entrants=82;main=16;matches=85,PASS,models=FMT007; warnings=0
+A12C3-021,competition,CMP000108,entrants=82;main=24;matches=93,PASS,models=FMT008; warnings=0
+A12C3-022,competition,CMP000109,entrants=67;main=20;matches=133,PASS,models=FMT002; warnings=0
+A12C3-023,competition,CMP000111,entrants=108;main=39;matches=244,PASS,models=FMT025; warnings=0
+A12C3-024,competition,CMP000112,entrants=108;main=39;matches=263,PASS,models=FMT025; warnings=0
+A12C3-025,competition,CMP000113,entrants=182;main=48;matches=226,PASS,models=FMT010;FMT011;FMT012;FMT013;FMT014; warnings=0
+A12C3-026,competition,CMP000114,entrants=182;main=49;matches=267,PASS,models=FMT010;FMT011;FMT012;FMT013;FMT015; warnings=0
+A12C3-027,competition,CMP000115,entrants=63;main=25;matches=95,PASS,models=FMT016; warnings=0
+A12C3-028,competition,CMP000116,entrants=63;main=63;matches=69,PASS,models=FMT024; warnings=0
+A12C3-029,competition,CMP000124,entrants=167;main=53;matches=328,PASS,models=FMT002; warnings=0
+A12C3-030,competition,CMP000134,entrants=59;main=20;matches=107,PASS,models=FMT017; warnings=0
+A12C3-031,competition,CMP000135,entrants=94;main=32;matches=222,PASS,models=FMT025; warnings=0
+A12C3-032,competition,CMP000136,entrants=94;main=32;matches=221,PASS,models=FMT025; warnings=0
+A12C3-033,competition,CMP000140,entrants=30;main=30;matches=30,PASS,models=FMT022; warnings=0
+A12C3-034,competition,CMP000160,entrants=68;main=68;matches=72,PASS,models=FMT023; warnings=0
+A12C3-035,competition,CMP000162,entrants=62;main=62;matches=62,PASS,models=FMT022; warnings=0
+A12C3-036,data_integrity,Stage12C-2 source diff,6 changed / 4 new / 0 missing before manifest,PASS,"changed=README, engine.py, models.py, cli.py, progress, dictionary; new=test/audit/execution/validation"

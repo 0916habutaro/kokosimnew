@@ -1,0 +1,26 @@
+﻿check_id,check_description,status,detail
+C12C2-001,supported format model count,PASS,"['FMT001', 'FMT005', 'FMT006', 'FMT009', 'FMT018', 'FMT019', 'FMT020', 'FMT021', 'FMT026']"
+C12C2-002,Gifu regression MAIN count,PASS,37
+C12C2-003,Kanagawa qualifier count,PASS,81
+C12C2-004,Kanagawa MAIN count,PASS,82
+C12C2-005,Kanagawa direct entry bypasses qualifier,PASS,SCH003394
+C12C2-006,Chiba primary qualifier count,PASS,28
+C12C2-007,Chiba primary nonqualifier count,PASS,112
+C12C2-008,Chiba repechage qualifier count,PASS,19
+C12C2-009,Chiba MAIN count,PASS,48
+C12C2-010,Chiba match ids unique across phases,PASS,282 ids
+C12C2-011,Hokkaido autumn representative count,PASS,20
+C12C2-012,Aomori all entrants retained in MAIN,PASS,53
+C12C2-013,Aomori seed count,PASS,16
+C12C2-014,Aomori seed tier counts,PASS,"{'seed_rank_1': 4, 'seed_rank_2': 4, 'seed_rank_3': 8}"
+C12C2-015,Aomori mixed model coverage,PASS,"{'SGR000160': 'FMT018', 'SGR000161': 'FMT019', 'SGR000162': 'FMT020', 'SGR000163': 'FMT021'}"
+C12C2-016,new-handler seed reproducibility,PASS,same seed/input -> identical CompetitionRun
+C12C2-017,protected file byte-identical: competition_access_rules.csv,PASS,48ce32922d4670199006ecc5447b7593af8d947eb46e2257917a8eae35580652 / 48ce32922d4670199006ecc5447b7593af8d947eb46e2257917a8eae35580652
+C12C2-018,protected file byte-identical: competition_seed_rules.csv,PASS,a61b49efad346732539b3a37ceb2d99bba4594b2af19e4f80445f08c1ec766b3 / a61b49efad346732539b3a37ceb2d99bba4594b2af19e4f80445f08c1ec766b3
+C12C2-019,protected file byte-identical: prefectural_branch_usage_2026.csv,PASS,4d406b6654cc174bff5a88a79b872083a08c19afc6e68afb8b7b4464c13f6b80 / 4d406b6654cc174bff5a88a79b872083a08c19afc6e68afb8b7b4464c13f6b80
+C12C2-020,protected file byte-identical: qualification_rules.csv,PASS,ce8f96dcf370fd9a273bdcef63d245e94c39309243616a6864370e54c80b9b45 / ce8f96dcf370fd9a273bdcef63d245e94c39309243616a6864370e54c80b9b45
+C12C2-021,protected file byte-identical: competition_stage_format_models.csv,PASS,dc6228f974533f942a53471768df019e302a727664a70d7b0c86f9cd1ea0d603 / dc6228f974533f942a53471768df019e302a727664a70d7b0c86f9cd1ea0d603
+C12C2-022,protected file byte-identical: competition_stage_format_assignments.csv,PASS,a8b3856bc1bb34c0bc1f389b5b49fe5b5e9d932cba677be6d3063956d475358b / a8b3856bc1bb34c0bc1f389b5b49fe5b5e9d932cba677be6d3063956d475358b
+C12C2-023,engine source has no named-school hardcode,PASS,"scan: 仙台育英,横浜,北照"
+C12C2-024,Aomori seed-only transition marked ready,PASS,ready
+C12C2-025,all validation checks pass,PASS,prior checks=24

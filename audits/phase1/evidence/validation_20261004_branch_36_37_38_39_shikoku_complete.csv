@@ -1,0 +1,25 @@
+﻿check,status,details
+scheme_id_unique,PASS,79 rows
+area_id_unique,PASS,195 rows
+membership_id_unique,PASS,6490 rows
+source_id_unique,PASS,314 rows
+membership_scheme_fk,PASS,bad=0
+membership_area_fk,PASS,bad=0
+membership_program_fk,PASS,bad=0
+scheme_source_fk,PASS,bad=0
+area_source_fk,PASS,bad=0
+membership_source_fk,PASS,bad=0
+parent_area_fk,PASS,bad=0
+tokushima_membership_count,PASS,actual=30 expected=30
+tokushima_unique_programs,PASS,duplicates=0
+tokushima_distribution,PASS,"{'AREA000194': 14, 'AREA000193': 7, 'AREA000195': 9}"
+kagawa_not_applicable,PASS,37 schools
+kochi_not_applicable,PASS,28 schools
+ehime_completed_preserved,PASS,60 schools
+shikoku_status_all4,PASS,4/4
+summer_memberships_preserved,PASS,actual=3746 expected=3746
+area_schemes_rows,PASS,actual=79 expected=79
+competition_areas_rows,PASS,actual=195 expected=195
+school_area_memberships_rows,PASS,actual=6490 expected=6490
+federation_branch_memberships,PASS,actual=2744 expected=2744
+all_checks_pass,PASS,pre-final aggregate

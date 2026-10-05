@@ -1,0 +1,3 @@
+﻿playoff_id,destination_competition_id,season_segment,region_id,candidate_rule_id_a,candidate_rule_id_b,match_format,output_quota,winner_advances,effective_year,primary_source_id,verified_at,notes
+KPL2026A,CMP000019,autumn,REG07,RFR000076,RFR000077,single_game,1,yes,2026,P2SRC002,2026-10-05,滋賀3位対京都3位。勝者が秋季近畿大会へ出場。
+KPL2026B,CMP000019,autumn,REG07,RFR000078,RFR000079,single_game,1,yes,2026,P2SRC002,2026-10-05,奈良3位対和歌山3位。勝者が秋季近畿大会へ出場。

@@ -1,0 +1,19 @@
+﻿check_id,status,details
+S2-01,PASS,東北対象行=12（期待12）
+S2-02,PASS,東北12行にresearch_pendingなし
+S2-03,PASS,"分布={'seed_only': 2, 'qualifier': 6, 'not_used': 4}"
+S2-04,PASS,qualifier 6行はbranch_qualifier_exists=yes
+S2-05,PASS,qualifier 6行はbranch_slot_total>0
+S2-06,PASS,qualifier 6行のallocation合計=branch_slot_total
+S2-07,PASS,seed_only/not_used 6行はqualifierなし
+S2-08,PASS,seed_only/not_used 6行の進出枠=0
+S2-09,PASS,東北qualifierの支部・地区進出枠合計=157
+S2-10,PASS,東北12行のprimary_source_idがphase2_sources.csvに存在
+S2-11,PASS,東北12行の検証ステータス・日付統一
+S2-12,PASS,宮城秋は地区27枠（仙台育英直接1枠を除外）
+S2-13,PASS,福島秋は支部31枠（東日大昌平特別1枠を除外）
+S2-14,PASS,全94行のresearch_pending=68
+S2-15,PASS,prefectural_branch_usage_2026.csvは94行を維持
+S2-16,PASS,東北以外82行はStage1から内容不変
+S2-17,PASS,Stage2監査表12行が全件verified
+S2-18,PASS,phase2_sources.csvは8→25件（Stage2根拠17件追加）

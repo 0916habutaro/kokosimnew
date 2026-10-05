@@ -1,0 +1,31 @@
+﻿prefecture_code,source_id,source_title,url,extraction_status,registered_school_count,notes
+01,SRC000048,北海道 2026年度硬式加盟校一覧,https://www.hokkaido-hbf.jp/hp/hbf_h_14_highschool_list.php,needs_filtering_and_location,0,公式ページは合同チーム表記が混在し、住所・市区町村を掲載しないため学校マスターへ直接投入不可。
+02,SRC000049,青森県 2026年度加盟校一覧,https://www.aomori-kouyaren.com/member/,completed,53,硬式部のみを抽出。学校名・住所から必須項目を確定。53校登録。
+04,SRC000051,宮城県 硬式加盟校一覧,https://www.miyagi-kouyaren.com/koushiki.html,completed,65,公式加盟校ページ69校は更新遅延。旧69校から亘理・柴田農林・登米・蔵王を除外。2026夏不参加の石巻商業・村田は加盟校として保持し65校確定。
+05,SRC000052,秋田県 令和8年度加盟校一覧,https://www.akita-koyaren.com/menu009.html,completed,42,令和8年度公式ページは県北8+中央18+県南17=43掲載単位。大曲農業高等学校太田分校を親校school_idへ統合し、学校実体42校としてJHBF公式42校と一致。
+09,SRC000056,栃木県 加盟校一覧,https://tochigi-koyaren.net/join.html,completed,62,2026基準へ再照合完了。日光明峰・馬頭を2026硬式加盟対象から除外し62校。日本高野連2026年5月末公式62校と一致。
+10,SRC000057,群馬県 役員・行事・加盟校,https://www.gunma-hbf.com/CCP008.html,retrieval_pending,0,公式ページ取得がこの環境で不安定。
+11,SRC000058,埼玉県 令和8年度加盟校登録番号一覧,https://www2.ttcn.ne.jp/sai-kouyaren/kameikou_only,completed,153,2026現行大会資料から学校単位へ展開し登録完了。夏150校＋夏不参加の現役加盟3校（三郷・羽生実業・羽生第一）＝153校。
+12,SRC000059,千葉県 加盟校一覧,https://chbf.or.jp/school,completed,174,公式加盟校一覧8ブロックから硬式174校を抽出。学校名・住所から必須項目を確定。軟式7校は除外。
+13,SRC000060,東京都 2026年加盟校一覧,https://www.tokyo-hbf.com/koyaren03.html,completed,269,公式加盟校一覧が2026年5月現在269校を区市町・島別に列挙。全269校を登録。島しょ3校のmunicipality/住所は東京都立学校公式で補完。
+15,SRC000062,新潟県 令和8年度加盟校一覧,https://niigata-hbf.jp/wp/wp-content/themes/kouyaren-niigata/assets/documents/header/2026kameikouitiran.pdf,completed,78,令和8年度PDFから硬式78校を抽出。
+17,SRC000064,石川県 2026年度加盟校一覧,https://ishikawa-hbf.jp/?page_id=24,completed,50,公式2026加盟校アンカーはhref空。2025県高野連公式50校名簿と現行Omyu51校を比較すると差分は国際高等専門学校のみ。JHBF 2026公式50校と一致する旧公式50校系統を登録。
+19,SRC000066,山梨県 加盟校一覧,https://www.yamanashi-hbf.com/memberlist.html,completed,33,公式加盟校一覧から学校名・所在地を抽出。33校登録。
+21,SRC000068,岐阜県 硬式加盟校一覧,https://ghbf.asfsite.jp/school/base/,completed,67,硬式加盟校一覧から学校名・所在地を抽出。67校登録。
+23,SRC000070,愛知県 令和8年度加盟校一覧,https://www.aichi-kouyaren.com/federation/list/,completed,182,愛知県高野連2026-04-01硬式加盟校182校を正式登録。県公立学校一覧=SRC000121、私立学校名簿=SRC000123、海陽=SRC000124、豊田高専=SRC000125、科学技術学園高校豊田=SRC000126で所在地補完。日本高野連2026年5月末182校と一致。
+24,SRC000071,三重県 加盟校一覧,https://mie-kouyaren.com/document/,completed,63,2026基準へ再照合完了。志摩・あけぼの学園・桜丘を除外し、熊野青藍を追加して63校。日本高野連2026年5月末公式63校と一致。
+26,SRC000073,京都府 令和8年度加盟校一覧,https://kyoto-hsbf.sakura.ne.jp/khsbf/about/member/,completed,76,京都府高野連の令和8年度硬式加盟校76校を登録。所在地は府立=SRC000114、私立=SRC000115、市立=SRC000116、国立=SRC000117/SRC000118で補完。日本高野連2026年5月末76校と一致。
+29,SRC000076,奈良県 加盟校一覧,https://www1.kcn.ne.jp/~nhsbbf/kameikoitiran.html,completed,39,2026現行大会資料から学校単位へ展開し登録完了。33チームを2つの4校連合へ展開し39校。
+30,SRC000077,和歌山県 加盟校紹介,https://www.whbf.jp/school.html,completed,39,高野連公式加盟校紹介39校を登録。日本高野連2026年5月末39校と一致。所在地は和歌山県教育委員会・県私立校一覧・和歌山高専公式（SRC000109/SRC000110/SRC000111）で補完。
+31,SRC000078,鳥取県 加盟校一覧（硬式の部）,https://tottori-hbf.jp/join-hs.html,completed,24,硬式の部だけを抽出。24校登録。
+32,SRC000079,島根県 加盟校一覧,https://shimanehbf.sakura.ne.jp/about/school/,completed,38,軟式表記行を除外して硬式加盟校を抽出。38校登録。
+33,SRC000080,岡山県 加盟校一覧,https://www.okayama-hbf.com/school,completed,59,公式加盟校一覧の硬式59校を登録。日本高野連2026年5月末加盟校数59校と一致。旧自治体表記4校は学校公式で現行住所へ補正。
+34,SRC000081,広島県 令和8年5月現在 加盟校一覧,https://hiroshima.hhbf1950.or.jp/%E9%80%A3%E7%9B%9F%E6%A6%82%E8%A6%81/%E5%8A%A0%E7%9B%9F%E6%A0%A1%E4%B8%80%E8%A6%A7,completed,94,公式ページは硬式94校を明示するが学校名は埋め込み。現行Omyu加盟校88校＋2026選手権出場校にのみ現れる6校を統合し94校を復元。
+36,SRC000083,徳島県 令和8年度硬式加盟校一覧,https://www.tk2.nmt.ne.jp/~tokushimakoyaren/kameikoujyuusyo.html,completed,30,令和8年度加盟校導線から硬式30校を登録。日本高野連2026年5月末30校と一致。城ノ内・つるぎは現行学校公式で校名/住所を補正。
+38,SRC000085,愛媛県 令和8年度加盟校一覧,https://www.ehimehbb.jp/kameikou.html,completed,60,愛媛県高野連の令和8年度硬式加盟校一覧60校を住所付きで登録。日本高野連2026年5月末60校と一致。
+40,SRC000087,福岡県 加盟校一覧,https://fukuoka-hbf.jp/pages/51/,completed,137,公式加盟校ページに学校名・住所を掲載。硬式137校を正式登録。設置区分は出典に明示がないためunknown。
+42,SRC000089,長崎県 硬式加盟校一覧,https://nagasaki-kouyaren.com/koushiki.html,completed,53,2026夏大会集合と夏不参加加盟校差分から正式登録。夏52校＋国見1校。国見は現行県立学校公式サイトに野球部活動計画が掲載。
+43,SRC000090,熊本県 加盟校一覧（硬式野球）,https://www.kumamoto-kouyaren.com/federation/,completed,59,2026現行大会資料から学校単位へ展開し登録完了。54チームを3連合へ展開し59校。
+44,SRC000091,大分県 加盟校一覧,https://www.oita-kouyaren.com/member.html,completed,44,県高野連公開一覧50校から、県公式閉校情報（SRC000112）で閉校6校を除外。現行の佐伯豊南は2026年度県公式情報（SRC000113）で確認。日本高野連2026年5月末44校と一致。
+46,SRC000093,鹿児島県 加盟校一覧,https://www.kagoshima-kouyaren.jp/page6,completed,71,2026基準へ再照合完了。加世田常潤・串木野・鶴翔・古仁屋を2026硬式加盟対象から除外し71校。日本高野連2026年5月末公式71校と一致。
+47,SRC000094,沖縄県 加盟校一覧,https://www.kouyaren-okinawa.jp/kameikou/kameikou.html,completed,62,2026夏大会集合と夏不参加加盟校差分から正式登録。夏61校＋北部農林1校。北部農林は2026秋季4校連合で硬式活動を確認。

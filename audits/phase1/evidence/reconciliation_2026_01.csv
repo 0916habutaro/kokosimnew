@@ -1,0 +1,6 @@
+﻿prefecture_code,prefecture_name,check_type,observed_value,decision,source_ids,notes
+01,北海道,official_2026_count,192,target,SRC000225,日本高野連2026年5月末硬式加盟校数。
+01,北海道,current_hokkaido_hbf_page,page displays hardball 284,not_used_as_school_count,SRC000228,単独校だけでなく歴代の合同チーム表記や統合前校等が混在するため、284を独立学校数として採用しない。
+01,北海道,summer_2026_school_units,185,base_set,SRC000226;SRC000227,2026夏大会を合同チーム表記から学校単位へ展開。南106＋北79＝185校。
+01,北海道,summer_nonparticipants,7 schools: 野幌・倶知安農業・上富良野・津別・斜里・釧路商業・阿寒,retain_as_members,SRC000228;SRC000229;SRC000230;SRC000231;SRC000232;SRC000233;SRC000234;SRC000235,道高野連現行単独校掲載に加え、2026/直近の硬式活動または学校公式野球部情報を確認し、公式192校との差分として補完。休部校は大会参加とは区別して加盟維持として扱う。
+01,北海道,final_set,185 + 7 = 192,exact_match,SRC000225;SRC000226;SRC000228,JHBF 2026年5月末公式加盟校数192校と一致。

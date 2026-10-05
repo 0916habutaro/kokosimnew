@@ -1,0 +1,25 @@
+﻿prefecture_code,prefecture_name,check_type,observed_value,decision,source_ids,notes
+06,山形県,jhbf_2026_official_count,42,target_count,SRC000099,2026年5月末硬式加盟校数。
+06,山形県,summer_2026_team_units,37,expand_unions,SRC000174,大会37チーム。
+06,山形県,union_1,高畠;南陽;長井工;左沢,expand_4,SRC000174,4校連合。
+06,山形県,union_2,天童;谷地;上山明新館,expand_3,SRC000174,3校連合。
+06,山形県,omyutech_display,見出し43 / 硬式学校実体42,use_listed_hardball_rows,SRC000173,見出し件数ではなく、列挙された硬式学校実体42校を正式校名参照に使用。
+06,山形県,final_set,42,exact_match,SRC000099;SRC000173;SRC000174,大会展開後42校で公式数と一致。
+18,福井県,jhbf_2026_official_count,28,target_count,SRC000099,2026年5月末硬式加盟校数。
+18,福井県,summer_2026_team_units,27,expand_union,SRC000165,トーナメントのチーム枠は27。
+18,福井県,union,福井農林;奥越明成,expand_2,SRC000165,2校連合。
+18,福井県,final_set,28,exact_match,SRC000099;SRC000165,27チーム枠を学校単位へ展開して28校。
+37,香川県,jhbf_2026_official_count,37,target_count,SRC000099,2026年5月末硬式加盟校数。
+37,香川県,current_member_list,37,base_roster,SRC000169,Omyu現行加盟校37校。
+37,香川県,summer_2026_team_units,35,expand_union,SRC000170,大会35チーム。
+37,香川県,union,石田;琴平;飯山,expand_3,SRC000170,3校連合。
+37,香川県,final_set,37,exact_match,SRC000099;SRC000169;SRC000170,大会展開後37校で公式数と一致。
+41,佐賀県,jhbf_2026_official_count,36,target_count,SRC000099,2026年5月末硬式加盟校数。
+41,佐賀県,prefecture_official_summer_count,36 schools,base_roster,SRC000167,佐賀県教育委員会が2026大会出場校36校を明示。
+41,佐賀県,summer_2026,36 schools / 36 teams,no_union,SRC000168,連合なし。
+41,佐賀県,final_set,36,exact_match,SRC000099;SRC000167;SRC000168,2026大会36校で公式数と一致。
+45,宮崎県,jhbf_2026_official_count,47,target_count,SRC000099,2026年5月末硬式加盟校数。
+45,宮崎県,current_member_list,47,base_roster,SRC000171,Omyu現行加盟校47校。
+45,宮崎県,summer_2026,47 schools / 46 teams,expand_union,SRC000172,2026大会は46チーム47校。
+45,宮崎県,union,高城;福島,expand_2,SRC000172,2校連合。
+45,宮崎県,final_set,47,exact_match,SRC000099;SRC000171;SRC000172,大会出場校47校で公式数と一致。

@@ -1,0 +1,35 @@
+﻿check_id,status,details
+S5-01,PASS,Stage5監査表は東海4県×春秋の8行
+S5-02,PASS,PBR000041～PBR000048の8大会を対象
+S5-03,PASS,prefectural_branch_usage_2026.csvは94行維持
+S5-04,PASS,rule_id重複なし
+S5-05,PASS,東海8大会は2026大会資料でverified
+S5-06,PASS,"東海8大会の分類={'qualifier': 6, 'seed_only': 2}"
+S5-07,PASS,"全94行の分布={'research_pending': 36, 'seed_only': 4, 'qualifier': 22, 'not_used': 18, 'no_branch': 14}"
+S5-08,PASS,branch usage確定済み58/94
+S5-09,PASS,qualifier 6大会は予選あり・通常進出枠>0
+S5-10,PASS,seed_only 2大会は予選なし・branch_slot_total=0
+S5-11,PASS,qualifier 6大会の地区別配分合計=branch_slot_total
+S5-12,PASS,岐阜春=8+4+5+3=20通常枠
+S5-13,PASS,岐阜春=地区20＋前年秋上位4の直接枠=県大会24
+S5-14,PASS,岐阜秋=地区シード戦68校・県大会68校でseed_only
+S5-15,PASS,静岡春=東12・中13・西14=39
+S5-16,PASS,静岡秋=予選39（東13・中11・西15）＋聖隷1=40
+S5-17,PASS,愛知春=5地区48＋選抜中京大中京1=49
+S5-18,PASS,愛知秋=5地区49・直接枠なし
+S5-19,PASS,三重春=北8・中10・南7=25＋選抜三重1=26
+S5-20,PASS,三重秋=全校参加・地区はシード決め、三重高は地区戦免除
+S5-21,PASS,Stage5の直接出場・地区戦免除は計8枠
+S5-22,PASS,Stage5 qualifier通常進出枠合計=220
+S5-23,PASS,phase2_sources.csvは56→72件、source_id重複なし
+S5-24,PASS,東海8大会のprimary_source_idは全件実在
+S5-25,PASS,監査表supporting_source_idsは全件実在
+S5-26,PASS,東海4県のbranch_scheme_idがPhase 1確定値と一致
+S5-27,PASS,非対象86大会のPBR行はStage4から完全不変
+S5-28,PASS,"Stage4既存ファイルの変更=['phase2_progress_summary.csv', 'phase2_sources.csv', 'phase2_table_dictionary.csv', 'prefectural_branch_usage_2026.csv']（意図した4ファイルのみ）"
+S5-29,PASS,進捗集計=残36・確定58・東海通常枠220・直接8
+S5-30,PASS,phase2_table_dictionary.csvにStage5新規3表を登録
+S5-31,PASS,静岡春39校をPhase1所属へ再集計して12/13/14を再現
+S5-32,PASS,静岡秋予選39校をPhase1所属へ再集計して13/11/15を再現
+S5-33,PASS,愛知秋49校をPhase1所属へ再集計して17/6/11/5/10を再現
+S5-34,PASS,三重春26校から直接出場三重高を除く25校をPhase1親地区へ再集計して8/10/7を再現

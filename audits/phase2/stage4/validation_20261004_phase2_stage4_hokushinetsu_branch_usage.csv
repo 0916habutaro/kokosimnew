@@ -1,0 +1,26 @@
+﻿check_id,status,details
+S4-01,PASS,北信越対象行=10（期待10）
+S4-02,PASS,北信越10行にresearch_pendingなし
+S4-03,PASS,"分布={'not_used': 8, 'qualifier': 2}"
+S4-04,PASS,qualifier 2行はbranch_qualifier_exists=yes
+S4-05,PASS,qualifier 2行はbranch_slot_total>0
+S4-06,PASS,qualifier 2行のallocation合計=branch_slot_total
+S4-07,PASS,not_used 8行はqualifierなし
+S4-08,PASS,not_used 8行の進出枠=0
+S4-09,PASS,北信越qualifierの支部進出枠合計=40
+S4-10,PASS,北信越10大会の直接出場・予選免除合計=0
+S4-11,PASS,北信越10行のprimary_source_idがphase2_sources.csvに存在
+S4-12,PASS,北信越10行の検証ステータス・日付統一
+S4-13,PASS,全94行のresearch_pending=44
+S4-14,PASS,prefectural_branch_usage_2026.csv=94行（期待94）
+S4-15,PASS,北信越以外84行はStage3から内容不変
+S4-16,PASS,長野春: 4支部×4校=16枠
+S4-17,PASS,長野秋: 4支部×6校=24枠
+S4-18,PASS,新潟春秋: 北・南支部は県大会進出予選に不使用
+S4-19,PASS,富山春秋: 4地区は県大会進出予選に不使用
+S4-20,PASS,石川春秋: 3地区は県大会進出予選に不使用
+S4-21,PASS,福井春秋: 4地域大会圏は県大会進出予選に不使用
+S4-22,PASS,Stage4監査表10行が全件verified
+S4-23,PASS,phase2_sources.csvは41→56件（Stage4根拠15件追加）
+S4-24,PASS,"全94行の分布={'research_pending': 44, 'seed_only': 2, 'qualifier': 16, 'not_used': 18, 'no_branch': 14}"
+S4-25,PASS,"Stage3既存ファイルの変更=['phase2_progress_summary.csv', 'phase2_sources.csv', 'phase2_table_dictionary.csv', 'prefectural_branch_usage_2026.csv']（意図した4ファイルのみ）"

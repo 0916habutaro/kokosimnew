@@ -1,0 +1,12 @@
+﻿check,status,actual,expected,notes
+20_membership_count,PASS,82,82,
+20_area_distribution,PASS,"{'AREA000075': 22, 'AREA000076': 16, 'AREA000078': 23, 'AREA000077': 21}","{'AREA000075': 22, 'AREA000076': 16, 'AREA000077': 21, 'AREA000078': 23}",
+20_unique_program,PASS,82,82,
+38_membership_count,PASS,60,60,
+38_area_distribution,PASS,"{'AREA000079': 24, 'AREA000080': 22, 'AREA000081': 14}","{'AREA000079': 24, 'AREA000080': 22, 'AREA000081': 14}",
+38_unique_program,PASS,60,60,
+membership_id_unique,PASS,4613,4613,
+scheme_id_unique,PASS,54,54,
+area_id_unique,PASS,81,81,
+membership_foreign_keys,PASS,0,0,
+summer_memberships_preserved,PASS,3746,3746,

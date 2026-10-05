@@ -1,0 +1,11 @@
+﻿check,value,status
+school_rows,2210,ok
+program_rows,2210,ok
+saitama_11_count,153,ok
+nara_29_count,39,ok
+kumamoto_43_count,59,ok
+exact_match_prefectures,28,ok
+remaining_not_registered,19,ok
+source_rows,164,ok
+new_registration_rows,251,ok
+integrity_errors,0,ok

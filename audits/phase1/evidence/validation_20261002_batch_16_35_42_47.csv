@@ -1,0 +1,13 @@
+﻿check,value,status
+school_rows,2772,ok
+program_rows,2772,ok
+toyama_16_count,43,ok
+yamaguchi_35_count,54,ok
+nagasaki_42_count,53,ok
+okinawa_47_count,62,ok
+new_registration_rows,212,ok
+exact_match_prefectures,39,ok
+remaining_not_registered,8,ok
+remaining_near_match_queue,3,ok
+source_rows,195,ok
+integrity_errors,0,ok

@@ -1,0 +1,3 @@
+﻿prefecture_code,prefecture_name,source_id,expected_2026_hardball_count,added_count,registered_count_after,status,notes
+07,福島県,SRC000054,67,67,67,exact_match,公式加盟校名簿に学校名・所在地が掲載されているため直接登録。
+20,長野県,SRC000067,82,82,82,exact_match,公式加盟校名簿に学校名・所在地が掲載されているため直接登録。

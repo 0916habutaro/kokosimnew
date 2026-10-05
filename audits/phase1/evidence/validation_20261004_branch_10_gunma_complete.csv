@@ -1,0 +1,58 @@
+﻿check_name,status,detail
+scheme_id_unique,PASS,86 schemes
+area_id_unique,PASS,222 areas
+membership_id_unique,PASS,6832 memberships
+source_id_unique,PASS,336 sources
+scheme_source_fk,PASS,all scheme primary sources exist
+area_scheme_fk,PASS,all area scheme_ids exist
+area_source_fk,PASS,all area primary sources exist
+membership_program_fk,PASS,all membership program_ids exist
+membership_scheme_fk,PASS,all membership scheme_ids exist
+membership_area_fk,PASS,all membership area_ids exist
+membership_source_fk,PASS,all membership primary sources exist
+parent_area_fk,PASS,3 parent refs
+gunma_scheme_exists,PASS,ASM000086
+gunma_scheme_type,PASS,federation_branch
+gunma_scheme_prefecture,PASS,10
+gunma_area_count,PASS,3 areas
+gunma_area_names,PASS,"東毛,中毛,西毛"
+gunma_membership_count,PASS,68 memberships
+gunma_programs_unique,PASS,68 unique programs
+gunma_membership_prefecture,PASS,"68 rows, all pref=10"
+gunma_reference_year,PASS,all 2026
+gunma_distribution,PASS,"{""中毛"": 24, ""東毛"": 19, ""西毛"": 25}"
+gunma_registration_rows,PASS,68 rows
+gunma_registration_school_unique,PASS,68 unique schools
+gunma_registration_area_valid,PASS,registration uses exactly 3 Gunma areas
+gunma_no_unassigned,PASS,unassigned=0
+gunma_no_duplicate_assignment,PASS,0 duplicate program assignments
+gunma_municipality_mapping,PASS,all 68 municipality/district mappings match verified school-level labels
+gunma_numata_tone_boundary,PASS,"4 schools: 群馬県立尾瀬高等学校,群馬県立利根実業高等学校,群馬県立沼田高等学校,群馬県立利根商業高等学校"
+gunma_agatsuma_boundary,PASS,"3 schools: 群馬県立吾妻中央高等学校,群馬県立長野原高等学校,群馬県立嬬恋高等学校"
+program_scheme_unique,PASS,0 duplicate program+scheme pairs
+gunma_status_complete,PASS,complete
+gunma_status_count,PASS,68
+SRC000332_present,PASS,SRC000332
+SRC000333_present,PASS,SRC000333
+SRC000334_present,PASS,SRC000334
+SRC000335_present,PASS,SRC000335
+SRC000336_present,PASS,SRC000336
+SRC000337_present,PASS,SRC000337
+SRC000338_present,PASS,SRC000338
+gunma_current_2026_evidence,PASS,2026 federation/East/West/Central evidence present
+summer_membership_count_unchanged,PASS,3746 summer memberships
+summer_program_unique,PASS,3746 unique summer programs
+federation_branch_membership_total,PASS,3086 branch memberships
+area_schemes_total,PASS,86
+competition_areas_total,PASS,222
+memberships_total,PASS,6832
+status_table_registered_rows,PASS,13 complete/completed rows in partial branch-status registry; national total validated via area_progress_summary=39
+not_applicable_total,PASS,3 not applicable
+progress_scheme_total,PASS,86
+progress_area_total,PASS,222
+progress_membership_total,PASS,6832
+progress_branch_pref_total,PASS,39
+progress_branch_membership_total,PASS,3086
+research_pending_zero,PASS,0
+gunma_progress_complete,PASS,68/68
+kanto_progress,PASS,6/7 complete

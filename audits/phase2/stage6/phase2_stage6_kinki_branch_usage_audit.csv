@@ -1,0 +1,13 @@
+﻿audit_id,reference_year,prefecture_code,prefecture_name,season_segment,competition_id,branch_scheme_id,branch_usage_type,branch_qualifier_exists,branch_slot_total,branch_slot_allocation,direct_entry_count,direct_entry_rule,primary_source_id,supporting_source_ids,evidence_summary,verification_status,verified_at
+P2S6AUD001,2026,25,滋賀県,spring,CMP000117,,no_branch,no,0,,0,,P2SRC084,,Phase 1で恒常支部なしを確定済み。2026春も滋賀県大会を県単位で直接実施。,phase1_not_applicable_confirmed,2026-10-04
+P2S6AUD002,2026,25,滋賀県,autumn,CMP000118,,no_branch,no,0,,0,,P2SRC084,,Phase 1の恒常支部なし判定を維持。大会固有の抽選ブロックは恒常地理支部として扱わない。,phase1_not_applicable_confirmed,2026-10-04
+P2S6AUD003,2026,26,京都府,spring,CMP000119,ASM000050,qualifier,yes,16,市部:13;北部:3,0,なし,P2SRC073,P2SRC074;P2SRC075;P2SRC076,公式日程で市部・北部別一次戦→二次戦。一次戦16ゾーンを学校所属で再集計し市部13・北部3。,verified_2026_tournament_material,2026-10-04
+P2S6AUD004,2026,26,京都府,autumn,CMP000120,ASM000050,not_used,no,0,市部:0;北部:0,0,市部・北部による府大会出場校の絞り込みなし,P2SRC074,P2SRC073,秋季府大会は1回戦から府内一括。市部・北部別の県大会進出予選なし。,verified_2026_tournament_material,2026-10-04
+P2S6AUD005,2026,27,大阪府,spring,CMP000121,,no_branch,no,0,,0,,P2SRC085,,Phase 1で恒常支部なしを確定済み。2026春も大阪府予選として府内一括実施。,phase1_not_applicable_confirmed,2026-10-04
+P2S6AUD006,2026,27,大阪府,autumn,CMP000122,,no_branch,no,0,,0,,P2SRC085,,Phase 1で恒常支部なしを確定済み。2026秋も大阪府予選として府内一括実施。,phase1_not_applicable_confirmed,2026-10-04
+P2S6AUD007,2026,28,兵庫県,spring,CMP000123,ASM000052,qualifier,yes,33,阪神地区:8;神戸地区:8;播淡地区:7;西播地区:6;但丹地区:4,3,前年秋季近畿大会出場校は春季地区大会を免除し県大会へ推薦出場（2026: 神戸国際大付・市尼崎・東洋大姫路、3校）,P2SRC078,P2SRC077;P2SRC079,5地区代表33チーム＋前年秋季近畿大会出場3校の推薦＝36。地区別33枠は阪神8・神戸8・播淡7・西播6・但丹4。,verified_2026_tournament_material,2026-10-04
+P2S6AUD008,2026,28,兵庫県,autumn,CMP000124,ASM000052,qualifier,yes,53,阪神地区:13;神戸地区:13;播淡地区:12;西播地区:9;但丹地区:6,1,当年夏の甲子園出場校は秋季地区大会を免除し県大会へ推薦出場（2026: 社、1校）,P2SRC080,P2SRC077;P2SRC081,5地区予選突破53チーム＋夏甲子園出場の社1校＝54。地区別53枠は13・13・12・9・6。,verified_2026_tournament_material,2026-10-04
+P2S6AUD009,2026,29,奈良県,spring,CMP000125,ASM000087,not_used,no,0,1区:0;2区:0;3区:0;4区:0,0,1区・2区・3区・4区による県大会出場校の絞り込みなし,P2SRC082,,2026春は奈良県大会を県単位で直接実施。1～4区による県大会出場校の絞り込みなし。,verified_2026_tournament_material,2026-10-04
+P2S6AUD010,2026,29,奈良県,autumn,CMP000126,ASM000087,not_used,no,0,1区:0;2区:0;3区:0;4区:0,0,1区・2区・3区・4区による県大会出場校の絞り込みなし,P2SRC083,,2026秋は奈良県大会を県単位で直接実施。1～4区による県大会出場校の絞り込みなし。,verified_2026_tournament_material,2026-10-04
+P2S6AUD011,2026,30,和歌山県,spring,CMP000127,,no_branch,no,0,,0,,P2SRC086,,Phase 1で恒常支部なしを確定済み。春季近畿大会県予選を県単位で実施。,phase1_not_applicable_confirmed,2026-10-04
+P2S6AUD012,2026,30,和歌山県,autumn,CMP000128,,no_branch,no,0,,0,,P2SRC086,,Phase 1の恒常支部なし判定を維持。秋の県一次・県二次予選は大会段階であり恒常地理支部ではない。,phase1_not_applicable_confirmed,2026-10-04

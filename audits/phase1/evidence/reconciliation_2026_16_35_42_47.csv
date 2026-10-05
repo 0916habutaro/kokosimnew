@@ -1,0 +1,19 @@
+﻿prefecture_code,prefecture_name,check_type,observed_value,decision,source_ids,notes
+16,富山県,jhbf_2026_official_count,43,target_count,SRC000099,2026年5月末硬式加盟校数。
+16,富山県,summer_2026,42 schools / 39 teams,base_roster,SRC000180,夏大会参加校は42校。
+16,富山県,missing_school,中央農業,add_1,SRC000179,春季大会で魚津工業・大門・中央農業・上市の4校連合として出場。夏不参加の現役硬式校と判断。
+16,富山県,final_set,42 + 1 = 43,exact_match,SRC000099;SRC000179;SRC000180,公式数に一致。
+35,山口県,jhbf_2026_official_count,54,target_count,SRC000099,2026年5月末硬式加盟校数。
+35,山口県,summer_2026,53 schools / 50 teams,base_roster,SRC000182;SRC000183,3校連合1組、2校連合1組を展開すると53校。
+35,山口県,missing_school,岩国総合,add_1,SRC000184,2026現在も公立高校として存続。夏大会には不参加。
+35,山口県,stale_school_guard,宇部西,exclude,SRC000184,2026年3月31日廃校のため2026加盟校マスターから除外。
+35,山口県,name_transition,周防大島 -> 山口県立大学附属周防大島,normalize,SRC000185,2026年4月から正式校名変更・設置者変更。
+35,山口県,final_set,53 + 1 = 54,exact_match,SRC000099;SRC000182;SRC000183;SRC000184,公式数に一致。
+42,長崎県,jhbf_2026_official_count,53,target_count,SRC000099,2026年5月末硬式加盟校数。
+42,長崎県,summer_2026,52 schools / 47 teams,base_roster,SRC000186;SRC000187,2校連合1組・3校連合2組を展開して52校。
+42,長崎県,missing_school,国見,add_1,SRC000188,2026夏不参加だが、県立学校公式サイトに現行の野球部（月間計画）を確認。
+42,長崎県,final_set,52 + 1 = 53,exact_match,SRC000099;SRC000186;SRC000187;SRC000188,公式数に一致。
+47,沖縄県,jhbf_2026_official_count,62,target_count,SRC000099,2026年5月末硬式加盟校数。
+47,沖縄県,summer_2026,61 schools / 56 teams,base_roster,SRC000189;SRC000190,連合3チームを学校単位へ展開して61校。
+47,沖縄県,missing_school,北部農林,add_1,SRC000191;SRC000192,夏不参加。2026秋季に辺土名・名護商工・北部農林・本部の4校連合として出場。
+47,沖縄県,final_set,61 + 1 = 62,exact_match,SRC000099;SRC000189;SRC000190;SRC000191,公式数に一致。

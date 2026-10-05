@@ -1,0 +1,13 @@
+﻿check,status,actual,expected,notes
+42_membership_count,PASS,53,53,
+42_area_distribution,PASS,"{'中地区': 18, '長崎地区': 18, '佐世保地区': 17}","{'長崎地区': 18, '中地区': 18, '佐世保地区': 17}",
+42_unique_program,PASS,53,53,
+43_membership_count,PASS,59,59,
+43_area_distribution,PASS,"{'熊本市内': 21, '城北地区': 15, '城南地区': 23}","{'熊本市内': 21, '城北地区': 15, '城南地区': 23}",
+43_unique_program,PASS,59,59,
+membership_id_unique,PASS,4898,4898,
+scheme_id_unique,PASS,58,58,
+area_id_unique,PASS,94,94,
+membership_foreign_keys,PASS,0,0,
+summer_representation_all_schools,PASS,3746/3746,3746/3746,
+all_checks_pass,PASS,PASS,PASS,

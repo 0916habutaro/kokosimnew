@@ -1,0 +1,10 @@
+﻿check,value,status
+school_rows,2560,ok
+program_rows,2560,ok
+shizuoka_22_count,108,ok
+shiga_25_count,52,ok
+new_registration_rows,160,ok
+exact_match_prefectures,35,ok
+remaining_not_registered,12,ok
+source_rows,178,ok
+integrity_errors,0,ok

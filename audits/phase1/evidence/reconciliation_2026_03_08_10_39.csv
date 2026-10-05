@@ -1,0 +1,22 @@
+﻿prefecture_code,prefecture_name,check_type,observed_value,decision,source_ids,notes
+03,岩手県,jhbf_2026_official_count,61,target_count,SRC000099,2026年5月末硬式加盟校数。
+03,岩手県,summer_2026,58 schools / 49 teams,base_roster,SRC000196,2026夏大会を学校単位へ展開。
+03,岩手県,missing_school,水沢農業,add_1,SRC000197,2026夏不参加の現行硬式校として補完。
+03,岩手県,missing_school,紫波総合,add_1,SRC000198,2026夏不参加の現行硬式校として補完。
+03,岩手県,missing_school,軽米,add_1,SRC000199,2026夏不参加の現行硬式校として補完。
+03,岩手県,final_set,58 + 3 = 61,exact_match,SRC000099;SRC000196;SRC000197;SRC000198;SRC000199,公式数に一致。
+08,茨城県,jhbf_2026_official_count,100,target_count,SRC000099,2026年5月末硬式加盟校数。
+08,茨城県,member_page,99 schools,base_roster,SRC000200,加盟校ページに99校掲載。
+08,茨城県,missing_school,茎崎,add_1,SRC000201;SRC000202,2026夏に茎崎・茨城東・結城一・総和工・笠間・わせがくPURE・岩瀬の7校連合で出場。学校公式も出場を確認。
+08,茨城県,final_set,99 + 1 = 100,exact_match,SRC000099;SRC000200;SRC000201;SRC000202,公式数に一致。
+10,群馬県,jhbf_2026_official_count,68,target_count,SRC000099,2026年5月末硬式加盟校数。
+10,群馬県,summer_2026,65 schools / 59 teams,base_roster,SRC000203,2026夏大会を学校単位へ展開。
+10,群馬県,missing_school,万場,add_1,SRC000057,県高野連加盟校情報と夏大会集合との差分として補完。
+10,群馬県,missing_school,嬬恋,add_1,SRC000057,県高野連加盟校情報と夏大会集合との差分として補完。
+10,群馬県,missing_school,板倉,add_1,SRC000057,県高野連加盟校情報と夏大会集合との差分として補完。
+10,群馬県,final_set,65 + 3 = 68,exact_match,SRC000099;SRC000203;SRC000057,公式数に一致。
+39,高知県,jhbf_2026_official_count,28,target_count,SRC000099,2026年5月末硬式加盟校数。
+39,高知県,summer_2026,26 schools / 24 teams,base_roster,SRC000204,2026夏大会を学校単位へ展開。
+39,高知県,missing_school,嶺北,add_1,SRC000205,学校公式が令和8年5月1日現在も高野連所属と明記。
+39,高知県,missing_school,清水,add_1,SRC000206;SRC000207,加盟校履歴、2026現存校、閉校校整理、公式28校の件数照合から差分校として採用。
+39,高知県,final_set,26 + 2 = 28,exact_match,SRC000099;SRC000204;SRC000205;SRC000206;SRC000207,公式数に一致。

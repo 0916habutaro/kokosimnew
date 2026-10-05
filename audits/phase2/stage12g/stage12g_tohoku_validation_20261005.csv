@@ -1,0 +1,15 @@
+﻿check,result,detail
+row_count_12,PASS,rows=12
+unique_prefecture_season,PASS,unique=12
+competition_id_resolved,PASS,resolved=12/12
+competition_id_unique,PASS,unique=12
+all_master_merged,PASS,merged=12/12
+match_day_rows_92,PASS,rows=92
+match_day_competition_ids,PASS,resolved=92/92
+audit_match_days_consistent,PASS,audit match_dates == day rows and counts
+prefectural_official_schedule_15,PASS,official=15/94
+prefectural_calendar_gaps_79,PASS,gaps=79/94
+calendar_source_fk,PASS,12/12 source ids valid
+new_phase2_sources,PASS,"new_sources=7, total=175"
+all_research_complete,PASS,complete=12/12
+all_proposed_official_schedule,PASS,official_schedule=12/12

@@ -1,0 +1,10 @@
+﻿prefecture_code,prefecture_name,check_type,observed_value,decision,source_ids,notes
+04,宮城県,stale_official_member_page,69,do_not_use_count_as_current,SRC000051,県高野連公式ページは69校表記のまま。学校名母集団として使用。
+04,宮城県,jhbf_2026_official_count,65,target_count,SRC000099,日本高野連2026年5月末硬式加盟校数。
+04,宮城県,2026_federation_count_report,65 / 前年度から増減なし,supports_target,SRC000146,2026年度硬式加盟校65校。
+04,宮城県,2026_membership_changes,新規加盟0 / 脱退0,retain_2025_member_set,SRC000144,令和8年度第1回評議員会資料。
+04,宮城県,2025_members_and_nonparticipants,65加盟 / 62夏参加 / 不参加=岩ケ崎・石巻商・村田,baseline_set_evidence,SRC000145,2025加盟校構成の確認。
+04,宮城県,2026_summer_participation,63校 / 56チーム,identify_nonparticipants,SRC000143,岩ケ崎は北部連合で参加。2026夏不参加加盟校は石巻商業・村田の2校。
+04,宮城県,exclude_from_stale_69,亘理;柴田農林;登米;蔵王,exclude_4,SRC000051;SRC000099;SRC000143;SRC000144;SRC000145;SRC000146,旧69校から除外する4校。
+04,宮城県,retain_nonparticipants,石巻商業;村田,retain_2,SRC000051;SRC000143;SRC000145,夏大会不参加でも加盟校として保持。
+04,宮城県,final_count,65,exact_match,SRC000099;SRC000146,2026公式数と完全一致。

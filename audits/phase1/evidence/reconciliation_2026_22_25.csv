@@ -1,0 +1,12 @@
+﻿prefecture_code,prefecture_name,check_type,observed_value,decision,source_ids,notes
+25,滋賀県,jhbf_2026_official_count,52,target_count,SRC000099,2026年5月末硬式加盟校数。
+25,滋賀県,summer_2026,52 schools / 47 teams,expand_union,SRC000175;SRC000176,大会参加校数自体が公式加盟校数52と一致。
+25,滋賀県,six_school_union,安曇川;湖南農;石部;信楽;愛知;長浜農,expand_6,SRC000175,6校連合1チーム。47チームに対して学校数を5増やし52校。
+25,滋賀県,final_set,52,exact_match,SRC000099;SRC000175;SRC000176,大会出場校の学校単位展開だけで公式数へ一致。
+22,静岡県,jhbf_2026_official_count,108,target_count,SRC000099,2026年5月末硬式加盟校数。
+22,静岡県,current_hardball_member_rows,108,base_roster,SRC000177,東部36・中部32・西部40＝硬式108校。
+22,静岡県,summer_2026,108 schools / 106 teams,expand_unions,SRC000178,大会参加校数108が公式加盟校数108と一致。
+22,静岡県,union_1,沼津工;熱海,expand_2,SRC000178,2校連合。
+22,静岡県,union_2,浜松湖北佐久間分校;新居,expand_2,SRC000178;SRC000177,大会略称『佐久間・新居』。佐久間は浜松湖北高等学校佐久間分校。
+22,静岡県,single_school_name_normalization,浜松学院・興誠 -> 浜松学院興誠高等学校,normalize_single_school,SRC000177,大会表示は中黒風区切りだが連合ではなく1校。
+22,静岡県,final_set,108,exact_match,SRC000099;SRC000177;SRC000178,現行硬式加盟校108と大会参加108校が完全一致。

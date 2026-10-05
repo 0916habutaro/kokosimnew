@@ -1,0 +1,14 @@
+﻿check,actual,expected,status,notes
+tokyo_school_rows,269,269,PASS,東京都高野連2026加盟校マスター。
+tokyo_scheme_rows,1,1,PASS,選手権東西代表区分。
+tokyo_area_rows,2,2,PASS,東東京・西東京。
+tokyo_membership_rows,269,269,PASS,東京都269校すべて1区分へ所属。
+tokyo_east_member_schools,140,140,PASS,加盟校ベース。2026夏公式参加校数137との差3校は不参加校。
+tokyo_west_member_schools,129,129,PASS,加盟校ベース。2026夏公式参加校数128との差1校は不参加校。
+tokyo_unassigned_programs,0,0,PASS,未割当なし。
+tokyo_duplicate_memberships_per_program,0,0,PASS,1校1所属。
+membership_id_duplicates_global,0,0,PASS,全都道府県エリア登録でID重複なし。
+membership_program_fk_missing_global,0,0,PASS,program_id外部キー。
+membership_scheme_fk_missing_global,0,0,PASS,scheme_id外部キー。
+membership_area_fk_missing_global,0,0,PASS,area_id外部キー。
+membership_source_fk_missing_global,0,0,PASS,source_id外部キー。

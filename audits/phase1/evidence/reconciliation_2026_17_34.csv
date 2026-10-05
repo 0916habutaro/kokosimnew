@@ -1,0 +1,12 @@
+﻿prefecture_code,prefecture_name,check_type,observed_value,decision,source_ids,notes
+17,石川県,official_2026_count,50,target_count,SRC000099,日本高野連2026年5月末硬式加盟校数。
+17,石川県,official_page_link_state,"2026加盟校アンカー href=""""",direct_file_unavailable,SRC000064;SRC000141,県高野連公式資料ページには項目があるがリンク先が設定されていない。
+17,石川県,current_omyutech_roster,51,cross_check_only,SRC000136,現行Omyu県連盟一覧。
+17,石川県,prior_official_roster,50,base_roster,SRC000137,2025県高野連公式硬式50校。現行Omyu51校との唯一の追加差分が国際高等専門学校。
+17,石川県,omyutech_extra,国際高等専門学校,exclude_from_2026_hardball_master,SRC000136;SRC000137;SRC000099,Omyuには表示されるが2025公式50校に存在せず、2026JHBF公式数も50で据え置き。2026公式リンク修復時は再監査対象。
+34,広島県,official_2026_count,94,target_count,SRC000081;SRC000099,県高野連は令和8年5月現在94校、日本高野連も2026年5月末94校。
+34,広島県,current_omyutech_roster,88,base_roster,SRC000138,現行Omyu広島県高野連加盟校一覧。
+34,広島県,summer_2026_expansion,91 schools from 85 teams,cross_check_and_supplement,SRC000139,連合チームを構成校へ展開。
+34,広島県,summer_only_vs_omyutech,因島;広島商船高専;呉高専;修大協創;広島桜が丘;のみのお分校,add_6,SRC000139,Omyu加盟校88校には未表示だが2026選手権出場校で確認。
+34,広島県,omyutech_only_vs_summer,三原東;湯来南;賀茂北,retain_3,SRC000138,夏大会不出場でも現行県連盟加盟校一覧に掲載されるため加盟校として保持。
+34,広島県,union_count,94,exact_match,SRC000081;SRC000099;SRC000138;SRC000139,88校と差分6校の和集合が公式94校に完全一致。

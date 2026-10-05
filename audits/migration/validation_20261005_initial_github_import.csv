@@ -1,0 +1,15 @@
+﻿check,actual,expected,status,notes
+phase1_common_sha_differences,0,0,PASS,
+prefectures_rows,47,47,PASS,
+schools_rows,3746,3746,PASS,
+baseball_programs_rows,3746,3746,PASS,
+sources_rows,352,352,PASS,
+area_schemes_rows,87,87,PASS,
+competition_areas_rows,226,226,PASS,
+school_area_memberships_rows,6871,6871,PASS,
+phase2_sources_rows,175,175,PASS,
+stage12g_schedule_rows,12,12,PASS,
+stage12g_match_day_rows,92,92,PASS,
+unittest_total_pass,74,74,PASS,Stage12F 70 + Stage12G 4
+season_prefectural_pass,94,94,PASS,
+season_calendar_gaps,79,79,PASS,

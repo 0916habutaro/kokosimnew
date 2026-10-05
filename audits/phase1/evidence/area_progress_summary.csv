@@ -1,0 +1,28 @@
+﻿metric,value,notes
+area_schemes_rows,87,奈良のASM000087（1～4区）を追加。
+competition_areas_rows,226,奈良1区～4区の4 areaを追加。
+school_area_memberships_rows,6871,"2026夏代表3,746件＋恒常支部・地区3,125件。奈良39件を追加。"
+prefectures_with_summer_representation,47,2026年度の夏代表区分を全国47都道府県で登録完了。
+schools_with_summer_representation,3746,"全3,746加盟校に1つずつ2026夏代表区分を付与。"
+summer_representation_areas,49,北海道2・東京2・その他45＝49代表区分。
+prefectures_with_federation_branch_registration,40,学校単位まで恒常支部・地区登録済み40都道府県。奈良を追加。
+federation_branch_memberships,3125,恒常支部・地区membership総数。奈良39件追加後。
+prefectures_branch_not_applicable_confirmed,7,鳥取・東京・滋賀・大阪・香川・高知・和歌山の7都府県。現行硬式大会で恒常支部・地区制度を確認できない。
+chugoku_area_completion,5/5,鳥取＝not_applicable、島根・岡山・広島・山口＝federation_branch completed。中国地方5県の地区判定を完了。
+future_memorial_tournament_policy,year_specific,記念大会の複数代表区分は当該年度の公式決定時に別schemeとして追加し、将来へ自動推定しない。
+shikoku_area_completion,4/4,徳島＝federation_branch completed、香川＝not_applicable、愛媛＝federation_branch completed、高知＝not_applicable。四国4県の地区判定を完了。
+prefectures_branch_research_pending,0,奈良39校を追加資料の多重照合で確定し、research_pendingは解消。
+hokuriku_koshinetsu_area_progress,5/5 complete,新潟・富山・石川・福井・山梨の今回対象5県を完了。長野も既存登録済み。
+yamanashi_area_completion,33/33,A北5・B西6・C甲南4・D甲北4・E甲東6・F東4・G南4。公式資料突合で全33校確定。
+yamagata_area_completion,42/42,村山18・置賜9・最北5・庄内10。2026現行加盟校ページで全42校を直接確定。
+tohoku_area_completion,6/6,青森・岩手・宮城・秋田・山形・福島の恒常支部・地区判定を完了。
+gunma_area_completion,68/68,東毛19・中毛24・西毛25。68校を全件照合。沼田・利根系は中毛、吾妻系は西毛として境界確認。
+kanto_area_progress,7/7 complete,茨城・栃木・群馬・埼玉・千葉・神奈川はfederation_branch登録済み、東京はnot_applicable。関東7都県の地区判定を完了。
+tokyo_branch_completion,not_applicable,東東京・西東京はASM000003のsummer_representationで保持。2026春秋は全都一括、一次予選ブロックは大会抽選区分のため恒常federation_branchを追加しない。
+branch_policy_assessed_prefectures,47/47,全国47都道府県について恒常支部・地区制度を判定済み。40登録済み＋7 not_applicable。
+branch_resolution_complete,47/47,学校単位登録済み40＋not_applicable 7＝全国47都道府県すべて解決。
+kinki_area_progress,6/6 complete,京都・兵庫・奈良はfederation_branch登録済み。滋賀・大阪・和歌山はnot_applicable。近畿6府県完了。
+shiga_branch_completion,not_applicable,2026春秋は滋賀県大会へ直接参加。恒常的な硬式支部・地区制度を確認できない。
+osaka_branch_completion,not_applicable,2026春秋は大阪府予選として府内一括。A～D等の組合せ区分はtournament_draw_blockとして扱う。
+nara_branch_completion,39/39,1区9・2区13・3区7・4区10。現行4区制＋旧加盟校順＋地区直接資料＋学校再編継承を突合して全39校登録。
+wakayama_branch_completion,not_applicable,公式大会体系は県予選・和歌山大会として一括実施。恒常支部・地区制度を確認できない。

@@ -1,0 +1,13 @@
+﻿audit_id,area,status,expected,observed,notes
+AUDC4-001,scope,PASS,94,94,47都道府県×春秋のMAIN本戦
+AUDC4-002,main_execution,PASS,94,94,全大会で優勝校まで解決
+AUDC4-003,fixed_bracket,PASS,power-of-two,power-of-two,byeは1回戦のみ
+AUDC4-004,match_accounting,PASS,n-1,n-1,MAIN実試合数
+AUDC4-005,result_contract,PASS,champion+runnerup+SF+QF+ranking,implemented,GUI/履歴用
+AUDC4-006,draw_replay,PASS,exact annual slots override,implemented,main_bracket_slots
+AUDC4-007,result_replay,PASS,match winner override,implemented,main_match_winner_overrides
+AUDC4-008,persistence,PASS,3 artifacts,JSON+2CSV,summary/matches/placements
+AUDC4-009,regression,PASS,39 tests,39 PASS,Stage12C-1～C-3含む
+AUDC4-010,protected_rules,PASS,12 unchanged,12 unchanged,公式ルールCSVを変更せずsimulation policyを分離
+AUDC4-011,official_draw_boundary,PASS,do not invent,preserved,exact draw未入力時のみ標準simulation draw
+AUDC4-012,next_scope,PASS,Stage12D,Stage12D,season end-to-end audit

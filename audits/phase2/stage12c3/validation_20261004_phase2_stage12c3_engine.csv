@@ -1,0 +1,12 @@
+﻿check_id,category,description,actual,expected,status,notes
+V12C3-001,dispatch,all 26 format models registered,26,26,PASS,
+V12C3-002,dispatch,all assigned group models supported,25,25,PASS,
+V12C3-003,scope,new model count,17,17,PASS,
+V12C3-004,scope,new-model competition count,23,23,PASS,
+V12C3-005,execution,new-model competitions structural execution,23,23,PASS,
+V12C3-006,execution,all format-assigned competitions structural execution,44,44,PASS,
+V12C3-007,integrity,protected CSV byte identity,12,12,PASS,
+V12C3-008,testing,unit tests,31/31 PASS,31/31 PASS,PASS,
+V12C3-009,hardcode,engine contains no SCH id literals,0,0,PASS,
+V12C3-010,annual_input,group entrant override field exists,True,True,PASS,
+V12C3-011,integrity,Stage12C-2 source diff before manifest,6 changed / 4 new / 0 missing,no missing; changes limited to engine/docs/progress + Stage12C3 artifacts,PASS,

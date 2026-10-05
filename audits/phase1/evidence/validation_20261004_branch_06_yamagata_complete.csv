@@ -1,0 +1,34 @@
+﻿check_name,status,detail
+scheme_id_unique,PASS,rows=85 unique=85
+area_id_unique,PASS,rows=219 unique=219
+membership_id_unique,PASS,rows=6764 unique=6764
+source_id_unique,PASS,rows=329 unique=329
+membership_program_fk,PASS,bad=0
+membership_scheme_fk,PASS,bad=0
+membership_area_fk,PASS,bad=0
+membership_source_fk,PASS,bad=0
+scheme_source_fk,PASS,bad=0
+area_source_fk,PASS,bad=0
+parent_area_fk,PASS,bad=0
+yamagata_scheme_exists,PASS,ASM000085=1
+yamagata_scheme_type,PASS,federation_branch
+yamagata_area_count,PASS,actual=4 expected=4
+yamagata_membership_count,PASS,actual=42 expected=42
+yamagata_program_unique,PASS,unique=42
+yamagata_prefecture_match,PASS,mismatch=0
+yamagata_reference_year,PASS,all=2026
+distribution_村山地区,PASS,actual=18 expected=18
+distribution_置賜地区,PASS,actual=9 expected=9
+distribution_最北地区,PASS,actual=5 expected=5
+distribution_庄内地区,PASS,actual=10 expected=10
+program_scheme_unique,PASS,duplicates=0
+yamagata_status_complete,PASS,"{'prefecture_code': '06', 'prefecture_name': '山形県', 'federation_branch_status': 'complete', 'scheme_id': 'ASM000085', 'school_count': '42', 'source_id': 'SRC000173', 'verified_at': '2026-10-04', 'notes': '村山18・置賜9・最北5・庄内10。2026現行加盟校ページの地区別掲載で42校を直接確定。'}"
+research_pending_zero,PASS,pending=0
+summer_memberships_unchanged,PASS,actual=3746 expected=3746
+summer_programs_unique,PASS,unique=3746
+federation_branch_memberships_total,PASS,actual=3018 expected=3018
+area_schemes_total,PASS,actual=85 expected=85
+competition_areas_total,PASS,actual=219 expected=219
+memberships_total,PASS,actual=6764 expected=6764
+registration_audit_rows,PASS,actual=42 expected=42
+formal_source_chain_present,PASS,source=SRC000173

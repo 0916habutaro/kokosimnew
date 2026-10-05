@@ -1,0 +1,25 @@
+﻿audit_id,check,status,actual,expected,notes
+F001,tokyo_autumn_stage_graph,PASS,PRELIMINARY_QUALIFIER->MAIN,PRELIMINARY_QUALIFIER->MAIN,
+F002,numbered_blocks,PASS,31,31,2026 structure; each numbered block has A/B representative bracket
+F003,representative_groups,PASS,62,62,31 x A/B
+F004,representative_slots,PASS,62,62,
+F005,summer_direct_access_rules,PASS,2,2,East/West Tokyo summer champions
+F006,observed_participating_schools,PASS,260,260,
+F007,observed_team_units,PASS,232,232,
+F008,observed_preliminary_team_units,PASS,230,230,
+F009,phase1_tokyo_school_master,PASS,269,269,school identities != annual team units
+F010,structural_season_tokyo_entrants,PASS,232,232,230 preliminary proxies + 2 direct
+F011,preliminary_entrants,PASS,230,230,
+F012,preliminary_qualifiers,PASS,62,62,
+F013,tokyo_main_entrants,PASS,64,64,62 preliminary winners + 2 summer direct
+F014,tokyo_main_matches,PASS,63,63,single elimination 64 teams
+F015,prefectural_competitions_pass,PASS,94,94,
+F016,prefectural_internal_gaps,PASS,0,0,
+F017,access_rules_resolved,PASS,19,19,
+F018,qualification_rules_resolved,PASS,59,59,
+F019,regional_feeder_rules_resolved,PASS,96,96,
+F020,regional_competitions_pass,PASS,16,16,
+F021,jingu_completed,PASS,true,true,
+F022,unittest_count,PASS,70,70,Stage12C/D/E regression + Stage12F tests
+F023,protected_files_byte_identical,PASS,14,14,
+F024,annual_exact_combined_team_mapping_status,PASS,combined_team_mapping_not_materialized,combined_team_mapping_not_materialized,expected replay-layer boundary; tournament mechanism is complete

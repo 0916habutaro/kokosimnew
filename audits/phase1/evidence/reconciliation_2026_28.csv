@@ -1,0 +1,6 @@
+﻿prefecture_code,prefecture_name,check_type,observed_value,decision,source_ids,notes
+28,兵庫県,jhbf_2026_official_count,167,target_count,SRC000099,2026年5月末硬式加盟校数。
+28,兵庫県,summer_2026,166 schools / 149 teams,expand_joint_teams,SRC000219,2026夏大会の出場校を連合チーム構成校まで学校単位へ展開すると166校。
+28,兵庫県,summer_nonparticipant,1 school: 生野,retain_as_member,SRC000220,生野は2026秋季但丹地区予選で村岡・和田山・出石との4校連合として活動確認。
+28,兵庫県,school_reorganization,6 prefectural new schools + 1 Himeji municipal new school,retain_old_and_new_during_transition,SRC000221;SRC000222,2025県立再編と2026姫路市立再編では、旧校在校生が卒業まで旧校に在籍するため新旧校を別学校として保持。
+28,兵庫県,final_set,166 + 1 = 167,exact_match,SRC000099;SRC000219;SRC000220;SRC000221;SRC000222,JHBF 2026年5月末公式加盟校数167校と一致。

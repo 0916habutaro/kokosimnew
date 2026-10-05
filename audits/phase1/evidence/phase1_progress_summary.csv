@@ -1,0 +1,24 @@
+﻿metric,value,notes
+phase1_status,completed,2026年度全国47都道府県の硬式加盟校・夏代表区分・恒常支部/地区判定を最終統合監査済みとして固定。
+phase1_completed_version,2026-10-04,Phase 1 completed freeze.
+prefectures_total,47,prefectures.csv。
+schools_total,3746,2026年度硬式加盟校。
+baseball_programs_total,3746,schools.csvと1:1。すべてhardball / 2026 / membership_status=active / activity_status=active。
+official_count_exact_prefectures,47/47,phase1_2026_count_audit.csvで全都道府県exact_match。
+sources_total,352,最終completed版のsources.csv。
+area_schemes_total,87,summer_representation 47 + federation_branch 40。
+summer_representation_schemes,47,47都道府県すべてに年度別scheme。
+federation_branch_schemes,40,恒常支部・地区制度を登録した40都道府県。
+competition_areas_total,226,夏代表49 + 恒常支部・地区177。
+school_area_memberships_total,6871,夏代表＋恒常支部・地区。
+summer_representation_memberships,3746,"全3,746 programに1件ずつ。"
+federation_branch_memberships,3125,branch登録40都道府県の全programに1件ずつ。
+branch_registered_prefectures,40,federation_branch complete。
+branch_not_applicable_prefectures,7,東京・滋賀・大阪・鳥取・香川・高知・和歌山。
+branch_research_pending_prefectures,0,奈良確定により0。
+branch_policy_resolution,47/47,40 complete + 7 not_applicable。
+summer_representation_resolution,47/47,"全3,746校に2026夏代表区分。"
+summer_representation_areas,49,北海道2・東京2・その他45＝49。
+pending_files,0,completed版にpending名称のファイルを含めない。
+semantic_cross_prefecture_corrections,1,島根県飯南高校のbranch membershipが同名の三重県飯南高校へ誤紐付けされていた1件を修正。
+membership_status_normalizations,359,"北海道192＋兵庫167のmember表記をactiveへ統一。全3,746件でenumを統一。"

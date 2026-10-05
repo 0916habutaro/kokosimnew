@@ -1,0 +1,16 @@
+﻿audit_id,check,status,actual,expected,notes
+D001,prefectural_executed,PASS,94,94,47 spring + 47 autumn all produced champion
+D002,prefectural_structural_exact,WARN,93,94,Tokyo autumn CMP000016 MAIN64前段が未構造化; execution itself completes
+D003,access_rules_resolved,PASS,17,17,前年秋/Senbatsu/当年夏結果をresolverで接続
+D004,summer_local_completed,PASS,49,49,49 summer representation areas
+D005,summer_national_automatic_qualifiers,PASS,49,49,qualification_rules QRL000001-049 resolved and national tournament run
+D006,mie_special_seed,PASS,8,8,7 district seeds + current summer champion via ACR000014/SDR000040
+D007,qualification_rules_total,WARN,51,59,49 summer->national + Hokkaido/Tokyo autumn->Jingu resolved; 8 regional winners blocked
+D008,regional_feeder_rules,WARN,0,16,8 spring + 8 autumn regionals lack prefectural->regional qualification rules
+D009,prefectural_calendar_verified,WARN,3,94,91 prefectural spring/autumn calendar rows remain research_pending
+D010,dependency_date_failures,PASS,0,0,known dated dependencies have no reverse chronology
+D011,access_dependency_date_unknown,WARN,10,0,"destination prefectural calendars pending, so date relation cannot be verified"
+D012,senbatsu_structural_fixture,PASS,32,32,selection_rules quota-preserving bootstrap for structural audit only
+D013,regional_bridge_gap_rows,PASS,16,16,gap inventory generated for next phase
+D014,calendar_gap_rows,PASS,91,91,gap inventory generated
+D015,internal_structure_gap_rows,PASS,1,1,Tokyo autumn detected instead of hidden

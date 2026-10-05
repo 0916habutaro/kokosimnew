@@ -1,0 +1,156 @@
+﻿metric,value,notes
+phase2_status,stage12f_tokyo_autumn_preliminary_complete,東京秋一次予選を31番号ブロック×A/B代表62枠＋夏東西代表2免除として構造化。春秋県大会94/94の前段構造gapを解消。残る大規模データ課題は県春秋カレンダー91件。
+verified_competitions_2026,71,既存71大会は従来どおりverified/registered。県大会91新規行は構造のみで調査待ち
+calendar_rows,71,71大会すべて公式日程あり
+summer_local_qualifiers,49,Phase 1 summer_representation 49 areaを全件接続
+spring_regionals,9,東京は春季関東地区に含む
+autumn_regionals,10,東京地区を独立して含む
+automatic_qualification_rules,59,夏49＋神宮10
+senbatsu_selection_rules,12,一般30＋21世紀枠2=32校
+prefecture_region_memberships,94,47都道府県×春/秋
+phase1_files_modified,0,Phase 1 completed 132ファイルはbyte-identicalで保持
+next_scope,stage12f_tokyo_autumn_front_qualifier,東京秋の269加盟校→MAIN64校に至る前段予選を正式構造化。その後、県春秋の正式日程を補完し日付単位進行へ。
+registered_competitions_2026,162,71既存＋91県大会新規=162。北海道春秋・東京秋の3件は既存ID再利用
+prefectural_spring_autumn_structure,94,47都道府県×春秋。94/94 competition対応を作成
+prefectural_branch_usage_rows,94,94行維持。段階9で九州16行を確定し、research_pendingは18→2
+tohoku_branch_usage_verified,12,東北6県×春秋。qualifier 6 / seed_only 2 / not_used 4
+prefectural_branch_usage_research_pending,0,Stage 10で北海道春秋2大会を確定し、未確定0
+prefectural_branch_usage_qualifier,35,北海道春秋2大会をqualifierへ確定
+prefectural_branch_usage_seed_only,9,変更なし
+prefectural_branch_usage_not_used,36,変更なし
+prefectural_branch_usage_no_branch,14,変更なし
+tohoku_branch_qualifier_slots,157,地区・支部予選から県大会へ進むチーム枠の合計。直接出場2枠は含めない
+tohoku_direct_entry_exemptions,2,宮城秋=仙台育英1、福島秋=東日大昌平1
+kanto_branch_usage_verified,14,茨城・栃木・群馬・埼玉・千葉・神奈川・山梨の春秋。qualifier 8 / not_used 6
+kanto_branch_qualifier_slots,393,地区・ブロック予選から県大会へ進むチーム枠合計。直接出場23枠は含めない
+kanto_direct_entry_exemptions,23,茨城春4・埼玉春8・千葉春8・千葉秋1・神奈川春1・神奈川秋1
+verified_branch_usage_competitions,94,47都道府県×春秋94大会すべてbranch usage確定
+hokushinetsu_branch_usage_verified,10,新潟・長野・富山・石川・福井の春秋。qualifier 2 / not_used 8
+hokushinetsu_branch_qualifier_slots,40,長野春16＋長野秋24。直接出場枠なし
+hokushinetsu_direct_entry_exemptions,0,北信越5県の対象10大会では地区・支部予選を迂回する直接出場枠を確認せず
+tokai_branch_usage_verified,8,岐阜・静岡・愛知・三重の春秋。qualifier 6 / seed_only 2
+tokai_branch_qualifier_slots,220,岐阜春20＋静岡春39＋静岡秋39＋愛知春48＋愛知秋49＋三重春25。直接出場8枠は含めない
+tokai_direct_entry_exemptions,8,岐阜春4・静岡秋1・愛知春1・三重春1・三重秋1
+kinki_branch_usage_checked,12,滋賀・京都・大阪・兵庫・奈良・和歌山の春秋12大会をStage 6で確認
+kinki_branch_usage_newly_resolved,6,京都春秋・兵庫春秋・奈良春秋をresearch_pendingから確定
+kinki_branch_usage_verified,12,qualifier 3 / not_used 3 / no_branch 6。no_branch 6はPhase 1判定を維持
+kinki_branch_qualifier_slots,102,京都春16＋兵庫春33＋兵庫秋53。直接出場・推薦4枠は含めない
+kinki_direct_entry_exemptions,4,兵庫春3（前年秋近畿出場校）＋兵庫秋1（夏甲子園出場の社）
+chugoku_branch_usage_checked,10,鳥取・島根・岡山・広島・山口の春秋10大会をStage 7で確認
+chugoku_branch_usage_newly_resolved,8,島根春秋・岡山春秋・広島春秋・山口春秋をresearch_pendingから確定
+chugoku_branch_usage_verified,10,qualifier 6 / not_used 2 / no_branch 2。鳥取no_branch 2はPhase 1判定を維持
+chugoku_branch_qualifier_slots,116,岡山春16＋秋20＋広島春32＋秋32＋山口春8＋秋8。直接出場8枠は含めない
+chugoku_direct_entry_exemptions,8,岡山春の前年秋季県大会ベスト8のみ。その他対象大会は0
+chugoku_yamaguchi_macro_area_note,2,山口春秋はPhase 1の4支部個別固定枠ではなく、周防（岩柳＋防徳）・長門（山宇萩＋下関）の2地域へ集約して各4校・計8校を県決勝へ送る2026構造として記録
+shikoku_branch_usage_checked,8,徳島・香川・愛媛・高知の春秋8大会をStage 8で確認
+shikoku_branch_usage_newly_resolved,4,徳島春秋・愛媛春秋をresearch_pendingから確定
+shikoku_branch_usage_verified,8,seed_only 2 / not_used 2 / no_branch 4。香川・高知no_branch 4はPhase 1判定を維持
+shikoku_branch_qualifier_slots,0,四国Stage 8対象では地理支部から春秋県大会へ進むqualifier枠を確認せず
+shikoku_direct_entry_exemptions,0,地区予選を迂回する県大会直接出場枠は0。愛媛秋の新田はシード追加であって直接出場枠ではない
+shikoku_seed_only_events,2,徳島秋＝新人ブロック→新人中央大会、愛媛秋＝地区別新人大会の結果を秋季県大会シード決定に使用
+kyushu_branch_usage_checked,16,福岡・佐賀・長崎・熊本・大分・宮崎・鹿児島・沖縄の春秋16大会をStage 9で確認
+kyushu_branch_usage_newly_resolved,16,九州8県の春秋16大会をresearch_pendingから確定
+kyushu_branch_usage_verified,16,qualifier 2 / seed_only 3 / not_used 11
+kyushu_branch_qualifier_slots,24,福岡春8＋福岡秋16。その他14大会は県大会進出を絞る地理支部qualifierではない
+kyushu_direct_entry_exemptions,0,今回対象16大会では地区予選を迂回して県大会本体へ加わるdirect entry枠を確認せず。選抜校の地域大会直行は県大会direct entryとは別概念
+kyushu_seed_only_events,3,宮崎秋＝新人3地区8ブロック1位、鹿児島秋＝7地区大会結果、沖縄秋＝地区新人戦からつながる新人中央大会ベスト4を秋季県大会シードに使用
+hokkaido_branch_usage_checked,2,北海道春秋2大会をStage 10で確認
+hokkaido_branch_usage_newly_resolved,2,北海道春秋2大会をresearch_pendingから確定
+hokkaido_branch_usage_verified,2,spring qualifier / autumn qualifier
+hokkaido_branch_qualifier_slots,35,春15＋秋20。春は別途北照の選抜推薦1枠あり
+hokkaido_direct_entry_exemptions,1,春の北照1校。センバツ出場による選抜推薦枠
+all_prefectural_branch_usage_complete,94,94/94大会確定、research_pending 0
+dynamic_access_rules,17,県大会直接出場/地区予選免除16ルール＋三重秋の地区シード決め免除1ルール
+dynamic_main_entry_bypass_rules,16,地区予選等を迂回して県/全道本大会の出場資格を付与するルール
+observed_2026_main_entry_exemptions,45,2026実績でmain entryとして地区予選等を免除された延べ校数
+dynamic_seed_rules,55,seed_only 9大会＋三重秋特例をイベント結果→シードへ変換する構成ルール行数
+structured_seed_only_competitions,9,青森春秋・岐阜秋・三重秋・徳島秋・愛媛秋・宮崎秋・鹿児島秋・沖縄秋
+structured_2026_seed_slots,93,2026ルール上のシード付与枠合計。複数条件一致はteam単位で重複排除
+hardcoded_school_rules,0,ルール条件にschool_id/学校名を固定せず、大会種別・年オフセット・順位・所属地区から解決
+stage11_validation_checks,43/43 PASS,動的ルール件数・2026再現値・FK・学校名非固定・Stage10不変性を検証
+competition_stage_rows,207,162 MAIN + 35 branch qualifier + 9 seed event + 岐阜秋FIRST_TOURNAMENT 1
+branch_qualifier_stage_count,35,prefectural_branch_usage_2026 qualifier 35/35をstage化
+seed_event_stage_count,9,seed_only 9/9をstage化
+stage_group_rows,184,qualifier groupとseed event groupを正規化
+stage_transition_rows,46,stage間の参加team集合移送規則
+stage_action_bindings,72,access 17 + seed 55 = 72ルールを全件binding
+bracket_policy_rows,139,94県大会MAIN＋必要なpre-stage policy
+reference_engine_status,validated,phase2_rule_engine_reference.py --validate PASS
+stage12b_target_stages,44,BRANCH_QUALIFIER 35 + SEED_EVENT 9
+stage12b_auxiliary_stages,1,岐阜秋 FIRST_TOURNAMENT を追加方式化
+stage12b_structured_stages,45,対象44 stage＋岐阜秋1次トーナメント
+stage12b_qualifier_stages,35,地区・支部予選
+stage12b_seed_event_stages,9,seed_only / protected seed生成イベント
+stage12b_stage_groups,184,Stage 12Aの全184 groupを方式モデルへ接続
+stage12b_format_models,26,再利用可能な内部方式モデル
+stage12b_format_phases,52,方式モデル内phase
+stage12b_format_parameters,338,stage/group固有parameter
+stage12b_format_pending,0,44 stageすべてmechanism_verified_2026。年次抽選位置は別データとして実行時解決
+stage12b_global_cross_group_stages,1,千葉秋のみ地区groupを跨ぐ全県一括一次予選＋全県一括敗者復活
+stage12b_mixed_group_model_stages,4,青森春秋・愛知春秋はgroupごとに異なる方式モデル
+stage12c1_status,complete,共通大会エンジン基盤＋岐阜秋のSEED_EVENT→FIRST_TOURNAMENT→MAIN入口をコード実装
+stage12c1_implemented_format_models,2,FMT009 seed_ranking_knockout / FMT026 single_round_gate_knockout
+stage12c1_reference_competition,CMP000110,岐阜秋。大会専用コードではなくformat model dispatchで実装
+stage12c1_gifu_structural_path,58->16seed+42gate->21winners->37main,構造検証用58校subset。公式2026参加校リストそのものではない
+stage12c1_tests,12/12 PASS,unittest + CLI + seed再現 + annual ranking override + odd gate bye
+stage12c1_participation_contract,annual entrant list required,加盟校マスターと大会参加校を分離。不参加・休部・連合等への拡張点
+stage12c2_status,complete,異方式大会への共通エンジン拡張。神奈川・千葉秋・北海道・青森をformat model dispatchで実行
+stage12c2_implemented_format_models,9,FMT001/FMT005/FMT006/FMT009/FMT018/FMT019/FMT020/FMT021/FMT026
+stage12c2_reference_competitions,5,CMP000095神奈川春 / CMP000093千葉秋 / CMP000013北海道秋 / CMP000073青森秋 / CMP000110岐阜秋
+stage12c2_kanagawa_path,163->162 qualifier->81 qualifiers+1 direct->82 main,春の構造デモ。4校pool上位2、3校pool1位＋2位補充戦
+stage12c2_chiba_path,141->140 primary->28 + 112 repechage->19 +1 direct =48 main,秋の全県一括一次予選＋全県敗者復活
+stage12c2_hokkaido_path,192->20 branch representatives,秋10支部、output_slotsと同数の代表ブロック勝者
+stage12c2_aomori_path,53 main entrants + 16 seed metadata,4 groupでFMT018/019/020/021 mixed execution
+stage12c2_tests,23/23 PASS,Stage12C-1回帰12件＋Stage12C-2異方式11件
+stage12c2_annual_draw_contract,deterministic simulation + optional overrides,group_rankings / group_pool_assignments。公式年度対戦カードはルールへハードコードしない
+stage12c3_status,complete,残り17方式を共通プリミティブで実装し、全26 format modelをengine dispatchへ接続。
+stage12c3_supported_format_models,26/26,FMT001〜FMT026。Stage12Bで使用する全方式。
+stage12c3_new_format_models,17,FMT002/003/004/007/008/010/011/012/013/014/015/016/017/022/023/024/025。
+stage12c3_new_model_competitions,23/23 PASS,追加17方式を使用する23大会をstructural harnessで全実行。
+stage12c3_all_structured_competitions,44/44 PASS,Stage12B format assignmentを持つ44大会を実行。岐阜秋はSEED_EVENT+FIRST_TOURNAMENTを同一runで処理。
+stage12c3_annual_group_override,implemented,group_entrant_school_idsを追加。年度固有の地区参加校を恒久membershipと分離。
+stage12c3_tests,31/31 PASS,Stage12C-1/12C-2回帰23件＋12C-3追加8件。
+stage12c3_draw_policy,deterministic structural simulation,年度実draw未入力時は制度phase・総枠数を守るseed再現可能draw。公式2026カードの推測ハードコードはしない。
+stage12c4_status,complete,県大会MAIN本戦を固定power-of-two bracketで生成し決勝まで進行。
+stage12c4_prefectural_mains,94/94 PASS,47都道府県×春秋。MAIN outcomeまで全件解決。
+stage12c4_main_format,fixed_power_of_two_single_elimination,byeは1回戦のみ。実試合数はMAIN参加校数-1。
+stage12c4_main_draw_policy,annual override or deterministic standard,exact slot未入力時はseed分散＋再現可能抽選。公式未確定drawを推測しない。
+stage12c4_result_contract,implemented,champion/runner-up/semifinalists/quarterfinalists/full ranking/round exits。
+stage12c4_result_persistence,implemented,summary JSON + matches CSV + placements CSV。
+stage12c4_runtime_overrides,3,main_seed_school_ids / main_bracket_slots / main_match_winner_overrides。
+stage12c4_tests,39/39 PASS,Stage12C-1～C-3回帰31件＋MAIN新規8件。
+stage12d_status,complete_with_data_gaps,シーズン依存resolver/監査実装完了。未構造化データを別gap tableへ分離。
+stage12d_prefectural_execution,94/94 executed; 93/94 structural PASS,東京秋CMP000016はMAIN64前段予選未構造化のためgap。
+stage12d_access_rules,17/17 PASS,前年秋・Senbatsu・当年夏の依存を解決。
+stage12d_summer_flow,49/49 local -> 49 national entrants,夏地方大会を実行しqualification_rulesで全国大会へ接続。
+stage12d_mie_special_seed,8 seeds,地区7＋当年夏優勝1をACR000014/SDR000040で自動接続。
+stage12d_qualification_rules,51/59 resolved,夏49＋神宮北海道/東京2。残り神宮8は県→秋地区 feeder未構造化。
+stage12d_regional_bridge_gaps,16,春8＋秋8の県→地区大会進出規則が未登録。
+stage12d_prefectural_calendar_gaps,91/94,県春秋の正式会期は北海道春秋・東京秋の3件のみready、残りresearch_pending。
+stage12d_internal_structure_gaps,1,東京秋: 269加盟校からMAIN64へ入る前段予選未構造化。
+stage12d_tests,50/50 PASS,Stage12C-1～C-4回帰39件＋Stage12D新規11件。
+stage12e_feeder_rules,96,県大会順位・春九州選抜推薦・近畿秋決定戦候補を地区大会へ接続。
+stage12e_regional_destinations,16/16 PASS,春8＋秋8。北海道・東京は県→地区feeder対象外。
+stage12e_regional_playoffs,2/2 PASS,秋近畿: 滋賀3位対京都3位、奈良3位対和歌山3位。
+stage12e_regional_execution,16/16 PASS,各地区大会でentrant_countが公式team_countと一致し優勝校まで決定。
+stage12e_qualification_rules,59/59 PASS,夏49＋秋10地区優勝→神宮を全件解決。
+stage12e_jingu_flow,10 qualifiers -> Jingu complete,秋10地区代表でCMP000003を実行。
+stage12e_regional_bridge_gaps,0,Stage12Dで検出した16件を解消。
+stage12e_spring_kyushu_senbatsu,6,選抜参加6校＋県大会経由10枠で春九州16校。
+stage12e_remaining_internal_gaps,1,東京秋の269加盟校→MAIN64前段予選。
+stage12e_calendar_gaps,91/94,県春秋の正式日付は引き続き91大会research_pending。
+stage12e_tests,60/60 PASS,Stage12C/D回帰50件＋Stage12E新規10件。
+stage12f_tokyo_preliminary_structure,31 blocks x A/B = 62 qualifiers,東京秋一次予選をPRELIMINARY_QUALIFIERとして追加。
+stage12f_tokyo_direct_access,2,当年夏の東東京・西東京優勝校を一次予選免除でMAINへ。
+stage12f_observed_participation,260 schools / 232 team units,一次予選230チーム＋夏代表2＝232。
+stage12f_main_resolution,62 + 2 = 64,東京秋MAIN64校を自動解決。
+stage12f_internal_structure_gaps,0,Stage12D/Eで残っていた東京秋の前段予選gapを解消。
+stage12f_tests,70/70 PASS,Stage12C/D/E回帰60件＋Stage12F新規10件。
+stage12f_prefectural_pass,94/94 PASS,東京秋を含む春秋全県大会の構造実行がMAIN優勝まで完走。
+stage12f_access_rules,19/19 PASS,東京秋の夏東西代表2校の一次予選免除を追加し全access ruleを解決。
+stage12f_combined_team_exact_mapping,not_materialized,2026実年度の連合構成・232チームID対応はannual replay layerとして未登録。制度構造・枠数には影響しない。
+stage12f_calendar_gaps,91/94,県春秋の正式日付は引き続き91大会research_pending。
+stage12g_tohoku_schedule_merge,12/12 official_schedule,青森・岩手・宮城・秋田・山形・福島の春秋12県大会をcompetition_idへ紐付け、season_calendarへ反映。
+stage12g_tohoku_match_days,92,東北12大会の実施試合日を日単位で構造化。
+stage12g_prefectural_official_schedule,15/94,Stage12F時点3大会＋東北12大会。
+stage12g_calendar_gaps,79/94,県春秋のresearch_pendingは91件から79件へ減少。

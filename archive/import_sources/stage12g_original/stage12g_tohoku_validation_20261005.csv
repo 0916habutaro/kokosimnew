@@ -1,0 +1,13 @@
+﻿check,result,detail
+row_count_12,PASS,rows=12
+unique_prefecture_season,PASS,unique=12
+all_research_complete,PASS,complete=12/12
+all_proposed_official_schedule,PASS,official_schedule=12/12
+all_master_unmerged,PASS,Stage12F master file not available in current workspace
+competition_id_intentionally_blank,PASS,12/12 blank; do not invent IDs before joining Stage12F competitions.csv
+all_match_dates_within_range,PASS,all 12 tournaments
+range_matches_first_last_match_day,PASS,all 12 tournaments
+match_dates_sorted_unique,PASS,all 12 tournaments
+normalized_match_day_count,PASS,match_day_rows=92
+source_urls_present,PASS,12/12 primary sources
+akita_autumn_scope_note,PASS,main tournament only; qualifier excluded from 94-tournament schedule
