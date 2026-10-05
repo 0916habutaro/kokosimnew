@@ -79,6 +79,21 @@ today_pending:
 
 公式結果の確認後にキューとmasterを更新する責任は従来どおりStage 12Iの調査工程に残す。
 
+## 検証結果
+
+GitHub Actions上で実際に検証した。
+
+- unit test: **143 / 143 PASS**
+- reconciliation CLI: **実行成功**
+- 2026-10-06 status: **19件 = recheck_due 0 / today_pending 6 / future_pending 13**
+- 県大会E2E: **94 / 94 PASS**
+- access rules: **22 / 22 PASS**
+- calendar gaps: **0**
+- internal structure gaps: **0**
+- warnings: **0**
+
+最初の検証では、生成器が next_check_date 順に並べる一方、手作成スナップショットが元キュー順だったため比較テストのみ失敗した。スナップショットを実際のCLI出力順へ修正し、再実行で143/143 PASSを確認した。判定ロジックの不具合ではない。
+
 ## 次工程
 
 10月6日の試合終了後、CLIで `recheck_due / today_pending` を抽出し、該当6大会の公式結果を再照合する。
