@@ -88,7 +88,19 @@ Stage 12Gは日程構造化工程であるため、本PRでは大会エンジン
 - 2026年4月4日雨天中止・継続試合による日程変更
   - https://tokyo-hbf.com/news.php?nid=2c6cc1382428fef2f60eccbab09166e5
 
-## 8. 次工程候補
+## 8. 検証結果
+
+GitHub Actions上で実際に検証を実行し、以下を確認した。
+
+- unit test: **122 / 122 PASS**
+- Stage 12G東京都春validation: **15 / 15 PASS**
+- season E2E県大会: **94 / 94 PASS**
+- `prefectural_calendar_gap_count = 0`
+- warnings: **0**
+
+実行ログでは `Ran 122 tests ... OK`、`PREFECTURAL_PASS=94`、`PREFECTURAL_TOTAL=94`、`CALENDAR_GAPS=0`、`WARNINGS=[]` を確認した。
+
+## 9. 次工程候補
 
 Stage 12G完了後は、日程調査によって判明した大会構造差分を修正する。
 
