@@ -1,0 +1,37 @@
+name: Stage 12H temporary verification
+
+on:
+  push:
+    branches:
+      - stage12h-prefectural-structure-fixes
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Season E2E markers
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from phase2_engine import DataRepository, SeasonOrchestrator
+          data=Path("data")
+          s=SeasonOrchestrator(DataRepository(data),data).run_structural_season(2026,2026100501)
+          print(f"PREFECTURAL_PASS={sum(r.status == 'PASS' for r in s.prefectural_rows)}")
+          print(f"PREFECTURAL_TOTAL={len(s.prefectural_rows)}")
+          print(f"ACCESS_PASS={sum(r.status == 'PASS' for r in s.access_resolutions)}")
+          print(f"ACCESS_TOTAL={len(s.access_resolutions)}")
+          print(f"CALENDAR_GAPS={len(s.calendar_gaps)}")
+          print(f"INTERNAL_GAPS={len(s.internal_structure_gaps)}")
+          print(f"WARNINGS={s.warnings}")
+          for cid in ("CMP000094","CMP000128","CMP000144"):
+              r=s.competition_runs[cid]
+              print(cid, "entrants", len(r.entrant_school_ids), "main", len(r.main_entrant_school_ids),
+                    "seeds", len(r.seed_assignments), "stages", [x.stage_code for x in r.stage_executions],
+                    "matches", r.outcome.match_count, "warnings", r.warnings)
+          PY
