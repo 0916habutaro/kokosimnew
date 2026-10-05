@@ -108,7 +108,7 @@ STG000175,CMP000092,BRANCH_QUALIFIER,地区・支部予選,branch_qualifier,1,fo
 STG000092,CMP000092,MAIN,県大会本体,main_tournament,2,,,,,Stage 12A: 地区・支部予選通過校と動的直接出場校を統合して本戦を生成。
 STG000176,CMP000093,BRANCH_QUALIFIER,地区・支部予選,branch_qualifier,1,format_model_driven,,P2SRC034,2026-10-04,Stage 12B: competition_stage_format_assignments / group overrides / phases / parametersで2026内部方式を機械実行可能に構造化。年次の学校名・対戦カードは保持しない。
 STG000093,CMP000093,MAIN,県大会本体,main_tournament,2,,,,,Stage 12A: 地区・支部予選通過校と動的直接出場校を統合して本戦を生成。
-STG000094,CMP000094,MAIN,県大会本体,main_tournament,1,,,,,Phase 2段階1構造登録。詳細は都道府県別調査で確定。
+STG000094,CMP000094,MAIN,本大会,main_tournament,2,single_elimination,111,P2SRC256,2026-10-06,Stage 12H: 一次予選47代表と前年秋本大会出場64校を統合して111校本大会を生成。
 STG000177,CMP000095,BRANCH_QUALIFIER,地区・支部予選,branch_qualifier,1,format_model_driven,,P2SRC036,2026-10-04,Stage 12B: competition_stage_format_assignments / group overrides / phases / parametersで2026内部方式を機械実行可能に構造化。年次の学校名・対戦カードは保持しない。
 STG000095,CMP000095,MAIN,県大会本体,main_tournament,2,,,,,Stage 12A: 地区・支部予選通過校と動的直接出場校を統合して本戦を生成。
 STG000178,CMP000096,BRANCH_QUALIFIER,地区・支部予選,branch_qualifier,1,format_model_driven,,P2SRC039,2026-10-04,Stage 12B: competition_stage_format_assignments / group overrides / phases / parametersで2026内部方式を機械実行可能に構造化。年次の学校名・対戦カードは保持しない。
@@ -158,7 +158,7 @@ STG000124,CMP000124,MAIN,県大会本体,main_tournament,2,,,,,Stage 12A: 地区
 STG000125,CMP000125,MAIN,県大会本体,main_tournament,1,,,,,Phase 2段階1構造登録。詳細は都道府県別調査で確定。
 STG000126,CMP000126,MAIN,県大会本体,main_tournament,1,,,,,Phase 2段階1構造登録。詳細は都道府県別調査で確定。
 STG000127,CMP000127,MAIN,県大会本体,main_tournament,1,,,,,Phase 2段階1構造登録。詳細は都道府県別調査で確定。
-STG000128,CMP000128,MAIN,県大会本体,main_tournament,1,,,,,Phase 2段階1構造登録。詳細は都道府県別調査で確定。
+STG000128,CMP000128,MAIN,県二次予選,main_tournament,2,single_elimination,8,P2SRC258,2026-10-06,Stage 12H: 新人戦ベスト4の直接出場4校と県一次予選4ゾーン代表を統合して8校の県二次予選を生成。
 STG000129,CMP000129,MAIN,県大会本体,main_tournament,1,,,,,Phase 2段階1構造登録。詳細は都道府県別調査で確定。
 STG000130,CMP000130,MAIN,県大会本体,main_tournament,1,,,,,Phase 2段階1構造登録。詳細は都道府県別調査で確定。
 STG000131,CMP000131,MAIN,県大会本体,main_tournament,1,,,,,Phase 2段階1構造登録。詳細は都道府県別調査で確定。
@@ -182,7 +182,7 @@ STG000141,CMP000141,MAIN,県大会本体,main_tournament,1,,,,,Phase 2段階1構
 STG000142,CMP000142,MAIN,県大会本体,main_tournament,1,,,,,Phase 2段階1構造登録。詳細は都道府県別調査で確定。
 STG000143,CMP000143,MAIN,県大会本体,main_tournament,1,,,,,Phase 2段階1構造登録。詳細は都道府県別調査で確定。
 STG000203,CMP000144,SEED_EVENT,シード決定イベント,seed_event,1,format_model_driven,,P2SRC105,2026-10-04,Stage 12B: competition_stage_format_assignments / group overrides / phases / parametersで2026内部方式を機械実行可能に構造化。年次の学校名・対戦カードは保持しない。
-STG000144,CMP000144,MAIN,県大会本体,main_tournament,2,,,,,Stage 12A: 事前シード決定イベントの結果を適用して県大会本戦を生成。
+STG000144,CMP000144,MAIN,県大会本選,main_tournament,3,single_elimination,16,P2SRC259,2026-10-06,Stage 12H: シード決定イベント後の県大会予選から16校を選出し本選を生成。
 STG000145,CMP000145,MAIN,県大会本体,main_tournament,1,,,,,Phase 2段階1構造登録。詳細は都道府県別調査で確定。
 STG000146,CMP000146,MAIN,県大会本体,main_tournament,1,,,,,Phase 2段階1構造登録。詳細は都道府県別調査で確定。
 STG000196,CMP000147,BRANCH_QUALIFIER,地区・支部予選,branch_qualifier,1,format_model_driven,,P2SRC111,2026-10-04,Stage 12B: competition_stage_format_assignments / group overrides / phases / parametersで2026内部方式を機械実行可能に構造化。年次の学校名・対戦カードは保持しない。
@@ -207,3 +207,6 @@ STG000161,CMP000161,MAIN,県大会本体,main_tournament,1,,,,,Phase 2段階1構
 STG000206,CMP000162,SEED_EVENT,シード決定イベント,seed_event,1,format_model_driven,,P2SRC139,2026-10-04,Stage 12B: competition_stage_format_assignments / group overrides / phases / parametersで2026内部方式を機械実行可能に構造化。年次の学校名・対戦カードは保持しない。
 STG000162,CMP000162,MAIN,県大会本体,main_tournament,2,,,,,Stage 12A: 事前シード決定イベントの結果を適用して県大会本戦を生成。
 STG000208,CMP000016,PRELIMINARY_QUALIFIER,一次予選（31ブロックA/B代表）,preliminary_qualifier,1,format_model_driven,230,P2SRC163,2026-10-05,2026観測は232チーム中、夏の東西東京代表2チームが一次予選免除。残る230チームが31番号ブロックのA/B代表枠（62代表）を争う。ゲーム構造は年次チーム集合入力対応。
+STG000209,CMP000094,PRELIMINARY_QUALIFIER,一次予選,preliminary_qualifier,1,format_model_driven,,P2SRC256,2026-10-06,Stage 12H: 前年秋本大会出場校を除く参加校から47代表を選出する年次抽選ブロック予選。
+STG000210,CMP000128,PRELIMINARY_QUALIFIER,県一次予選,preliminary_qualifier,1,format_model_driven,,P2SRC258,2026-10-06,Stage 12H: 新人戦ベスト4を除く参加校を4ゾーンに分け各1代表を選出。
+STG000211,CMP000144,PRELIMINARY_QUALIFIER,県大会予選,preliminary_qualifier,2,format_model_driven,,P2SRC259,2026-10-06,Stage 12H: SEED_EVENTのシード情報を適用した県内一括予選から本選16校を選出。
