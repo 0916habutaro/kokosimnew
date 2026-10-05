@@ -1,0 +1,16 @@
+﻿check,result,detail
+queue_count_19,PASS,19
+today_pending_6,PASS,6
+future_pending_13,PASS,13
+single_calendar_correction,PASS,CMP000148 only
+fukuoka_end_date,PASS,2026-10-14
+fukuoka_match_dates,PASS,7 dates including 10/14
+new_sources,PASS,P2SRC260-P2SRC261
+prefectural_official_schedule,PASS,94/94
+research_pending,PASS,0
+unit_tests,PASS,135/135
+season_prefectural_e2e,PASS,94/94
+access_rules,PASS,22/22
+calendar_gaps,PASS,0
+internal_structure_gaps,PASS,0
+warnings,PASS,0
