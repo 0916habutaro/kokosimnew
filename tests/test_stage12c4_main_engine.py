@@ -72,6 +72,17 @@ class Stage12C4MainEngineTests(unittest.TestCase):
                 reduced.extend(ids[:target])
             entrants = set(reduced + ([chosen_direct] if chosen_direct else []))
 
+        # If permanent area membership from another pre-stage supplied the entrants,
+        # also feed that annual set into any tournament-internal preliminary group that
+        # intentionally has no federation-area membership.
+        for group in groups:
+            if (
+                group.get("stage_code") == "PRELIMINARY_QUALIFIER"
+                and not self.repo.group_school_ids(group, 2026)
+                and group["stage_group_id"] not in group_override
+            ):
+                group_override[group["stage_group_id"]] = sorted(entrants)
+
         # Direct MAIN access is an annual result, not a hardcoded school. For the
         # structural harness choose reproducible members of the entrant set according
         # to the observed 2026 quota, but ignore non-MAIN bypass rules (e.g. Mie seed event).
