@@ -15,6 +15,7 @@ from phase2_engine.reconciliation import (
 
 ROOT = Path(__file__).resolve().parents[1]
 QUEUE = ROOT / "audits" / "phase2" / "stage12i" / "stage12i_autumn_reconciliation_queue_20261006.csv"
+SNAPSHOT = ROOT / "audits" / "phase2" / "stage12i" / "stage12i_recheck_status_20261006.csv"
 
 
 class Stage12IReconciliationAutomationTests(unittest.TestCase):
@@ -79,6 +80,15 @@ class Stage12IReconciliationAutomationTests(unittest.TestCase):
         }
         with self.assertRaises(ValueError):
             build_reconciliation_status([row, dict(row)], date(2026, 10, 6))
+
+    def test_committed_october_6_snapshot_matches_generator(self):
+        generated = [r.to_dict() for r in build_reconciliation_status(self.queue, date(2026, 10, 6))]
+        with SNAPSHOT.open(encoding="utf-8-sig", newline="") as f:
+            committed = list(csv.DictReader(f))
+        normalized = []
+        for row in generated:
+            normalized.append({k: str(v) for k, v in row.items()})
+        self.assertEqual(normalized, committed)
 
     def test_writer_roundtrip(self):
         rows = build_reconciliation_status(self.queue, date(2026, 10, 6))
