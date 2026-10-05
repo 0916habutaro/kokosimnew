@@ -1,0 +1,16 @@
+﻿check,result,detail
+row_count_12,PASS,rows=12
+unique_prefecture_season,PASS,unique=12
+competition_id_resolved,PASS,resolved=12/12
+competition_id_unique,PASS,unique=12
+all_master_merged,PASS,merged=12/12
+match_day_rows_117,PASS,rows=117
+match_day_competition_ids,PASS,resolved=117/117
+audit_match_days_consistent,PASS,audit match_dates == day rows and counts
+prefectural_official_schedule_59,PASS,official=59/94
+prefectural_calendar_gaps_35,PASS,gaps=35/94
+calendar_source_fk,PASS,12/12 source ids valid
+new_phase2_sources,PASS,"new_sources=12, total=219"
+all_research_complete,PASS,complete=12/12
+all_proposed_official_schedule,PASS,official_schedule=12/12
+wakayama_autumn_main_scope,PASS,県一次予選を除外し県二次予選のみをMAIN日程として登録

@@ -5,9 +5,9 @@
 ## 現在地
 - Phase 1: 完了（47都道府県、学校 3,746、硬式野球部 3,746）
 - Phase 2: Stage 12Fまでの大会構造・共通エンジンを統合済み
-- Stage 12G: 東北12大会＋関東（東京除く）14大会＋北信越10大会＋東海8大会の日程を `season_calendar.csv` に正式反映済み
-- 県春秋94大会の日程: official_schedule 47 / research_pending 47
-- Stage 12G試合日: 東北92日＋関東133日＋北信越80日＋東海59日レコード
+- Stage 12G: 東北12大会＋関東（東京除く）14大会＋北信越10大会＋東海8大会＋近畿12大会の日程を `season_calendar.csv` に正式反映済み
+- 県春秋94大会の日程: official_schedule 59 / research_pending 35
+- Stage 12G試合日: 東北92日＋関東133日＋北信越80日＋東海59日＋近畿117日レコード
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -30,4 +30,4 @@ python -m phase2_engine.season_cli --data-dir data --year 2026 --seed 2026100501
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-Stage 12G 近畿6府県（滋賀・京都・大阪・兵庫・奈良・和歌山）の春秋12大会日程を同じ形式で追加する。
+Stage 12G 中国5県（鳥取・島根・岡山・広島・山口）の春秋10大会日程を同じ形式で追加する。
