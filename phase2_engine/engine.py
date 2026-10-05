@@ -414,6 +414,15 @@ class TournamentEngine:
                 "group_outputs": group_outputs,
                 "group_models": group_models,
                 "group_metadata": group_metadata,
+                "protected_seed_count": sum(
+                    int(meta.get("protected_seed_count") or 0)
+                    for meta in group_metadata.values()
+                ),
+                "protected_seed_blocks": sorted({
+                    block
+                    for meta in group_metadata.values()
+                    for block in meta.get("protected_seed_blocks", [])
+                }),
             },
         )
 
