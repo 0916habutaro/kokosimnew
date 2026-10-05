@@ -337,3 +337,9 @@ PAR0335,CMP000160,STG000205,SGR000182,FMT023,seed_top_n,1,integer,DISTRICT_KO,20
 PAR0336,CMP000160,STG000205,SGR000183,FMT023,seed_top_n,1,integer,DISTRICT_KO,2026 official format/result,P2SRC135,
 PAR0337,CMP000140,STG000202,SGR000171,FMT022,seed_cut_line,quarterfinal_winner,enum,CENTRAL_KO,2026 official format/result,P2SRC100,
 PAR0338,CMP000162,STG000206,SGR000184,FMT022,seed_cut_line,quarterfinal_winner,enum,CENTRAL_KO,2026 official format/result,P2SRC139,
+PAR0339,CMP000094,STG000209,SGR000247,FMT001,output_slots,47,integer,BLOCK_KO,2026 official structure,P2SRC256,前年秋本大会出場64校と合流して本大会111校。
+PAR0340,CMP000094,STG000209,SGR000247,FMT001,representative_block_count,47,integer,BLOCK_KO,2026 official structure,P2SRC256,一次予選から47代表。
+PAR0341,CMP000128,STG000210,SGR000248,FMT001,output_slots,4,integer,BLOCK_KO,2026 official structure,P2SRC258,4ゾーン各1代表。
+PAR0342,CMP000128,STG000210,SGR000248,FMT001,representative_block_count,4,integer,BLOCK_KO,2026 official structure,P2SRC258,一次予選4代表。
+PAR0343,CMP000144,STG000211,SGR000249,FMT001,output_slots,16,integer,BLOCK_KO,2026 official structure,P2SRC259,県大会予選から本選16校。
+PAR0344,CMP000144,STG000211,SGR000249,FMT001,representative_block_count,16,integer,BLOCK_KO,2026 official structure,P2SRC259,本選16代表枠。

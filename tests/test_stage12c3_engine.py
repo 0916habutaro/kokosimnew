@@ -41,6 +41,17 @@ class Stage12C3EngineTests(unittest.TestCase):
                 gid = event_groups[idx % len(event_groups)]["stage_group_id"]
                 group_override.setdefault(gid, []).append(school_id)
 
+        # Tournament-internal annual-draw qualifier groups have no permanent
+        # federation-area membership.  When another stage supplies the entrant set
+        # (Ehime autumn seed event), feed that same annual set to the preliminary.
+        for group in event_groups:
+            if (
+                group.get("stage_code") == "PRELIMINARY_QUALIFIER"
+                and not self.repo.group_school_ids(group, 2026)
+                and group["stage_group_id"] not in group_override
+            ):
+                group_override[group["stage_group_id"]] = sorted(entrants)
+
         return AnnualCompetitionInput(
             competition_id=competition_id,
             year=2026,
@@ -151,7 +162,11 @@ class Stage12C3EngineTests(unittest.TestCase):
     def test_fmt001_seed_context_is_supported(self):
         run = self.engine.run(self._input_for("CMP000144", seed=271828))
         self.assertEqual(12, len(run.seed_assignments))
-        self.assertEqual(60, len(run.main_entrant_school_ids))
+        self.assertEqual(["SEED_EVENT", "PRELIMINARY_QUALIFIER", "MAIN"],
+                         [x.stage_code for x in run.stage_executions])
+        self.assertEqual(16, len(run.main_entrant_school_ids))
+        self.assertEqual(12, run.stage_executions[1].metadata["protected_seed_count"])
+        self.assertEqual(0, run.stage_executions[-1].metadata["seed_count"])
         self.assertIn("SEED_BLOCK_KO", {m.phase_code for m in run.stage_executions[0].matches})
 
 

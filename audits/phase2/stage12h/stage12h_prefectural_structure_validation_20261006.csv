@@ -1,0 +1,16 @@
+﻿check,result,detail
+tokyo_stage_graph,PASS,PRELIMINARY_QUALIFIER->MAIN
+tokyo_preliminary_outputs,PASS,47
+tokyo_direct_entries,PASS,64 prior-autumn main participants
+tokyo_main_count,PASS,111
+wakayama_stage_graph,PASS,PRELIMINARY_QUALIFIER->MAIN
+wakayama_preliminary_outputs,PASS,4
+wakayama_direct_entries,PASS,4 newcomer semifinalists
+wakayama_main_count,PASS,8
+ehime_stage_graph,PASS,SEED_EVENT->PRELIMINARY_QUALIFIER->MAIN
+ehime_seed_count,PASS,13
+ehime_preliminary_outputs,PASS,16
+ehime_main_count,PASS,16
+access_rules,PASS,22/22
+prefectural_e2e,PASS,94/94
+calendar_and_internal_gaps,PASS,calendar=0; internal=0; warnings=0

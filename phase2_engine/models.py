@@ -103,8 +103,8 @@ class AnnualCompetitionInput:
     # teams). Every listed team must still be in entrant_school_ids.
     group_entrant_school_ids: Dict[str, List[str]] = field(default_factory=dict)
     # Teams that bypass a SEED_EVENT because a cross-competition access rule grants
-    # their seed directly (currently used by Mie autumn: current summer champion).
-    # They remain competition entrants and MAIN entrants but do not consume a district
+    # their seed directly (e.g. current summer champion). They remain competition
+    # entrants and continue to the next competition stage, but do not consume a
     # seed-event slot; the linked competition_seed_rule supplies their seed metadata.
     seed_event_bypass_school_ids: List[str] = field(default_factory=list)
     # Optional MAIN seeding order. This supplements structured seed-event metadata and

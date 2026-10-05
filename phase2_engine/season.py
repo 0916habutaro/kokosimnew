@@ -360,6 +360,17 @@ class StructuralAnnualInputFactory:
                 group_override = {gid: [x for x in ids if x in entrant_set] for gid, ids in group_override.items()}
 
         entrants |= set(direct) | set(seed_bypass)
+
+        # Ehime autumn uses permanent district groups only for the preceding seed event.
+        # Its actual prefectural preliminary is a non-geographic annual draw, so feed the
+        # complete annual entrant set into that global qualifier group explicitly.
+        if competition_id == "CMP000144":
+            qstage = self.repo.stage_by_code(competition_id, "PRELIMINARY_QUALIFIER")
+            qgroups = self.repo.groups_by_stage[qstage["stage_id"]]
+            if len(qgroups) != 1:
+                raise ValueError(f"{competition_id}: expected one global preliminary group")
+            group_override[qgroups[0]["stage_group_id"]] = sorted(entrants)
+
         if direct and group_override:
             direct_set = set(direct)
             group_override = {gid: [x for x in ids if x not in direct_set] for gid, ids in group_override.items()}
@@ -692,6 +703,24 @@ class SeasonOrchestrator:
                     resolution_source = "current_season_competition_result"
                 else:
                     notes = "source summer competition has not completed"
+            elif source_kind == "prefectural_newcomer_tournament":
+                expected_event_count = int(
+                    rule.get("observed_2026_count") or rule.get("quota") or 0
+                )
+                candidates = sorted(
+                    sid for sid, row in self.repo.schools.items()
+                    if row.get("prefecture_code") == pcode
+                )
+                ids = shuffled(
+                    candidates,
+                    season.rng_seed,
+                    f"{destination_competition_id}:{rule['access_rule_id']}:newcomer_bootstrap",
+                )[:expected_event_count]
+                resolution_source = "current_year_structural_event_bootstrap"
+                notes = (
+                    "newcomer tournament result competition is not materialized; "
+                    "deterministic same-prefecture proxies preserve the verified direct-entry quota"
+                )
             elif source_kind == "autumn_prefectural" and int(rule.get("source_year_offset") or 0) == -1:
                 ranking = prior_pref.get(pcode, [])
                 lo = int(rule.get("source_rank_from") or 1)
