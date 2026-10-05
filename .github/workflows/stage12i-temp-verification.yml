@@ -1,0 +1,33 @@
+name: Stage 12I temporary verification
+
+on:
+  push:
+    branches:
+      - stage12i-autumn-reconciliation-20261006
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Season E2E markers
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from phase2_engine import DataRepository, SeasonOrchestrator
+          data=Path("data")
+          s=SeasonOrchestrator(DataRepository(data),data).run_structural_season(2026,2026100501)
+          print(f"PREFECTURAL_PASS={sum(r.status == 'PASS' for r in s.prefectural_rows)}")
+          print(f"PREFECTURAL_TOTAL={len(s.prefectural_rows)}")
+          print(f"ACCESS_PASS={sum(r.status == 'PASS' for r in s.access_resolutions)}")
+          print(f"ACCESS_TOTAL={len(s.access_resolutions)}")
+          print(f"CALENDAR_GAPS={len(s.calendar_gaps)}")
+          print(f"INTERNAL_GAPS={len(s.internal_structure_gaps)}")
+          print(f"WARNINGS={s.warnings}")
+          print(f"FUKUOKA_END={next(r for r in s.prefectural_rows if r.competition_id=='CMP000148').end_date}")
+          PY
