@@ -44,6 +44,53 @@ class TournamentEngine:
             base = self._run_seed_gate_main(annual, entrants, direct, stage_by_code, winner_resolver)
             return self._complete_main(annual, base, stage_by_code["MAIN"], winner_resolver)
 
+        # Seed event -> non-geographic/geographic qualifier -> MAIN.
+        # The seed event determines protected positions for the qualifier draw; only
+        # qualifier survivors advance to MAIN.  Seed metadata whose destination is the
+        # qualifier is intentionally not carried into the MAIN bracket.
+        seed_qualifier_code = next(
+            (code for code in ("BRANCH_QUALIFIER", "PRELIMINARY_QUALIFIER") if code in stage_by_code),
+            None,
+        )
+        if "SEED_EVENT" in stage_by_code and seed_qualifier_code and "MAIN" in stage_by_code:
+            seed_assignments, seed_execution = self._run_seed_event(
+                annual=annual,
+                entrants=entrants,
+                stage=stage_by_code["SEED_EVENT"],
+                winner_resolver=winner_resolver,
+            )
+            stage = stage_by_code[seed_qualifier_code]
+            stage_entrants, bypass_warnings = self._qualifier_entrants_after_access_rules(
+                annual, entrants, direct
+            )
+            warnings.extend(bypass_warnings)
+            qualifier_execution = self._run_qualifier_stage(
+                annual=annual,
+                entrants=stage_entrants,
+                stage=stage,
+                winner_resolver=winner_resolver,
+                protected_school_ids=[a.school_id for a in seed_assignments],
+            )
+            qualifier_execution.metadata["seed_context_school_ids"] = [
+                a.school_id for a in seed_assignments
+            ]
+            qualifier_execution.metadata["seed_context_count"] = len(seed_assignments)
+            main_entrants = self._dedup(qualifier_execution.output_school_ids + direct)
+            if not set(main_entrants).issubset(set(entrants)):
+                raise AssertionError("MAIN contains a team outside annual entrant set")
+            warnings.extend(self._observed_main_count_warnings(stage, main_entrants, direct))
+            base = CompetitionRun(
+                competition_id=annual.competition_id,
+                year=annual.year,
+                rng_seed=annual.rng_seed,
+                entrant_school_ids=list(entrants),
+                seed_assignments=seed_assignments,
+                stage_executions=[seed_execution, qualifier_execution],
+                main_entrant_school_ids=main_entrants,
+                warnings=warnings,
+            )
+            return self._complete_main(annual, base, stage_by_code["MAIN"], winner_resolver)
+
         # Seed-only event. Every registered tournament entrant continues to MAIN; the
         # event only overlays seed metadata (Aomori autumn and similar models).
         if {"SEED_EVENT", "MAIN"}.issubset(stage_by_code):
@@ -136,7 +183,10 @@ class TournamentEngine:
             stage_id=main_stage["stage_id"],
             base_seed=annual.rng_seed,
             winner_resolver=winner_resolver,
-            seed_assignments=base_run.seed_assignments,
+            seed_assignments=[
+                a for a in base_run.seed_assignments
+                if a.destination_stage in {"", "MAIN", "prefectural_main_draw", "second_tournament"}
+            ],
             annual_seed_order=annual_seeds,
             slot_override=exact_slots,
             winner_overrides=annual.main_match_winner_overrides,
@@ -296,7 +346,9 @@ class TournamentEngine:
     # ------------------------------------------------------------------
     # Qualifier stage dispatch (FMT001 / FMT005 / FMT006)
     # ------------------------------------------------------------------
-    def _run_qualifier_stage(self, annual, entrants, stage, winner_resolver) -> StageExecution:
+    def _run_qualifier_stage(
+        self, annual, entrants, stage, winner_resolver, protected_school_ids: Sequence[str] = ()
+    ) -> StageExecution:
         assignment = self.repo.assignments_by_stage.get(stage["stage_id"])
         if not assignment:
             raise KeyError(f"no format assignment for {stage['stage_id']}")
@@ -326,7 +378,10 @@ class TournamentEngine:
                 group_outputs[group_id] = []
                 continue
             if model_id == "FMT001":
-                out, ms, meta = self._run_fmt001_group(annual, stage, group, eligible, winner_resolver)
+                out, ms, meta = self._run_fmt001_group(
+                    annual, stage, group, eligible, winner_resolver,
+                    protected_school_ids=protected_school_ids,
+                )
             elif model_id == "FMT006":
                 out, ms, meta = self._run_fmt006_group(annual, stage, group, eligible, winner_resolver)
             elif model_id in {
@@ -362,29 +417,109 @@ class TournamentEngine:
             },
         )
 
-    def _run_fmt001_group(self, annual, stage, group, eligible, winner_resolver):
+    def _run_fmt001_group(
+        self, annual, stage, group, eligible, winner_resolver,
+        protected_school_ids: Sequence[str] = (),
+    ):
         slots = self.repo.param(
             stage["stage_id"], "output_slots", group["stage_group_id"],
             int(group.get("advance_slots_to_next") or group.get("qualifier_slots_generated") or 0),
         )
         if slots <= 0:
             raise ValueError(f"{group['group_name']}: FMT001 requires output_slots")
-        winners, matches, blocks = run_block_winner_forest(
-            eligible,
-            block_count=slots,
-            competition_id=annual.competition_id,
-            stage_id=stage["stage_id"],
-            stage_code=stage["stage_code"],
-            phase_code="BLOCK_KO",
-            group_id=group["stage_group_id"],
-            group_name=group["group_name"],
-            base_seed=annual.rng_seed,
-            winner_resolver=winner_resolver,
+
+        eligible_set = set(eligible)
+        protected = [
+            sid for sid in self._dedup(protected_school_ids)
+            if sid in eligible_set
+        ]
+        if len(protected) > slots:
+            raise ValueError(
+                f"{group['group_name']}: protected seeds={len(protected)} exceed output blocks={slots}"
+            )
+
+        # Most FMT001 qualifiers use the legacy deterministic forest unchanged.  When
+        # a seed event explicitly targets this qualifier (Ehime autumn), spread the
+        # protected teams one per representative block before filling the remaining
+        # positions.  This preserves the seed event's real purpose without carrying
+        # those seeds into the subsequent MAIN tournament.
+        if not protected:
+            winners, matches, blocks = run_block_winner_forest(
+                eligible,
+                block_count=slots,
+                competition_id=annual.competition_id,
+                stage_id=stage["stage_id"],
+                stage_code=stage["stage_code"],
+                phase_code="BLOCK_KO",
+                group_id=group["stage_group_id"],
+                group_name=group["group_name"],
+                base_seed=annual.rng_seed,
+                winner_resolver=winner_resolver,
+            )
+            return winners, matches, {
+                "entrant_count": len(eligible), "output_slots": slots,
+                "representative_block_count": len(blocks),
+                "block_sizes": [len(x) for x in blocks],
+                "protected_seed_count": 0,
+                "protected_seed_blocks": [],
+            }
+
+        q, r = divmod(len(eligible), slots)
+        sizes = [q + (1 if i < r else 0) for i in range(slots)]
+        blocks: List[List[str]] = [[] for _ in range(slots)]
+        block_order = shuffled(
+            range(slots), annual.rng_seed,
+            f"{annual.competition_id}:{stage['stage_id']}:{group['stage_group_id']}:seed_block_order",
         )
+        seed_order = shuffled(
+            protected, annual.rng_seed,
+            f"{annual.competition_id}:{stage['stage_id']}:{group['stage_group_id']}:seed_order",
+        )
+        protected_blocks: List[int] = []
+        for block_index, school_id in zip(block_order, seed_order):
+            blocks[block_index].append(school_id)
+            protected_blocks.append(block_index + 1)
+
+        nonseeds = shuffled(
+            [sid for sid in eligible if sid not in set(protected)],
+            annual.rng_seed,
+            f"{annual.competition_id}:{stage['stage_id']}:{group['stage_group_id']}:nonseed_fill",
+        )
+        pos = 0
+        for block_index, size in enumerate(sizes):
+            need = size - len(blocks[block_index])
+            blocks[block_index].extend(nonseeds[pos:pos + need])
+            pos += need
+        if pos != len(nonseeds) or any(len(block) != size for block, size in zip(blocks, sizes)):
+            raise AssertionError("seeded FMT001 block partition mismatch")
+
+        winners: List[str] = []
+        matches: List[Match] = []
+        for block_no, block in enumerate(blocks, start=1):
+            ranking, block_matches = run_single_elimination_ranking(
+                block,
+                competition_id=annual.competition_id,
+                stage_id=stage["stage_id"],
+                stage_code=stage["stage_code"],
+                phase_code="BLOCK_KO",
+                group_id=f"{group['stage_group_id']}-B{block_no:02d}",
+                group_name=group["group_name"],
+                base_seed=annual.rng_seed,
+                winner_resolver=winner_resolver,
+            )
+            winners.append(ranking[0])
+            for match in block_matches:
+                match.group_id = group["stage_group_id"]
+                match.group_name = group["group_name"]
+                match.metadata["block_no"] = block_no
+            matches.extend(block_matches)
+
         return winners, matches, {
             "entrant_count": len(eligible), "output_slots": slots,
             "representative_block_count": len(blocks),
             "block_sizes": [len(x) for x in blocks],
+            "protected_seed_count": len(protected),
+            "protected_seed_blocks": sorted(protected_blocks),
         }
 
     def _run_fmt006_group(self, annual, stage, group, eligible, winner_resolver):
