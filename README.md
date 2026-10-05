@@ -24,10 +24,14 @@
 ```bash
 python -m unittest discover -s tests -v
 python -m phase2_engine.season_cli --data-dir data --year 2026 --seed 2026100501
+python -m phase2_engine.reconciliation_cli \
+  --queue audits/phase2/stage12i/stage12i_autumn_reconciliation_queue_20261006.csv \
+  --as-of 2026-10-06 \
+  --output audits/phase2/stage12i/stage12i_recheck_status_20261006.csv
 ```
 
 ## 正本ルール
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-Stage 12I第1回を実施済み。2026-10-06朝時点で秋季再照合対象19大会を管理し、福岡秋の10/14をmasterへ追加。10/6当日待ち6大会と将来待ち13大会を大会終了後に順次実績化する。
+Stage 12I第1回を実施済み。秋季再照合対象19大会を管理し、福岡秋の10/14をmasterへ追加。再照合CLIで next_check_date / status / 再確認理由を日付基準で自動判定し、当日・期限超過対象だけを順次実績化する。
