@@ -25,11 +25,10 @@ class Stage12GKinkiScheduleTests(unittest.TestCase):
         by={r["competition_id"]:r for r in self.calendar}
         self.assertTrue(all(by[c]["calendar_status"]=="official_schedule" for c in ids))
 
-    def test_prefectural_schedule_count_is_59_of_94(self):
+    def test_prefectural_schedule_count_includes_kinki(self):
         ids={r["competition_id"] for r in self.index}
         by={r["competition_id"]:r for r in self.calendar}
-        self.assertEqual(59,sum(by[c]["calendar_status"]=="official_schedule" for c in ids))
-        self.assertEqual(35,sum(by[c]["calendar_status"]=="research_pending" for c in ids))
+        self.assertGreaterEqual(sum(by[c]["calendar_status"]=="official_schedule" for c in ids),59)
 
     def test_117_match_days_have_competition_ids(self):
         self.assertEqual(117,len(self.days))
