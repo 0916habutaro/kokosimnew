@@ -5,33 +5,34 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data"
 
-class Stage12GShikokuScheduleTests(unittest.TestCase):
+class Stage12GKyushuOkinawaScheduleTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         with (DATA / "competitions" / "prefectural_competition_index_2026.csv").open(encoding="utf-8-sig", newline="") as f:
             cls.index = list(csv.DictReader(f))
         with (DATA / "schedules" / "2026" / "season_calendar.csv").open(encoding="utf-8-sig", newline="") as f:
             cls.calendar = list(csv.DictReader(f))
-        with (DATA / "schedules" / "2026" / "stage12g_shikoku_match_days_20261006.csv").open(encoding="utf-8-sig", newline="") as f:
+        with (DATA / "schedules" / "2026" / "stage12g_kyushu_okinawa_match_days_20261006.csv").open(encoding="utf-8-sig", newline="") as f:
             cls.days = list(csv.DictReader(f))
-        with (ROOT / "audits" / "phase2" / "stage12g" / "stage12g_shikoku_schedule_audit_20261006.csv").open(encoding="utf-8-sig", newline="") as f:
+        with (ROOT / "audits" / "phase2" / "stage12g" / "stage12g_kyushu_okinawa_schedule_audit_20261006.csv").open(encoding="utf-8-sig", newline="") as f:
             cls.audit = list(csv.DictReader(f))
         with (DATA / "sources" / "phase2_sources.csv").open(encoding="utf-8-sig", newline="") as f:
             cls.sources = list(csv.DictReader(f))
 
-    def test_shikoku_8_competitions_are_official(self):
+    def test_16_competitions_are_official(self):
         ids={r["competition_id"] for r in self.audit}
-        self.assertEqual(8,len(ids))
+        self.assertEqual(16,len(ids))
         by={r["competition_id"]:r for r in self.calendar}
         self.assertTrue(all(by[c]["calendar_status"]=="official_schedule" for c in ids))
 
-    def test_prefectural_schedule_count_includes_shikoku(self):
+    def test_prefectural_schedule_count_is_93_of_94(self):
         ids={r["competition_id"] for r in self.index}
         by={r["competition_id"]:r for r in self.calendar}
-        self.assertGreaterEqual(sum(by[c]["calendar_status"]=="official_schedule" for c in ids),77)
+        self.assertEqual(93,sum(by[c]["calendar_status"]=="official_schedule" for c in ids))
+        self.assertEqual(1,sum(by[c]["calendar_status"]=="research_pending" for c in ids))
 
-    def test_67_match_days_have_competition_ids(self):
-        self.assertEqual(67,len(self.days))
+    def test_180_match_days_have_competition_ids(self):
+        self.assertEqual(180,len(self.days))
         self.assertTrue(all(r["competition_id"] for r in self.days))
 
     def test_match_days_match_audit_lists(self):
@@ -49,16 +50,18 @@ class Stage12GShikokuScheduleTests(unittest.TestCase):
 
     def test_key_scope_and_postponement_dates(self):
         by={r["competition_id"]:r for r in self.calendar}
-        self.assertNotIn("2026-09-27",by["CMP000140"]["game_date_list"].split(";"))
-        self.assertIn("2026-10-03",by["CMP000140"]["game_date_list"].split(";"))
-        self.assertNotIn("2026-04-12",by["CMP000141"]["game_date_list"].split(";"))
-        self.assertNotIn("2026-10-04",by["CMP000142"]["game_date_list"].split(";"))
-        self.assertIn("2026-10-17",by["CMP000142"]["game_date_list"].split(";"))
-        self.assertEqual("2026-09-26",by["CMP000144"]["start_date"])
-        self.assertNotIn("2026-09-20",by["CMP000144"]["game_date_list"].split(";"))
-        self.assertNotIn("2026-03-25",by["CMP000145"]["game_date_list"].split(";"))
-        self.assertIn("2026-03-30",by["CMP000145"]["game_date_list"].split(";"))
-        self.assertIn("2026-09-27",by["CMP000146"]["game_date_list"].split(";"))
-        self.assertIn("2026-09-28",by["CMP000146"]["game_date_list"].split(";"))
+        self.assertEqual(["2026-04-02","2026-04-05","2026-04-06"],by["CMP000147"]["game_date_list"].split(";"))
+        self.assertEqual("2026-10-03",by["CMP000148"]["start_date"])
+        self.assertNotIn("2026-03-25",by["CMP000149"]["game_date_list"].split(";"))
+        self.assertNotIn("2026-09-27",by["CMP000152"]["game_date_list"].split(";"))
+        self.assertEqual("2026-10-04",by["CMP000154"]["end_date"])
+        self.assertNotIn("2026-09-27",by["CMP000156"]["game_date_list"].split(";"))
+        self.assertNotIn("2026-09-28",by["CMP000156"]["game_date_list"].split(";"))
+        self.assertNotIn("2026-09-29",by["CMP000156"]["game_date_list"].split(";"))
+        self.assertIn("2026-09-30",by["CMP000156"]["game_date_list"].split(";"))
+        self.assertEqual("2026-10-03",by["CMP000158"]["end_date"])
+        self.assertIn("2026-10-05",by["CMP000160"]["game_date_list"].split(";"))
+        self.assertEqual("2026-04-08",by["CMP000161"]["end_date"])
+        self.assertEqual("2026-10-10",by["CMP000162"]["end_date"])
 
 if __name__ == "__main__": unittest.main()
