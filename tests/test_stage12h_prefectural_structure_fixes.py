@@ -76,7 +76,11 @@ class Stage12HPrefecturalStructureFixTests(unittest.TestCase):
         summer_champ = self.season.competition_runs["CMP000062"].outcome.champion_school_id
         self.assertEqual([summer_champ], access[0].resolved_school_ids)
         run = self.season.competition_runs["CMP000144"]
-        self.assertNotIn(summer_champ, run.stage_executions[0].entrant_school_ids)
+        seed_event = run.stage_executions[0]
+        self.assertIn(summer_champ, seed_event.metadata["seed_event_bypass_school_ids"])
+        self.assertFalse(any(
+            summer_champ in ids for ids in seed_event.metadata["group_outputs"].values()
+        ))
         self.assertIn(summer_champ, run.stage_executions[1].entrant_school_ids)
         self.assertIn(summer_champ, {a.school_id for a in run.seed_assignments})
 
