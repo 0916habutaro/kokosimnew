@@ -1,0 +1,8 @@
+﻿check_group,total,passed_or_resolved,pending_or_failed,detail
+unittest,143,143,0,python -m unittest discover -s tests -v
+automation_validation,15,15,0,stage12i_reconciliation_automation_validation_20261006.csv
+cli_execution,1,1,0,reconciliation_cli generated output successfully
+status_snapshot,19,19,0,0 due + 6 today + 13 future as of 2026-10-06
+season_e2e_prefectural,94,94,0,prefectural_pass_total=94
+season_e2e_access,22,22,0,access_pass=22
+season_e2e_gaps,0,0,0,calendar=0; internal=0; warnings=[]
