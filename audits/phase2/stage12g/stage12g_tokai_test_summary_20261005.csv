@@ -1,0 +1,6 @@
+﻿check_group,total,passed_or_resolved,pending_or_failed,detail
+unittest,92,92,0,python -m unittest discover -s tests -v
+stage12g_validation,14,14,0,stage12g_tokai_validation_20261005.csv
+season_e2e_prefectural,94,94,0,prefectural_pass_total=94
+season_e2e_calendar,94,47 official,47 pending,prefectural_calendar_gap_count=47
+season_e2e_warnings,0,0,0,warnings=[]
