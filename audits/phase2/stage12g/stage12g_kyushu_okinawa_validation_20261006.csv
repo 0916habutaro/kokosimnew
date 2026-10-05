@@ -1,0 +1,16 @@
+﻿check,result,detail
+row_count_16,PASS,rows=16
+unique_prefecture_season,PASS,unique=16
+competition_id_resolved,PASS,resolved=16/16
+competition_id_unique,PASS,unique=16
+all_master_merged,PASS,merged=16/16
+match_day_rows_180,PASS,rows=180
+match_day_competition_ids,PASS,resolved=180/180
+audit_match_days_consistent,PASS,audit match_dates == day rows and counts
+prefectural_official_schedule_93,PASS,official=93/94
+prefectural_calendar_gaps_1,PASS,gaps=1/94
+calendar_source_fk,PASS,16/16 source ids valid
+new_phase2_sources,PASS,"new_sources=16, P2SRC238-P2SRC253"
+all_research_complete,PASS,complete=16/16
+all_proposed_official_schedule,PASS,official_schedule=16/16
+kyushu_okinawa_main_scope,PASS,福岡BRANCH_QUALIFIER除外・宮崎鹿児島沖縄SEED_EVENT除外・大分秋継続試合日を公式速報基準で整理
