@@ -1,0 +1,16 @@
+﻿check,result,detail
+queue_count,PASS,19
+october_6_recheck_due,PASS,0
+october_6_today_pending,PASS,6
+october_6_future_pending,PASS,13
+october_6_next_check_date,PASS,2026-10-06
+october_7_unresolved_due,PASS,6
+october_7_today_pending,PASS,1
+october_7_future_pending,PASS,12
+today_competition_set,PASS,CMP000091;CMP000120;CMP000122;CMP000134;CMP000136;CMP000148
+committed_snapshot_matches_generator,PASS,19/19
+cli_execution,PASS,output CSV generated
+unit_tests,PASS,143/143
+prefectural_e2e,PASS,94/94
+access_rules,PASS,22/22
+gaps_and_warnings,PASS,calendar=0; internal=0; warnings=0
