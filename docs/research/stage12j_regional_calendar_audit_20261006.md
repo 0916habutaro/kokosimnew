@@ -166,6 +166,20 @@ masterと一致。
 - 鹿児島県高等学校野球連盟 第158回九州大会順延案内
 - 各大会の最終試合結果データ
 
+## 検証結果
+
+GitHub Actions上で実際に検証した。
+
+- unit test: **149 / 149 PASS**
+- 春地区大会audit: **9 / 9**
+- Stage 12J validation: **15 / 15 PASS**
+- 県大会E2E: **94 / 94 PASS**
+- 地区大会E2E: **16 / 16 PASS**
+- access rules: **22 / 22 PASS**
+- calendar gaps: **0**
+- internal structure gaps: **0**
+- warnings: **0**
+
 ## 次工程
 
 1. 全回帰テストで地区カレンダー修正が県大会・地区大会E2Eへ影響しないことを確認する。
