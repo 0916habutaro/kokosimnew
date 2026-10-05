@@ -82,13 +82,17 @@ Stage 12Gとして、四国4県の春季・秋季県大会8大会について、
 
 詳細なURL・判断理由は `audits/phase2/stage12g/stage12g_shikoku_schedule_audit_20261006.csv` を正とする。
 
-## 6. 検証予定
+## 6. 検証結果
 
-- Python unit test: 全件
-- Stage 12G四国validation: 15項目
-- season E2E県大会: 94大会
-- `prefectural_calendar_gap_count`: 17を期待
-- warnings: 0を期待
+GitHub Actions上で実際に検証を実行し、以下を確認した。
+
+- unit test: **110 / 110 PASS**
+- Stage 12G四国validation: **15 / 15 PASS**
+- season E2E県大会: **94 / 94 PASS**
+- `prefectural_calendar_gap_count = 17`
+- warnings: **0**
+
+実行ログでは `Ran 110 tests ... OK`、`PREFECTURAL_PASS=94`、`PREFECTURAL_TOTAL=94`、`CALENDAR_GAPS=17`、`WARNINGS=[]` を確認した。
 
 ## 7. 次工程
 
