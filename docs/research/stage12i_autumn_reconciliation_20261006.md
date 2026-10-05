@@ -56,6 +56,18 @@ Stage 12G登録:
 - 徳島: 10/10準決勝、10/11 3位決定戦・決勝の日程を維持。
 - 兵庫: 10/10最終日を維持。
 
+## 検証結果
+
+GitHub Actions上で実際に検証した。
+
+- unit test: **135 / 135 PASS**
+- 県大会E2E: **94 / 94 PASS**
+- access rules: **22 / 22 PASS**
+- calendar gaps: **0**
+- internal structure gaps: **0**
+- warnings: **0**
+- 福岡秋のseason end_date: **2026-10-14**
+
 ## 次回再照合
 
 10月6日の試合終了後に today_pending 6大会を再確認し、その後は大会終了日に合わせて future_pending 13大会を順次確定する。全19大会が終了・実績化された時点でStage 12Iを完了とする。
