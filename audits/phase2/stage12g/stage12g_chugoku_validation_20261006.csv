@@ -1,0 +1,16 @@
+﻿check,result,detail
+row_count_10,PASS,rows=10
+unique_prefecture_season,PASS,unique=10
+competition_id_resolved,PASS,resolved=10/10
+competition_id_unique,PASS,unique=10
+all_master_merged,PASS,merged=10/10
+match_day_rows_66,PASS,rows=66
+match_day_competition_ids,PASS,resolved=66/66
+audit_match_days_consistent,PASS,audit match_dates == day rows and counts
+prefectural_official_schedule_69,PASS,official=69/94
+prefectural_calendar_gaps_25,PASS,gaps=25/94
+calendar_source_fk,PASS,10/10 source ids valid
+new_phase2_sources,PASS,"new_sources=10, total=229"
+all_research_complete,PASS,complete=10/10
+all_proposed_official_schedule,PASS,official_schedule=10/10
+chugoku_main_scope,PASS,島根秋は一次→二次・三次をMAIN全体として含み岡山・広島の地区予選と山口の地区予選を除外
