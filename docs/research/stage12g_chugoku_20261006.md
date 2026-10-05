@@ -76,13 +76,17 @@ Stage 12Gとして、中国5県の春季・秋季県大会10大会について�
 
 詳細なURL・判断理由は `audits/phase2/stage12g/stage12g_chugoku_schedule_audit_20261006.csv` を正とする。
 
-## 6. 検証予定
+## 6. 検証結果
 
-- Python unit test: 全件
-- Stage 12G中国validation: 15項目
-- season E2E県大会: 94大会
-- `prefectural_calendar_gap_count`: 25を期待
-- warnings: 0を期待
+GitHub Actions上で実際に検証を実行し、以下を確認した。
+
+- unit test: **104 / 104 PASS**
+- Stage 12G中国validation: **15 / 15 PASS**
+- season E2E県大会: **94 / 94 PASS**
+- `prefectural_calendar_gap_count = 25`
+- warnings: **0**
+
+実行ログでは `Ran 104 tests ... OK`、`PREFECTURAL_PASS=94`、`PREFECTURAL_TOTAL=94`、`CALENDAR_GAPS=25`、`WARNINGS=[]` を確認した。
 
 ## 7. 次工程
 
