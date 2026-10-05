@@ -87,9 +87,9 @@ class Stage12DSeasonEngineTests(unittest.TestCase):
         self.assertTrue({"01", "14", "23", "24"}.issubset(pcodes))
 
     def test_prefectural_calendar_gaps_are_explicit(self):
-        self.assertEqual(65, len(self.season.calendar_gaps))
+        self.assertEqual(55, len(self.season.calendar_gaps))
         official = 94 - len(self.season.calendar_gaps)
-        self.assertEqual(29, official)
+        self.assertEqual(39, official)
 
     def test_same_seed_reproduces_season_champions_and_dependencies(self):
         again = self.orchestrator.run_structural_season(2026, 2026100501)
