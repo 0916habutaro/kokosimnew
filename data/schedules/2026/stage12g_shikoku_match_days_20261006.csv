@@ -1,0 +1,68 @@
+﻿region,prefecture_code,prefecture,season,year,competition_id,merge_key,tournament_name,match_date,match_day_index,schedule_scope,research_status,master_merge_status
+四国,36,徳島県,spring,2026,CMP000139,2026-36-spring,第79回 徳島県高等学校野球春季大会,2026-03-20,1,MAIN,complete,merged
+四国,36,徳島県,spring,2026,CMP000139,2026-36-spring,第79回 徳島県高等学校野球春季大会,2026-03-21,2,MAIN,complete,merged
+四国,36,徳島県,spring,2026,CMP000139,2026-36-spring,第79回 徳島県高等学校野球春季大会,2026-03-22,3,MAIN,complete,merged
+四国,36,徳島県,spring,2026,CMP000139,2026-36-spring,第79回 徳島県高等学校野球春季大会,2026-03-25,4,MAIN,complete,merged
+四国,36,徳島県,spring,2026,CMP000139,2026-36-spring,第79回 徳島県高等学校野球春季大会,2026-03-26,5,MAIN,complete,merged
+四国,36,徳島県,spring,2026,CMP000139,2026-36-spring,第79回 徳島県高等学校野球春季大会,2026-03-27,6,MAIN,complete,merged
+四国,36,徳島県,spring,2026,CMP000139,2026-36-spring,第79回 徳島県高等学校野球春季大会,2026-03-28,7,MAIN,complete,merged
+四国,36,徳島県,spring,2026,CMP000139,2026-36-spring,第79回 徳島県高等学校野球春季大会,2026-03-29,8,MAIN,complete,merged
+四国,36,徳島県,spring,2026,CMP000139,2026-36-spring,第79回 徳島県高等学校野球春季大会,2026-04-02,9,MAIN,complete,merged
+四国,36,徳島県,spring,2026,CMP000139,2026-36-spring,第79回 徳島県高等学校野球春季大会,2026-04-03,10,MAIN,complete,merged
+四国,36,徳島県,autumn,2026,CMP000140,2026-36-autumn,第79回 徳島県高等学校野球秋季大会,2026-09-12,1,MAIN,complete,merged
+四国,36,徳島県,autumn,2026,CMP000140,2026-36-autumn,第79回 徳島県高等学校野球秋季大会,2026-09-13,2,MAIN,complete,merged
+四国,36,徳島県,autumn,2026,CMP000140,2026-36-autumn,第79回 徳島県高等学校野球秋季大会,2026-09-19,3,MAIN,complete,merged
+四国,36,徳島県,autumn,2026,CMP000140,2026-36-autumn,第79回 徳島県高等学校野球秋季大会,2026-09-20,4,MAIN,complete,merged
+四国,36,徳島県,autumn,2026,CMP000140,2026-36-autumn,第79回 徳島県高等学校野球秋季大会,2026-09-26,5,MAIN,complete,merged
+四国,36,徳島県,autumn,2026,CMP000140,2026-36-autumn,第79回 徳島県高等学校野球秋季大会,2026-10-03,6,MAIN,complete,merged
+四国,36,徳島県,autumn,2026,CMP000140,2026-36-autumn,第79回 徳島県高等学校野球秋季大会,2026-10-10,7,MAIN,complete,merged
+四国,36,徳島県,autumn,2026,CMP000140,2026-36-autumn,第79回 徳島県高等学校野球秋季大会,2026-10-11,8,MAIN,complete,merged
+四国,37,香川県,spring,2026,CMP000141,2026-37-spring,令和8年度(第79回) 春季四国地区高等学校野球 香川県大会,2026-03-20,1,MAIN,complete,merged
+四国,37,香川県,spring,2026,CMP000141,2026-37-spring,令和8年度(第79回) 春季四国地区高等学校野球 香川県大会,2026-03-21,2,MAIN,complete,merged
+四国,37,香川県,spring,2026,CMP000141,2026-37-spring,令和8年度(第79回) 春季四国地区高等学校野球 香川県大会,2026-03-22,3,MAIN,complete,merged
+四国,37,香川県,spring,2026,CMP000141,2026-37-spring,令和8年度(第79回) 春季四国地区高等学校野球 香川県大会,2026-03-24,4,MAIN,complete,merged
+四国,37,香川県,spring,2026,CMP000141,2026-37-spring,令和8年度(第79回) 春季四国地区高等学校野球 香川県大会,2026-03-26,5,MAIN,complete,merged
+四国,37,香川県,spring,2026,CMP000141,2026-37-spring,令和8年度(第79回) 春季四国地区高等学校野球 香川県大会,2026-03-27,6,MAIN,complete,merged
+四国,37,香川県,spring,2026,CMP000141,2026-37-spring,令和8年度(第79回) 春季四国地区高等学校野球 香川県大会,2026-03-28,7,MAIN,complete,merged
+四国,37,香川県,spring,2026,CMP000141,2026-37-spring,令和8年度(第79回) 春季四国地区高等学校野球 香川県大会,2026-03-29,8,MAIN,complete,merged
+四国,37,香川県,spring,2026,CMP000141,2026-37-spring,令和8年度(第79回) 春季四国地区高等学校野球 香川県大会,2026-03-30,9,MAIN,complete,merged
+四国,37,香川県,spring,2026,CMP000141,2026-37-spring,令和8年度(第79回) 春季四国地区高等学校野球 香川県大会,2026-04-05,10,MAIN,complete,merged
+四国,37,香川県,spring,2026,CMP000141,2026-37-spring,令和8年度(第79回) 春季四国地区高等学校野球 香川県大会,2026-04-11,11,MAIN,complete,merged
+四国,37,香川県,autumn,2026,CMP000142,2026-37-autumn,令和8年度(第79回) 秋季四国地区高等学校野球 香川県大会,2026-09-12,1,MAIN,complete,merged
+四国,37,香川県,autumn,2026,CMP000142,2026-37-autumn,令和8年度(第79回) 秋季四国地区高等学校野球 香川県大会,2026-09-13,2,MAIN,complete,merged
+四国,37,香川県,autumn,2026,CMP000142,2026-37-autumn,令和8年度(第79回) 秋季四国地区高等学校野球 香川県大会,2026-09-19,3,MAIN,complete,merged
+四国,37,香川県,autumn,2026,CMP000142,2026-37-autumn,令和8年度(第79回) 秋季四国地区高等学校野球 香川県大会,2026-09-20,4,MAIN,complete,merged
+四国,37,香川県,autumn,2026,CMP000142,2026-37-autumn,令和8年度(第79回) 秋季四国地区高等学校野球 香川県大会,2026-09-22,5,MAIN,complete,merged
+四国,37,香川県,autumn,2026,CMP000142,2026-37-autumn,令和8年度(第79回) 秋季四国地区高等学校野球 香川県大会,2026-09-23,6,MAIN,complete,merged
+四国,37,香川県,autumn,2026,CMP000142,2026-37-autumn,令和8年度(第79回) 秋季四国地区高等学校野球 香川県大会,2026-10-03,7,MAIN,complete,merged
+四国,37,香川県,autumn,2026,CMP000142,2026-37-autumn,令和8年度(第79回) 秋季四国地区高等学校野球 香川県大会,2026-10-10,8,MAIN,complete,merged
+四国,37,香川県,autumn,2026,CMP000142,2026-37-autumn,令和8年度(第79回) 秋季四国地区高等学校野球 香川県大会,2026-10-12,9,MAIN,complete,merged
+四国,37,香川県,autumn,2026,CMP000142,2026-37-autumn,令和8年度(第79回) 秋季四国地区高等学校野球 香川県大会,2026-10-17,10,MAIN,complete,merged
+四国,38,愛媛県,spring,2026,CMP000143,2026-38-spring,令和8年度(第79回) 春季四国地区高等学校野球 愛媛県大会,2026-03-20,1,MAIN,complete,merged
+四国,38,愛媛県,spring,2026,CMP000143,2026-38-spring,令和8年度(第79回) 春季四国地区高等学校野球 愛媛県大会,2026-03-21,2,MAIN,complete,merged
+四国,38,愛媛県,spring,2026,CMP000143,2026-38-spring,令和8年度(第79回) 春季四国地区高等学校野球 愛媛県大会,2026-03-22,3,MAIN,complete,merged
+四国,38,愛媛県,spring,2026,CMP000143,2026-38-spring,令和8年度(第79回) 春季四国地区高等学校野球 愛媛県大会,2026-03-23,4,MAIN,complete,merged
+四国,38,愛媛県,spring,2026,CMP000143,2026-38-spring,令和8年度(第79回) 春季四国地区高等学校野球 愛媛県大会,2026-03-26,5,MAIN,complete,merged
+四国,38,愛媛県,spring,2026,CMP000143,2026-38-spring,令和8年度(第79回) 春季四国地区高等学校野球 愛媛県大会,2026-03-28,6,MAIN,complete,merged
+四国,38,愛媛県,spring,2026,CMP000143,2026-38-spring,令和8年度(第79回) 春季四国地区高等学校野球 愛媛県大会,2026-03-30,7,MAIN,complete,merged
+四国,38,愛媛県,spring,2026,CMP000143,2026-38-spring,令和8年度(第79回) 春季四国地区高等学校野球 愛媛県大会,2026-04-01,8,MAIN,complete,merged
+四国,38,愛媛県,autumn,2026,CMP000144,2026-38-autumn,令和8年度(第79回) 秋季四国地区高等学校野球 愛媛県大会 本戦,2026-09-26,1,MAIN,complete,merged
+四国,38,愛媛県,autumn,2026,CMP000144,2026-38-autumn,令和8年度(第79回) 秋季四国地区高等学校野球 愛媛県大会 本戦,2026-10-03,2,MAIN,complete,merged
+四国,38,愛媛県,autumn,2026,CMP000144,2026-38-autumn,令和8年度(第79回) 秋季四国地区高等学校野球 愛媛県大会 本戦,2026-10-04,3,MAIN,complete,merged
+四国,38,愛媛県,autumn,2026,CMP000144,2026-38-autumn,令和8年度(第79回) 秋季四国地区高等学校野球 愛媛県大会 本戦,2026-10-10,4,MAIN,complete,merged
+四国,38,愛媛県,autumn,2026,CMP000144,2026-38-autumn,令和8年度(第79回) 秋季四国地区高等学校野球 愛媛県大会 本戦,2026-10-11,5,MAIN,complete,merged
+四国,39,高知県,spring,2026,CMP000145,2026-39-spring,第79回 春季四国地区高等学校野球大会 高知県予選,2026-03-20,1,MAIN,complete,merged
+四国,39,高知県,spring,2026,CMP000145,2026-39-spring,第79回 春季四国地区高等学校野球大会 高知県予選,2026-03-21,2,MAIN,complete,merged
+四国,39,高知県,spring,2026,CMP000145,2026-39-spring,第79回 春季四国地区高等学校野球大会 高知県予選,2026-03-22,3,MAIN,complete,merged
+四国,39,高知県,spring,2026,CMP000145,2026-39-spring,第79回 春季四国地区高等学校野球大会 高知県予選,2026-03-24,4,MAIN,complete,merged
+四国,39,高知県,spring,2026,CMP000145,2026-39-spring,第79回 春季四国地区高等学校野球大会 高知県予選,2026-03-26,5,MAIN,complete,merged
+四国,39,高知県,spring,2026,CMP000145,2026-39-spring,第79回 春季四国地区高等学校野球大会 高知県予選,2026-03-28,6,MAIN,complete,merged
+四国,39,高知県,spring,2026,CMP000145,2026-39-spring,第79回 春季四国地区高等学校野球大会 高知県予選,2026-03-30,7,MAIN,complete,merged
+四国,39,高知県,autumn,2026,CMP000146,2026-39-autumn,第79回 秋季四国地区高等学校野球大会 高知県予選,2026-09-12,1,MAIN,complete,merged
+四国,39,高知県,autumn,2026,CMP000146,2026-39-autumn,第79回 秋季四国地区高等学校野球大会 高知県予選,2026-09-19,2,MAIN,complete,merged
+四国,39,高知県,autumn,2026,CMP000146,2026-39-autumn,第79回 秋季四国地区高等学校野球大会 高知県予選,2026-09-20,3,MAIN,complete,merged
+四国,39,高知県,autumn,2026,CMP000146,2026-39-autumn,第79回 秋季四国地区高等学校野球大会 高知県予選,2026-09-26,4,MAIN,complete,merged
+四国,39,高知県,autumn,2026,CMP000146,2026-39-autumn,第79回 秋季四国地区高等学校野球大会 高知県予選,2026-09-27,5,MAIN,complete,merged
+四国,39,高知県,autumn,2026,CMP000146,2026-39-autumn,第79回 秋季四国地区高等学校野球大会 高知県予選,2026-09-28,6,MAIN,complete,merged
+四国,39,高知県,autumn,2026,CMP000146,2026-39-autumn,第79回 秋季四国地区高等学校野球大会 高知県予選,2026-10-10,7,MAIN,complete,merged
+四国,39,高知県,autumn,2026,CMP000146,2026-39-autumn,第79回 秋季四国地区高等学校野球大会 高知県予選,2026-10-11,8,MAIN,complete,merged
