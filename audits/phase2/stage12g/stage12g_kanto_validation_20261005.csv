@@ -1,0 +1,15 @@
+﻿check,result,detail
+row_count_14,PASS,rows=14
+unique_prefecture_season,PASS,unique=14
+competition_id_resolved,PASS,resolved=14/14
+competition_id_unique,PASS,unique=14
+all_master_merged,PASS,merged=14/14
+match_day_rows_133,PASS,rows=133
+match_day_competition_ids,PASS,resolved=133/133
+prefectural_official_schedule_29,PASS,official=29/94
+prefectural_calendar_gaps_65,PASS,gaps=65/94
+calendar_source_fk,PASS,14/14 source ids valid
+new_phase2_sources,PASS,"new_sources=14, total=189"
+all_research_complete,PASS,complete=14/14
+all_proposed_official_schedule,PASS,official_schedule=14/14
+saitama_autumn_future_final,PASS,10/6 official future final included
