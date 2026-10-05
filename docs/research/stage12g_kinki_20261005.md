@@ -78,8 +78,14 @@ Stage 12Gとして、近畿6府県の春季・秋季県大会12大会につい�
 
 詳細なURL・判断理由は `audits/phase2/stage12g/stage12g_kinki_schedule_audit_20261005.csv` を正とする。
 
-## 6. 検証予定・次工程
+## 6. 検証結果
 
-本ブランチで回帰テストとseason E2Eを実行し、完了後に結果をPRへ記録する。
+- unit test: **98 / 98 PASS**
+- Stage 12G近畿validation: **15 / 15 PASS**
+- season E2E県大会: **94 / 94 PASS**
+- `prefectural_calendar_gap_count = 35`
+- warnings: **0**
+
+## 7. 次工程
 
 Stage 12Gの次工程は、中国5県（鳥取・島根・岡山・広島・山口）の春秋10大会を予定する。
