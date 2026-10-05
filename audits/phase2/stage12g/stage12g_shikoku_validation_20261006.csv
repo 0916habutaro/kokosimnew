@@ -1,0 +1,16 @@
+﻿check,result,detail
+row_count_8,PASS,rows=8
+unique_prefecture_season,PASS,unique=8
+competition_id_resolved,PASS,resolved=8/8
+competition_id_unique,PASS,unique=8
+all_master_merged,PASS,merged=8/8
+match_day_rows_67,PASS,rows=67
+match_day_competition_ids,PASS,resolved=67/67
+audit_match_days_consistent,PASS,audit match_dates == day rows and counts
+prefectural_official_schedule_77,PASS,official=77/94
+prefectural_calendar_gaps_17,PASS,gaps=17/94
+calendar_source_fk,PASS,8/8 source ids valid
+new_phase2_sources,PASS,"new_sources=8, total=237"
+all_research_complete,PASS,complete=8/8
+all_proposed_official_schedule,PASS,official_schedule=8/8
+shikoku_main_scope,PASS,徳島秋のSEED_EVENT除外・香川春の順位決定戦除外・愛媛秋16校本戦・高知継続試合を整合
