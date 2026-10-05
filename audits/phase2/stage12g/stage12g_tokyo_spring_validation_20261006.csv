@@ -1,0 +1,16 @@
+﻿check,result,detail
+row_count_1,PASS,rows=1
+competition_id_resolved,PASS,CMP000094
+master_merged,PASS,merged=1/1
+match_day_rows_15,PASS,rows=15
+match_day_competition_ids,PASS,resolved=15/15
+audit_match_days_consistent,PASS,audit match_dates == day rows and calendar
+prefectural_official_schedule_94,PASS,official=94/94
+prefectural_calendar_gaps_0,PASS,gaps=0/94
+calendar_source_fk,PASS,P2SRC254 valid
+new_phase2_sources,PASS,P2SRC254-P2SRC255
+research_complete,PASS,complete=1/1
+proposed_official_schedule,PASS,official_schedule=1/1
+preliminary_dates_excluded,PASS,3/14・3/15・3/20・3/21・3/22 excluded from MAIN
+april_4_kept,PASS,official results contain completed games on 4/4
+stage12g_nationwide_complete,PASS,94/94 prefectural spring-autumn schedules official
