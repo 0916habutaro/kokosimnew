@@ -1,0 +1,11 @@
+﻿competition_id,region_id,region_name,next_check_date,status,tracking_stage,notes
+CMP000013,REG01,北海道,2026-10-07,future_pending,Stage12J,10/7開幕予定。終了後に実績日を再照合
+CMP000014,REG02,東北,2026-10-12,future_pending,Stage12J,10/12開幕予定
+CMP000015,REG03,関東,2026-10-17,future_pending,Stage12J,10/17開幕予定
+CMP000016,REG04,東京,2026-10-10,tracked_stage12i,Stage12I,10/3・4実施済み。東京都秋としてStage12Iで追跡中
+CMP000017,REG05,北信越,2026-10-10,future_pending,Stage12J,10/10開幕予定
+CMP000018,REG06,東海,2026-10-17,future_pending,Stage12J,10/17開幕予定
+CMP000019,REG07,近畿,2026-10-17,future_pending,Stage12J,10/17開幕予定
+CMP000020,REG08,中国,2026-10-23,future_pending,Stage12J,10/23開幕予定
+CMP000021,REG09,四国,2026-10-24,future_pending,Stage12J,10/24開幕予定
+CMP000022,REG10,九州,2026-10-24,future_pending,Stage12J,10/24開幕予定
