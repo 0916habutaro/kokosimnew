@@ -39,12 +39,14 @@ game_date_list:
 
 ### detailed 112大会
 
-内訳:
-- 県春秋94
-- 地区大会19のうち全19は詳細日あり
-- 全国大会の選抜・夏甲子園2
+competition_level / competition_type上の内訳:
+- prefectural levelの春秋: 91大会（春46＋秋45）
+- regional levelの春秋: 19大会（春9＋秋10）
+- national: 2大会（選抜・夏甲子園）
 
-ただし大会区分は重複しない実行区分ではなく、calendar分類上の集計である。
+合計91＋19＋2＝112。
+
+一方、エンジンの実行区分では北海道春・北海道秋・東京秋の3大会をprefectural_rows側で扱うため、実行区分は94県大会＋16地区大会となる。
 
 ### period_only 49大会
 
