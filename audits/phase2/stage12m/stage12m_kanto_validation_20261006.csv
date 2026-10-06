@@ -1,0 +1,14 @@
+﻿check,result,detail
+scope_competitions,PASS,関東8大会
+game_date_list_populated,PASS,8/8
+actual_game_date_total,PASS,112日
+dates_sorted_unique,PASS,8/8
+dates_within_start_end,PASS,8/8
+cancelled_days_excluded,PASS,群馬7/18・西東京7/5を除外
+opening_only_excluded,PASS,千葉7/4・神奈川7/5を除外
+opening_plus_game_included,PASS,茨城7/4・埼玉7/8を採用
+summer_local_detailed_after_batch,PASS,16/49
+summer_local_period_only_remaining,PASS,33/49
+summer_local_actual_days_cumulative,PASS,210日
+all_calendar_detailed_after_batch,PASS,128/162
+all_calendar_empty_after_batch,PASS,34/162＝夏地方33＋神宮1
