@@ -1,0 +1,13 @@
+﻿check,result,detail
+scope_competitions,PASS,北海道2大会＋東北6県＝8大会
+game_date_list_populated,PASS,8/8
+actual_game_date_total,PASS,98日
+dates_sorted_unique,PASS,8/8
+dates_within_start_end,PASS,8/8
+end_date_actualized,PASS,岩手・秋田・山形・宮城の4大会
+opening_only_excluded,PASS,岩手7/8・宮城7/9
+cancelled_days_excluded,PASS,確認した全試合中止・順延のみの日を除外
+summer_local_detailed_after_batch,PASS,8/49
+summer_local_period_only_remaining,PASS,41/49
+all_calendar_detailed_after_batch,PASS,120/162
+all_calendar_empty_after_batch,PASS,42/162＝夏地方41＋神宮1
