@@ -1,0 +1,10 @@
+﻿check_group,total,passed_or_resolved,pending_or_failed,detail
+unittest,158,158,0,python -m unittest discover -s tests -v
+stage12k_validation,15,15,0,stage12k_national_validation_20261006.csv
+national_calendar,3,2 completed actual,1 future draw pending,Senbatsu and summer actualized; Jingu window/draw registered
+season_e2e_prefectural,94,94,0,prefectural_pass_total=94
+season_e2e_regional,16,16,0,regional_pass_total=16
+season_e2e_qualification,59,59,0,qualification_pass=59
+season_e2e_access,22,22,0,access_pass=22
+national_entrants,91,91,0,Senbatsu32 + summer49 + Jingu10
+season_e2e_gaps,0,0,0,calendar=0; internal=0; warnings=[]
