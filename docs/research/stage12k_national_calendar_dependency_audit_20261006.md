@@ -133,6 +133,22 @@ audits/phase2/stage12d/stage12d_qualification_dependency_audit.csv には、Stag
 - stage12k_national_dependency_audit_20261006.csv
 - test_stage12k_national_calendar_dependency_audit.py
 
+## 検証結果
+
+GitHub Actions上で実際に検証した。
+
+- unit test: **158 / 158 PASS**
+- 県大会E2E: **94 / 94 PASS**
+- 地区大会E2E: **16 / 16 PASS**
+- qualification rules: **59 / 59 PASS**
+- access rules: **22 / 22 PASS**
+- 選抜 entrants: **32**
+- 夏甲子園 entrants: **49**
+- 神宮 entrants: **10**
+- calendar gaps: **0**
+- internal structure gaps: **0**
+- warnings: **0**
+
 ## 次工程
 
 1. 全回帰テスト
