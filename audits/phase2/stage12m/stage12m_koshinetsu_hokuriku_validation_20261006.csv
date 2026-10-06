@@ -1,0 +1,15 @@
+﻿check,result,detail
+scope_competitions,PASS,甲信越・北陸6大会
+game_date_list_populated,PASS,6/6
+actual_game_date_total,PASS,64日
+dates_sorted_unique,PASS,6/6
+dates_within_start_end,PASS,6/6
+end_date_changes,PASS,なし
+cancelled_days_excluded,PASS,新潟7/13を除外
+opening_only_excluded,PASS,富山7/7・福井7/8を除外
+partial_cancel_with_completed_games_included,PASS,長野7/6・富山7/18を採用
+summer_local_detailed_after_batch,PASS,22/49
+summer_local_period_only_remaining,PASS,27/49
+summer_local_actual_days_cumulative,PASS,274日
+all_calendar_detailed_after_batch,PASS,134/162
+all_calendar_empty_after_batch,PASS,28/162＝夏地方27＋神宮1
