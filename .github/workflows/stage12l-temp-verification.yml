@@ -1,0 +1,41 @@
+name: Stage 12L temporary verification
+
+on:
+  push:
+    branches:
+      - stage12l-full-season-integration-audit
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Full season E2E markers
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from phase2_engine import DataRepository, SeasonOrchestrator
+          data=Path("data")
+          repo=DataRepository(data)
+          s=SeasonOrchestrator(repo,data).run_structural_season(2026,2026100501)
+          print(f"COMPETITION_MASTER={len(repo.competitions)}")
+          print(f"COMPETITION_RUNS={len(s.competition_runs)}")
+          print(f"PREFECTURAL_PASS={sum(r.status == 'PASS' for r in s.prefectural_rows)}")
+          print(f"PREFECTURAL_TOTAL={len(s.prefectural_rows)}")
+          print(f"REGIONAL_PASS={sum(r.status == 'PASS' for r in s.regional_rows)}")
+          print(f"REGIONAL_TOTAL={len(s.regional_rows)}")
+          print(f"SUMMER_LOCAL_TOTAL={len(s.summer_local_competition_ids)}")
+          print(f"QUALIFICATION_PASS={sum(r.status == 'PASS' for r in s.qualification_resolutions)}")
+          print(f"QUALIFICATION_TOTAL={len(s.qualification_resolutions)}")
+          print(f"ACCESS_PASS={sum(r.status == 'PASS' for r in s.access_resolutions)}")
+          print(f"ACCESS_TOTAL={len(s.access_resolutions)}")
+          print(f"CALENDAR_GAPS={len(s.calendar_gaps)}")
+          print(f"INTERNAL_GAPS={len(s.internal_structure_gaps)}")
+          print(f"REGIONAL_BRIDGE_GAPS={len(s.regional_bridge_gaps)}")
+          print(f"WARNINGS={s.warnings}")
+          PY
