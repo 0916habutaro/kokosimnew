@@ -1,0 +1,13 @@
+﻿check,result,detail
+score_layer_separated_from_winner_engine,PASS,既存Match.winnerを変更せず表示用得点のみ生成
+deterministic_seed_namespace,PASS,score_v1:competition_id:year:match_id
+generated_score_no_ties,PASS,敗者得点＋1以上のmargin
+generated_score_preserves_winner,PASS,勝者側得点を必ず高くする
+school_display_name_resolution,PASS,DataRepository.teamで表示名解決
+exact_score_override_supported,PASS,match_idごとのteam1/team2得点を指定可能
+contradictory_override_rejected,PASS,大会winnerとスコア勝者不一致を拒否
+tie_override_rejected,PASS,同点を拒否
+bye_score_blank,PASS,不戦勝は得点なし
+csv_read_model,PASS,学校名・得点・勝敗・result_textを1行化
+cli_integration,PASS,--result-dir時にresult_view.csvも生成
+future_replaceable,PASS,generated_v1を能力ベースsimulatorへ差し替え可能
