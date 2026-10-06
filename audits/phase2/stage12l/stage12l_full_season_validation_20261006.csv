@@ -1,0 +1,17 @@
+﻿check,result,detail
+competition_master_count,PASS,162
+calendar_row_count,PASS,162
+calendar_official_schedule,PASS,162/162
+calendar_detailed,PASS,112
+calendar_period_only,PASS,49 summer local
+calendar_future_pending,PASS,CMP000003 only
+calendar_unexpected_empty,PASS,0
+competition_runs,PASS,162/162
+execution_prefectural,PASS,94/94
+execution_regional,PASS,16/16
+execution_summer_local,PASS,49/49
+execution_national,PASS,3/3
+qualification_rules,PASS,59/59
+access_rules,PASS,22/22
+gaps_and_warnings,PASS,calendar=0; internal=0; regional_bridge=0; warnings=0
+unit_tests,PASS,168/168
