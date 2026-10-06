@@ -1,0 +1,15 @@
+﻿check,result,detail
+scope_competitions,PASS,中国5大会
+game_date_list_populated,PASS,5/5
+actual_game_date_total,PASS,57日
+dates_sorted_unique,PASS,5/5
+dates_within_start_end,PASS,5/5
+end_date_changes,PASS,なし
+opening_only_days_excluded,PASS,岡山7/9を除外
+all_cancelled_days_excluded,PASS,広島7/4を除外
+other_listed_days_have_completed_games,PASS,鳥取・島根・岡山・広島7/5以降・山口
+summer_local_detailed_after_batch,PASS,37/49
+summer_local_period_only_remaining,PASS,12/49
+summer_local_actual_days_cumulative,PASS,467日
+all_calendar_detailed_after_batch,PASS,149/162
+all_calendar_empty_after_batch,PASS,13/162＝夏地方12＋神宮1
