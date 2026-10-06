@@ -1,0 +1,18 @@
+﻿check,result,detail
+gui_framework,PASS,Python標準Tkinterのみ
+external_gui_dependency,PASS,追加依存なし
+global_year_selector,PASS,browse_seasonsから年度選択
+date_tab,PASS,日付別試合一覧
+competition_tab,PASS,大会結果・試合一覧
+school_tab,PASS,学校検索・学校戦績・試合履歴
+readonly_contract,PASS,GUIコードからINSERT/UPDATE/DELETE/replace呼び出しなし
+repository_list_years,PASS,SQLite年度一覧
+repository_list_match_dates,PASS,日付候補＋未定検出
+undated_display,PASS,日付未定を専用選択肢化
+competition_selector,PASS,大会名＋competition_id
+school_search,PASS,学校名・学校ID・都道府県コード
+school_history_result,PASS,W/L/BYEを○/●/不戦勝表示
+db_preflight,PASS,Tk起動前にSQLite存在確認
+missing_db_guidance,PASS,season_cli --sqlite-db作成コマンドを表示
+windows_launcher,PASS,examples/run_browse_gui.bat
+headless_testability,PASS,GUI用モデルをbrowse_gui_model.pyへ分離
