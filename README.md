@@ -14,6 +14,7 @@
 - Stage 12O: checkpoint駆動の再照合キュー生成を実装。指定日までのtoday_pending / overdueを自動抽出
 - Stage 12P: 観戦用試合結果read modelを実装。seed再現スコア・学校表示名・実スコアoverride対応
 - Stage 12Q: 日付別試合一覧・大会別結果一覧・学校別戦績の閲覧read modelを実装
+- Stage 12R: 3閲覧read modelのSQLite永続化・GUI向けrepository層を実装
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -39,10 +40,17 @@ python -m phase2_engine.recheck_calendar_cli \
   --calendar data/schedules/2026/autumn_recheck_calendar.csv \
   --as-of 2026-10-07 \
   --output audits/phase2/stage12o/stage12o_due_queue_20261007.csv
+
+python -m phase2_engine.season_cli \
+  --data-dir data \
+  --year 2026 \
+  --seed 2026100501 \
+  --result-dir out \
+  --sqlite-db out/kokosim_browse.sqlite3
 ```
 
 ## 正本ルール
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-Stage 12Qで日付別・大会別・学校別の閲覧CSVをseason_cliから生成可能。次工程はこのread modelをSQLite/APIへ載せるrepository層、または直接GUIへ接続する。秋季実績はStage 12Oのdueキューで後追い可能。
+Stage 12Rで日付別・大会別・学校別read modelをSQLiteへ年度単位で永続化し、GUI向け検索APIを実装済み。次工程はこのrepositoryを読むread-only GUIの最小画面を作る。秋季実績はStage 12Oのdueキューで後追い可能。
