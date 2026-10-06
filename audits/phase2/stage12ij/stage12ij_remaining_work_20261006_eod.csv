@@ -1,0 +1,5 @@
+﻿remaining_id,scope,count,status,next_check_date,owner_stage,detail
+REM001,summer_local_game_date_detail,0,completed,,Stage12M,夏地方49大会はStage12M-1〜8で実試合日629日へ詳細化完了
+REM002,jingu_game_date_detail,1,future_pending,2026-10-17,Stage12K,明治神宮高校の部は組み合わせ抽選後にgame_date_list確定
+REM003,autumn_prefectural_actualization,18,ongoing,2026-10-07,Stage12I,10/6再照合で埼玉を完了し6大会を実績更新。18大会を継続追跡
+REM004,autumn_regional_actualization,9,ongoing,2026-10-07,Stage12J,東京はStage12Iへ委譲。Stage12J所管9地区は10/7北海道から順次実績化

@@ -1,0 +1,13 @@
+﻿check,result,detail
+prefectural_queue_total,PASS,19
+prefectural_actualized_20261006_eod,PASS,6
+prefectural_completed_after_recheck,PASS,埼玉1
+prefectural_remaining_actualization,PASS,18
+actualized_dates_already_in_calendar,PASS,6/6
+calendar_notes_verified_at_updated,PASS,6/6
+new_recheck_sources_present,PASS,P2SRC326〜P2SRC331
+regional_stage12j_owned,PASS,9
+regional_actualized_as_of_20261006_eod,PASS,0
+regional_next_check,PASS,北海道 2026-10-07
+summer_local_remaining,PASS,0
+jingu_remaining,PASS,1
