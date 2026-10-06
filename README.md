@@ -12,6 +12,7 @@
 - 秋季実績再照合: 2026-10-06 EODに県大会6件を実績更新。埼玉は完了、県大会残件18・地区大会残件9
 - Stage 12N: 秋季残件の将来予定日を再照合カレンダー化。県18＋地区9＝27追跡行（26大会）、最初のcheckpointは10/7北海道・福岡
 - Stage 12O: checkpoint駆動の再照合キュー生成を実装。指定日までのtoday_pending / overdueを自動抽出
+- Stage 12P: 観戦用試合結果read modelを実装。seed再現スコア・学校表示名・実スコアoverride対応
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -43,4 +44,4 @@ python -m phase2_engine.recheck_calendar_cli \
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-Stage 12Oでcheckpoint対象抽出を自動化済み。`recheck_calendar_cli` で当日分と未処理overdueを生成し、試合終了後に実績照合する。最初のdueは10/7の北海道2スコープ＋福岡1スコープ。明治神宮大会1件は10/17抽選後に更新する。
+Stage 12Pで試合結果を表示用CSVへ変換できるようになった。次工程はこのread modelを利用した日付別・大会別・学校別の閲覧API/GUI基盤を優先する。秋季実績はStage 12Oのdueキューで後追い可能。明治神宮大会1件は10/17抽選後に更新する。

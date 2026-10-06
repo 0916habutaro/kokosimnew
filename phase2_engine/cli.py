@@ -8,6 +8,7 @@ from .engine import TournamentEngine
 from .models import AnnualCompetitionInput
 from .repository import DataRepository
 from .results import save_competition_run
+from .result_view import save_competition_result_view
 
 
 def _gifu_demo_entrants(repo: DataRepository, year: int = 2026):
@@ -129,7 +130,8 @@ def main():
     p.add_argument("--main-seed-file", help="text file containing ordered MAIN seed school ids")
     p.add_argument("--main-draw-json", help="JSON array of exact power-of-two MAIN slots; empty string=bye")
     p.add_argument("--main-winner-json", help="JSON object: MAIN match_id -> winning school_id")
-    p.add_argument("--result-dir", help="write summary JSON, match CSV and placement CSV")
+    p.add_argument("--result-dir", help="write summary JSON, match CSV, placement CSV and result-view CSV")
+    p.add_argument("--score-override-json", help="JSON object: match_id -> [team1_score, team2_score] for exact score replay")
     p.add_argument("--demo", choices=[
         "gifu-autumn", "kanagawa-spring", "kanagawa-autumn",
         "chiba-autumn", "hokkaido-autumn", "aomori-autumn",
@@ -165,6 +167,12 @@ def main():
     ))
     if args.result_dir:
         save_competition_run(run, args.result_dir)
+        save_competition_result_view(
+            run,
+            repo,
+            args.result_dir,
+            score_overrides=_read_json_mapping(args.score_override_json),
+        )
     payload = json.dumps(run.to_dict(), ensure_ascii=False, indent=2)
     if args.output:
         Path(args.output).write_text(payload + "\n", encoding="utf-8")
