@@ -1,0 +1,15 @@
+﻿check,result,detail
+scope_competitions,PASS,近畿6大会
+game_date_list_populated,PASS,6/6
+actual_game_date_total,PASS,90日
+dates_sorted_unique,PASS,6/6
+dates_within_start_end,PASS,6/6
+end_date_changes,PASS,なし
+no_completed_game_days_excluded,PASS,滋賀7/5・7/6、京都7/6を除外
+opening_only_days_excluded,PASS,兵庫6/28・奈良7/9・和歌山7/10を除外
+partial_cancel_with_completed_games_included,PASS,京都7/4・7/5、大阪7/5、兵庫7/4・7/5を採用
+summer_local_detailed_after_batch,PASS,32/49
+summer_local_period_only_remaining,PASS,17/49
+summer_local_actual_days_cumulative,PASS,410日
+all_calendar_detailed_after_batch,PASS,144/162
+all_calendar_empty_after_batch,PASS,18/162＝夏地方17＋神宮1
