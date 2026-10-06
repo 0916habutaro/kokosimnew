@@ -293,6 +293,40 @@ class BrowseRepository:
     def _rows(cursor: sqlite3.Cursor) -> list[dict]:
         return [dict(row) for row in cursor.fetchall()]
 
+    def list_years(self) -> list[int]:
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            rows = conn.execute(
+                "SELECT year FROM browse_seasons ORDER BY year DESC"
+            ).fetchall()
+            return [int(row["year"]) for row in rows]
+
+    def list_match_dates(
+        self,
+        year: int,
+        *,
+        include_undated: bool = False,
+    ) -> list[str]:
+        clauses = ["year = ?"]
+        params: list[object] = [year]
+        if not include_undated:
+            clauses.append("match_date <> ''")
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            rows = conn.execute(
+                f"""
+                SELECT match_date
+                FROM matches_by_date
+                WHERE {' AND '.join(clauses)}
+                GROUP BY match_date
+                ORDER BY
+                    CASE WHEN match_date = '' THEN 1 ELSE 0 END,
+                    match_date
+                """,
+                params,
+            ).fetchall()
+            return [str(row["match_date"]) for row in rows]
+
     def season_meta(self, year: int) -> dict | None:
         with self._connect() as conn:
             self._initialize_schema_conn(conn)

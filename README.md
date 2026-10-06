@@ -15,6 +15,7 @@
 - Stage 12P: 観戦用試合結果read modelを実装。seed再現スコア・学校表示名・実スコアoverride対応
 - Stage 12Q: 日付別試合一覧・大会別結果一覧・学校別戦績の閲覧read modelを実装
 - Stage 12R: 3閲覧read modelのSQLite永続化・GUI向けrepository層を実装
+- Stage 12S: SQLite repositoryを読むread-only GUIを実装（年度・日付別試合・大会結果・学校戦績）
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -47,10 +48,13 @@ python -m phase2_engine.season_cli \
   --seed 2026100501 \
   --result-dir out \
   --sqlite-db out/kokosim_browse.sqlite3
+
+python -m phase2_engine.browse_gui \
+  --db out/kokosim_browse.sqlite3
 ```
 
 ## 正本ルール
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-Stage 12Rで日付別・大会別・学校別read modelをSQLiteへ年度単位で永続化し、GUI向け検索APIを実装済み。次工程はこのrepositoryを読むread-only GUIの最小画面を作る。秋季実績はStage 12Oのdueキューで後追い可能。
+Stage 12SでSQLite repositoryを読むread-only GUIを実装済み。年度選択、日付別試合、大会結果、学校検索・戦績を閲覧可能。次工程は実機起動確認とGUI操作性改善（フィルタ・トーナメント表・画面遷移）を優先する。秋季実績はStage 12Oのdueキューで後追い可能。
