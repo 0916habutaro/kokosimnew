@@ -119,6 +119,24 @@ Stage 12M第1ブロック後は120大会に増え、空欄42大会の内訳は�
 
 特に岩手・秋田・山形・宮城は当初会期から実際の決勝日が変化しているため、当初予定だけではなく最終結果を優先した。
 
+## 検証結果
+
+GitHub Actions上で実際に検証した。
+
+- unit test: **175 / 175 PASS**
+- competition runs: **162 / 162**
+- 夏地方詳細化: **8 / 49**
+- 残り: **41**
+- 第1ブロック実試合日: **98**
+- 県大会E2E: **94 / 94 PASS**
+- 地区大会E2E: **16 / 16 PASS**
+- qualification rules: **59 / 59 PASS**
+- access rules: **22 / 22 PASS**
+- calendar gaps: **0**
+- internal structure gaps: **0**
+- regional bridge gaps: **0**
+- warnings: **0**
+
 ## 次工程
 
 Stage 12M第2ブロックとして、関東7県＋東西東京の夏地方9大会
