@@ -1,0 +1,14 @@
+﻿check,result,detail
+scope_competitions,PASS,東海4大会
+game_date_list_populated,PASS,4/4
+actual_game_date_total,PASS,46日
+dates_sorted_unique,PASS,4/4
+dates_within_start_end,PASS,4/4
+end_date_changes,PASS,なし
+opening_or_no_game_days_excluded,PASS,静岡6/28・愛知6/27・三重7/3を除外
+partial_cancel_with_completed_games_included,PASS,愛知6/28・岐阜7/18・三重7/4と7/5を採用
+summer_local_detailed_after_batch,PASS,26/49
+summer_local_period_only_remaining,PASS,23/49
+summer_local_actual_days_cumulative,PASS,320日
+all_calendar_detailed_after_batch,PASS,138/162
+all_calendar_empty_after_batch,PASS,24/162＝夏地方23＋神宮1
