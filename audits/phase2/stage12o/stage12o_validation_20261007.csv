@@ -1,0 +1,11 @@
+﻿check,result,detail
+calendar_tracking_rows,PASS,27
+as_of,PASS,2026-10-07
+due_rows,PASS,3
+today_pending,PASS,3
+overdue,PASS,0
+unique_due_competitions,PASS,2
+due_competitions,PASS,CMP000013;CMP000148
+shared_hokkaido_rows,PASS,2
+next_future_date,PASS,2026-10-08
+missed_day_behavior,PASS,next_scheduled_date < as_of はoverdueとして残る

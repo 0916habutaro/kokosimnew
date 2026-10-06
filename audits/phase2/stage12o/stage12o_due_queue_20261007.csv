@@ -1,0 +1,4 @@
+﻿tracking_id,tracking_scope,tracking_stage,competition_id,competition_name,latest_confirmed_date,next_scheduled_date,final_scheduled_date,due_status,remaining_planned_dates,schedule_source_id,shared_competition,notes
+N-PREF-01,prefectural,Stage12I,CMP000013,令和8年度秋季北海道地区高等学校野球大会,,2026-10-07,2026-10-15,today_pending,2026-10-07;2026-10-08;2026-10-09;2026-10-10;2026-10-11;2026-10-14;2026-10-15,P2SRC002,true,本大会は10/7開始予定。2026-10-06 23:47 JST時点では未来
+N-PREF-13,prefectural,Stage12I,CMP000148,令和8年度秋季福岡県高等学校野球大会,2026-10-06,2026-10-07,2026-10-14,today_pending,2026-10-07;2026-10-10;2026-10-12;2026-10-14,P2SRC260,false,10/6準々決勝2試合完了。10/7残り準々決勝は未来
+N-REG-01,regional,Stage12J,CMP000013,令和8年度秋季北海道地区高等学校野球大会,,2026-10-07,2026-10-15,today_pending,2026-10-07;2026-10-08;2026-10-09;2026-10-10;2026-10-11;2026-10-14;2026-10-15,P2SRC002,true,10/7開幕予定。2026-10-06 23:47 JST時点では未来
