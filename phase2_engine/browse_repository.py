@@ -327,6 +327,20 @@ class BrowseRepository:
             ).fetchall()
             return [str(row["match_date"]) for row in rows]
 
+    def list_prefecture_codes(self, year: int) -> list[str]:
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            rows = conn.execute(
+                """
+                SELECT DISTINCT prefecture_code
+                FROM school_records
+                WHERE year = ? AND prefecture_code <> ''
+                ORDER BY prefecture_code
+                """,
+                (year,),
+            ).fetchall()
+            return [str(row["prefecture_code"]) for row in rows]
+
     def season_meta(self, year: int) -> dict | None:
         with self._connect() as conn:
             self._initialize_schema_conn(conn)
@@ -335,6 +349,57 @@ class BrowseRepository:
                 (year,),
             ).fetchone()
             return dict(row) if row is not None else None
+
+    def matches_for_date_filtered(
+        self,
+        year: int,
+        match_date: str,
+        *,
+        competition_id: str = "",
+        prefecture_code: str = "",
+    ) -> list[dict]:
+        if match_date:
+            date.fromisoformat(match_date)
+
+        clauses = [
+            "m.year = ?",
+            "m.match_date = ?",
+        ]
+        params: list[object] = [year, match_date]
+
+        if competition_id:
+            clauses.append("m.competition_id = ?")
+            params.append(competition_id)
+
+        if prefecture_code:
+            clauses.append(
+                "(s1.prefecture_code = ? OR s2.prefecture_code = ?)"
+            )
+            params.extend([prefecture_code, prefecture_code])
+
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            return self._rows(conn.execute(
+                f"""
+                SELECT
+                    m.*,
+                    s1.prefecture_code AS team1_prefecture_code,
+                    s2.prefecture_code AS team2_prefecture_code
+                FROM matches_by_date AS m
+                LEFT JOIN school_records AS s1
+                  ON s1.year = m.year
+                 AND s1.school_id = m.team1_id
+                LEFT JOIN school_records AS s2
+                  ON s2.year = m.year
+                 AND s2.school_id = m.team2_id
+                WHERE {' AND '.join(clauses)}
+                ORDER BY
+                    m.competition_name,
+                    m.round_no,
+                    m.match_id
+                """,
+                params,
+            ))
 
     def matches_on_date(self, year: int, match_date: str) -> list[dict]:
         date.fromisoformat(match_date)

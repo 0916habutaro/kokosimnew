@@ -566,8 +566,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
+    from .browse_gui_enhanced import EnhancedBrowseApp
+
     root = tk.Tk()
-    BrowseApp(root, model)
+    EnhancedBrowseApp(root, model)
     root.mainloop()
     return 0
 
