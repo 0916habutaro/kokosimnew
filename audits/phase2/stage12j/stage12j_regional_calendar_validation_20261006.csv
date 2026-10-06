@@ -1,0 +1,16 @@
+﻿check,result,detail
+regional_calendar_count,PASS,19
+regional_official_schedule,PASS,19/19
+spring_audit_count,PASS,9
+spring_calendar_corrections,PASS,CMP000005;CMP000012
+tohoku_spring_dates,PASS,6/9;6/10;6/12;6/13
+tohoku_june11_excluded,PASS,yes
+kyushu_spring_dates,PASS,4/18;4/20;4/21;4/22;4/24;4/25;4/27
+kyushu_april19_excluded,PASS,yes
+kyushu_end_date,PASS,2026-04-27
+autumn_queue_count,PASS,10
+autumn_future_pending,PASS,9
+tokyo_delegated_stage12i,PASS,CMP000016
+unit_tests,PASS,149/149
+season_regional_e2e,PASS,16/16
+gaps_and_warnings,PASS,calendar=0; internal=0; warnings=0

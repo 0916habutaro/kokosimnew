@@ -1,0 +1,9 @@
+﻿check_group,total,passed_or_resolved,pending_or_failed,detail
+unittest,149,149,0,python -m unittest discover -s tests -v
+stage12j_validation,15,15,0,stage12j_regional_calendar_validation_20261006.csv
+spring_regional_audit,9,9,0,7 no_change + 2 corrected
+autumn_regional_queue,10,1 delegated,9 pending,Tokyo tracked by Stage12I; 9 future_pending
+season_e2e_prefectural,94,94,0,prefectural_pass_total=94
+season_e2e_regional,16,16,0,regional_pass_total=16
+season_e2e_access,22,22,0,access_pass=22
+season_e2e_gaps,0,0,0,calendar=0; internal=0; warnings=[]
