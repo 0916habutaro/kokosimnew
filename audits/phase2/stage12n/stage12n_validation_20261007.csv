@@ -1,0 +1,15 @@
+﻿check,result,detail
+tracking_rows,PASS,27
+prefectural_tracking_rows,PASS,18
+regional_tracking_rows,PASS,9
+unique_competitions,PASS,26
+shared_competition,PASS,CMP000013のみ県・地区の2スコープで追跡
+remaining_dates_nonempty,PASS,27/27
+next_date_is_first_remaining,PASS,27/27
+final_date_is_last_remaining,PASS,27/27
+dates_on_or_after_snapshot_date,PASS,27/27
+schedule_source_exists,PASS,27/27
+earliest_checkpoint,PASS,2026-10-07
+latest_checkpoint,PASS,2026-11-05
+checkpoint_date_count,PASS,24
+snapshot_at,PASS,2026-10-07T01:14:00+09:00
