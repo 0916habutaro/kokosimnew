@@ -1,0 +1,13 @@
+﻿check_group,total,passed_or_resolved,pending_or_failed,detail
+unittest,168,168,0,python -m unittest discover -s tests -v
+stage12l_validation,16,16,0,stage12l_full_season_validation_20261006.csv
+competition_calendar,162,162,0,all competitions have official_schedule rows
+competition_execution,162,162,0,competition_master=competition_runs=162
+calendar_detail,162,112 detailed,50 non-detailed,49 summer local period_only + 1 Jingu future_pending
+season_e2e_prefectural,94,94,0,prefectural_pass_total=94
+season_e2e_regional,16,16,0,regional_pass_total=16
+season_e2e_summer_local,49,49,0,summer_local_total=49
+season_e2e_national,3,3,0,Senbatsu + summer national + Jingu
+season_e2e_qualification,59,59,0,qualification_pass=59
+season_e2e_access,22,22,0,access_pass=22
+season_e2e_gaps,0,0,0,calendar=0; internal=0; regional_bridge=0; warnings=[]
