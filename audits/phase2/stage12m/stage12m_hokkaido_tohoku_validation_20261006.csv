@@ -1,0 +1,17 @@
+﻿check,result,detail
+target_competitions,PASS,8/8
+summer_local_detailed,PASS,8/49
+summer_local_remaining,PASS,41
+block1_match_days,PASS,98
+north_hokkaido_match_days,PASS,14
+south_hokkaido_match_days,PASS,18
+aomori_match_days,PASS,11
+iwate_match_days,PASS,12
+akita_match_days,PASS,10
+yamagata_match_days,PASS,11
+miyagi_match_days,PASS,12
+fukushima_match_days,PASS,10
+window_corrections,PASS,CMP000026;CMP000027;CMP000028;CMP000029
+unit_tests,PASS,175/175
+full_season_execution,PASS,162/162
+dependencies_and_gaps,PASS,qualification=59/59; access=22/22; calendar=0; internal=0; regional_bridge=0; warnings=0
