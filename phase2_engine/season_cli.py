@@ -8,6 +8,7 @@ from .repository import DataRepository
 from .season import SeasonOrchestrator
 from .season_results import save_season_execution
 from .browse_views import save_season_browse_views
+from .browse_repository import save_season_browse_repository
 
 
 def main():
@@ -16,6 +17,7 @@ def main():
     p.add_argument("--year", type=int, default=2026)
     p.add_argument("--seed", type=int, default=2026100501)
     p.add_argument("--result-dir")
+    p.add_argument("--sqlite-db", help="persist Stage 12Q browse views to SQLite")
     p.add_argument("--output")
     args = p.parse_args()
 
@@ -25,6 +27,13 @@ def main():
     if args.result_dir:
         save_season_execution(season, args.result_dir)
         save_season_browse_views(season, repo, data_dir, args.result_dir)
+    if args.sqlite_db:
+        save_season_browse_repository(
+            season,
+            repo,
+            data_dir,
+            args.sqlite_db,
+        )
     payload = json.dumps(season.summary(), ensure_ascii=False, indent=2)
     if args.output:
         Path(args.output).write_text(payload + "\n", encoding="utf-8")

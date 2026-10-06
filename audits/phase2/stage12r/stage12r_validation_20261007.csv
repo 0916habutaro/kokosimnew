@@ -1,0 +1,20 @@
+﻿check,result,detail
+sqlite_dependency,PASS,Python標準sqlite3のみ
+schema_version,PASS,PRAGMA user_version=1
+browse_seasons_table,PASS,年度・seed・件数メタデータ
+matches_table,PASS,Stage12Q matches_by_dateを年度付きで保存
+competition_table,PASS,Stage12Q competition_resultsを年度付きで保存
+school_table,PASS,Stage12Q school_recordsを年度付きで保存
+foreign_key_cascade,PASS,browse_seasons削除で年度データを全置換
+transactional_replace,PASS,年度単位のdelete+insertを1 transaction
+date_index,PASS,year+match_date
+competition_index,PASS,year+competition_id
+school_indexes,PASS,学校名・都道府県検索
+date_query,PASS,matches_on_date
+competition_queries,PASS,competition_result/list/matches
+school_queries,PASS,school_record/history/search
+school_history_perspective,PASS,opponent_id/nameとW/L/BYEをSQLで付与
+multi_year_support,PASS,yearを全主キーへ含める
+idempotent_replace,PASS,同一年の再生成で重複しない
+validation_before_replace,PASS,重複match・欠落schoolを置換前に拒否
+season_cli_integration,PASS,--sqlite-dbでCSV出力なしでも永続化可能
