@@ -1,0 +1,16 @@
+﻿check,result,detail
+national_calendar_count,PASS,3
+senbatsu_match_days,PASS,11
+senbatsu_draw_date,PASS,2026-03-06
+summer_match_days,PASS,15
+summer_draw_date,PASS,2026-08-01
+jingu_window,PASS,2026-11-19..2026-11-24
+jingu_draw_date,PASS,2026-10-17
+jingu_game_dates_pending,PASS,empty until draw
+senbatsu_selection_rules,PASS,12 rules / quota 32
+summer_qualification_rules,PASS,49/49
+jingu_qualification_rules,PASS,10/10
+unit_tests,PASS,158/158
+season_prefectural_e2e,PASS,94/94
+season_regional_e2e,PASS,16/16
+dependencies_and_warnings,PASS,qualification=59/59; access=22/22; calendar_gap=0; internal_gap=0; warnings=0
