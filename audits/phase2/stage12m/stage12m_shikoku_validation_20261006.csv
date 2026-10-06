@@ -1,0 +1,14 @@
+﻿check,result,detail
+scope_competitions,PASS,四国4大会
+game_date_list_populated,PASS,4/4
+actual_game_date_total,PASS,44日
+dates_sorted_unique,PASS,4/4
+dates_within_start_end,PASS,4/4
+end_date_changes,PASS,なし
+opening_only_days_excluded,PASS,香川7/5・徳島7/7・愛媛7/5を除外
+cancelled_or_continuation_only_days,PASS,令和高校野球4県ページで中止表記なし
+summer_local_detailed_after_batch,PASS,41/49
+summer_local_period_only_remaining,PASS,8/49
+summer_local_actual_days_cumulative,PASS,511日
+all_calendar_detailed_after_batch,PASS,153/162
+all_calendar_empty_after_batch,PASS,9/162＝夏地方8＋神宮1
