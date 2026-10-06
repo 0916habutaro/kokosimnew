@@ -1,0 +1,15 @@
+﻿metric,scope,total,registered_or_pass,detailed_or_resolved,remaining,notes
+competition_master,all,162,162,162,0,competitions.csv全行
+calendar_master,all,162,162,112,50,全162大会official_schedule。詳細日なし50=夏地方49+神宮1
+calendar_detail,prefectural_spring_autumn,94,94,94,0,Stage12G-Iで詳細化
+calendar_detail,regional_spring_autumn,19,19,19,0,Stage12Jで監査
+calendar_detail,national,3,3,2,1,神宮は10/17抽選前
+calendar_detail,summer_local,49,49,0,49,会期start/endのみ
+execution_partition,prefectural_rows,94,94,94,0,北海道春秋・東京秋を含む
+execution_partition,regional_rows,16,16,16,0,上記3大会を除く地区大会
+execution_partition,summer_local,49,49,49,0,地方大会49
+execution_partition,national,3,3,3,0,選抜・夏甲子園・神宮
+regional_feeder_rules,all,96,96,96,0,Stage12E構造
+qualification_rules,all,59,59,59,0,夏49+神宮10
+access_rules,all,22,22,22,0,Stage12Hまでのcross-stage/cross-competition access
+selection_rules,senbatsu,12,12,32 quota,0,選抜32枠
