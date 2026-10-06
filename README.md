@@ -4,7 +4,7 @@
 
 ## 現在地
 - Phase 1: 完了（47都道府県、学校 3,746、硬式野球部 3,746）
-- Phase 2: Stage 12L最終統合監査完了（全162大会の構造・カレンダー・依存関係を一括検証済み）
+- Phase 2: Stage 12M進行中（夏地方49大会の個別試合日を地域別に構造化）
 - Stage 12G: 全国47都道府県の春秋94大会の日程を `season_calendar.csv` に正式反映済み
 - 県春秋94大会の日程: official_schedule 94 / research_pending 0
 - Stage 12G初回試合日: 累計809日。Stage 12I再照合で福岡秋10/14を追加し、現在のmasterは810日相当
@@ -34,4 +34,4 @@ python -m phase2_engine.reconciliation_cli \
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-Stage 12L完了。competition master 162 = competition_runs 162、calendar 162/162、qualification 59/59、access 22/22、全gap 0、warnings 0。残作業は夏地方49大会の試合日詳細化と、秋季・神宮の将来日程実績化。
+Stage 12M第1ブロック完了。北北海道・南北海道・東北6県の夏地方8大会、実試合日98日をgame_date_listへ追加。夏地方詳細化は8/49、残41大会。

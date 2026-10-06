@@ -1,0 +1,11 @@
+﻿check_group,total,passed_or_resolved,pending_or_failed,detail
+unittest,175,175,0,python -m unittest discover -s tests -v
+stage12m_validation,16,16,0,stage12m_hokkaido_tohoku_validation_20261006.csv
+summer_local_detail,49,8,41,北海道2＋東北6を詳細化
+block1_match_days,98,98,0,8大会のgame_date_list合計
+competition_execution,162,162,0,competition_runs=162
+season_e2e_prefectural,94,94,0,prefectural_pass=94
+season_e2e_regional,16,16,0,regional_pass=16
+season_e2e_qualification,59,59,0,qualification_pass=59
+season_e2e_access,22,22,0,access_pass=22
+season_e2e_gaps,0,0,0,calendar=0; internal=0; regional_bridge=0; warnings=[]

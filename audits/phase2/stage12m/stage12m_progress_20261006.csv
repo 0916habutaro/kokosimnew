@@ -1,0 +1,6 @@
+﻿metric,total,completed,remaining,detail
+summer_local_competitions,49,8,41,北海道2＋東北6を第1ブロックとして詳細化
+summer_local_match_days_block1,98,98,0,8大会の実試合日合計
+calendar_game_date_detailed_all,162,120,42,112既存詳細＋夏地方8。残りは夏地方41＋神宮1
+summer_local_period_only,49,8 resolved,41,残41大会は会期のみ
+window_corrections_block1,8,4,0,岩手・秋田・山形・宮城
