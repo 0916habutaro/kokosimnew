@@ -7,6 +7,7 @@ from pathlib import Path
 from .repository import DataRepository
 from .season import SeasonOrchestrator
 from .season_results import save_season_execution
+from .browse_views import save_season_browse_views
 
 
 def main():
@@ -23,6 +24,7 @@ def main():
     season = SeasonOrchestrator(repo, data_dir).run_structural_season(args.year, args.seed)
     if args.result_dir:
         save_season_execution(season, args.result_dir)
+        save_season_browse_views(season, repo, data_dir, args.result_dir)
     payload = json.dumps(season.summary(), ensure_ascii=False, indent=2)
     if args.output:
         Path(args.output).write_text(payload + "\n", encoding="utf-8")

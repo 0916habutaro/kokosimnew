@@ -1,0 +1,14 @@
+﻿check,result,detail
+browse_view_types,PASS,matches_by_date;competition_results;school_records
+season_cli_integration,PASS,--result-dirで3閲覧CSVを追加生成
+date_projection_source_label,PASS,projected_v1を明示
+undated_support,PASS,game_date_list空欄はmatch_date空＋undated
+date_override_support,PASS,match_id単位で公式game_date_list内の日付へoverride可能
+outside_calendar_override_rejected,PASS,game_date_list外を拒否
+bye_date_handling,PASS,不戦勝はmatch_date空＋bye
+bye_school_stats,PASS,不戦勝をgames/wins/losses/得失点へ加算しない
+competition_summary,PASS,日程・試合数・優勝準優勝・得点集計
+school_record_summary,PASS,試合・勝敗・勝率・得失点・優勝準優勝・大会数
+school_display_names,PASS,DataRepositoryで名称解決
+deterministic_score_layer_reused,PASS,Stage12P result_viewを再利用
+future_exact_date_replay,PASS,match_date_overridesで差替可能
