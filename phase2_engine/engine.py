@@ -29,11 +29,32 @@ class TournamentEngine:
 
     SUPPORTED_FORMAT_MODELS = {f"FMT{i:03d}" for i in range(1, 27)}
 
-    def __init__(self, repo: DataRepository, *, main_match_resolver=None):
+    def __init__(
+        self,
+        repo: DataRepository,
+        *,
+        match_resolver=None,
+        main_match_resolver=None,
+    ):
         self.repo = repo
-        self.main_match_resolver = main_match_resolver
+        if (
+            match_resolver is not None
+            and main_match_resolver is not None
+            and match_resolver is not main_match_resolver
+        ):
+            raise ValueError(
+                "specify either match_resolver or main_match_resolver, not both"
+            )
+        self.match_resolver = match_resolver
+        self.main_match_resolver = (
+            match_resolver
+            if match_resolver is not None
+            else main_match_resolver
+        )
+        self._active_match_simulation_results: Dict[str, dict] = {}
 
     def run(self, annual: AnnualCompetitionInput) -> CompetitionRun:
+        self._active_match_simulation_results = {}
         entrants = self._validate_entrants(annual)
         direct = self._validate_direct_entries(annual, entrants)
         stage_by_code = {r["stage_code"]: r for r in self.repo.stages(annual.competition_id)}
@@ -167,6 +188,9 @@ class TournamentEngine:
         )
 
     def _complete_main(self, annual, base_run, main_stage, winner_resolver) -> CompetitionRun:
+        base_run.match_simulation_results.update(
+            self._active_match_simulation_results
+        )
         if main_stage.get("format_type") not in {"", "single_elimination"}:
             raise NotImplementedError(
                 f"MAIN format {main_stage.get('format_type')} is not implemented for {annual.competition_id}"
@@ -304,6 +328,9 @@ class TournamentEngine:
             phase_code="GATE_ROUND",
             base_seed=annual.rng_seed,
             winner_resolver=winner_resolver,
+            match_resolver=self.match_resolver,
+            resolved_match_sink=self._active_match_simulation_results,
+            reference_year=annual.year,
         )
         gate_execution = StageExecution(
             stage_id=gate_stage["stage_id"],
@@ -468,6 +495,9 @@ class TournamentEngine:
                 group_name=group["group_name"],
                 base_seed=annual.rng_seed,
                 winner_resolver=winner_resolver,
+            match_resolver=self.match_resolver,
+            resolved_match_sink=self._active_match_simulation_results,
+            reference_year=annual.year,
             )
             return winners, matches, {
                 "entrant_count": len(eligible), "output_slots": slots,
@@ -519,6 +549,9 @@ class TournamentEngine:
                 group_name=group["group_name"],
                 base_seed=annual.rng_seed,
                 winner_resolver=winner_resolver,
+            match_resolver=self.match_resolver,
+            resolved_match_sink=self._active_match_simulation_results,
+            reference_year=annual.year,
             )
             winners.append(ranking[0])
             for match in block_matches:
@@ -570,6 +603,9 @@ class TournamentEngine:
                 stage_id=stage["stage_id"], stage_code=stage["stage_code"],
                 phase_code="POOL_RR", group_id=gid, group_name=group["group_name"],
                 pool_no=pno, base_seed=annual.rng_seed, winner_resolver=winner_resolver,
+            match_resolver=self.match_resolver,
+            resolved_match_sink=self._active_match_simulation_results,
+            reference_year=annual.year,
             )
             matches.extend(ms)
             standings[str(pno)] = table
@@ -604,6 +640,9 @@ class TournamentEngine:
                 stage_code=stage["stage_code"], phase_code="CROSS_PLAYOFF",
                 group_id=gid, group_name=group["group_name"], match_no=match_no,
                 base_seed=annual.rng_seed, winner_resolver=winner_resolver,
+            match_resolver=self.match_resolver,
+            resolved_match_sink=self._active_match_simulation_results,
+            reference_year=annual.year,
             )
             matches.append(m)
             supplemental.append(m.winner)
@@ -662,6 +701,9 @@ class TournamentEngine:
             group_name=group["group_name"],
             base_seed=annual.rng_seed,
             winner_resolver=winner_resolver,
+            match_resolver=self.match_resolver,
+            resolved_match_sink=self._active_match_simulation_results,
+            reference_year=annual.year,
         )
 
     def _rank_knockout(self, annual, stage, group, teams, phase_code, winner_resolver, suffix=""):
@@ -676,6 +718,9 @@ class TournamentEngine:
             group_name=group["group_name"],
             base_seed=annual.rng_seed,
             winner_resolver=winner_resolver,
+            match_resolver=self.match_resolver,
+            resolved_match_sink=self._active_match_simulation_results,
+            reference_year=annual.year,
         )
         if suffix:
             for m in matches:
@@ -711,6 +756,9 @@ class TournamentEngine:
                 pool_no=pno,
                 base_seed=annual.rng_seed,
                 winner_resolver=winner_resolver,
+            match_resolver=self.match_resolver,
+            resolved_match_sink=self._active_match_simulation_results,
+            reference_year=annual.year,
             )
             rankings.append(ranking)
             matches.extend(ms)
@@ -1019,6 +1067,9 @@ class TournamentEngine:
             stage_code=stage["stage_code"], phase_code="PRIMARY_GLOBAL",
             group_id="", group_name="全県", base_seed=annual.rng_seed,
             winner_resolver=winner_resolver,
+            match_resolver=self.match_resolver,
+            resolved_match_sink=self._active_match_simulation_results,
+            reference_year=annual.year,
         )
         primary_set = set(primary)
         nonqualifiers = [x for x in entrants if x not in primary_set]
@@ -1029,6 +1080,9 @@ class TournamentEngine:
             stage_code=stage["stage_code"], phase_code="REPECHAGE_GLOBAL",
             group_id="", group_name="全県", base_seed=annual.rng_seed,
             winner_resolver=winner_resolver,
+            match_resolver=self.match_resolver,
+            resolved_match_sink=self._active_match_simulation_results,
+            reference_year=annual.year,
         )
         outputs = primary + repechage
         accounting = self._account_by_stage_group(stage, outputs, annual.year)
@@ -1176,6 +1230,9 @@ class TournamentEngine:
                 stage_code=stage["stage_code"], phase_code="SEED_BLOCK_KO",
                 group_id=gid, group_name=gname, base_seed=annual.rng_seed,
                 winner_resolver=winner_resolver,
+            match_resolver=self.match_resolver,
+            resolved_match_sink=self._active_match_simulation_results,
+            reference_year=annual.year,
             )
             leftovers = [x for x in eligible if x not in set(winners)]
             ranking = winners + shuffled(
@@ -1200,6 +1257,9 @@ class TournamentEngine:
                 stage_code=stage["stage_code"], phase_code=phase,
                 group_id=gid, group_name=gname, base_seed=annual.rng_seed,
                 winner_resolver=winner_resolver,
+            match_resolver=self.match_resolver,
+            resolved_match_sink=self._active_match_simulation_results,
+            reference_year=annual.year,
             )
             return ranking, matches, {
                 "ranking_source": f"simulated_{model_id.lower()}",
@@ -1213,6 +1273,9 @@ class TournamentEngine:
                 stage_code=stage["stage_code"], phase_code="SEED_KO",
                 group_id=gid, group_name=gname, base_seed=annual.rng_seed,
                 winner_resolver=winner_resolver,
+            match_resolver=self.match_resolver,
+            resolved_match_sink=self._active_match_simulation_results,
+            reference_year=annual.year,
             )
             return ranking, matches, {"ranking_source": "simulated_fmt009"}
 
@@ -1223,6 +1286,9 @@ class TournamentEngine:
                 stage_code=stage["stage_code"], phase_code="PRIMARY_SEED_KO",
                 group_id=gid, group_name=gname, base_seed=annual.rng_seed,
                 winner_resolver=winner_resolver,
+            match_resolver=self.match_resolver,
+            resolved_match_sink=self._active_match_simulation_results,
+            reference_year=annual.year,
             )
             top2 = primary[:2]
             remaining = [x for x in eligible if x not in set(top2)]
@@ -1239,6 +1305,9 @@ class TournamentEngine:
                     stage_code=stage["stage_code"], phase_code=phase,
                     group_id=gid, group_name=gname, base_seed=annual.rng_seed,
                     winner_resolver=winner_resolver,
+            match_resolver=self.match_resolver,
+            resolved_match_sink=self._active_match_simulation_results,
+            reference_year=annual.year,
                 )
             ranking = top2 + extra + [x for x in primary if x not in set(top2 + extra)]
             return ranking, matches + second_matches, {
@@ -1270,6 +1339,9 @@ class TournamentEngine:
                     stage_code=stage["stage_code"], phase_code=primary_phase,
                     group_id=gid, group_name=gname, pool_no=pno,
                     base_seed=annual.rng_seed, winner_resolver=winner_resolver,
+            match_resolver=self.match_resolver,
+            resolved_match_sink=self._active_match_simulation_results,
+            reference_year=annual.year,
                 )
                 primary_rankings.append(rank)
                 all_matches.extend(ms)
@@ -1290,6 +1362,9 @@ class TournamentEngine:
                         stage_code=stage["stage_code"], phase_code=phase,
                         group_id=gid, group_name=gname, match_no=cls_no,
                         base_seed=annual.rng_seed, winner_resolver=winner_resolver,
+            match_resolver=self.match_resolver,
+            resolved_match_sink=self._active_match_simulation_results,
+            reference_year=annual.year,
                     )
                     all_matches.append(m)
                     class_ranking = [m.winner, m.loser]
@@ -1300,6 +1375,9 @@ class TournamentEngine:
                         stage_code=stage["stage_code"], phase_code=phase,
                         group_id=gid, group_name=gname, pool_no=100 + cls_no,
                         base_seed=annual.rng_seed, winner_resolver=winner_resolver,
+            match_resolver=self.match_resolver,
+            resolved_match_sink=self._active_match_simulation_results,
+            reference_year=annual.year,
                     )
                     all_matches.extend(ms)
                 ranked.extend(class_ranking)

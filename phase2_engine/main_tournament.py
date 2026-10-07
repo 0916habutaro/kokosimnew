@@ -299,8 +299,8 @@ def run_main_single_elimination(
                     stage_code="MAIN",
                     phase_code="MAIN_BRACKET",
                     round_no=round_no,
-                    team1=t1,
-                    team2=t2,
+                    team1=winner,
+                    team2="",
                     winner=winner,
                     is_bye=True,
                     metadata={
