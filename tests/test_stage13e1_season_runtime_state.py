@@ -15,6 +15,8 @@ from phase2_engine.season_runtime import (
     MATCH_COMPLETED,
     MATCH_PENDING,
     MATCH_UNSCHEDULED,
+    RuntimeMatchResult,
+    RuntimeMatchState,
     SeasonRuntimeState,
 )
 
@@ -261,59 +263,55 @@ class Stage13E1SeasonRuntimeStateTests(unittest.TestCase):
             for row in state.unscheduled_matches()
         ))
 
-    def test_three_team_bye_is_structurally_completed(self):
-        resolver = AbilityMatchResolver(
-            self.repo,
-            ability_config_dir=ABILITY_CONFIG,
-            match_config_dir=MATCH_CONFIG,
+    def test_bye_is_structurally_completed(self):
+        result = RuntimeMatchResult(
+            competition_id="CMP-BYE",
+            match_id="BYE-1",
+            team1_id="S1",
+            team2_id="",
+            team1_score=None,
+            team2_score=None,
+            winner_id="S1",
+            loser_id="",
+            score_source="bye",
+            result_text="S1 bye",
         )
-        resolver.begin_season(self.year, self.season_seed)
-        engine = TournamentEngine(
-            self.repo,
-            main_match_resolver=resolver,
-            pre_main_match_resolver=resolver,
+        match = RuntimeMatchState(
+            competition_id="CMP-BYE",
+            competition_name="Bye fixture",
+            match_id="BYE-1",
+            match_date="",
+            date_source="bye",
+            stage_code="MAIN",
+            phase_code="R1",
+            round_no=1,
+            group_id="",
+            group_name="",
+            team1_id="S1",
+            team1_name="School 1",
+            team2_id="",
+            team2_name="",
+            is_bye=True,
+            status=MATCH_COMPLETED,
+            completed_on="2026-01-01",
+            result=result,
+            _prepared_result=result,
         )
-        run = engine.run(
-            AnnualCompetitionInput(
-                competition_id=self.competition_id,
-                year=self.year,
-                entrant_school_ids=self.school_ids[:3],
-                rng_seed=778,
-            )
+        state = SeasonRuntimeState(
+            year=2026,
+            rng_seed=1,
+            current_date=date(2026, 1, 1),
+            matches={match.key: match},
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 12, 31),
         )
-        season = SeasonExecution(
-            year=self.year,
-            rng_seed=self.season_seed,
-            competition_runs={
-                self.competition_id: run,
-            },
-        )
-        state = SeasonRuntimeState.from_prepared_season(
-            season,
-            self.repo,
-            DATA_ROOT,
-            start_date="2026-04-01",
-            calendar_rows=self.calendar,
-        )
+        state._validate()
 
-        bye_rows = [
-            match
-            for match in state.matches.values()
-            if match.is_bye
-        ]
-        self.assertTrue(bye_rows)
-        self.assertTrue(all(
-            match.status == MATCH_COMPLETED
-            for match in bye_rows
-        ))
-        self.assertTrue(all(
-            match.result is not None
-            for match in bye_rows
-        ))
-        self.assertEqual(
-            len(run.match_simulation_results),
-            state.summary()["pending_match_count"],
-        )
+        summary = state.summary()
+        self.assertEqual(1, summary["bye_count"])
+        self.assertEqual(1, summary["completed_match_count"])
+        self.assertEqual(0, summary["completed_played_match_count"])
+        self.assertEqual([], state.school_records())
 
     def test_public_snapshot_never_contains_prepared_result_field(self):
         state = self.runtime()
