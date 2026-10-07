@@ -93,6 +93,7 @@ class MainTournamentRuntimeState:
     )
     champion_school_id: str = ""
     runner_up_school_id: str = ""
+    draw_source: str = "deterministic_standard"
 
     @classmethod
     def create(
@@ -148,6 +149,11 @@ class MainTournamentRuntimeState:
             match_ids_by_round={},
             match_resolver=match_resolver,
             winner_overrides=dict(winner_overrides or {}),
+            draw_source=(
+                "annual_override"
+                if slot_override is not None and len(slot_override)
+                else "deterministic_standard"
+            ),
         )
         state._build_bracket_skeleton()
         state._validate()
@@ -827,12 +833,7 @@ class MainTournamentRuntimeState:
                 "seed_count": len(seed_ids),
                 "seed_order_school_ids": seed_ids,
                 "seed_slots": dict(self.seed_slots),
-                "draw_source": (
-                    "annual_override"
-                    if self.initial_slots
-                    and False
-                    else "deterministic_standard"
-                ),
+                "draw_source": self.draw_source,
                 "initial_slots": list(self.initial_slots),
                 "total_rounds": self.total_rounds,
                 "match_ids_by_round": {
