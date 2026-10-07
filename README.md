@@ -68,10 +68,19 @@ python -m game_core.player_cli \
   --seed 2026100701 \
   --school-id SCH000001 \
   --output out/players_SCH000001.csv
+
+python -m game_core.ability_cli \
+  --data-dir data \
+  --config-dir config/abilities \
+  --year 2026 \
+  --seed 2026100701 \
+  --school-limit 1000 \
+  --output out/abilities.csv \
+  --audit-output out/ability_audit.csv
 ```
 
 ## 正本ルール
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-正式GUIの作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13B-1で能力設計と変更管理方式を正本化し、22能力、通常能力1〜100、学校能力は選手から算出、調整値はversion付きJSON、seed再現にはconfig hashも保持する方針を固定した。次工程はStage 13B-2としてPlayerAbilitySnapshotとseed再現能力生成・大量分布監査を実装する。秋季実績はStage 12Oのdueキューで後追い可能。
+正式GUIの作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13B-2でPlayerAbilitySnapshot、22能力のseed再現生成、球種、golden seed、3seed×20,000人の分布監査まで実装した。通常能力の上下限張り付きは最大0.06%以下で破綻がないため、revision 1の数値は初期baselineとして維持する。次工程はStage 13B-3としてStartingLineup / PitchingStaffとTeamStrengthSnapshotを実装する。秋季実績はStage 12Oのdueキューで後追い可能。

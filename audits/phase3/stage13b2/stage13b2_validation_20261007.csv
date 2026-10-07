@@ -1,0 +1,25 @@
+﻿check,result,detail
+player_ability_snapshot,PASS,Player本体と能力snapshotを分離
+config_provenance,PASS,catalog/scale/generationのid/revision/SHA256をsnapshotへ保持
+all_player_batting,PASS,投手を含む全選手が打撃11能力を保持
+catcher_only,PASS,Cのみcatching/game_calling
+pitcher_only,PASS,Pのみ投手7能力+pitch_repertoire
+position_aptitude,PASS,9守備位置の適性を生成
+primary_aptitude_guard,PASS,本職適性60以上
+pitch_count,PASS,投手2〜4球種
+four_seam_required,PASS,投手はfour_seam必須
+pitch_usage_normalized,PASS,球種usage合計100
+rng_isolation,PASS,ability/position/pitch fieldごとにnamespace分離
+csv_export,PASS,能力snapshotをwide CSV出力
+audit_statistics,PASS,P01/P05/P25/P50/P75/P95/P99+clip rate
+audit_dimensions,PASS,overall/grade/position/pitch_type
+golden_seed,PASS,投手/捕手/遊撃手の3 fixture
+large_audit,PASS,3seed×20000=60000人
+distribution_rows,PASS,23 metric×3seed=69行
+scalar_clipping,PASS,通常能力の上下限張り付き最大0.06%以下
+velocity_clipping,PASS,球速上限張り付き最大0.04%
+primary_aptitude_clipping,PASS,100到達2.63〜2.85%で3%未満
+initial_tuning_decision,PASS,破綻なしのためrevision1数値を維持
+empirical_calibration,DEFERRED,実在高校生能力・実成績との校正は後続
+dedicated_tests,PASS,Stage13B-2専用19件追加
+full_python_suite,NOT_RUN,全リポジトリPythonテストは未実行

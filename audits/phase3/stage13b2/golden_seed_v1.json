@@ -1,0 +1,86 @@
+{
+  "golden_id": "stage13b2_golden_v1",
+  "reference_year": 2026,
+  "seed": 2026100701,
+  "note_ja": "合成Player IDを用いる能力生成の回帰fixture。学校master変更に影響されない。",
+  "players": [
+    {
+      "player_id": "PLYGOLDENP00000000001",
+      "academic_year": 1,
+      "primary_position": "P",
+      "expected": {
+        "contact": 42,
+        "power": 42,
+        "plate_discipline": 49,
+        "strikeout_resistance": 32,
+        "bunt": 33,
+        "speed": 57,
+        "baserunning": 54,
+        "stealing": 58,
+        "arm_strength": 26,
+        "fielding": 36,
+        "throwing": 36,
+        "primary_position_aptitude": 85,
+        "velocity_kmh": 134,
+        "control": 58,
+        "stamina": 43,
+        "stuff": 36,
+        "strikeout": 49,
+        "groundball": 27,
+        "composure": 60,
+        "pitch_types": [
+          "four_seam",
+          "curve",
+          "sinker",
+          "slider"
+        ],
+        "pitch_usage": [
+          50,
+          6,
+          21,
+          23
+        ]
+      }
+    },
+    {
+      "player_id": "PLYGOLDENC00000000002",
+      "academic_year": 2,
+      "primary_position": "C",
+      "expected": {
+        "contact": 42,
+        "power": 44,
+        "plate_discipline": 58,
+        "strikeout_resistance": 54,
+        "bunt": 42,
+        "speed": 59,
+        "baserunning": 63,
+        "stealing": 31,
+        "arm_strength": 41,
+        "fielding": 45,
+        "throwing": 61,
+        "primary_position_aptitude": 93,
+        "catching": 40,
+        "game_calling": 47
+      }
+    },
+    {
+      "player_id": "PLYGOLDENSS0000000003",
+      "academic_year": 3,
+      "primary_position": "SS",
+      "expected": {
+        "contact": 50,
+        "power": 70,
+        "plate_discipline": 63,
+        "strikeout_resistance": 49,
+        "bunt": 51,
+        "speed": 54,
+        "baserunning": 59,
+        "stealing": 54,
+        "arm_strength": 48,
+        "fielding": 55,
+        "throwing": 54,
+        "primary_position_aptitude": 81
+      }
+    }
+  ]
+}
