@@ -285,6 +285,7 @@ class Stage13E1SeasonRuntimeStateTests(unittest.TestCase):
             stage_code="MAIN",
             phase_code="R1",
             round_no=1,
+            round_name="1回戦",
             group_id="",
             group_name="",
             team1_id="S1",
