@@ -436,14 +436,20 @@ class PlayerStatsReadModel:
                 continue
             prepared.append((row, value, qualified))
 
-        reverse = direction == "desc"
-        prepared.sort(
-            key=lambda item: (
-                item[1],
-                item[0].player_id,
-            ),
-            reverse=reverse,
-        )
+        if direction == "desc":
+            prepared.sort(
+                key=lambda item: (
+                    -float(item[1]),
+                    item[0].player_id,
+                )
+            )
+        else:
+            prepared.sort(
+                key=lambda item: (
+                    float(item[1]),
+                    item[0].player_id,
+                )
+            )
 
         ranked: list[RankingRow] = []
         previous_value = None
