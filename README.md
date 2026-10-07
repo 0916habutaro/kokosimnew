@@ -22,7 +22,7 @@
 - Stage 13B-1: 能力生成前の設計・変更管理基盤を固定。能力カタログ、1-100尺度、学校能力算出原則、version/revision、RNG namespace、ADR、調整JSONを正本化
 - Stage 13B-2: PlayerAbilitySnapshotのseed再現生成・分布監査を実装
 - Stage 13B-3: StartingLineup / PitchingStaff / TeamStrengthSnapshotを実装
-- Stage 13B-4: 合成program成分＋cohort成分による学校別入部品質モデルを実装中
+- Stage 13B-4: 合成program成分＋cohort成分による学校別入部品質モデルを実装。3seed×各1,000校のbaseline/intake比較監査で、batting_strength sd約1.7→4.2、pitching_strength sd約2.4→4.6〜4.8
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -95,4 +95,4 @@ python -m game_core.team_strength_cli \
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-正式GUIの作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13B-4で、学校masterへ固定能力値を直接加算せず、合成program成分＋入学年度cohort成分を選手能力生成へ適用する学校差モデルを導入している。baseline生成器は監査比較用に維持し、通常生成はSchoolAwarePlayerAbilityGeneratorを使用する。分布監査完了後、Stage 13Cで能力ベース試合モデルと個人成績生成へ進む。秋季実績はStage 12Oのdueキューで後追い可能。
+正式GUIの作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13B-4で、学校masterへ固定能力値を直接加算せず、合成program成分＋入学年度cohort成分を選手能力生成へ適用する学校差モデルを実装した。baseline生成器は監査比較用に維持し、通常生成はSchoolAwarePlayerAbilityGeneratorを使用する。3seed×各1,000校の比較監査では全体平均をほぼ維持したまま学校間分散が拡大した。次工程はStage 13Cとして、TeamStrengthとPlayerAbilityを使う能力ベース試合モデル・試合イベント・個人成績生成へ進む。秋季実績はStage 12Oのdueキューで後追い可能。
