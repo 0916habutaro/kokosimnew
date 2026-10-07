@@ -77,10 +77,19 @@ python -m game_core.ability_cli \
   --school-limit 1000 \
   --output out/abilities.csv \
   --audit-output out/ability_audit.csv
+
+python -m game_core.team_strength_cli \
+  --data-dir data \
+  --config-dir config/abilities \
+  --year 2026 \
+  --seed 2026100701 \
+  --school-limit 1000 \
+  --output out/team_strength.csv \
+  --audit-output out/team_strength_audit.csv
 ```
 
 ## 正本ルール
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-正式GUIの作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13B-2でPlayerAbilitySnapshot、22能力のseed再現生成、球種、golden seed、3seed×20,000人の分布監査まで実装した。通常能力の上下限張り付きは最大0.06%以下で破綻がないため、revision 1の数値は初期baselineとして維持する。次工程はStage 13B-3としてStartingLineup / PitchingStaffとTeamStrengthSnapshotを実装する。秋季実績はStage 12Oのdueキューで後追い可能。
+正式GUIの作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13B-3でStartingLineup / PitchingStaff / TeamStrengthSnapshotを実装し、3seed×1,000校の学校strength分布を監査した。seed間平均は安定している一方、学校ごとの入部選手母集団差をまだ持たないため学校間のstrength差は小さい。次工程はStage 13B-4として、学校masterへ固定能力値を直接加算せず、入部選手・選手流入の質を通じた学校差モデルを導入して再監査する。その後Stage 13Cで能力ベース試合モデルと個人成績生成へ進む。秋季実績はStage 12Oのdueキューで後追い可能。
