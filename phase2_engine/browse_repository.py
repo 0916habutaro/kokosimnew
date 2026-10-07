@@ -341,6 +341,45 @@ class BrowseRepository:
             ).fetchall()
             return [str(row["prefecture_code"]) for row in rows]
 
+    def list_season_segments(self, year: int) -> list[str]:
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            rows = conn.execute(
+                """
+                SELECT DISTINCT season_segment
+                FROM competition_results
+                WHERE year = ? AND season_segment <> ''
+                ORDER BY season_segment
+                """,
+                (year,),
+            ).fetchall()
+            return [str(row["season_segment"]) for row in rows]
+
+    def list_competition_types(
+        self,
+        year: int,
+        *,
+        season_segment: str = "",
+    ) -> list[str]:
+        clauses = ["year = ?", "competition_type <> ''"]
+        params: list[object] = [year]
+        if season_segment:
+            clauses.append("season_segment = ?")
+            params.append(season_segment)
+
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            rows = conn.execute(
+                f"""
+                SELECT DISTINCT competition_type
+                FROM competition_results
+                WHERE {' AND '.join(clauses)}
+                ORDER BY competition_type
+                """,
+                params,
+            ).fetchall()
+            return [str(row["competition_type"]) for row in rows]
+
     def season_meta(self, year: int) -> dict | None:
         with self._connect() as conn:
             self._initialize_schema_conn(conn)
@@ -357,6 +396,8 @@ class BrowseRepository:
         *,
         competition_id: str = "",
         prefecture_code: str = "",
+        season_segment: str = "",
+        competition_type: str = "",
     ) -> list[dict]:
         if match_date:
             date.fromisoformat(match_date)
@@ -376,6 +417,12 @@ class BrowseRepository:
                 "(s1.prefecture_code = ? OR s2.prefecture_code = ?)"
             )
             params.extend([prefecture_code, prefecture_code])
+        if season_segment:
+            clauses.append("m.season_segment = ?")
+            params.append(season_segment)
+        if competition_type:
+            clauses.append("m.competition_type = ?")
+            params.append(competition_type)
 
         with self._connect() as conn:
             self._initialize_schema_conn(conn)
@@ -462,16 +509,37 @@ class BrowseRepository:
                 (year, competition_id),
             ))
 
-    def list_competitions(self, year: int) -> list[dict]:
+    def list_competitions(
+        self,
+        year: int,
+    ) -> list[dict]:
+        return self.list_competitions_filtered(year)
+
+    def list_competitions_filtered(
+        self,
+        year: int,
+        *,
+        season_segment: str = "",
+        competition_type: str = "",
+    ) -> list[dict]:
+        clauses = ["year = ?"]
+        params: list[object] = [year]
+        if season_segment:
+            clauses.append("season_segment = ?")
+            params.append(season_segment)
+        if competition_type:
+            clauses.append("competition_type = ?")
+            params.append(competition_type)
+
         with self._connect() as conn:
             self._initialize_schema_conn(conn)
             return self._rows(conn.execute(
-                """
+                f"""
                 SELECT * FROM competition_results
-                WHERE year = ?
+                WHERE {' AND '.join(clauses)}
                 ORDER BY start_date, competition_id
                 """,
-                (year,),
+                params,
             ))
 
     def school_record(

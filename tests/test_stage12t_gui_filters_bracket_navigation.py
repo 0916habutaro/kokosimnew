@@ -300,15 +300,15 @@ class Stage12TGuiFiltersBracketNavigationTests(unittest.TestCase):
         self.assertIn("date_pref_combo", source)
         self.assertIn("date_comp_combo", source)
 
-    def test_base_gui_starts_enhanced_app(self):
+    def test_base_gui_starts_current_readonly_app(self):
         source = (
             ROOT / "phase2_engine" / "browse_gui.py"
         ).read_text(encoding="utf-8")
         self.assertIn(
-            "from .browse_gui_enhanced import EnhancedBrowseApp",
+            "from .browse_gui_stage12u import Stage12UBrowseApp",
             source,
         )
-        self.assertIn("EnhancedBrowseApp(root, model)", source)
+        self.assertIn("Stage12UBrowseApp(root, model)", source)
 
     def test_enhanced_gui_is_read_only(self):
         source = (
