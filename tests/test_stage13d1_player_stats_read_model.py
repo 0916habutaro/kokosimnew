@@ -419,7 +419,7 @@ class Stage13D1PlayerStatsReadModelTests(unittest.TestCase):
         self.assertEqual(12.6, row.strikeouts_per_9)
         self.assertEqual(3.6, row.walks_per_9)
         self.assertEqual(3.5, row.strikeout_walk_ratio)
-        self.assertEqual(0.227, row.k_minus_bb_pct)
+        self.assertEqual(22.727, row.k_minus_bb_pct)
         self.assertTrue(row.qualified_for_rate_rankings)
 
     def test_fractional_innings_are_displayed_as_fraction_not_decimal(self):
