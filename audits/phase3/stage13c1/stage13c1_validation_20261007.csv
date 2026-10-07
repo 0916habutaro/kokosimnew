@@ -1,0 +1,20 @@
+check,status,detail
+match_configs_load,PASS,match_simulation_v1 event_catalog_v1 game_stats_contract_v1
+score_source,PASS,ability_model_v1
+result_view_precedence,PASS,override > ability_model_v1 > generated_v1
+winner_ownership,PASS,simulator determines score and winner
+winner_consistency,PASS,ResultView rejects score that conflicts with tournament winner
+team_order,PASS,team1 top offense / team2 bottom offense
+real_stage13b_input,PASS,SchoolAware abilities and TeamStrength validate as MatchSimulationInput
+event_catalog,PASS,12 required plate-appearance event types
+batter_pa_formula,PASS,PA=AB+BB+HBP+SF+SH
+pitcher_outs_contract,PASS,outs_recorded is stored count
+rate_stats_not_stored,PASS,AVG OBP OPS etc derived in read model
+score_team_runs_reconciliation,PASS,score equals TeamGameStats runs
+event_score_reconciliation,PASS,event runs equal score
+batter_team_reconciliation,PASS,batter runs/hits equal team runs/hits
+pitcher_team_reconciliation,PASS,opponent pitcher runs/hits allowed equal team runs/hits
+pa_bf_reconciliation,PASS,team batter PA equals opponent pitcher BF
+config_provenance,PASS,match/event/stats config id revision sha256
+rng_namespaces,PASS,match_v1 plate_appearance_v1 event_v1
+github_actions,PASS,Ran 401 tests in 8.390s
