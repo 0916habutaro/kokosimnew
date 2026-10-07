@@ -639,10 +639,12 @@ class TeamStrengthGenerator:
         roster_generator = (
             roster_generator or PlayerRosterGenerator()
         )
-        ability_generator = (
-            ability_generator
-            or PlayerAbilityGenerator(self.config_dir)
-        )
+        if ability_generator is None:
+            from .school_intake import SchoolAwarePlayerAbilityGenerator
+
+            ability_generator = SchoolAwarePlayerAbilityGenerator(
+                self.config_dir
+            )
         for roster in roster_generator.iter_all_rosters(
             repo,
             reference_year,
