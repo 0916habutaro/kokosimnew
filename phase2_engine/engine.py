@@ -58,6 +58,72 @@ class TournamentEngine:
             match_resolver=self.main_match_resolver,
         )
 
+    def prepare_qualifier_main_runtime(
+        self,
+        annual: AnnualCompetitionInput,
+    ):
+        """Prepare an incremental FMT001 qualifier -> MAIN competition.
+
+        Stage 13E-3A intentionally supports the common FMT001 graph first.
+        Other pre-MAIN format models continue to use run() until Stage 13E-3B.
+        """
+        from .premain_competition_runtime import QualifierMainRuntimeState
+
+        entrants = self._validate_entrants(annual)
+        direct = self._validate_direct_entries(annual, entrants)
+        stage_by_code = {
+            row["stage_code"]: row
+            for row in self.repo.stages(annual.competition_id)
+        }
+        qualifier_codes = [
+            code
+            for code in (
+                "BRANCH_QUALIFIER",
+                "PRELIMINARY_QUALIFIER",
+            )
+            if code in stage_by_code
+        ]
+        if len(qualifier_codes) != 1 or set(stage_by_code) != {
+            qualifier_codes[0],
+            "MAIN",
+        }:
+            raise ValueError(
+                "prepare_qualifier_main_runtime requires exactly "
+                "one qualifier stage followed by MAIN"
+            )
+
+        qualifier_stage = stage_by_code[qualifier_codes[0]]
+        assignment = self.repo.assignments_by_stage.get(
+            qualifier_stage["stage_id"]
+        )
+        if (
+            not assignment
+            or assignment["default_format_model_id"] != "FMT001"
+        ):
+            raise NotImplementedError(
+                "Stage 13E-3A competition runtime supports FMT001 only"
+            )
+
+        qualifier_entrants, warnings = (
+            self._qualifier_entrants_after_access_rules(
+                annual,
+                entrants,
+                direct,
+            )
+        )
+        return QualifierMainRuntimeState.create_fmt001(
+            repo=self.repo,
+            annual=annual,
+            entrants=entrants,
+            direct=direct,
+            qualifier_entrants=qualifier_entrants,
+            qualifier_stage=qualifier_stage,
+            main_stage=stage_by_code["MAIN"],
+            warnings=warnings,
+            pre_main_match_resolver=self.pre_main_match_resolver,
+            main_match_resolver=self.main_match_resolver,
+        )
+
     def _pre_main_resolution_kwargs(self, annual: AnnualCompetitionInput) -> dict:
         if self.pre_main_match_resolver is None:
             return {}
