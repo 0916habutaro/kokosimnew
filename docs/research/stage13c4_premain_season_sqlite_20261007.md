@@ -108,7 +108,7 @@ SEED_EVENT
 実pre-MAIN追加後:
 
 - Python 3.12
-- `Ran 439 tests in 13.376s`
+- `Ran 439 tests in 18.143s`
 - **OK**
 
 Stage 13C-4専用テスト: 9件。
