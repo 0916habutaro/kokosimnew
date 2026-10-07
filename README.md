@@ -24,6 +24,7 @@
 - Stage 13B-3: StartingLineup / PitchingStaff / TeamStrengthSnapshotを実装
 - Stage 13B-4: 合成program成分＋cohort成分による学校別入部品質モデルを実装。3seed×各1,000校のbaseline/intake比較監査で、batting_strength sd約1.7→4.2、pitching_strength sd約2.4→4.6〜4.8
 - Stage 13C-1: 能力ベース試合の入出力、MatchEvent、打者/投手/チームGameStats、winner ownership、ResultView `ability_model_v1` 接続、event/stats reconciliation contractを実装
+- Stage 13C-2: batter vs pitcher能力から打席eventを生成し、base/out state・9回＋延長・walk-off・投手継投・個人成績を一貫生成するMatchSimulatorを実装。3seed×各1,000試合監査で平均総得点9.80〜9.91、stronger側勝率61.4〜62.2%
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -91,10 +92,19 @@ python -m game_core.team_strength_cli \
   --school-limit 1000 \
   --output out/team_strength.csv \
   --audit-output out/team_strength_audit.csv
+
+python -m game_core.stage13c2_audit \
+  --data-dir data \
+  --ability-config-dir config/abilities \
+  --match-config-dir config/match \
+  --year 2026 \
+  --school-count 240 \
+  --game-count 1000 \
+  --output out/stage13c2_match_audit.csv
 ```
 
 ## 正本ルール
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-正式GUIの作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13C-1で、TeamStrengthとPlayerAbilityを試合へ接続するMatchSimulationInput / Result、MatchEvent、GameStats、ResultView `ability_model_v1`、winner ownership、stats reconciliationのcontractを固定した。次工程はStage 13C-2として、打者対投手の打席結果確率、base/out state、inning progression、投手交代、試合終了条件、eventからstats集計を実装し、大量試合監査へ進む。秋季実績はStage 12Oのdueキューで後追い可能。
+正式GUIの作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13C-2で能力ベースMatchSimulatorを実装し、打席eventの積み上げからscore・winner・個人成績を同時生成できるようになった。3seed×各1,000試合の初期監査ではseed間分布とteam1/team2 biasは安定し、戦力差が広がるほどstronger側勝率が上昇した。statusは引き続き `design_default_not_tuned`。次工程はStage 13C-3としてTournamentEngineへMatchSimulatorを正式接続し、CompetitionRun / ResultViewへ `ability_model_v1` を自動供給する。秋季実績はStage 12Oのdueキューで後追い可能。
