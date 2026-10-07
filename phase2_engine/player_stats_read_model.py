@@ -379,9 +379,14 @@ class PlayerStatsReadModel:
             k9 = self._safe_div(strikeouts * 27.0, outs)
             bb9 = self._safe_div(walks * 27.0, outs)
             kbb = self._safe_div(strikeouts, walks)
-            k_minus_bb = self._safe_div(
+            k_minus_bb_rate = self._safe_div(
                 strikeouts - walks,
                 bf,
+            )
+            k_minus_bb = (
+                None
+                if k_minus_bb_rate is None
+                else k_minus_bb_rate * 100.0
             )
             sid = str(row["school_id"])
             tg = int(team_games.get(sid, 0))
