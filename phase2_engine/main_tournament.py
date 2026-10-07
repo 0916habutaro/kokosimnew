@@ -366,7 +366,19 @@ def run_main_single_elimination(
                 if resolved_match_sink is not None:
                     if match_id in resolved_match_sink:
                         raise ValueError(f"duplicate resolved match id: {match_id}")
-                    resolved_match_sink[match_id] = dict(resolution.detail)
+                    detail = dict(resolution.detail)
+                    detail.setdefault("match_id", match_id)
+                    detail.setdefault("competition_id", competition_id)
+                    detail.setdefault("reference_year", reference_year)
+                    detail.setdefault("generation_seed", base_seed)
+                    detail.setdefault("team1_school_id", t1)
+                    detail.setdefault("team2_school_id", t2)
+                    detail.setdefault("team1_score", resolution.team1_score)
+                    detail.setdefault("team2_score", resolution.team2_score)
+                    detail.setdefault("winner_id", resolution.winner_id)
+                    detail.setdefault("loser_id", resolution.loser_id)
+                    detail.setdefault("score_source", resolution.score_source)
+                    resolved_match_sink[match_id] = detail
             else:
                 namespace = f"{competition_id}:{stage_id}:MAIN:R{round_no}:M{match_no}:{t1}:{t2}"
                 winner = winner_resolver(t1, t2, namespace)
