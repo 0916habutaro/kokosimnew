@@ -332,8 +332,8 @@ class Stage13E3APreMainRuntimeTests(unittest.TestCase):
         self.assertFalse(snapshot["main_activated"])
         self.assertEqual([], snapshot["main_entrant_school_ids"])
 
-    def test_fmt002_graph_remains_explicitly_out_of_stage13e3b1_scope(self):
-        competition_id = "CMP000074"
+    def test_seed_event_graph_remains_out_of_stage13e3b2_scope(self):
+        competition_id = "CMP000116"
         pcode = self.repo.competition(competition_id)["prefecture_code"]
         entrants = sorted(
             school_id
@@ -346,7 +346,10 @@ class Stage13E3APreMainRuntimeTests(unittest.TestCase):
             entrant_school_ids=entrants,
             rng_seed=self.seed,
         )
-        with self.assertRaises(NotImplementedError):
+        with self.assertRaisesRegex(
+            ValueError,
+            "requires exactly one qualifier stage followed by MAIN",
+        ):
             TournamentEngine(
                 self.repo
             ).prepare_qualifier_main_runtime(annual)
