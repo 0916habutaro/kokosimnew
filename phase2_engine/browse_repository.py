@@ -748,6 +748,143 @@ class BrowseRepository:
                 (year, competition_id, match_id),
             ))
 
+    def aggregate_batter_counts(
+        self,
+        year: int,
+        *,
+        competition_id: str = "",
+        school_id: str = "",
+        player_id: str = "",
+    ) -> list[dict]:
+        clauses = ["b.year = ?"]
+        params: list[object] = [year]
+        if competition_id:
+            clauses.append("b.competition_id = ?")
+            params.append(competition_id)
+        if school_id:
+            clauses.append("b.school_id = ?")
+            params.append(school_id)
+        if player_id:
+            clauses.append("b.player_id = ?")
+            params.append(player_id)
+
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            return self._rows(conn.execute(
+                f"""
+                SELECT
+                    b.player_id,
+                    b.school_id,
+                    COALESCE(s.school_name, '') AS school_name,
+                    COUNT(*) AS games,
+                    SUM(b.plate_appearances) AS plate_appearances,
+                    SUM(b.at_bats) AS at_bats,
+                    SUM(b.runs) AS runs,
+                    SUM(b.hits) AS hits,
+                    SUM(b.singles) AS singles,
+                    SUM(b.doubles) AS doubles,
+                    SUM(b.triples) AS triples,
+                    SUM(b.home_runs) AS home_runs,
+                    SUM(b.rbi) AS rbi,
+                    SUM(b.walks) AS walks,
+                    SUM(b.strikeouts) AS strikeouts,
+                    SUM(b.hit_by_pitch) AS hit_by_pitch,
+                    SUM(b.sacrifice_flies) AS sacrifice_flies,
+                    SUM(b.sacrifice_bunts) AS sacrifice_bunts,
+                    SUM(b.stolen_bases) AS stolen_bases,
+                    SUM(b.caught_stealing) AS caught_stealing
+                FROM batter_game_stats AS b
+                LEFT JOIN school_records AS s
+                  ON s.year = b.year
+                 AND s.school_id = b.school_id
+                WHERE {' AND '.join(clauses)}
+                GROUP BY b.player_id, b.school_id, s.school_name
+                ORDER BY b.school_id, b.player_id
+                """,
+                params,
+            ))
+
+    def aggregate_pitcher_counts(
+        self,
+        year: int,
+        *,
+        competition_id: str = "",
+        school_id: str = "",
+        player_id: str = "",
+    ) -> list[dict]:
+        clauses = ["p.year = ?"]
+        params: list[object] = [year]
+        if competition_id:
+            clauses.append("p.competition_id = ?")
+            params.append(competition_id)
+        if school_id:
+            clauses.append("p.school_id = ?")
+            params.append(school_id)
+        if player_id:
+            clauses.append("p.player_id = ?")
+            params.append(player_id)
+
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            return self._rows(conn.execute(
+                f"""
+                SELECT
+                    p.player_id,
+                    p.school_id,
+                    COALESCE(s.school_name, '') AS school_name,
+                    COUNT(*) AS games,
+                    SUM(p.outs_recorded) AS outs_recorded,
+                    SUM(p.batters_faced) AS batters_faced,
+                    SUM(p.runs_allowed) AS runs_allowed,
+                    SUM(p.earned_runs) AS earned_runs,
+                    SUM(p.hits_allowed) AS hits_allowed,
+                    SUM(p.home_runs_allowed) AS home_runs_allowed,
+                    SUM(p.walks) AS walks,
+                    SUM(p.strikeouts) AS strikeouts,
+                    SUM(p.hit_batters) AS hit_batters
+                FROM pitcher_game_stats AS p
+                LEFT JOIN school_records AS s
+                  ON s.year = p.year
+                 AND s.school_id = p.school_id
+                WHERE {' AND '.join(clauses)}
+                GROUP BY p.player_id, p.school_id, s.school_name
+                ORDER BY p.school_id, p.player_id
+                """,
+                params,
+            ))
+
+    def team_game_counts(
+        self,
+        year: int,
+        *,
+        competition_id: str = "",
+        school_id: str = "",
+    ) -> dict[str, int]:
+        clauses = ["year = ?"]
+        params: list[object] = [year]
+        if competition_id:
+            clauses.append("competition_id = ?")
+            params.append(competition_id)
+        if school_id:
+            clauses.append("school_id = ?")
+            params.append(school_id)
+
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            rows = conn.execute(
+                f"""
+                SELECT school_id, COUNT(*) AS team_games
+                FROM team_game_stats
+                WHERE {' AND '.join(clauses)}
+                GROUP BY school_id
+                """,
+                params,
+            ).fetchall()
+            return {
+                str(row["school_id"]): int(row["team_games"])
+                for row in rows
+            }
+
     @staticmethod
     def _rows(cursor: sqlite3.Cursor) -> list[dict]:
         return [dict(row) for row in cursor.fetchall()]
