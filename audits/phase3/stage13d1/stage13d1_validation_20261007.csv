@@ -1,0 +1,29 @@
+check,status,detail
+source_of_truth,PASS,SQLite GameStats integer counts remain source of truth
+batter_sql_aggregate,PASS,year competition school player filters
+pitcher_sql_aggregate,PASS,year competition school player filters
+team_games,PASS,qualification denominator uses team_game_stats
+avg_formula,PASS,H/AB
+obp_formula,PASS,(H+BB+HBP)/(AB+BB+HBP+SF)
+slg_formula,PASS,total bases / AB
+ops_formula,PASS,OBP+SLG
+iso_formula,PASS,SLG-AVG
+innings_source,PASS,outs_recorded remains source of truth
+innings_display,PASS,20 outs displayed as 6 2/3
+era_formula,PASS,ER*27/outs
+whip_formula,PASS,(H+BB)*3/outs
+k9_formula,PASS,K*27/outs
+bb9_formula,PASS,BB*27/outs
+kbb_formula,PASS,K/BB with zero BB treated undefined
+k_minus_bb_pct,PASS,(K-BB)/BF*100
+ranking_config,PASS,player_rankings_v1 revision 1
+ranking_status,PASS,design_default_not_tuned
+ranking_qualification,PASS,rate metrics require game-design qualification
+count_ranking,PASS,count metrics do not require rate qualification
+ranking_ties,PASS,competition ranking style
+competition_filter,PASS,aggregates and team games recalculate within competition
+school_filter,PASS,leaderboards can filter by school
+player_summary,PASS,batter and pitcher sides share one player summary
+gui_adapter,PASS,BrowseGuiModel exposes stats summary and leaderboards
+official_rule_claim,PASS,config explicitly states qualification is not official rule
+github_actions,PASS,Ran 451 tests; OK

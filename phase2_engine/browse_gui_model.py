@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Iterable
 
 from .browse_repository import BrowseRepository
+from .player_stats_read_model import PlayerStatsReadModel
 
 
 UNDATED_LABEL = "日付未定"
@@ -69,6 +70,18 @@ class BrowseGuiModel:
         self.db_path = Path(db_path)
         self.data_dir = Path(data_dir)
         self.repository = BrowseRepository(self.db_path)
+        stats_config = (
+            self.data_dir.parent
+            / "config"
+            / "stats"
+            / "player_rankings_v1.json"
+        )
+        if not stats_config.exists():
+            stats_config = Path("config/stats/player_rankings_v1.json")
+        self.player_stats = PlayerStatsReadModel(
+            self.repository,
+            config_path=stats_config,
+        )
         self._prefecture_names = self._load_prefecture_names()
 
     def _load_prefecture_names(self) -> dict[str, str]:
@@ -282,6 +295,59 @@ class BrowseGuiModel:
             self.repository.school_record(year, school_id),
             self.repository.school_matches(year, school_id),
         )
+
+    def player_stats_summary(
+        self,
+        year: int,
+        player_id: str,
+        *,
+        competition_id: str = "",
+    ) -> dict:
+        return self.player_stats.player_summary(
+            year,
+            player_id,
+            competition_id=competition_id,
+        )
+
+    def batting_leaderboard(
+        self,
+        year: int,
+        metric: str,
+        *,
+        competition_id: str = "",
+        school_id: str = "",
+        limit: int = 50,
+    ) -> list[dict]:
+        return [
+            row.to_dict()
+            for row in self.player_stats.batter_rankings(
+                year,
+                metric,
+                competition_id=competition_id,
+                school_id=school_id,
+                limit=limit,
+            )
+        ]
+
+    def pitching_leaderboard(
+        self,
+        year: int,
+        metric: str,
+        *,
+        competition_id: str = "",
+        school_id: str = "",
+        limit: int = 50,
+    ) -> list[dict]:
+        return [
+            row.to_dict()
+            for row in self.player_stats.pitcher_rankings(
+                year,
+                metric,
+                competition_id=competition_id,
+                school_id=school_id,
+                limit=limit,
+            )
+        ]
 
     def home_summary(
         self,
