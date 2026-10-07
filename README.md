@@ -29,6 +29,7 @@
 - Stage 13C-4: pre-MAIN共通bracketへMatchResolutionを展開し、AbilityMatchResolverをMAIN/pre-MAIN共通化。SeasonOrchestratorから能力モデルをopt-in可能にし、GameStats / MatchEventをBrowseRepository SQLite schema v2へ永続化
 - Stage 13D-1: SQLite GameStatsの整数countから大会別／シーズン別の個人成績read modelを実装。AVG/OBP/SLG/OPS/ISO、ERA/WHIP/K/9/BB/9/K/BB/K-BB%を導出し、規定到達を考慮した打撃・投手ランキングとBrowseGuiModel APIを追加
 - Stage 13D-2: 試合seedと選手identity seedを分離し、同一シーズンのplayer_idを大会横断で固定。SQLite schema v3へplayer_masterを追加し、学校ロスター成績・選手詳細・選手検索・大会ランキングのGUI read契約を実装
+- Stage 13D-3: 既存read-only Tkinter GUIへ選手検索・選手詳細・学校20人ロスター・大会別打撃/投手ランキングを追加。学校→ロスター→選手、大会→ランキング→選手の画面遷移を実装
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -111,4 +112,4 @@ python -m game_core.stage13c2_audit \
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-正式GUIの作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13D-2でmatch generation seedとteam/player generation seedを分離し、SeasonOrchestrator利用時は同一年度の選手identityを春・夏・秋で固定できるようにした。BrowseRepositoryはschema v3となり、player_masterをGameStatsとは別正本として保存する。個人成績aggregate/rankingには表示名・学年・守備位置をLEFT JOINし、BrowseGuiModelには学校ロスター成績・選手詳細・選手検索・大会ランキングpayloadを追加済み。次工程はStage 13D-3として既存read-only GUIへこれらの試験画面を追加し、学校→選手、 大会→ランキング→選手の画面遷移を実機確認する。秋季実績はStage 12Oのdueキューで後追い可能。
+正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13D-3で既存read-only GUIへ選手検索・選手詳細・学校ロスター・大会別打撃/投手ランキングを試験接続し、学校→ロスター→選手、大会→ランキング→選手の導線を追加した。自動回帰は468件PASS。GUI実ウィンドウの確認はローカル実機チェックリストで後追いする。次工程はStage 13E-1としてゲーム内日付、当日試合消化、未消化/消化済み状態、season stateへの能力試合結果反映のcontractを設計・実装する。秋季実績はStage 12Oのdueキューで後追い可能。
