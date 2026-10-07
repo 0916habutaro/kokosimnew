@@ -305,10 +305,10 @@ class Stage12TGuiFiltersBracketNavigationTests(unittest.TestCase):
             ROOT / "phase2_engine" / "browse_gui.py"
         ).read_text(encoding="utf-8")
         self.assertIn(
-            "from .browse_gui_stage12u import Stage12UBrowseApp",
+            "from .browse_gui_stage13d3 import Stage13D3BrowseApp",
             source,
         )
-        self.assertIn("Stage12UBrowseApp(root, model)", source)
+        self.assertIn("Stage13D3BrowseApp(root, model)", source)
 
     def test_enhanced_gui_is_read_only(self):
         source = (
