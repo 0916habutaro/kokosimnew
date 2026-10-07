@@ -154,6 +154,7 @@ class SeasonExecution:
     bootstrap_prior_prefectural_rankings: Dict[str, List[str]] = field(default_factory=dict)
     bootstrap_prior_regional_participants: Dict[str, List[str]] = field(default_factory=dict)
     summer_local_competition_ids: List[str] = field(default_factory=list)
+    player_master_records: Dict[str, dict] = field(default_factory=dict)
     warnings: List[str] = field(default_factory=list)
 
     def summary(self) -> dict:
@@ -173,6 +174,7 @@ class SeasonExecution:
             "rng_seed": self.rng_seed,
             "ability_match_count": ability_match_count,
             "ability_competition_count": ability_competition_count,
+            "player_master_count": len(self.player_master_records),
             "spring_prefectural_executed": len(spring),
             "autumn_prefectural_executed": len(autumn),
             "spring_prefectural_pass": sum(r.status == "PASS" for r in spring),
@@ -225,6 +227,44 @@ class StructuralAnnualInputFactory:
             for r in self._read(p.name):
                 if r.get("status") == "PASS" and r.get("entrant_count"):
                     self.exec_targets[r["competition_id"]] = int(r["entrant_count"])
+
+    def _begin_match_resolver_season(
+        self,
+        year: int,
+        rng_seed: int,
+    ) -> None:
+        hook = getattr(self.match_resolver, "begin_season", None)
+        if callable(hook):
+            hook(year, rng_seed)
+
+    def _capture_player_master(
+        self,
+        season: SeasonExecution,
+    ) -> None:
+        hook = getattr(self.match_resolver, "player_master_records", None)
+        if not callable(hook):
+            return
+        records = hook()
+        if not isinstance(records, dict):
+            raise TypeError(
+                "match_resolver.player_master_records() must return dict"
+            )
+        normalized: Dict[str, dict] = {}
+        for player_id, row in records.items():
+            if not isinstance(row, dict):
+                raise TypeError(
+                    f"{player_id}: player master record must be dict"
+                )
+            if str(row.get("player_id") or "") != str(player_id):
+                raise ValueError(
+                    f"{player_id}: player master player_id mismatch"
+                )
+            if int(row.get("reference_year") or 0) != season.year:
+                raise ValueError(
+                    f"{player_id}: player master reference_year mismatch"
+                )
+            normalized[str(player_id)] = dict(row)
+        season.player_master_records = normalized
 
     def _read(self, name: str) -> List[dict]:
         with resolve_data_file(self.data_dir, name).open("r", encoding="utf-8-sig", newline="") as f:
@@ -448,6 +488,7 @@ class SeasonOrchestrator:
     def run_structural_season(self, year: int = 2026, rng_seed: int = 2026100501) -> SeasonExecution:
         if year != 2026:
             raise NotImplementedError("Stage 12E structural audit currently targets the 2026 dataset")
+        self._begin_match_resolver_season(year, rng_seed)
         self.factory = StructuralAnnualInputFactory(self.repo, self.data_dir, rng_seed)
         result = SeasonExecution(year=year, rng_seed=rng_seed)
 
@@ -565,6 +606,7 @@ class SeasonOrchestrator:
         result.regional_bridge_gaps = self._regional_bridge_gaps(year)
         result.calendar_gaps = self._calendar_gaps(year)
         result.internal_structure_gaps = self._internal_structure_gaps(result)
+        self._capture_player_master(result)
         return result
 
     def _run_regional_segment(self, segment: str, year: int, rng_seed: int, season: SeasonExecution) -> None:
