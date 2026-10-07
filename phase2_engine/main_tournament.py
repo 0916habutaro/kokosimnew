@@ -4,7 +4,7 @@ from collections import defaultdict
 from math import ceil, log2
 from typing import Dict, Iterable, List, Sequence, Tuple
 
-from .models import CompetitionOutcome, Match, SeedAssignment, StageExecution
+from .models import CompetitionOutcome, Match, MatchResolution, SeedAssignment, StageExecution
 from .randomness import shuffled
 
 
@@ -211,6 +211,9 @@ def run_main_single_elimination(
     annual_seed_order: Sequence[str] = (),
     slot_override: Sequence[str] | None = None,
     winner_overrides: Dict[str, str] | None = None,
+    match_resolver=None,
+    resolved_match_sink: Dict[str, dict] | None = None,
+    reference_year: int | None = None,
 ) -> Tuple[StageExecution, CompetitionOutcome]:
     entrants = list(dict.fromkeys(entrants))
     if not entrants:
@@ -313,17 +316,84 @@ def run_main_single_elimination(
                 round_matches.append(match_id)
                 continue
 
+            resolution: MatchResolution | None = None
             if match_id in winner_overrides:
                 winner = winner_overrides[match_id]
                 if winner not in {t1, t2}:
                     raise ValueError(f"winner override for {match_id} is not a participant")
+                loser = t2 if winner == t1 else t1
+            elif match_resolver is not None:
+                if reference_year is None:
+                    raise ValueError("reference_year is required when match_resolver is used")
+                resolution = match_resolver(
+                    match_id=match_id,
+                    competition_id=competition_id,
+                    reference_year=reference_year,
+                    generation_seed=base_seed,
+                    team1=t1,
+                    team2=t2,
+                )
+                if not isinstance(resolution, MatchResolution):
+                    raise TypeError("match_resolver must return MatchResolution")
+                if resolution.winner_id not in {t1, t2}:
+                    raise ValueError("match_resolver winner is not a participant")
+                expected_loser = t2 if resolution.winner_id == t1 else t1
+                if resolution.loser_id != expected_loser:
+                    raise ValueError("match_resolver loser is inconsistent with winner")
+                if (resolution.team1_score is None) != (resolution.team2_score is None):
+                    raise ValueError("match_resolver scores must be both present or both absent")
+                if resolution.team1_score is not None:
+                    if (
+                        isinstance(resolution.team1_score, bool)
+                        or isinstance(resolution.team2_score, bool)
+                        or not isinstance(resolution.team1_score, int)
+                        or not isinstance(resolution.team2_score, int)
+                    ):
+                        raise ValueError("match_resolver scores must be integers")
+                    if resolution.team1_score < 0 or resolution.team2_score < 0:
+                        raise ValueError("match_resolver scores must be non-negative")
+                    if resolution.team1_score == resolution.team2_score:
+                        raise ValueError("match_resolver cannot return a tied score")
+                    expected_winner = (
+                        t1
+                        if resolution.team1_score > resolution.team2_score
+                        else t2
+                    )
+                    if resolution.winner_id != expected_winner:
+                        raise ValueError("match_resolver score winner mismatch")
+                winner = resolution.winner_id
+                loser = resolution.loser_id
+                if resolved_match_sink is not None:
+                    if match_id in resolved_match_sink:
+                        raise ValueError(f"duplicate resolved match id: {match_id}")
+                    resolved_match_sink[match_id] = dict(resolution.detail)
             else:
                 namespace = f"{competition_id}:{stage_id}:MAIN:R{round_no}:M{match_no}:{t1}:{t2}"
                 winner = winner_resolver(t1, t2, namespace)
                 if winner not in {t1, t2}:
                     raise ValueError("winner_resolver returned a team not in the match")
-            loser = t2 if winner == t1 else t1
+                loser = t2 if winner == t1 else t1
             eliminated_by_round[round_no].append(loser)
+            metadata = {
+                "round_name": round_name,
+                "bracket_size": bracket_size,
+                "match_no_in_round": match_no,
+                "next_match_id": next_match_id,
+                "next_match_side": next_side,
+                "winner_source": (
+                    "annual_override"
+                    if match_id in winner_overrides
+                    else (
+                        resolution.score_source
+                        if resolution is not None and resolution.score_source
+                        else "resolver"
+                    )
+                ),
+            }
+            if resolution is not None and resolution.team1_score is not None:
+                metadata["score_source"] = resolution.score_source
+                metadata["team1_score"] = resolution.team1_score
+                metadata["team2_score"] = resolution.team2_score
             match = Match(
                 match_id=match_id,
                 competition_id=competition_id,
@@ -335,14 +405,7 @@ def run_main_single_elimination(
                 team2=t2,
                 winner=winner,
                 loser=loser,
-                metadata={
-                    "round_name": round_name,
-                    "bracket_size": bracket_size,
-                    "match_no_in_round": match_no,
-                    "next_match_id": next_match_id,
-                    "next_match_side": next_side,
-                    "winner_source": "annual_override" if match_id in winner_overrides else "resolver",
-                },
+                metadata=metadata,
             )
             nxt.append(winner)
             matches.append(match)
