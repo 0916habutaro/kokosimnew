@@ -147,3 +147,21 @@ snapshotに以下を入れない。
 - injury_status
 
 能力snapshotを疲労で直接書き換えない。
+
+
+## Stage 13B-4 school-aware生成
+
+Stage 13B-2の `PlayerAbilityGenerator` はbaselineとして維持する。
+
+通常のゲーム生成では `SchoolAwarePlayerAbilityGenerator` がbaseline snapshotへ `SchoolIntakeProfile` を適用し、`IntakeAdjustedPlayerAbilitySnapshot` を生成する。
+
+追加provenance:
+
+- intake_config_id
+- intake_config_revision
+- intake_config_sha256
+- intake_program_quality_z
+- intake_cohort_quality_z
+- intake_quality_z
+
+学校差はこの選手snapshotの時点で表現し、TeamStrengthへ固定bonusを後付けしない。
