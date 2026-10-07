@@ -213,10 +213,13 @@ class SeasonRuntimeState:
                 "runtime start_date must be inside season year"
             )
 
-        end = (
-            max(dated_values)
-            if dated_values
-            else date(season.year, 12, 31)
+        end = max(
+            initial_date,
+            (
+                max(dated_values)
+                if dated_values
+                else date(season.year, 12, 31)
+            ),
         )
         matches: dict[str, RuntimeMatchState] = {}
 
@@ -331,6 +334,15 @@ class SeasonRuntimeState:
             and match.result.ability_detail is not None
             for match in self.matches.values()
         )
+        bye_count = sum(
+            match.is_bye
+            for match in self.matches.values()
+        )
+        completed_played = sum(
+            match.status == MATCH_COMPLETED
+            and not match.is_bye
+            for match in self.matches.values()
+        )
         return {
             "year": self.year,
             "rng_seed": self.rng_seed,
@@ -339,7 +351,9 @@ class SeasonRuntimeState:
             "end_date": self.end_date.isoformat(),
             "pending_match_count": counts[MATCH_PENDING],
             "completed_match_count": counts[MATCH_COMPLETED],
+            "completed_played_match_count": completed_played,
             "unscheduled_match_count": counts[MATCH_UNSCHEDULED],
+            "bye_count": bye_count,
             "today_match_count": len(self.today_matches()),
             "completed_ability_match_count": completed_ability,
             "history_count": len(self.history),
@@ -437,6 +451,10 @@ class SeasonRuntimeState:
         return results
 
     def next_day(self) -> dict:
+        if self.current_date >= date(self.year, 12, 31):
+            raise ValueError(
+                "season runtime cannot advance beyond season year"
+            )
         played = self.play_today()
         previous = self.current_date
         self.current_date = previous + timedelta(days=1)
@@ -609,8 +627,14 @@ class SeasonRuntimeState:
         ]
         champion_id = ""
         if actual and len(completed) == len(actual):
+            main_completed = [
+                match
+                for match in completed
+                if match.stage_code == "MAIN"
+            ]
+            candidates = main_completed or completed
             last = max(
-                completed,
+                candidates,
                 key=lambda match: (
                     match.round_no,
                     match.match_date,
