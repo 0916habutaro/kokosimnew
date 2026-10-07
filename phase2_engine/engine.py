@@ -62,12 +62,14 @@ class TournamentEngine:
         self,
         annual: AnnualCompetitionInput,
     ):
-        """Prepare an incremental FMT001 qualifier -> MAIN competition.
+        """Prepare an incremental qualifier -> MAIN competition.
 
-        Stage 13E-3A intentionally supports the common FMT001 graph first.
-        Other pre-MAIN format models continue to use run() until Stage 13E-3B.
+        Stage 13E-3B-2 supports FMT001/FMT005/FMT006 and the composite
+        qualifier models FMT002-004, FMT007-008, FMT010-017 and FMT025.
+        Seed-event graphs remain Stage 13E-3B-3 scope.
         """
         from .premain_competition_runtime import QualifierMainRuntimeState
+        from .premain_runtime_composite import COMPOSITE_QUALIFIER_MODELS
 
         entrants = self._validate_entrants(annual)
         direct = self._validate_direct_entries(annual, entrants)
@@ -96,9 +98,14 @@ class TournamentEngine:
         assignment = self.repo.assignments_by_stage.get(
             qualifier_stage["stage_id"]
         )
+        supported_models = {
+            "FMT001",
+            "FMT005",
+            "FMT006",
+        } | COMPOSITE_QUALIFIER_MODELS
         if (
             not assignment
-            or assignment["default_format_model_id"] not in {"FMT001", "FMT006"}
+            or assignment["default_format_model_id"] not in supported_models
         ):
             model_id = (
                 assignment["default_format_model_id"]
@@ -106,7 +113,7 @@ class TournamentEngine:
                 else "missing"
             )
             raise NotImplementedError(
-                f"Stage 13E-3B-1 competition runtime does not yet support {model_id}"
+                f"Stage 13E-3B-2 competition runtime does not yet support {model_id}"
             )
 
         qualifier_entrants, warnings = (
