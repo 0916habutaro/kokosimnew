@@ -21,6 +21,13 @@ from game_core.team_strength import (
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = ROOT / "config" / "abilities"
+AUDIT_PATH = (
+    ROOT
+    / "audits"
+    / "phase3"
+    / "stage13b4"
+    / "stage13b4_intake_team_distribution_20261007.csv"
+)
 
 POSITIONS = (
     "P", "P", "P", "P", "P",
@@ -338,6 +345,60 @@ class Stage13B4SchoolIntakeTests(unittest.TestCase):
             team.school_intake_config_sha256,
             row["school_intake_config_sha256"],
         )
+
+    def test_saved_audit_has_three_seeds_two_models_and_66_rows(self):
+        with AUDIT_PATH.open(encoding="utf-8", newline="") as f:
+            rows = list(csv.DictReader(f))
+        self.assertEqual(66, len(rows))
+        self.assertEqual(
+            {"2026100701", "2026100702", "2026100703"},
+            {row["seed"] for row in rows},
+        )
+        self.assertEqual(
+            {"baseline", "school_intake_v1"},
+            {row["model"] for row in rows},
+        )
+        team_rows = [
+            row for row in rows
+            if row["metric"] in {"batting_strength", "pitching_strength"}
+        ]
+        self.assertTrue(
+            all(int(row["n"]) == 1000 for row in team_rows)
+        )
+
+    def test_saved_audit_expands_variance_without_large_mean_drift(self):
+        with AUDIT_PATH.open(encoding="utf-8", newline="") as f:
+            rows = list(csv.DictReader(f))
+        lookup = {
+            (row["seed"], row["model"], row["metric"]): row
+            for row in rows
+        }
+        for seed in ("2026100701", "2026100702", "2026100703"):
+            for metric, minimum_ratio in (
+                ("batting_strength", 2.4),
+                ("pitching_strength", 1.9),
+            ):
+                baseline = lookup[(seed, "baseline", metric)]
+                intake = lookup[(seed, "school_intake_v1", metric)]
+                self.assertLess(
+                    abs(float(intake["mean"]) - float(baseline["mean"])),
+                    0.30,
+                    (seed, metric),
+                )
+                self.assertGreater(
+                    float(intake["stdev"])
+                    / float(baseline["stdev"]),
+                    minimum_ratio,
+                    (seed, metric),
+                )
+
+    def test_audit_cli_defaults_to_three_seeds_and_1000_schools(self):
+        source = (
+            ROOT / "game_core" / "stage13b4_audit.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("2026100701,2026100702,2026100703", source)
+        self.assertIn("--school-count", source)
+        self.assertIn("default=1000", source)
 
     def test_clis_expose_baseline_switch(self):
         ability_cli = (
