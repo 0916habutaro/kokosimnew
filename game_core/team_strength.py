@@ -332,7 +332,7 @@ class TeamStrengthGenerator:
         snapshots: Iterable[PlayerAbilitySnapshot],
     ) -> PitchingStaff:
         players = list(snapshots)
-        school_id, reference_year, _, _ = self._validate_source(players)
+        school_id, reference_year, *_ = self._validate_source(players)
         pitchers = [
             player for player in players if player.primary_position == "P"
         ]
