@@ -23,6 +23,7 @@
 - Stage 13B-2: PlayerAbilitySnapshotのseed再現生成・分布監査を実装
 - Stage 13B-3: StartingLineup / PitchingStaff / TeamStrengthSnapshotを実装
 - Stage 13B-4: 合成program成分＋cohort成分による学校別入部品質モデルを実装。3seed×各1,000校のbaseline/intake比較監査で、batting_strength sd約1.7→4.2、pitching_strength sd約2.4→4.6〜4.8
+- Stage 13C-1: 能力ベース試合の入出力、MatchEvent、打者/投手/チームGameStats、winner ownership、ResultView `ability_model_v1` 接続、event/stats reconciliation contractを実装
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -33,6 +34,7 @@
 - `phase2_engine/` 大会・シーズン共通エンジン
 - `game_core/` 選手・能力・個人成績・年度進行などゲーム本体の中核機能
 - `config/abilities/` 能力定義・生成分布・学校能力集約のversion付き調整値
+- `config/match/` 能力ベース試合・event catalog・個人成績contract
 - `docs/design/` 能力・学校能力・調整運用の設計正本
 - `docs/adr/` 設計判断記録
 - `docs/tuning/` 能力・試合モデルの調整履歴
@@ -95,4 +97,4 @@ python -m game_core.team_strength_cli \
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-正式GUIの作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13B-4で、学校masterへ固定能力値を直接加算せず、合成program成分＋入学年度cohort成分を選手能力生成へ適用する学校差モデルを実装した。baseline生成器は監査比較用に維持し、通常生成はSchoolAwarePlayerAbilityGeneratorを使用する。3seed×各1,000校の比較監査では全体平均をほぼ維持したまま学校間分散が拡大した。次工程はStage 13Cとして、TeamStrengthとPlayerAbilityを使う能力ベース試合モデル・試合イベント・個人成績生成へ進む。秋季実績はStage 12Oのdueキューで後追い可能。
+正式GUIの作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13C-1で、TeamStrengthとPlayerAbilityを試合へ接続するMatchSimulationInput / Result、MatchEvent、GameStats、ResultView `ability_model_v1`、winner ownership、stats reconciliationのcontractを固定した。次工程はStage 13C-2として、打者対投手の打席結果確率、base/out state、inning progression、投手交代、試合終了条件、eventからstats集計を実装し、大量試合監査へ進む。秋季実績はStage 12Oのdueキューで後追い可能。

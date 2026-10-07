@@ -1,0 +1,104 @@
+{
+  "config_id": "event_catalog_v1",
+  "revision": 1,
+  "status": "design_contract",
+  "description_ja": "Stage 13C-1の最小打席結果カタログ。走塁・暴投・投手交代などの非打席イベントは後続revisionで追加可能。",
+  "event_types": [
+    {
+      "event_type": "strikeout",
+      "category": "out",
+      "is_plate_appearance": true,
+      "counts_as_at_bat": true,
+      "hit_value": 0,
+      "default_outs_on_play": 1
+    },
+    {
+      "event_type": "walk",
+      "category": "reach_base",
+      "is_plate_appearance": true,
+      "counts_as_at_bat": false,
+      "hit_value": 0,
+      "default_outs_on_play": 0
+    },
+    {
+      "event_type": "hit_by_pitch",
+      "category": "reach_base",
+      "is_plate_appearance": true,
+      "counts_as_at_bat": false,
+      "hit_value": 0,
+      "default_outs_on_play": 0
+    },
+    {
+      "event_type": "single",
+      "category": "hit",
+      "is_plate_appearance": true,
+      "counts_as_at_bat": true,
+      "hit_value": 1,
+      "default_outs_on_play": 0
+    },
+    {
+      "event_type": "double",
+      "category": "hit",
+      "is_plate_appearance": true,
+      "counts_as_at_bat": true,
+      "hit_value": 2,
+      "default_outs_on_play": 0
+    },
+    {
+      "event_type": "triple",
+      "category": "hit",
+      "is_plate_appearance": true,
+      "counts_as_at_bat": true,
+      "hit_value": 3,
+      "default_outs_on_play": 0
+    },
+    {
+      "event_type": "home_run",
+      "category": "hit",
+      "is_plate_appearance": true,
+      "counts_as_at_bat": true,
+      "hit_value": 4,
+      "default_outs_on_play": 0
+    },
+    {
+      "event_type": "field_out",
+      "category": "out",
+      "is_plate_appearance": true,
+      "counts_as_at_bat": true,
+      "hit_value": 0,
+      "default_outs_on_play": 1
+    },
+    {
+      "event_type": "fielder_choice",
+      "category": "ball_in_play",
+      "is_plate_appearance": true,
+      "counts_as_at_bat": true,
+      "hit_value": 0,
+      "default_outs_on_play": 1
+    },
+    {
+      "event_type": "reached_on_error",
+      "category": "reach_base",
+      "is_plate_appearance": true,
+      "counts_as_at_bat": true,
+      "hit_value": 0,
+      "default_outs_on_play": 0
+    },
+    {
+      "event_type": "sacrifice_bunt",
+      "category": "sacrifice",
+      "is_plate_appearance": true,
+      "counts_as_at_bat": false,
+      "hit_value": 0,
+      "default_outs_on_play": 1
+    },
+    {
+      "event_type": "sacrifice_fly",
+      "category": "sacrifice",
+      "is_plate_appearance": true,
+      "counts_as_at_bat": false,
+      "hit_value": 0,
+      "default_outs_on_play": 1
+    }
+  ]
+}

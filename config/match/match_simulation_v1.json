@@ -1,0 +1,44 @@
+{
+  "config_id": "match_simulation_v1",
+  "revision": 1,
+  "status": "design_contract",
+  "description_ja": "Stage 13C-1 能力ベース試合シミュレーションの入出力・RNG・ResultView接続契約。確率調整値はStage 13C-2以降で別revisionとして追加する。",
+  "score_source": "ability_model_v1",
+  "team_order": {
+    "team1": "top_offense",
+    "team2": "bottom_offense"
+  },
+  "innings": {
+    "default_regulation_innings": 9,
+    "competition_rule_override": true,
+    "tie_allowed": false,
+    "extra_innings_policy": "competition_rule_provider",
+    "mercy_rule_policy": "competition_rule_provider"
+  },
+  "ownership": {
+    "simulator_determines_score": true,
+    "simulator_determines_winner": true,
+    "tournament_match_must_be_synchronized_before_result_view": true
+  },
+  "result_view": {
+    "score_source_precedence": [
+      "override",
+      "ability_model_v1",
+      "generated_v1"
+    ],
+    "actual_score_override_remains_highest_priority": true,
+    "winner_consistency_required": true
+  },
+  "rules": {
+    "team_strength_direct_bonus_for_score": false,
+    "use_component_strengths": true,
+    "player_abilities_drive_events": true,
+    "complete_game_stats_required": true,
+    "event_stats_reconciliation_required": true
+  },
+  "rng_namespace_policy": {
+    "match": "match_v1:{competition_id}:{reference_year}:{match_id}",
+    "plate_appearance": "plate_appearance_v1:{match_id}:{plate_appearance_no}",
+    "event": "event_v1:{match_id}:{event_no}"
+  }
+}
