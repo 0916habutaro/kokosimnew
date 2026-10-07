@@ -1,0 +1,22 @@
+check,status,detail
+runtime_state_module,PASS,SeasonRuntimeState contract exists
+pending_status,PASS,future dated matches start pending
+completed_status,PASS,played matches transition to completed
+unscheduled_status,PASS,undated matches remain unscheduled
+bye_status,PASS,bye is structurally completed
+future_score_hidden,PASS,pending score is not public
+future_winner_hidden,PASS,pending winner is not public
+future_ability_hidden,PASS,pending ability detail is not public
+play_today_scope,PASS,only current date matches are applied
+play_today_idempotent,PASS,repeated play_today does not duplicate results
+next_day,PASS,current day is played before date increments
+advance_to,PASS,target date remains unplayed
+advance_through,PASS,target date is played
+no_backward_time,PASS,runtime rejects backward date movement
+year_boundary,PASS,runtime cannot next_day beyond season year
+midseason_start,PASS,dates before start are initialized completed
+dynamic_school_records,PASS,school record uses completed games only
+competition_completion,PASS,champion hidden until all actual matches completed
+completed_ability_results,PASS,only completed ability details are exposed
+public_snapshot,PASS,prepared future results are excluded
+github_actions,PASS,Ran 481 tests in 20.526s; OK

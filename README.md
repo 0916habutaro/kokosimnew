@@ -30,6 +30,7 @@
 - Stage 13D-1: SQLite GameStatsの整数countから大会別／シーズン別の個人成績read modelを実装。AVG/OBP/SLG/OPS/ISO、ERA/WHIP/K/9/BB/9/K/BB/K-BB%を導出し、規定到達を考慮した打撃・投手ランキングとBrowseGuiModel APIを追加
 - Stage 13D-2: 試合seedと選手identity seedを分離し、同一シーズンのplayer_idを大会横断で固定。SQLite schema v3へplayer_masterを追加し、学校ロスター成績・選手詳細・選手検索・大会ランキングのGUI read契約を実装
 - Stage 13D-3: 既存read-only Tkinter GUIへ選手検索・選手詳細・学校20人ロスター・大会別打撃/投手ランキングを追加。学校→ロスター→選手、大会→ランキング→選手の画面遷移を実装
+- Stage 13E-1: SeasonRuntimeStateを追加し、ゲーム内current_date、pending/completed/unscheduled、play_today/next_day/advance_to/advance_throughを実装。未来のscore/winner/ability detailを非公開のまま、消化済み試合だけ学校戦績・大会状態へ反映
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -112,4 +113,4 @@ python -m game_core.stage13c2_audit \
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13D-3で既存read-only GUIへ選手検索・選手詳細・学校ロスター・大会別打撃/投手ランキングを試験接続し、学校→ロスター→選手、大会→ランキング→選手の導線を追加した。自動回帰は468件PASS。GUI実ウィンドウの確認はローカル実機チェックリストで後追いする。次工程はStage 13E-1としてゲーム内日付、当日試合消化、未消化/消化済み状態、season stateへの能力試合結果反映のcontractを設計・実装する。秋季実績はStage 12Oのdueキューで後追い可能。
+正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13E-1でゲーム内時間進行の正本となるSeasonRuntimeStateを導入し、日付付き試合をpending→completedへ当日単位で反映するcontractを実装した。pending/unscheduledの未来score・winner・ability detailは公開せず、play_today()後に初めて学校戦績・大会状態・completed ability resultへ反映する。現段階では既存TournamentEngineの完成runを内部prepared planとして利用しており、次工程Stage 13E-2でTournamentEngineを途中停止・再開可能にして「当日に初めてMatchSimulatorを実行する」lazy tournament executionへ移行する。Stage 13D-3 GUI実ウィンドウ確認と秋季実績Stage 12O dueキューは後追い可能。
