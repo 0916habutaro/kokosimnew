@@ -28,6 +28,7 @@
 - Stage 13C-3: TournamentEngineのMAINへAbilityMainMatchResolverを正式接続。能力試合のscore/winnerがブラケット進行・CompetitionRun・ResultViewへ自動反映され、GameStats / MatchEventの大会単位保存にも対応
 - Stage 13C-4: pre-MAIN共通bracketへMatchResolutionを展開し、AbilityMatchResolverをMAIN/pre-MAIN共通化。SeasonOrchestratorから能力モデルをopt-in可能にし、GameStats / MatchEventをBrowseRepository SQLite schema v2へ永続化
 - Stage 13D-1: SQLite GameStatsの整数countから大会別／シーズン別の個人成績read modelを実装。AVG/OBP/SLG/OPS/ISO、ERA/WHIP/K/9/BB/9/K/BB/K-BB%を導出し、規定到達を考慮した打撃・投手ランキングとBrowseGuiModel APIを追加
+- Stage 13D-2: 試合seedと選手identity seedを分離し、同一シーズンのplayer_idを大会横断で固定。SQLite schema v3へplayer_masterを追加し、学校ロスター成績・選手詳細・選手検索・大会ランキングのGUI read契約を実装
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -110,4 +111,4 @@ python -m game_core.stage13c2_audit \
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-正式GUIの作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13D-1でSQLite v2のGameStatsを正本とする個人成績read modelを追加し、year / competition / school / player単位でcountを集計してAVG・OBP・SLG・OPS・ISO、ERA・WHIP・K/9・BB/9・K/BB・K-BB%をread時に導出するようにした。規定PA/outsとランキングmetricはversion付きconfigへ分離し、公式高校野球規定ではなくゲーム内表示用の初期設計値として管理する。BrowseGuiModelには選手summaryと打撃/投手leaderboard APIを追加済み。次工程はStage 13D-2として選手master/表示名のSQLite永続化と、個人成績・学校ロスター・大会ランキングのGUI画面契約へ進む。秋季実績はStage 12Oのdueキューで後追い可能。
+正式GUIの作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13D-2でmatch generation seedとteam/player generation seedを分離し、SeasonOrchestrator利用時は同一年度の選手identityを春・夏・秋で固定できるようにした。BrowseRepositoryはschema v3となり、player_masterをGameStatsとは別正本として保存する。個人成績aggregate/rankingには表示名・学年・守備位置をLEFT JOINし、BrowseGuiModelには学校ロスター成績・選手詳細・選手検索・大会ランキングpayloadを追加済み。次工程はStage 13D-3として既存read-only GUIへこれらの試験画面を追加し、学校→選手、 大会→ランキング→選手の画面遷移を実機確認する。秋季実績はStage 12Oのdueキューで後追い可能。
