@@ -1,0 +1,24 @@
+check,status,detail
+single_elimination_resolution,PASS,pre-MAIN single elimination supports MatchResolution
+gate_resolution,PASS,single round gate supports MatchResolution
+block_forest_resolution,PASS,block forest propagates MatchResolution
+round_robin_resolution,PASS,round robin supports MatchResolution
+head_to_head_resolution,PASS,head-to-head supports MatchResolution
+legacy_compatibility,PASS,resolver omitted keeps existing winner resolver behavior
+ability_resolver_generalized,PASS,AbilityMatchResolver supports MAIN and pre-MAIN
+ability_main_alias,PASS,AbilityMainMatchResolver backward-compatible alias retained
+season_wiring,PASS,SeasonOrchestrator wires same resolver to MAIN and pre-MAIN
+season_summary,PASS,ability_match_count and ability_competition_count added
+real_premain_structure,PASS,CMP000110 SEED_EVENT -> FIRST_TOURNAMENT -> MAIN
+real_premain_ability_source,PASS,all non-bye Gifu matches use ability_model_v1
+real_premain_result_sink,PASS,played match ids equal CompetitionRun match_simulation_results keys
+sqlite_schema_version,PASS,BrowseRepository schema version 2
+sqlite_ability_matches,PASS,ability_matches table
+sqlite_batter_stats,PASS,batter_game_stats table
+sqlite_pitcher_stats,PASS,pitcher_game_stats table
+sqlite_team_stats,PASS,team_game_stats table
+sqlite_events,PASS,match_events table
+sqlite_roundtrip,PASS,3 ability matches round-trip with GameStats and events
+sqlite_read_player,PASS,player batter/pitcher GameStats read API
+sqlite_read_events,PASS,events_for_match read API
+github_actions,PASS,Ran 439 tests in 13.376s
