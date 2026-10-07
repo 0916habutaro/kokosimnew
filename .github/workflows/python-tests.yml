@@ -30,19 +30,3 @@ jobs:
 
       - name: Run full unittest suite
         run: python -m unittest discover -s tests -v
-
-      # TEMP_STAGE13C2_AUDIT
-      - name: Stage 13C-2 match distribution audit
-        run: |
-          python -m game_core.stage13c2_audit \
-            --data-dir data \
-            --ability-config-dir config/abilities \
-            --match-config-dir config/match \
-            --year 2026 \
-            --seeds 2026100701,2026100702,2026100703 \
-            --school-count 240 \
-            --game-count 1000 \
-            --output /tmp/stage13c2_audit.csv
-          echo "STAGE13C2_AUDIT_BEGIN"
-          cat /tmp/stage13c2_audit.csv
-          echo "STAGE13C2_AUDIT_END"
