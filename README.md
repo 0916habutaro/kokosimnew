@@ -32,6 +32,7 @@
 - Stage 13D-3: 既存read-only Tkinter GUIへ選手検索・選手詳細・学校20人ロスター・大会別打撃/投手ランキングを追加。学校→ロスター→選手、大会→ランキング→選手の画面遷移を実装
 - Stage 13E-1: SeasonRuntimeStateを追加し、ゲーム内current_date、pending/completed/unscheduled、play_today/next_day/advance_to/advance_throughを実装。未来のscore/winner/ability detailを非公開のまま、消化済み試合だけ学校戦績・大会状態へ反映
 - Stage 13E-2: MAINトーナメントをbracket skeletonと勝敗解決へ分離。MainTournamentRuntimeState / ScheduledMainTournamentRuntimeを追加し、ready matchだけを当日にMatchResolver実行するlazy・resumable進行を実装。random/Ability双方でlegacy一括runとのCompetitionRun完全一致を検証
+- Stage 13E-3A: pre-MAIN共通runtime primitive（single elimination / gate / round robin / block forest）を追加し、FMT001 qualifier→MAINをlazy化。北海道春CMP000004でlegacy CompetitionRun完全一致を検証
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -114,4 +115,4 @@ python -m game_core.stage13c2_audit \
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13E-2でMAIN-only大会についてbracket skeleton生成と勝敗解決を分離し、prepare時点ではMatchResolverを一度も呼ばず、ready matchをresolve_match()/play_date()した時点で初めてMatchSimulatorを実行する真のlazy進行へ移行した。resolve_all()時は既存TournamentEngine.run()とrandom/Ability双方でCompetitionRunが完全一致する。次工程Stage 13E-3ではSEED_EVENT、BRANCH_QUALIFIER、PRELIMINARY_QUALIFIER、FIRST_TOURNAMENT等のpre-MAIN formatをruntime化し、予選→MAIN activationまで大会全体をincremental executionへ拡張する。Stage 13D-3 GUI実ウィンドウ確認と秋季実績Stage 12O dueキューは後追い可能。
+正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13E-3Aでpre-MAINの共通runtime primitiveを追加し、FMT001のBRANCH_QUALIFIER / PRELIMINARY_QUALIFIERからMAINへ進む大会をlazy化した。qualifier完了まではMAIN bracket自体を生成せず、最後の代表決定後に初めてMAINをactivateする。北海道春CMP000004ではlegacy TournamentEngine.run()とlazy CompetitionRunが完全一致した。次工程Stage 13E-3BではFMT006のpool RR＋cross playoff、FMT002〜025の複合repechage/secondary/seed event、FIRST_TOURNAMENTを同じruntime primitiveへ接続する。Stage 13D-3 GUI実ウィンドウ確認と秋季実績Stage 12O dueキューは後追い可能。

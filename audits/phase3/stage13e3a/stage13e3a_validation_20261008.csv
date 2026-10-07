@@ -1,0 +1,14 @@
+check,status,detail
+single_elimination_runtime,PASS,lazy single elimination matches legacy ranking matches and result sink
+gate_runtime,PASS,lazy single-round gate matches legacy winners matches and result sink
+round_robin_runtime,PASS,lazy round robin matches legacy ranking standings matches and result sink
+block_forest_runtime,PASS,lazy block forest matches legacy blocks winners matches and result sink
+prepare_no_resolution,PASS,qualifier runtime calls resolver zero times at prepare
+future_qualifier_result_hidden,PASS,unresolved qualifier matches contain no winner
+main_not_prepared_early,PASS,MAIN runtime and entrant list are absent before qualifier completion
+main_activation,PASS,MAIN runtime is created only after every qualifier group completes
+detailed_result_lazy,PASS,pre-MAIN detailed result appears only after match resolution
+fmt001_graph,PASS,FMT001 qualifier to MAIN graph supported
+legacy_competition_equivalence,PASS,CMP000004 lazy CompetitionRun exactly equals legacy CompetitionRun
+fmt006_scope_guard,PASS,FMT006 graph remains explicit Stage13E3B work
+github_actions,PASS,Ran 501 tests in 21.143s; OK
