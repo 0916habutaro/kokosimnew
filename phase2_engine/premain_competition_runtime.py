@@ -629,8 +629,21 @@ class QualifierMainRuntimeState:
             return self.qualifier_groups[0].stage_execution()
         outputs = []
         matches = []
-        group_outputs = {}
+        stage_groups = self.repo.groups_by_stage.get(
+            self.qualifier_stage["stage_id"], []
+        )
+        group_outputs = {
+            group["stage_group_id"]: []
+            for group in stage_groups
+        }
         group_models = {}
+        for group in stage_groups:
+            gid = group["stage_group_id"]
+            override = self.repo.group_format.get(gid)
+            group_models[gid] = (
+                (override or {}).get("format_model_id")
+                or default_model
+            )
         group_metadata = {}
 
         for runtime in self.qualifier_groups:
@@ -652,11 +665,7 @@ class QualifierMainRuntimeState:
             output_school_ids=list(dict.fromkeys(outputs)),
             matches=matches,
             metadata={
-                "group_count": len(
-                    self.repo.groups_by_stage.get(
-                        self.qualifier_stage["stage_id"], []
-                    )
-                ),
+                "group_count": len(stage_groups),
                 "group_outputs": group_outputs,
                 "group_models": group_models,
                 "group_metadata": group_metadata,
