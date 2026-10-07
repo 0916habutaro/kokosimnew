@@ -70,12 +70,12 @@ class Stage13C4PreMainSeasonPersistenceTests(unittest.TestCase):
             cls.repo,
             match_resolver=cls.resolver,
         )
-        cls.run = cls.engine.run(cls.annual)
+        cls.competition_run = cls.engine.run(cls.annual)
 
     def test_selected_competition_really_has_pre_main_stage(self):
         stage_codes = [
             execution.stage_code
-            for execution in self.run.stage_executions
+            for execution in self.competition_run.stage_executions
         ]
         self.assertIn("MAIN", stage_codes)
         self.assertTrue(any(code != "MAIN" for code in stage_codes))
@@ -83,14 +83,14 @@ class Stage13C4PreMainSeasonPersistenceTests(unittest.TestCase):
     def test_every_non_bye_match_across_all_stages_uses_ability_model(self):
         matches = [
             match
-            for execution in self.run.stage_executions
+            for execution in self.competition_run.stage_executions
             for match in execution.matches
             if not match.is_bye
         ]
         self.assertTrue(matches)
         self.assertEqual(
             {match.match_id for match in matches},
-            set(self.run.match_simulation_results),
+            set(self.competition_run.match_simulation_results),
         )
         for match in matches:
             with self.subTest(match_id=match.match_id):
@@ -98,7 +98,7 @@ class Stage13C4PreMainSeasonPersistenceTests(unittest.TestCase):
                     "ability_model_v1",
                     match.metadata.get("score_source"),
                 )
-                detail = self.run.match_simulation_results[match.match_id]
+                detail = self.competition_run.match_simulation_results[match.match_id]
                 self.assertEqual(match.winner, detail["winner_id"])
                 self.assertEqual(match.loser, detail["loser_id"])
                 self.assertEqual(
@@ -111,22 +111,22 @@ class Stage13C4PreMainSeasonPersistenceTests(unittest.TestCase):
                 )
 
     def test_pre_main_ability_winners_feed_later_stages(self):
-        executions = self.run.stage_executions
+        executions = self.competition_run.stage_executions
         main = executions[-1]
         self.assertEqual("MAIN", main.stage_code)
         self.assertEqual(
-            set(self.run.main_entrant_school_ids),
+            set(self.competition_run.main_entrant_school_ids),
             set(main.entrant_school_ids),
         )
         for execution in executions[:-1]:
             for school_id in execution.output_school_ids:
-                self.assertIn(school_id, self.run.entrant_school_ids)
+                self.assertIn(school_id, self.competition_run.entrant_school_ids)
 
     def test_result_view_needs_no_explicit_ability_score_mapping(self):
-        rows = build_competition_result_view(self.run, self.repo)
+        rows = build_competition_result_view(self.competition_run, self.repo)
         played = [row for row in rows if not row.is_bye]
         self.assertEqual(
-            len(self.run.match_simulation_results),
+            len(self.competition_run.match_simulation_results),
             len(played),
         )
         self.assertTrue(
@@ -171,7 +171,7 @@ class Stage13C4PreMainSeasonPersistenceTests(unittest.TestCase):
             year=self.year,
             rng_seed=self.seed,
             competition_runs={
-                self.competition_id: self.run,
+                self.competition_id: self.competition_run,
             },
         )
         empty_views = SeasonBrowseViews(
@@ -179,22 +179,22 @@ class Stage13C4PreMainSeasonPersistenceTests(unittest.TestCase):
             competition_results=[],
             school_records=[],
         )
-        expected_matches = len(self.run.match_simulation_results)
+        expected_matches = len(self.competition_run.match_simulation_results)
         expected_batters = sum(
             len(detail["batter_stats"])
-            for detail in self.run.match_simulation_results.values()
+            for detail in self.competition_run.match_simulation_results.values()
         )
         expected_pitchers = sum(
             len(detail["pitcher_stats"])
-            for detail in self.run.match_simulation_results.values()
+            for detail in self.competition_run.match_simulation_results.values()
         )
         expected_teams = sum(
             len(detail["team_stats"])
-            for detail in self.run.match_simulation_results.values()
+            for detail in self.competition_run.match_simulation_results.values()
         )
         expected_events = sum(
             len(detail["events"])
-            for detail in self.run.match_simulation_results.values()
+            for detail in self.competition_run.match_simulation_results.values()
         )
 
         with tempfile.TemporaryDirectory() as td:
@@ -233,7 +233,7 @@ class Stage13C4PreMainSeasonPersistenceTests(unittest.TestCase):
             )
             self.assertEqual(expected_matches, len(matches))
 
-            detail = next(iter(self.run.match_simulation_results.values()))
+            detail = next(iter(self.competition_run.match_simulation_results.values()))
             batter = detail["batter_stats"][0]
             batter_games = repository.batter_games(
                 self.year,
