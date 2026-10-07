@@ -113,6 +113,163 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
                 f"match simulation: rules.{key} must be true"
             )
 
+    model = payload.get("plate_appearance_model")
+    if not isinstance(model, dict):
+        raise ValueError("match simulation: plate_appearance_model required")
+    base = model.get("base_probabilities")
+    if not isinstance(base, dict):
+        raise ValueError("match simulation: base_probabilities required")
+    expected_events = {
+        "strikeout",
+        "walk",
+        "hit_by_pitch",
+        "single",
+        "double",
+        "triple",
+        "home_run",
+        "reached_on_error",
+        "fielder_choice",
+        "field_out",
+    }
+    if set(base) != expected_events:
+        raise ValueError(
+            "match simulation: base probability event keys mismatch"
+        )
+    total = 0.0
+    for event_type, value in base.items():
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            raise ValueError(
+                f"match simulation: invalid base probability {event_type}"
+            )
+        value = float(value)
+        if value <= 0 or value >= 1:
+            raise ValueError(
+                f"match simulation: base probability {event_type} must be 0..1"
+            )
+        total += value
+    if abs(total - 1.0) > 1e-9:
+        raise ValueError(
+            f"match simulation: base probabilities must sum to 1.0, got {total}"
+        )
+
+    effects = model.get("ability_effect_scale")
+    expected_effects = {
+        "strikeout",
+        "walk",
+        "single",
+        "extra_base_hit",
+        "home_run",
+        "error",
+        "field_out",
+    }
+    if not isinstance(effects, dict) or set(effects) != expected_effects:
+        raise ValueError(
+            "match simulation: ability_effect_scale keys mismatch"
+        )
+    for key, value in effects.items():
+        if (
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+            or float(value) < 0
+        ):
+            raise ValueError(
+                f"match simulation: ability effect {key} must be >= 0"
+            )
+    floor = model.get("probability_floor")
+    if (
+        not isinstance(floor, (int, float))
+        or isinstance(floor, bool)
+        or not 0 < float(floor) < 0.05
+    ):
+        raise ValueError(
+            "match simulation: probability_floor must be in (0, 0.05)"
+        )
+
+    situational = payload.get("situational_events")
+    if not isinstance(situational, dict):
+        raise ValueError("match simulation: situational_events required")
+    if set(situational) != {"sacrifice_bunt", "sacrifice_fly"}:
+        raise ValueError(
+            "match simulation: situational event keys mismatch"
+        )
+    for key, settings in situational.items():
+        if not isinstance(settings, dict):
+            raise ValueError(
+                f"match simulation: situational {key} must be object"
+            )
+        if settings.get("enabled") is not True:
+            raise ValueError(
+                f"match simulation: situational {key} must remain enabled"
+            )
+        probability = settings.get("base_probability")
+        if (
+            not isinstance(probability, (int, float))
+            or isinstance(probability, bool)
+            or not 0 <= float(probability) <= 1
+        ):
+            raise ValueError(
+                f"match simulation: invalid {key} base_probability"
+            )
+
+    baserunning = payload.get("baserunning")
+    if not isinstance(baserunning, dict):
+        raise ValueError("match simulation: baserunning required")
+    probability_keys = (
+        "single_runner_from_second_score_base",
+        "single_runner_from_first_to_third_base",
+        "double_runner_from_first_score_base",
+        "error_runner_from_second_score_base",
+        "min_probability",
+        "max_probability",
+    )
+    for key in probability_keys:
+        value = baserunning.get(key)
+        if (
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+            or not 0 <= float(value) <= 1
+        ):
+            raise ValueError(
+                f"match simulation: invalid baserunning {key}"
+            )
+    if float(baserunning["min_probability"]) >= float(
+        baserunning["max_probability"]
+    ):
+        raise ValueError(
+            "match simulation: baserunning min_probability must be < max_probability"
+        )
+    for key in ("speed_effect_per_point", "defense_effect_per_point"):
+        value = baserunning.get(key)
+        if (
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+            or float(value) < 0
+        ):
+            raise ValueError(
+                f"match simulation: invalid baserunning {key}"
+            )
+
+    pitching_usage = payload.get("pitching_usage")
+    if not isinstance(pitching_usage, dict):
+        raise ValueError("match simulation: pitching_usage required")
+    for key in (
+        "starter_bf_base",
+        "starter_stamina_effect",
+        "reliever_bf_base",
+        "reliever_stamina_effect",
+        "minimum_bf_before_change",
+        "runs_allowed_quick_hook",
+    ):
+        value = pitching_usage.get(key)
+        if (
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+            or float(value) < 0
+        ):
+            raise ValueError(
+                f"match simulation: invalid pitching_usage {key}"
+            )
+
     namespaces = payload.get("rng_namespace_policy")
     if set(namespaces or {}) != {
         "match",
