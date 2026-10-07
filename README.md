@@ -17,6 +17,7 @@
 - Stage 12R: 3閲覧read modelのSQLite永続化・GUI向けrepository層を実装
 - Stage 12S: SQLite repositoryを読むread-only GUIを実装（年度・日付別試合・大会結果・学校戦績）
 - Stage 12T: GUI実行確認＋日付画面の大会/都道府県フィルタ＋トーナメント表示＋学校/大会間の画面遷移
+- Stage 12U: ホーム画面＋都道府県名表示＋春夏秋/大会種別フィルタ＋トーナメント学校クリック
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -51,11 +52,12 @@ python -m phase2_engine.season_cli \
   --sqlite-db out/kokosim_browse.sqlite3
 
 python -m phase2_engine.browse_gui \
-  --db out/kokosim_browse.sqlite3
+  --db out/kokosim_browse.sqlite3 \
+  --data-dir data
 ```
 
 ## 正本ルール
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-Stage 12TでTkinter GUIの実行確認と操作性改善を実施。日付画面で大会・都道府県を絞り込み、大会画面でトーナメント表を表示し、日付/大会/学校画面をダブルクリックで相互遷移できる。次工程はWindows実機確認と都道府県名表示・大会種別フィルタ・ホーム画面等のUI改善。秋季実績はStage 12Oのdueキューで後追い可能。
+Stage 12Uでホーム画面、都道府県名表示、春/夏/秋・大会種別フィルタ、トーナメント表から学校への直接遷移を追加。閲覧GUIの主要導線は一通り揃った。次工程はWindows実機確認、表示設定保存、主要大会/注目カード表示、選手・個人成績read modelを検討する。秋季実績はStage 12Oのdueキューで後追い可能。

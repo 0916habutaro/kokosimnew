@@ -552,7 +552,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    model = BrowseGuiModel(args.db)
+    model = BrowseGuiModel(args.db, args.data_dir)
 
     try:
         model.ensure_database_exists()
@@ -566,10 +566,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    from .browse_gui_enhanced import EnhancedBrowseApp
+    from .browse_gui_stage12u import Stage12UBrowseApp
 
     root = tk.Tk()
-    EnhancedBrowseApp(root, model)
+    Stage12UBrowseApp(root, model)
     root.mainloop()
     return 0
 

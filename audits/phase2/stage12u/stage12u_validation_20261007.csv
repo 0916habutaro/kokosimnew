@@ -1,0 +1,24 @@
+﻿check,result,detail
+prefecture_master_source,PASS,data/master/prefectures.csvをGUI表示名へ利用
+prefecture_code_to_name,PASS,11=埼玉県;13=東京都
+season_segment_filter,PASS,spring/summer/autumn
+season_segment_japanese_labels,PASS,春/夏/秋
+competition_type_filter,PASS,8種類のcompetition_typeを正本値で絞り込み
+competition_type_japanese_labels,PASS,春季県大会等を日本語表示
+date_combined_filters,PASS,日付+季節+大会種別+大会+都道府県
+competition_filters,PASS,大会画面で季節+大会種別
+home_tab,PASS,年度件数・春夏秋大会数・今日/次の試合日
+home_navigation,PASS,今日または次の試合日へ遷移
+bracket_school_click,PASS,Canvas上の学校名クリックで学校画面へ
+bracket_irregular_guard,PASS,Stage12Tの2対1接続条件を維持
+school_prefecture_name,PASS,学校検索の都道府県を名称表示
+repository_segment_discovery,PASS,list_season_segments
+repository_type_discovery,PASS,list_competition_types
+repository_competition_filter,PASS,list_competitions_filtered
+repository_match_filter,PASS,season_segment+competition_typeを追加
+browse_gui_data_dir,PASS,--data-dirで都道府県master指定
+stage12t_compatibility,PASS,EnhancedBrowseAppを基底として維持
+readonly_contract,PASS,Stage12U GUIにINSERT/UPDATE/DELETEなし
+dedicated_tests,PASS,Stage12U専用14件追加
+full_python_suite,NOT_RUN,全リポジトリPythonテストはコミット前時点で未実行
+windows_real_machine,NOT_RUN,ユーザーWindows実機では未確認
