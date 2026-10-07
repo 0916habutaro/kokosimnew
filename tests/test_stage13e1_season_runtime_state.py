@@ -64,7 +64,7 @@ class Stage13E1SeasonRuntimeStateTests(unittest.TestCase):
             main_match_resolver=resolver,
             pre_main_match_resolver=resolver,
         )
-        cls.run = engine.run(
+        cls.competition_run = engine.run(
             AnnualCompetitionInput(
                 competition_id=cls.competition_id,
                 year=cls.year,
@@ -76,7 +76,7 @@ class Stage13E1SeasonRuntimeStateTests(unittest.TestCase):
             year=cls.year,
             rng_seed=cls.season_seed,
             competition_runs={
-                cls.competition_id: cls.run,
+                cls.competition_id: cls.competition_run,
             },
             player_master_records=resolver.player_master_records(),
         )
@@ -191,7 +191,7 @@ class Stage13E1SeasonRuntimeStateTests(unittest.TestCase):
         competition = state.competition_state(self.competition_id)
         self.assertTrue(competition["is_complete"])
         self.assertEqual(
-            self.run.outcome.champion_school_id,
+            self.competition_run.outcome.champion_school_id,
             competition["champion_school_id"],
         )
         self.assertEqual(0, competition["pending_match_count"])
