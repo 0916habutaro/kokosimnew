@@ -58,19 +58,13 @@ class Stage12M1HokkaidoTohokuGameDateTests(unittest.TestCase):
             actual = set(self.by_competition[cid]["game_date_list"].split(";"))
             self.assertTrue(actual.isdisjoint(dates), cid)
 
-    def test_stage12m1_progress_counts(self):
-        summer_rows = [
-            r for r in self.calendar
-            if 23 <= int(r["competition_id"].replace("CMP", "")) <= 71
-        ]
-        self.assertEqual(49, len(summer_rows))
-        detailed = [r for r in summer_rows if r["game_date_list"]]
-        period_only = [r for r in summer_rows if not r["game_date_list"]]
-        self.assertEqual(8, len(detailed))
-        self.assertEqual(41, len(period_only))
-        self.assertEqual(set(EXPECTED), {r["competition_id"] for r in detailed})
-        self.assertEqual(120, sum(bool(r["game_date_list"]) for r in self.calendar))
-        self.assertEqual(42, sum(not bool(r["game_date_list"]) for r in self.calendar))
+    def test_stage12m1_batch_is_present_in_current_master(self):
+        # season_calendar.csv は Stage 12M-8 まで累積更新されるため、
+        # Stage 12M-1 終了時点の途中件数ではなく、当該バッチが現行masterに残ることを検証する。
+        summer = [r for r in self.calendar if 23 <= int(r["competition_id"].replace("CMP","")) <= 71]
+        self.assertEqual(49, len(summer))
+        detailed_ids = {r["competition_id"] for r in summer if r["game_date_list"]}
+        self.assertTrue(set(EXPECTED).issubset(detailed_ids))
 
     def test_stage12m1_total_actual_game_days(self):
         self.assertEqual(98, sum(len(v[2]) for v in EXPECTED.values()))
