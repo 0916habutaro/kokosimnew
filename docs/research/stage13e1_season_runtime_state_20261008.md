@@ -93,3 +93,51 @@ TournamentEngine自体はまだ一括実行。
 ただしruntime公開state・学校戦績・ability resultsへの反映は日付消化まで遅延される。
 
 Stage 13E-2でTournamentEngineのlazy/resume実行へ進む。
+
+
+## Automated validation
+
+Stage 13E-1専用テスト: 13件。
+
+確認:
+
+- future score / winner非公開
+- future ability detail非公開
+- 4/1準決勝2試合だけ消化
+- 4/2決勝は翌日までpending
+- play_today idempotent
+- next_day
+- advance_to
+- advance_through
+- dynamic school records
+- champion reveal
+- midseason start
+- undated保持
+- bye runtime contract
+- season year境界
+- public snapshot future result非公開
+
+full suite:
+
+- Python 3.12
+- `Ran 481 tests in 20.526s`
+- **OK**
+
+## 判断
+
+Stage 13E-1を採用する。
+
+ゲーム内current_dateとmatch lifecycleが独立contractになり、UIや将来のsave/loadはTournamentEngineの一括実行方式へ直接依存しなくなった。
+
+ただし、prepared plan内部には未来結果が存在する。
+
+次工程Stage 13E-2では、
+
+- tournament bracket state
+- ready match
+- resolved match
+- next-round participant
+- stage completion
+- CompetitionOutcome確定
+
+をincremental stateとして保持し、`play_today()` のタイミングで初めてMatchResolver / MatchSimulatorを呼ぶlazy executionへ移行する。
