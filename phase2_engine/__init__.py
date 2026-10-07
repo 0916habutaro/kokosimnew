@@ -1,5 +1,5 @@
 from .engine import TournamentEngine
-from .models import AnnualCompetitionInput, CompetitionOutcome, CompetitionRun, Match, SeedAssignment, StageExecution, Team
+from .models import AnnualCompetitionInput, CompetitionOutcome, CompetitionRun, Match, MatchResolution, SeedAssignment, StageExecution, Team
 from .repository import DataRepository
 from .results import save_competition_run
 from .season import (SeasonExecution, SeasonOrchestrator, StructuralAnnualInputFactory, RegionalFeederResolution, RegionalPlayoffResolution, RegionalCompetitionRow)
@@ -11,6 +11,7 @@ __all__ = [
     "CompetitionRun",
     "CompetitionOutcome",
     "Match",
+    "MatchResolution",
     "SeedAssignment",
     "StageExecution",
     "Team",
