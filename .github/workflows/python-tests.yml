@@ -30,3 +30,16 @@ jobs:
 
       - name: Run full unittest suite
         run: python -m unittest discover -s tests -v
+
+      # TEMP_STAGE13B4_AUDIT
+      - name: Stage 13B-4 distribution audit
+        run: |
+          python -m game_core.stage13b4_audit \
+            --config-dir config/abilities \
+            --year 2026 \
+            --seeds 2026100701,2026100702,2026100703 \
+            --school-count 1000 \
+            --output /tmp/stage13b4_audit.csv
+          echo "STAGE13B4_AUDIT_BEGIN"
+          cat /tmp/stage13b4_audit.csv
+          echo "STAGE13B4_AUDIT_END"
