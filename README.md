@@ -19,6 +19,7 @@
 - Stage 12T: GUI実行確認＋日付画面の大会/都道府県フィルタ＋トーナメント表示＋学校/大会間の画面遷移
 - Stage 12U: ホーム画面＋都道府県名表示＋春夏秋/大会種別フィルタ＋トーナメント学校クリック
 - Stage 13A: 架空選手・学校ロスター基盤を実装。1校20人をseed再現生成し、player_id・学年・守備位置・投打・所属を構造化
+- Stage 13B-1: 能力生成前の設計・変更管理基盤を固定。能力カタログ、1-100尺度、学校能力算出原則、version/revision、RNG namespace、ADR、調整JSONを正本化
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -28,6 +29,10 @@
 - `data/sources/` Phase 2調査出典
 - `phase2_engine/` 大会・シーズン共通エンジン
 - `game_core/` 選手・能力・個人成績・年度進行などゲーム本体の中核機能
+- `config/abilities/` 能力定義・生成分布・学校能力集約のversion付き調整値
+- `docs/design/` 能力・学校能力・調整運用の設計正本
+- `docs/adr/` 設計判断記録
+- `docs/tuning/` 能力・試合モデルの調整履歴
 - `tests/` 回帰テスト
 - `audits/` Phase/Stage別の監査・manifest・validation
 - `archive/snapshots/` 移管元の完成ZIP（復旧用）
@@ -69,4 +74,4 @@ python -m game_core.player_cli \
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-正式GUIの作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13Aでplayer_id・所属・学年・守備位置・投打を持つ20人構造ロスターをseed再現生成できるようにした。次工程はStage 13Bとして選手能力snapshotと学校打撃力/投手力/守備力を実装し、能力ベースの試合モデルへ接続する。秋季実績はStage 12Oのdueキューで後追い可能。
+正式GUIの作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13B-1で能力設計と変更管理方式を正本化し、22能力、通常能力1〜100、学校能力は選手から算出、調整値はversion付きJSON、seed再現にはconfig hashも保持する方針を固定した。次工程はStage 13B-2としてPlayerAbilitySnapshotとseed再現能力生成・大量分布監査を実装する。秋季実績はStage 12Oのdueキューで後追い可能。

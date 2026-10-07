@@ -1,0 +1,310 @@
+{
+  "config_id": "ability_catalog_v1",
+  "revision": 1,
+  "status": "design_contract",
+  "description_ja": "Stage 13B-1 選手能力の機械可読カタログ。能力の意味を変更する場合はv2へ上げる。",
+  "value_types": {
+    "scalar_1_100": {
+      "min": 1,
+      "max": 100
+    },
+    "velocity_kmh": {
+      "unit": "km/h",
+      "min": 100,
+      "max": 165
+    },
+    "position_map_1_100": {
+      "min": 1,
+      "max": 100
+    },
+    "pitch_list": {
+      "fields": [
+        "pitch_type",
+        "quality",
+        "command",
+        "usage"
+      ]
+    }
+  },
+  "abilities": [
+    {
+      "ability_id": "contact",
+      "subject": "batter",
+      "value_type": "scalar_1_100",
+      "definition_ja": "バットに当て、インプレーに持ち込む基礎能力。",
+      "used_for": [
+        "打球発生",
+        "安打確率の一要素"
+      ],
+      "not_for": [
+        "打率そのもの"
+      ]
+    },
+    {
+      "ability_id": "power",
+      "subject": "batter",
+      "value_type": "scalar_1_100",
+      "definition_ja": "強い打球・長打を生む能力。",
+      "used_for": [
+        "長打",
+        "打球強度"
+      ],
+      "not_for": [
+        "本塁打数そのもの"
+      ]
+    },
+    {
+      "ability_id": "plate_discipline",
+      "subject": "batter",
+      "value_type": "scalar_1_100",
+      "definition_ja": "ボール球を見極める能力。",
+      "used_for": [
+        "四球",
+        "悪球スイング抑制"
+      ],
+      "not_for": [
+        "出塁率そのもの"
+      ]
+    },
+    {
+      "ability_id": "strikeout_resistance",
+      "subject": "batter",
+      "value_type": "scalar_1_100",
+      "definition_ja": "追い込まれた後も三振を避ける能力。",
+      "used_for": [
+        "三振回避"
+      ],
+      "not_for": [
+        "contactの代替"
+      ]
+    },
+    {
+      "ability_id": "bunt",
+      "subject": "batter",
+      "value_type": "scalar_1_100",
+      "definition_ja": "犠打・セーフティバントを成功させる技術。",
+      "used_for": [
+        "バント成功"
+      ],
+      "not_for": [
+        "走力"
+      ]
+    },
+    {
+      "ability_id": "speed",
+      "subject": "fielder",
+      "value_type": "scalar_1_100",
+      "definition_ja": "純粋な走速度。",
+      "used_for": [
+        "走塁",
+        "守備範囲"
+      ],
+      "not_for": [
+        "盗塁成功率そのもの"
+      ]
+    },
+    {
+      "ability_id": "baserunning",
+      "subject": "batter",
+      "value_type": "scalar_1_100",
+      "definition_ja": "進塁判断やベースランニング技術。",
+      "used_for": [
+        "追加進塁",
+        "走塁ミス"
+      ],
+      "not_for": [
+        "純粋な走速度"
+      ]
+    },
+    {
+      "ability_id": "stealing",
+      "subject": "batter",
+      "value_type": "scalar_1_100",
+      "definition_ja": "スタート・判断を含む盗塁技術。",
+      "used_for": [
+        "盗塁企図",
+        "盗塁成功"
+      ],
+      "not_for": [
+        "speedの代替"
+      ]
+    },
+    {
+      "ability_id": "arm_strength",
+      "subject": "fielder",
+      "value_type": "scalar_1_100",
+      "definition_ja": "送球の強さ。",
+      "used_for": [
+        "送球到達",
+        "補殺"
+      ],
+      "not_for": [
+        "送球精度"
+      ]
+    },
+    {
+      "ability_id": "fielding",
+      "subject": "fielder",
+      "value_type": "scalar_1_100",
+      "definition_ja": "捕球・打球処理・守備範囲の基礎技術。",
+      "used_for": [
+        "守備成功",
+        "失策抑制"
+      ],
+      "not_for": [
+        "守備位置適性"
+      ]
+    },
+    {
+      "ability_id": "throwing",
+      "subject": "fielder",
+      "value_type": "scalar_1_100",
+      "definition_ja": "送球の正確性と安定性。",
+      "used_for": [
+        "送球成功",
+        "送球失策抑制"
+      ],
+      "not_for": [
+        "肩力"
+      ]
+    },
+    {
+      "ability_id": "catching",
+      "subject": "catcher",
+      "value_type": "scalar_1_100",
+      "definition_ja": "捕球・ワンバウンド処理・捕手守備の技術。",
+      "used_for": [
+        "捕逸抑制",
+        "捕手守備"
+      ],
+      "not_for": [
+        "game_calling"
+      ]
+    },
+    {
+      "ability_id": "game_calling",
+      "subject": "catcher",
+      "value_type": "scalar_1_100",
+      "definition_ja": "配球・投手との連携を表す捕手能力。",
+      "used_for": [
+        "投手結果への小幅補正"
+      ],
+      "not_for": [
+        "投手能力の直接上書き"
+      ]
+    },
+    {
+      "ability_id": "velocity_kmh",
+      "subject": "pitcher",
+      "value_type": "velocity_kmh",
+      "definition_ja": "投手の基準球速。",
+      "used_for": [
+        "球威",
+        "空振り",
+        "打球抑制"
+      ],
+      "not_for": [
+        "投手総合力そのもの"
+      ]
+    },
+    {
+      "ability_id": "control",
+      "subject": "pitcher",
+      "value_type": "scalar_1_100",
+      "definition_ja": "ストライクゾーン内外へ投げ分ける制球力。",
+      "used_for": [
+        "四球",
+        "失投"
+      ],
+      "not_for": [
+        "奪三振能力そのもの"
+      ]
+    },
+    {
+      "ability_id": "stamina",
+      "subject": "pitcher",
+      "value_type": "scalar_1_100",
+      "definition_ja": "投球を継続する持久力。",
+      "used_for": [
+        "球数耐性",
+        "疲労"
+      ],
+      "not_for": [
+        "球威"
+      ]
+    },
+    {
+      "ability_id": "stuff",
+      "subject": "pitcher",
+      "value_type": "scalar_1_100",
+      "definition_ja": "球速だけでは表せない球威・打ちにくさ。",
+      "used_for": [
+        "被打球抑制",
+        "空振り"
+      ],
+      "not_for": [
+        "変化球個別品質の代替"
+      ]
+    },
+    {
+      "ability_id": "strikeout",
+      "subject": "pitcher",
+      "value_type": "scalar_1_100",
+      "definition_ja": "三振を奪う総合能力。",
+      "used_for": [
+        "三振率"
+      ],
+      "not_for": [
+        "velocityのみの別名"
+      ]
+    },
+    {
+      "ability_id": "groundball",
+      "subject": "pitcher",
+      "value_type": "scalar_1_100",
+      "definition_ja": "ゴロを打たせる傾向・能力。",
+      "used_for": [
+        "打球タイプ"
+      ],
+      "not_for": [
+        "守備力"
+      ]
+    },
+    {
+      "ability_id": "composure",
+      "subject": "pitcher",
+      "value_type": "scalar_1_100",
+      "definition_ja": "走者・終盤など高圧状況での安定性。",
+      "used_for": [
+        "状況補正"
+      ],
+      "not_for": [
+        "通常時の恒常能力全体"
+      ]
+    },
+    {
+      "ability_id": "position_aptitude",
+      "subject": "fielder",
+      "value_type": "position_map_1_100",
+      "definition_ja": "守備位置ごとの習熟度。",
+      "used_for": [
+        "実効守備力"
+      ],
+      "not_for": [
+        "fieldingの代替"
+      ]
+    },
+    {
+      "ability_id": "pitch_repertoire",
+      "subject": "pitcher",
+      "value_type": "pitch_list",
+      "definition_ja": "球種ごとのquality・command・usage。",
+      "used_for": [
+        "対打者投球モデル"
+      ],
+      "not_for": [
+        "単一pitch_quality値"
+      ]
+    }
+  ]
+}
