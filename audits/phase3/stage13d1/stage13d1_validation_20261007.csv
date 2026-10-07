@@ -26,4 +26,4 @@ school_filter,PASS,leaderboards can filter by school
 player_summary,PASS,batter and pitcher sides share one player summary
 gui_adapter,PASS,BrowseGuiModel exposes stats summary and leaderboards
 official_rule_claim,PASS,config explicitly states qualification is not official rule
-github_actions,PENDING,final CI not yet recorded
+github_actions,PASS,Ran 451 tests; OK
