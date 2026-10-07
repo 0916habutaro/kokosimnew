@@ -41,6 +41,23 @@ class TournamentEngine:
         self.pre_main_match_resolver = pre_main_match_resolver
         self._active_pre_main_results: dict[str, dict] = {}
 
+    def prepare_main_runtime(
+        self,
+        annual: AnnualCompetitionInput,
+    ):
+        """Prepare a resumable MAIN bracket without resolving any real match.
+
+        Stage 13E-2 currently supports competitions whose execution graph begins
+        directly at MAIN. Pre-MAIN resumable execution is a later extension.
+        """
+        from .tournament_runtime import MainTournamentRuntimeState
+
+        return MainTournamentRuntimeState.from_direct_main(
+            self.repo,
+            annual,
+            match_resolver=self.main_match_resolver,
+        )
+
     def _pre_main_resolution_kwargs(self, annual: AnnualCompetitionInput) -> dict:
         if self.pre_main_match_resolver is None:
             return {}
