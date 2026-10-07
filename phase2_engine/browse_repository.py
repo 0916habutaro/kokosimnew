@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import asdict
 from datetime import date
@@ -15,7 +16,7 @@ from .repository import DataRepository
 from .season import SeasonExecution
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 _SCHEMA_SQL = """
@@ -126,6 +127,135 @@ CREATE INDEX IF NOT EXISTS idx_schools_year_name
     ON school_records(year, school_name, school_id);
 CREATE INDEX IF NOT EXISTS idx_schools_year_prefecture
     ON school_records(year, prefecture_code, wins DESC, school_id);
+
+
+CREATE TABLE IF NOT EXISTS ability_matches (
+    year INTEGER NOT NULL,
+    competition_id TEXT NOT NULL,
+    match_id TEXT NOT NULL,
+    generation_seed INTEGER NOT NULL,
+    team1_school_id TEXT NOT NULL,
+    team2_school_id TEXT NOT NULL,
+    team1_score INTEGER NOT NULL,
+    team2_score INTEGER NOT NULL,
+    winner_id TEXT NOT NULL,
+    loser_id TEXT NOT NULL,
+    last_inning INTEGER NOT NULL,
+    ending_half TEXT NOT NULL,
+    score_source TEXT NOT NULL,
+    match_config_id TEXT NOT NULL,
+    match_config_revision INTEGER NOT NULL,
+    match_config_sha256 TEXT NOT NULL,
+    event_catalog_id TEXT NOT NULL,
+    event_catalog_revision INTEGER NOT NULL,
+    event_catalog_sha256 TEXT NOT NULL,
+    stats_config_id TEXT NOT NULL,
+    stats_config_revision INTEGER NOT NULL,
+    stats_config_sha256 TEXT NOT NULL,
+    PRIMARY KEY (year, competition_id, match_id),
+    FOREIGN KEY (year) REFERENCES browse_seasons(year) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS batter_game_stats (
+    year INTEGER NOT NULL,
+    competition_id TEXT NOT NULL,
+    match_id TEXT NOT NULL,
+    player_id TEXT NOT NULL,
+    school_id TEXT NOT NULL,
+    plate_appearances INTEGER NOT NULL,
+    at_bats INTEGER NOT NULL,
+    runs INTEGER NOT NULL,
+    hits INTEGER NOT NULL,
+    doubles INTEGER NOT NULL,
+    triples INTEGER NOT NULL,
+    home_runs INTEGER NOT NULL,
+    rbi INTEGER NOT NULL,
+    walks INTEGER NOT NULL,
+    strikeouts INTEGER NOT NULL,
+    hit_by_pitch INTEGER NOT NULL,
+    sacrifice_flies INTEGER NOT NULL,
+    sacrifice_bunts INTEGER NOT NULL,
+    stolen_bases INTEGER NOT NULL,
+    caught_stealing INTEGER NOT NULL,
+    singles INTEGER NOT NULL,
+    PRIMARY KEY (year, competition_id, match_id, player_id),
+    FOREIGN KEY (year, competition_id, match_id)
+      REFERENCES ability_matches(year, competition_id, match_id)
+      ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS pitcher_game_stats (
+    year INTEGER NOT NULL,
+    competition_id TEXT NOT NULL,
+    match_id TEXT NOT NULL,
+    player_id TEXT NOT NULL,
+    school_id TEXT NOT NULL,
+    outs_recorded INTEGER NOT NULL,
+    batters_faced INTEGER NOT NULL,
+    runs_allowed INTEGER NOT NULL,
+    earned_runs INTEGER NOT NULL,
+    hits_allowed INTEGER NOT NULL,
+    home_runs_allowed INTEGER NOT NULL,
+    walks INTEGER NOT NULL,
+    strikeouts INTEGER NOT NULL,
+    hit_batters INTEGER NOT NULL,
+    PRIMARY KEY (year, competition_id, match_id, player_id),
+    FOREIGN KEY (year, competition_id, match_id)
+      REFERENCES ability_matches(year, competition_id, match_id)
+      ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS team_game_stats (
+    year INTEGER NOT NULL,
+    competition_id TEXT NOT NULL,
+    match_id TEXT NOT NULL,
+    school_id TEXT NOT NULL,
+    runs INTEGER NOT NULL,
+    hits INTEGER NOT NULL,
+    errors INTEGER NOT NULL,
+    PRIMARY KEY (year, competition_id, match_id, school_id),
+    FOREIGN KEY (year, competition_id, match_id)
+      REFERENCES ability_matches(year, competition_id, match_id)
+      ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS match_events (
+    year INTEGER NOT NULL,
+    competition_id TEXT NOT NULL,
+    match_id TEXT NOT NULL,
+    event_no INTEGER NOT NULL,
+    plate_appearance_no INTEGER NOT NULL,
+    inning INTEGER NOT NULL,
+    half TEXT NOT NULL,
+    offense_school_id TEXT NOT NULL,
+    defense_school_id TEXT NOT NULL,
+    batter_id TEXT NOT NULL,
+    pitcher_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    runs_scored INTEGER NOT NULL,
+    outs_on_play INTEGER NOT NULL,
+    rbi INTEGER NOT NULL,
+    metadata_json TEXT NOT NULL,
+    PRIMARY KEY (year, competition_id, match_id, event_no),
+    FOREIGN KEY (year, competition_id, match_id)
+      REFERENCES ability_matches(year, competition_id, match_id)
+      ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_ability_matches_year_comp
+    ON ability_matches(year, competition_id, match_id);
+CREATE INDEX IF NOT EXISTS idx_batter_stats_year_player
+    ON batter_game_stats(year, player_id, competition_id, match_id);
+CREATE INDEX IF NOT EXISTS idx_batter_stats_year_school
+    ON batter_game_stats(year, school_id, competition_id, match_id);
+CREATE INDEX IF NOT EXISTS idx_pitcher_stats_year_player
+    ON pitcher_game_stats(year, player_id, competition_id, match_id);
+CREATE INDEX IF NOT EXISTS idx_pitcher_stats_year_school
+    ON pitcher_game_stats(year, school_id, competition_id, match_id);
+CREATE INDEX IF NOT EXISTS idx_events_year_batter
+    ON match_events(year, batter_id, competition_id, match_id, event_no);
+CREATE INDEX IF NOT EXISTS idx_events_year_pitcher
+    ON match_events(year, pitcher_id, competition_id, match_id, event_no);
 """
 
 
@@ -288,6 +418,335 @@ class BrowseRepository:
             "school_count": len(views.school_records),
             "sqlite_db": str(self.db_path),
         }
+
+
+    @staticmethod
+    def _validate_match_result_detail(
+        year: int,
+        competition_id: str,
+        match_id: str,
+        detail: Mapping[str, object],
+    ) -> None:
+        if detail.get("match_id") != match_id:
+            raise ValueError(
+                f"{competition_id}/{match_id}: match_id mismatch"
+            )
+        if detail.get("competition_id") != competition_id:
+            raise ValueError(
+                f"{competition_id}/{match_id}: competition_id mismatch"
+            )
+        if int(detail.get("reference_year") or 0) != year:
+            raise ValueError(
+                f"{competition_id}/{match_id}: reference_year mismatch"
+            )
+        if detail.get("score_source") != "ability_model_v1":
+            raise ValueError(
+                f"{competition_id}/{match_id}: score_source must be ability_model_v1"
+            )
+        team1_score = detail.get("team1_score")
+        team2_score = detail.get("team2_score")
+        if (
+            not isinstance(team1_score, int)
+            or isinstance(team1_score, bool)
+            or not isinstance(team2_score, int)
+            or isinstance(team2_score, bool)
+            or team1_score < 0
+            or team2_score < 0
+            or team1_score == team2_score
+        ):
+            raise ValueError(
+                f"{competition_id}/{match_id}: invalid score"
+            )
+
+    def _replace_match_results_conn(
+        self,
+        conn: sqlite3.Connection,
+        season: SeasonExecution,
+    ) -> dict:
+        year = season.year
+        match_count = 0
+        batter_count = 0
+        pitcher_count = 0
+        team_count = 0
+        event_count = 0
+
+        for competition_id, run in sorted(season.competition_runs.items()):
+            for match_id, detail in sorted(
+                (run.match_simulation_results or {}).items()
+            ):
+                self._validate_match_result_detail(
+                    year,
+                    competition_id,
+                    match_id,
+                    detail,
+                )
+                conn.execute(
+                    """
+                    INSERT INTO ability_matches (
+                        year, competition_id, match_id, generation_seed,
+                        team1_school_id, team2_school_id,
+                        team1_score, team2_score, winner_id, loser_id,
+                        last_inning, ending_half, score_source,
+                        match_config_id, match_config_revision, match_config_sha256,
+                        event_catalog_id, event_catalog_revision, event_catalog_sha256,
+                        stats_config_id, stats_config_revision, stats_config_sha256
+                    ) VALUES (
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    )
+                    """,
+                    (
+                        year,
+                        competition_id,
+                        match_id,
+                        int(detail["generation_seed"]),
+                        str(detail["team1_school_id"]),
+                        str(detail["team2_school_id"]),
+                        int(detail["team1_score"]),
+                        int(detail["team2_score"]),
+                        str(detail["winner_id"]),
+                        str(detail["loser_id"]),
+                        int(detail["last_inning"]),
+                        str(detail["ending_half"]),
+                        str(detail["score_source"]),
+                        str(detail["match_config_id"]),
+                        int(detail["match_config_revision"]),
+                        str(detail["match_config_sha256"]),
+                        str(detail["event_catalog_id"]),
+                        int(detail["event_catalog_revision"]),
+                        str(detail["event_catalog_sha256"]),
+                        str(detail["stats_config_id"]),
+                        int(detail["stats_config_revision"]),
+                        str(detail["stats_config_sha256"]),
+                    ),
+                )
+                match_count += 1
+
+                for row in detail.get("batter_stats", []):
+                    conn.execute(
+                        """
+                        INSERT INTO batter_game_stats (
+                            year, competition_id, match_id, player_id, school_id,
+                            plate_appearances, at_bats, runs, hits, doubles, triples,
+                            home_runs, rbi, walks, strikeouts, hit_by_pitch,
+                            sacrifice_flies, sacrifice_bunts, stolen_bases,
+                            caught_stealing, singles
+                        ) VALUES (
+                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        )
+                        """,
+                        (
+                            year,
+                            competition_id,
+                            match_id,
+                            row["player_id"],
+                            row["school_id"],
+                            int(row["plate_appearances"]),
+                            int(row["at_bats"]),
+                            int(row["runs"]),
+                            int(row["hits"]),
+                            int(row["doubles"]),
+                            int(row["triples"]),
+                            int(row["home_runs"]),
+                            int(row["rbi"]),
+                            int(row["walks"]),
+                            int(row["strikeouts"]),
+                            int(row["hit_by_pitch"]),
+                            int(row["sacrifice_flies"]),
+                            int(row["sacrifice_bunts"]),
+                            int(row["stolen_bases"]),
+                            int(row["caught_stealing"]),
+                            int(row["singles"]),
+                        ),
+                    )
+                    batter_count += 1
+
+                for row in detail.get("pitcher_stats", []):
+                    conn.execute(
+                        """
+                        INSERT INTO pitcher_game_stats (
+                            year, competition_id, match_id, player_id, school_id,
+                            outs_recorded, batters_faced, runs_allowed, earned_runs,
+                            hits_allowed, home_runs_allowed, walks, strikeouts, hit_batters
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            year,
+                            competition_id,
+                            match_id,
+                            row["player_id"],
+                            row["school_id"],
+                            int(row["outs_recorded"]),
+                            int(row["batters_faced"]),
+                            int(row["runs_allowed"]),
+                            int(row["earned_runs"]),
+                            int(row["hits_allowed"]),
+                            int(row["home_runs_allowed"]),
+                            int(row["walks"]),
+                            int(row["strikeouts"]),
+                            int(row["hit_batters"]),
+                        ),
+                    )
+                    pitcher_count += 1
+
+                for row in detail.get("team_stats", []):
+                    conn.execute(
+                        """
+                        INSERT INTO team_game_stats (
+                            year, competition_id, match_id, school_id,
+                            runs, hits, errors
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            year,
+                            competition_id,
+                            match_id,
+                            row["school_id"],
+                            int(row["runs"]),
+                            int(row["hits"]),
+                            int(row["errors"]),
+                        ),
+                    )
+                    team_count += 1
+
+                for row in detail.get("events", []):
+                    conn.execute(
+                        """
+                        INSERT INTO match_events (
+                            year, competition_id, match_id, event_no,
+                            plate_appearance_no, inning, half,
+                            offense_school_id, defense_school_id,
+                            batter_id, pitcher_id, event_type,
+                            runs_scored, outs_on_play, rbi, metadata_json
+                        ) VALUES (
+                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        )
+                        """,
+                        (
+                            year,
+                            competition_id,
+                            match_id,
+                            int(row["event_no"]),
+                            int(row["plate_appearance_no"]),
+                            int(row["inning"]),
+                            str(row["half"]),
+                            str(row["offense_school_id"]),
+                            str(row["defense_school_id"]),
+                            str(row["batter_id"]),
+                            str(row["pitcher_id"]),
+                            str(row["event_type"]),
+                            int(row["runs_scored"]),
+                            int(row["outs_on_play"]),
+                            int(row["rbi"]),
+                            json.dumps(
+                                row.get("metadata", {}),
+                                ensure_ascii=False,
+                                sort_keys=True,
+                                separators=(",", ":"),
+                            ),
+                        ),
+                    )
+                    event_count += 1
+
+        return {
+            "ability_match_count": match_count,
+            "batter_game_stat_count": batter_count,
+            "pitcher_game_stat_count": pitcher_count,
+            "team_game_stat_count": team_count,
+            "match_event_count": event_count,
+        }
+
+    def replace_season_match_results(
+        self,
+        season: SeasonExecution,
+    ) -> dict:
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            with conn:
+                if conn.execute(
+                    "SELECT 1 FROM browse_seasons WHERE year = ?",
+                    (season.year,),
+                ).fetchone() is None:
+                    raise ValueError(
+                        "browse season must be stored before match results"
+                    )
+                for table in (
+                    "match_events",
+                    "team_game_stats",
+                    "pitcher_game_stats",
+                    "batter_game_stats",
+                    "ability_matches",
+                ):
+                    conn.execute(
+                        f"DELETE FROM {table} WHERE year = ?",
+                        (season.year,),
+                    )
+                return self._replace_match_results_conn(conn, season)
+
+    def ability_match(
+        self,
+        year: int,
+        competition_id: str,
+        match_id: str,
+    ) -> dict | None:
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            row = conn.execute(
+                """
+                SELECT * FROM ability_matches
+                WHERE year = ? AND competition_id = ? AND match_id = ?
+                """,
+                (year, competition_id, match_id),
+            ).fetchone()
+            return dict(row) if row is not None else None
+
+    def player_batter_game_stats(
+        self,
+        year: int,
+        player_id: str,
+    ) -> list[dict]:
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            return self._rows(conn.execute(
+                """
+                SELECT * FROM batter_game_stats
+                WHERE year = ? AND player_id = ?
+                ORDER BY competition_id, match_id
+                """,
+                (year, player_id),
+            ))
+
+    def player_pitcher_game_stats(
+        self,
+        year: int,
+        player_id: str,
+    ) -> list[dict]:
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            return self._rows(conn.execute(
+                """
+                SELECT * FROM pitcher_game_stats
+                WHERE year = ? AND player_id = ?
+                ORDER BY competition_id, match_id
+                """,
+                (year, player_id),
+            ))
+
+    def events_for_match(
+        self,
+        year: int,
+        competition_id: str,
+        match_id: str,
+    ) -> list[dict]:
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            return self._rows(conn.execute(
+                """
+                SELECT * FROM match_events
+                WHERE year = ? AND competition_id = ? AND match_id = ?
+                ORDER BY event_no
+                """,
+                (year, competition_id, match_id),
+            ))
 
     @staticmethod
     def _rows(cursor: sqlite3.Cursor) -> list[dict]:
@@ -655,8 +1114,10 @@ def save_season_browse_repository(
         match_date_overrides_by_competition=match_date_overrides_by_competition,
     )
     repository = BrowseRepository(db_path)
-    return repository.replace_season_views(
+    summary = repository.replace_season_views(
         season.year,
         season.rng_seed,
         views,
     )
+    summary.update(repository.replace_season_match_results(season))
+    return summary
