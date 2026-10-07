@@ -13,6 +13,7 @@ from game_core.ability_config import (
     validate_ability_catalog,
     validate_ability_scale,
     validate_player_generation,
+    validate_school_intake,
     validate_team_strength,
 )
 
@@ -27,14 +28,16 @@ class Stage13B1AbilityDesignGovernanceTests(unittest.TestCase):
         cls.catalog = cls.configs["ability_catalog_v1"]
         cls.scale = cls.configs["ability_scale_v1"]
         cls.generation = cls.configs["player_generation_v1"]
+        cls.intake = cls.configs["school_intake_v1"]
         cls.team = cls.configs["team_strength_v1"]
 
-    def test_all_four_configs_load(self):
+    def test_all_ability_configs_load(self):
         self.assertEqual(
             {
                 "ability_catalog_v1",
                 "ability_scale_v1",
                 "player_generation_v1",
+                "school_intake_v1",
                 "team_strength_v1",
             },
             set(self.configs),
@@ -81,6 +84,12 @@ class Stage13B1AbilityDesignGovernanceTests(unittest.TestCase):
     def test_generation_references_catalog(self):
         validate_player_generation(
             self.generation,
+            catalog=self.catalog,
+        )
+
+    def test_school_intake_references_catalog(self):
+        validate_school_intake(
+            self.intake,
             catalog=self.catalog,
         )
 
@@ -190,6 +199,38 @@ class Stage13B1AbilityDesignGovernanceTests(unittest.TestCase):
             document = load_config(path)
             with self.assertRaises(ValueError):
                 validate_team_strength(
+                    document,
+                    catalog=self.catalog,
+                )
+
+    def test_intake_direct_team_bonus_is_rejected(self):
+        payload = copy.deepcopy(self.intake.payload)
+        payload["rules"]["direct_team_strength_bonus"] = True
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "intake.json"
+            path.write_text(
+                json.dumps(payload, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            document = load_config(path)
+            with self.assertRaises(ValueError):
+                validate_school_intake(
+                    document,
+                    catalog=self.catalog,
+                )
+
+    def test_intake_must_be_marked_synthetic(self):
+        payload = copy.deepcopy(self.intake.payload)
+        payload["rules"]["synthetic_not_real_school_rating"] = False
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "intake.json"
+            path.write_text(
+                json.dumps(payload, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            document = load_config(path)
+            with self.assertRaises(ValueError):
+                validate_school_intake(
                     document,
                     catalog=self.catalog,
                 )
