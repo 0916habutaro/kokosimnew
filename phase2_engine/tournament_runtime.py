@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
+from datetime import date
 from math import log2
 from typing import Callable, Dict, List, Sequence
 
@@ -910,3 +911,251 @@ class MainTournamentRuntimeState:
                 in self.match_ids_by_round[round_no]
             ],
         }
+
+
+@dataclass
+class ScheduledMainTournamentRuntime:
+    """Assign game dates to a resumable MAIN bracket without resolving it."""
+
+    tournament: MainTournamentRuntimeState
+    match_date_by_id: Dict[str, str]
+    date_source: str = "projected_v1"
+
+    @classmethod
+    def from_calendar_row(
+        cls,
+        tournament: MainTournamentRuntimeState,
+        calendar_row: dict,
+    ) -> "ScheduledMainTournamentRuntime":
+        if (
+            calendar_row.get("competition_id")
+            != tournament.competition_id
+        ):
+            raise ValueError(
+                "calendar competition_id does not match tournament"
+            )
+        dates = [
+            value.strip()
+            for value in (
+                calendar_row.get("game_date_list") or ""
+            ).split(";")
+            if value.strip()
+        ]
+        for value in dates:
+            date.fromisoformat(value)
+        if dates != sorted(dates):
+            raise ValueError(
+                "game_date_list must be sorted"
+            )
+        if len(dates) != len(set(dates)):
+            raise ValueError(
+                "game_date_list contains duplicate date"
+            )
+
+        actual_ids = [
+            match_id
+            for round_no in range(
+                1,
+                tournament.total_rounds + 1,
+            )
+            for match_id
+            in tournament.match_ids_by_round[round_no]
+            if tournament.matches[match_id].status
+            != MATCH_BYE
+        ]
+        indices = _project_date_indices(
+            len(actual_ids),
+            len(dates),
+        )
+        mapping = {
+            match_id: (
+                ""
+                if index < 0
+                else dates[index]
+            )
+            for match_id, index
+            in zip(actual_ids, indices)
+        }
+        return cls(
+            tournament=tournament,
+            match_date_by_id=mapping,
+            date_source=(
+                "projected_v1"
+                if dates
+                else "undated"
+            ),
+        )
+
+    def scheduled_dates(self) -> list[str]:
+        return sorted({
+            value
+            for value in self.match_date_by_id.values()
+            if value
+        })
+
+    def matches_for_date(
+        self,
+        target: str,
+    ) -> list[dict]:
+        date.fromisoformat(target)
+        rows = []
+        for match_id, value in self.match_date_by_id.items():
+            if value != target:
+                continue
+            row = self.tournament.matches[
+                match_id
+            ].public_dict()
+            row["match_date"] = value
+            row["date_source"] = self.date_source
+            rows.append(row)
+        return sorted(
+            rows,
+            key=lambda row: (
+                row["round_no"],
+                row["match_no_in_round"],
+                row["match_id"],
+            ),
+        )
+
+    def unscheduled_matches(self) -> list[dict]:
+        rows = []
+        for match_id, value in self.match_date_by_id.items():
+            if value:
+                continue
+            row = self.tournament.matches[
+                match_id
+            ].public_dict()
+            row["match_date"] = ""
+            row["date_source"] = "undated"
+            rows.append(row)
+        return sorted(
+            rows,
+            key=lambda row: (
+                row["round_no"],
+                row["match_no_in_round"],
+                row["match_id"],
+            ),
+        )
+
+    def play_date(
+        self,
+        target: str,
+    ) -> list[MatchResolution]:
+        date.fromisoformat(target)
+        target_ids = [
+            match_id
+            for match_id, value
+            in self.match_date_by_id.items()
+            if value == target
+        ]
+        target_ids.sort(
+            key=lambda match_id: (
+                self.tournament.matches[
+                    match_id
+                ].round_no,
+                self.tournament.matches[
+                    match_id
+                ].match_no_in_round,
+                match_id,
+            )
+        )
+
+        results: list[MatchResolution] = []
+        unresolved = set(target_ids)
+        progressed = True
+        while unresolved and progressed:
+            progressed = False
+            for match_id in target_ids:
+                if match_id not in unresolved:
+                    continue
+                match = self.tournament.matches[
+                    match_id
+                ]
+                if match.status in {
+                    MATCH_COMPLETED,
+                    MATCH_BYE,
+                }:
+                    unresolved.remove(match_id)
+                    progressed = True
+                    continue
+                if match.status != MATCH_READY:
+                    continue
+                results.append(
+                    self.tournament.resolve_match(
+                        match_id
+                    )
+                )
+                unresolved.remove(match_id)
+                progressed = True
+
+        if unresolved:
+            blocked = sorted(unresolved)
+            raise RuntimeError(
+                "scheduled matches are blocked by "
+                f"unresolved prior matches: {blocked}"
+            )
+        return results
+
+    def advance_through(
+        self,
+        target: str,
+    ) -> dict:
+        target_date = date.fromisoformat(target)
+        played = 0
+        processed = []
+        for value in self.scheduled_dates():
+            if date.fromisoformat(value) > target_date:
+                break
+            result = self.play_date(value)
+            played += len(result)
+            processed.append(value)
+        return {
+            "processed_dates": processed,
+            "played_match_count": played,
+            "is_complete": self.tournament.is_complete,
+        }
+
+    def public_snapshot(self) -> dict:
+        snapshot = self.tournament.public_snapshot()
+        for row in snapshot["matches"]:
+            row["match_date"] = (
+                self.match_date_by_id.get(
+                    row["match_id"],
+                    "",
+                )
+            )
+            row["date_source"] = (
+                self.date_source
+                if row["match_date"]
+                else (
+                    "bye"
+                    if row["is_bye"]
+                    else "undated"
+                )
+            )
+        snapshot["scheduled_dates"] = (
+            self.scheduled_dates()
+        )
+        return snapshot
+
+
+def _project_date_indices(
+    match_count: int,
+    date_count: int,
+) -> list[int]:
+    if match_count <= 0:
+        return []
+    if date_count <= 0:
+        return [-1] * match_count
+    if match_count == 1:
+        return [date_count - 1]
+    if date_count == 1:
+        return [0] * match_count
+    return [
+        round(
+            index
+            * (date_count - 1)
+            / (match_count - 1)
+        )
+        for index in range(match_count)
+    ]
