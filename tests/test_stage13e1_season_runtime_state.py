@@ -242,6 +242,13 @@ class Stage13E1SeasonRuntimeStateTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             state.advance_to("2026-04-01")
 
+    def test_next_day_cannot_cross_season_year_boundary(self):
+        state = self.runtime()
+        state.current_date = date(2026, 12, 31)
+        with self.assertRaises(ValueError):
+            state.next_day()
+        self.assertEqual(date(2026, 12, 31), state.current_date)
+
     def test_undated_matches_remain_unscheduled_and_hidden(self):
         calendar = [dict(
             self.calendar[0],
