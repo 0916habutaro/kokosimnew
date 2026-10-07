@@ -566,10 +566,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    from .browse_gui_stage12u import Stage12UBrowseApp
+    from .browse_gui_stage13d3 import Stage13D3BrowseApp
 
     root = tk.Tk()
-    Stage12UBrowseApp(root, model)
+    Stage13D3BrowseApp(root, model)
     root.mainloop()
     return 0
 
