@@ -287,6 +287,34 @@ def validate_team_strength(
             "team strength: direct_school_rating_bonus must remain false"
         )
 
+    selection = payload.get("selection")
+    if not isinstance(selection, dict):
+        raise ValueError("team strength: selection required")
+    if set(selection.get("position_player_weights", {})) != {
+        "batting", "defense", "running"
+    }:
+        raise ValueError(
+            "team strength: position_player_weights keys mismatch"
+        )
+    if set(selection.get("catcher_weights", {})) != {
+        "batting", "defense"
+    }:
+        raise ValueError(
+            "team strength: catcher_weights keys mismatch"
+        )
+    _require_probability_weights(
+        selection["position_player_weights"],
+        "team_strength.selection.position_player_weights",
+    )
+    _require_probability_weights(
+        selection["catcher_weights"],
+        "team_strength.selection.catcher_weights",
+    )
+    _require_probability_weights(
+        selection["batting_order_weights"],
+        "team_strength.selection.batting_order_weights",
+    )
+
     _require_probability_weights(
         payload["batting"]["lineup_weights"],
         "team_strength.batting.lineup_weights",
@@ -330,6 +358,7 @@ def validate_team_strength(
         for item in catalog.payload["abilities"]
     }
     referenced = set(payload["batting"]["lineup_weights"]) - {"bench_depth"}
+    referenced |= set(payload["selection"]["batting_order_weights"])
     referenced |= set(
         payload["batting"]["bench_depth"]["composite_weights"]
     )

@@ -1,0 +1,19 @@
+check,status,detail
+starting_lineup_9_positions,PASS,P/C/1B/2B/3B/SS/LF/CF/RF
+batting_order_1_to_9,PASS,unique deterministic order
+pitching_staff_quality_order,PASS,ace/second/third/depth
+lineup_pitcher_equals_ace,PASS,validator enforced
+team_strength_metric_count,PASS,10
+team_strength_range,PASS,all 1..100
+direct_school_rating_bonus,PASS,false
+selection_weights_configured,PASS,team_strength_v1 revision 2
+config_provenance,PASS,id/revision/SHA-256
+player_generation_provenance,PASS,SHA-256 retained
+audit_seed_count,PASS,3
+audit_teams_per_seed,PASS,1000
+audit_total_teams,PASS,3000
+audit_underlying_players,PASS,60000
+audit_rows,PASS,30
+seed_mean_spread,PASS,all metrics below 0.5
+stage12p_connection_contract,PASS,generated_v1 compatible and ability_model_v1 planned
+school_variance_observation,PASS,recruiting/player intake heterogeneity remains future work

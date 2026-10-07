@@ -1,8 +1,8 @@
 {
   "config_id": "team_strength_v1",
-  "revision": 1,
+  "revision": 2,
   "status": "design_default_not_tuned",
-  "notes_ja": "学校能力は選手能力から導出する。重みはStage 13B-3監査で調整する。",
+  "notes_ja": "学校能力は選手能力から導出する。Stage 13B-3でStartingLineup / PitchingStaff / TeamStrengthSnapshotを実装し、選抜重みもconfig管理する。現値は実在校正前の初期baseline。",
   "source_contract": {
     "batting": "selected_starting_lineup_plus_bench",
     "defense": "selected_defensive_alignment",
@@ -81,7 +81,7 @@
     },
     "outputs": [
       "ace_strength",
-      "depth_strength",
+      "pitching_depth_strength",
       "bullpen_strength",
       "pitching_strength"
     ]
@@ -102,5 +102,24 @@
     "match_simulation_should_use_components_not_single_overall": true,
     "team_strength_is_snapshot_not_school_master": true,
     "fatigue_and_condition_applied_after_base_strength": true
+  },
+  "selection": {
+    "position_player_weights": {
+      "batting": 0.55,
+      "defense": 0.35,
+      "running": 0.1
+    },
+    "catcher_weights": {
+      "batting": 0.4,
+      "defense": 0.6
+    },
+    "batting_order_weights": {
+      "contact": 0.35,
+      "power": 0.25,
+      "plate_discipline": 0.15,
+      "strikeout_resistance": 0.1,
+      "speed": 0.1,
+      "baserunning": 0.05
+    }
   }
 }
