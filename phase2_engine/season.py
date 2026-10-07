@@ -228,44 +228,6 @@ class StructuralAnnualInputFactory:
                 if r.get("status") == "PASS" and r.get("entrant_count"):
                     self.exec_targets[r["competition_id"]] = int(r["entrant_count"])
 
-    def _begin_match_resolver_season(
-        self,
-        year: int,
-        rng_seed: int,
-    ) -> None:
-        hook = getattr(self.match_resolver, "begin_season", None)
-        if callable(hook):
-            hook(year, rng_seed)
-
-    def _capture_player_master(
-        self,
-        season: SeasonExecution,
-    ) -> None:
-        hook = getattr(self.match_resolver, "player_master_records", None)
-        if not callable(hook):
-            return
-        records = hook()
-        if not isinstance(records, dict):
-            raise TypeError(
-                "match_resolver.player_master_records() must return dict"
-            )
-        normalized: Dict[str, dict] = {}
-        for player_id, row in records.items():
-            if not isinstance(row, dict):
-                raise TypeError(
-                    f"{player_id}: player master record must be dict"
-                )
-            if str(row.get("player_id") or "") != str(player_id):
-                raise ValueError(
-                    f"{player_id}: player master player_id mismatch"
-                )
-            if int(row.get("reference_year") or 0) != season.year:
-                raise ValueError(
-                    f"{player_id}: player master reference_year mismatch"
-                )
-            normalized[str(player_id)] = dict(row)
-        season.player_master_records = normalized
-
     def _read(self, name: str) -> List[dict]:
         with resolve_data_file(self.data_dir, name).open("r", encoding="utf-8-sig", newline="") as f:
             return list(csv.DictReader(f))
@@ -480,6 +442,44 @@ class SeasonOrchestrator:
         self.selection_rules = self._read("selection_rules.csv")
         self.region_memberships = self._read("prefecture_region_memberships.csv")
         self.factory: StructuralAnnualInputFactory | None = None
+
+    def _begin_match_resolver_season(
+        self,
+        year: int,
+        rng_seed: int,
+    ) -> None:
+        hook = getattr(self.match_resolver, "begin_season", None)
+        if callable(hook):
+            hook(year, rng_seed)
+
+    def _capture_player_master(
+        self,
+        season: SeasonExecution,
+    ) -> None:
+        hook = getattr(self.match_resolver, "player_master_records", None)
+        if not callable(hook):
+            return
+        records = hook()
+        if not isinstance(records, dict):
+            raise TypeError(
+                "match_resolver.player_master_records() must return dict"
+            )
+        normalized: Dict[str, dict] = {}
+        for player_id, row in records.items():
+            if not isinstance(row, dict):
+                raise TypeError(
+                    f"{player_id}: player master record must be dict"
+                )
+            if str(row.get("player_id") or "") != str(player_id):
+                raise ValueError(
+                    f"{player_id}: player master player_id mismatch"
+                )
+            if int(row.get("reference_year") or 0) != season.year:
+                raise ValueError(
+                    f"{player_id}: player master reference_year mismatch"
+                )
+            normalized[str(player_id)] = dict(row)
+        season.player_master_records = normalized
 
     def _read(self, name: str) -> List[dict]:
         with resolve_data_file(self.data_dir, name).open("r", encoding="utf-8-sig", newline="") as f:
