@@ -369,12 +369,12 @@ class Stage12UGuiHomeFiltersTests(unittest.TestCase):
         self.assertIn('"<Button-1>"', source)
         self.assertIn("_navigate_to_school(sid)", source)
 
-    def test_browse_gui_launches_stage12u(self):
+    def test_browse_gui_launches_current_app(self):
         source = (
             ROOT / "phase2_engine" / "browse_gui.py"
         ).read_text(encoding="utf-8")
         self.assertIn("--data-dir", source)
-        self.assertIn("Stage12UBrowseApp(root, model)", source)
+        self.assertIn("Stage13D3BrowseApp(root, model)", source)
 
     def test_stage12u_remains_read_only(self):
         source = (
