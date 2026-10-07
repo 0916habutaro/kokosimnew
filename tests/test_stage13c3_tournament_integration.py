@@ -237,6 +237,41 @@ class Stage13C3TournamentIntegrationTests(unittest.TestCase):
                 len(payload["match_simulation_results"]),
             )
 
+    def test_annual_winner_override_has_priority_over_ability_resolver(self):
+        baseline = self.engine.run(self._annual())
+        target = next(
+            match
+            for match in baseline.stage_executions[-1].matches
+            if not match.is_bye and match.round_no == 1
+        )
+        forced = (
+            target.team2
+            if target.winner == target.team1
+            else target.team1
+        )
+
+        annual = self._annual()
+        annual.main_match_winner_overrides = {
+            target.match_id: forced,
+        }
+        self.resolver.clear_cache()
+        run = self.engine.run(annual)
+        updated = next(
+            match
+            for match in run.stage_executions[-1].matches
+            if match.match_id == target.match_id
+        )
+
+        self.assertEqual(forced, updated.winner)
+        self.assertEqual(
+            "annual_override",
+            updated.metadata.get("winner_source"),
+        )
+        self.assertNotIn(
+            target.match_id,
+            run.match_simulation_results,
+        )
+
     def test_without_main_match_resolver_existing_engine_behavior_remains(self):
         legacy = TournamentEngine(self.repo)
         run = legacy.run(self._annual())
