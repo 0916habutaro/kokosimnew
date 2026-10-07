@@ -21,4 +21,4 @@ sqlite_events,PASS,match_events table
 sqlite_roundtrip,PASS,3 ability matches round-trip with GameStats and events
 sqlite_read_player,PASS,player batter/pitcher GameStats read API
 sqlite_read_events,PASS,events_for_match read API
-github_actions,PASS,Ran 439 tests in 13.376s
+github_actions,PASS,Ran 439 tests in 18.143s
