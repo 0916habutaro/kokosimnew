@@ -81,7 +81,7 @@
     },
     "outputs": [
       "ace_strength",
-      "depth_strength",
+      "pitching_depth_strength",
       "bullpen_strength",
       "pitching_strength"
     ]
