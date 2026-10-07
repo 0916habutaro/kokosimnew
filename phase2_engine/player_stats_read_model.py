@@ -222,7 +222,11 @@ class PlayerStatsReadModel:
         if outs_recorded < 0:
             raise ValueError("outs_recorded must be non-negative")
         innings, remainder = divmod(outs_recorded, 3)
-        return str(innings) if remainder == 0 else f"{innings}.{remainder}"
+        return (
+            str(innings)
+            if remainder == 0
+            else f"{innings} {remainder}/3"
+        )
 
     def _batter_qualified(
         self,
