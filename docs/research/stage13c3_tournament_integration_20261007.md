@@ -90,13 +90,15 @@ AbilityMainMatchResolverを追加。
 
 ## GitHub Actions
 
-初回統合CI:
+最終統合CI:
 
 - Python 3.12
-- `Ran 429 tests in 11.794s`
+- `Ran 430 tests in 10.045s`
 - **OK**
 
-Stage 13C-3専用テスト: 9件。
+Stage 13C-3専用テスト: 10件。
+
+追加でannual winner overrideがability resolverより優先されることも実行テストで確認した。
 
 ## Scope
 
