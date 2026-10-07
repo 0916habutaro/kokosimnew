@@ -1,0 +1,18 @@
+check,status,detail
+runtime_module,PASS,MainTournamentRuntimeState exists
+prepare_no_resolution,PASS,prepare_main_runtime calls MatchResolver zero times
+waiting_status,PASS,downstream match waits for both participants
+ready_status,PASS,match becomes ready only with team1 and team2
+single_match_resolution,PASS,resolve_match resolves one ready match only
+winner_propagation,PASS,winner propagates through next_match_id and next_match_side
+bye_auto_propagation,PASS,first-round byes propagate without resolver call
+incomplete_materialization,PASS,CompetitionRun cannot materialize before completion
+random_legacy_equivalence,PASS,lazy resolve_all CompetitionRun exactly equals legacy random run
+ability_legacy_equivalence,PASS,lazy ability CompetitionRun exactly equals legacy ability run
+ability_lazy_execution,PASS,ability simulation results are empty before resolution
+winner_override,PASS,annual winner override has priority and skips resolver
+scheduled_runtime,PASS,game_date_list is projected onto unresolved real matches
+play_date_lazy,PASS,resolver runs only when scheduled date is played
+same_day_dependency,PASS,downstream match can resolve after same-day upstream completion
+future_winner_hidden,PASS,waiting and ready public rows contain no winner or loser
+github_actions,PASS,Ran 493 tests in 19.255s; OK
