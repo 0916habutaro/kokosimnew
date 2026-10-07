@@ -1,0 +1,49 @@
+{
+  "config_id": "game_stats_contract_v1",
+  "revision": 1,
+  "status": "design_contract",
+  "description_ja": "Stage 13C-1 個人成績の最小契約。打率等の派生率は保存せずread model側で計算する。",
+  "batter_fields": [
+    "plate_appearances",
+    "at_bats",
+    "runs",
+    "hits",
+    "doubles",
+    "triples",
+    "home_runs",
+    "rbi",
+    "walks",
+    "strikeouts",
+    "hit_by_pitch",
+    "sacrifice_flies",
+    "sacrifice_bunts",
+    "stolen_bases",
+    "caught_stealing"
+  ],
+  "pitcher_fields": [
+    "outs_recorded",
+    "batters_faced",
+    "runs_allowed",
+    "earned_runs",
+    "hits_allowed",
+    "home_runs_allowed",
+    "walks",
+    "strikeouts",
+    "hit_batters"
+  ],
+  "team_fields": [
+    "runs",
+    "hits",
+    "errors"
+  ],
+  "rules": {
+    "store_rate_stats": false,
+    "derive_rate_stats_in_read_model": true,
+    "batter_pa_formula": "AB+BB+HBP+SF+SH",
+    "hits_equal_single_plus_extra_base_hits": true,
+    "team_runs_equal_batter_runs": true,
+    "team_hits_equal_batter_hits": true,
+    "opponent_runs_equal_pitcher_runs_allowed": true,
+    "team_plate_appearances_equal_opponent_batters_faced": true
+  }
+}
