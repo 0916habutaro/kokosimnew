@@ -10,6 +10,11 @@ from .randomness import rng_for
 from .repository import DataRepository
 
 
+SCORE_SOURCE_OVERRIDE = "override"
+SCORE_SOURCE_ABILITY_MODEL_V1 = "ability_model_v1"
+SCORE_SOURCE_GENERATED_V1 = "generated_v1"
+
+
 @dataclass(frozen=True)
 class ResultViewRow:
     match_id: str
@@ -118,8 +123,10 @@ def build_competition_result_view(
     repo: DataRepository,
     *,
     score_overrides: Mapping[str, object] | None = None,
+    ability_scores: Mapping[str, object] | None = None,
 ) -> list[ResultViewRow]:
     overrides = dict(score_overrides or {})
+    ability = dict(ability_scores or {})
     matches = [
         match
         for execution in run.stage_executions
@@ -135,6 +142,12 @@ def build_competition_result_view(
             f"score overrides reference unknown match ids: "
             f"{sorted(unknown_override_ids)}"
         )
+    unknown_ability_ids = set(ability) - set(match_ids)
+    if unknown_ability_ids:
+        raise ValueError(
+            f"ability scores reference unknown match ids: "
+            f"{sorted(unknown_ability_ids)}"
+        )
 
     rows: list[ResultViewRow] = []
     for match in matches:
@@ -146,6 +159,8 @@ def build_competition_result_view(
         if match.is_bye:
             if match.match_id in overrides:
                 raise ValueError(f"{match.match_id}: bye match cannot have a score override")
+            if match.match_id in ability:
+                raise ValueError(f"{match.match_id}: bye match cannot have an ability score")
             if match.team2:
                 raise ValueError(f"{match.match_id}: bye match must not have team2")
             if match.winner and match.winner != match.team1:
@@ -160,10 +175,16 @@ def build_competition_result_view(
                     match.match_id,
                     overrides[match.match_id],
                 )
-                score_source = "override"
+                score_source = SCORE_SOURCE_OVERRIDE
+            elif match.match_id in ability:
+                team1_score, team2_score = _normalize_override(
+                    match.match_id,
+                    ability[match.match_id],
+                )
+                score_source = SCORE_SOURCE_ABILITY_MODEL_V1
             else:
                 team1_score, team2_score = _generated_score(run, match)
-                score_source = "generated_v1"
+                score_source = SCORE_SOURCE_GENERATED_V1
             _validate_score_winner(match, team1_score, team2_score)
             result_text = f"{team1_name} {team1_score}-{team2_score} {team2_name}"
 
@@ -216,6 +237,7 @@ def save_competition_result_view(
     output_dir: str | Path,
     *,
     score_overrides: Mapping[str, object] | None = None,
+    ability_scores: Mapping[str, object] | None = None,
 ) -> str:
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -224,6 +246,7 @@ def save_competition_result_view(
         run,
         repo,
         score_overrides=score_overrides,
+        ability_scores=ability_scores,
     )
     write_competition_result_view_csv(rows, path)
     return str(path)
