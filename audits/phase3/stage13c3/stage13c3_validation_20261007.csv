@@ -1,0 +1,22 @@
+check,status,detail
+match_resolution_contract,PASS,Phase2 generic MatchResolution added
+optional_resolver,PASS,TournamentEngine main_match_resolver is optional
+legacy_compatibility,PASS,resolver omitted keeps previous random winner behavior
+ability_bridge,PASS,AbilityMainMatchResolver builds roster ability TeamStrength and MatchSimulator input
+team_input_cache,PASS,same school year seed cached across tournament
+main_match_count,PASS,8-team integration tournament produced 7 ability matches
+bracket_progression,PASS,ability winner advances to next round
+champion_consistency,PASS,final ability winner equals CompetitionOutcome champion
+competition_run_storage,PASS,full MatchSimulationResult dict stored by match_id
+result_view_auto,PASS,embedded ability scores automatically displayed
+result_view_conflict_detection,PASS,explicit score conflict with embedded result rejected
+game_stats_storage,PASS,batter pitcher team stats retained per match
+event_storage,PASS,full MatchEvent list retained per match
+persistence_match_csv,PASS,ability_matches CSV written
+persistence_batter_csv,PASS,batter GameStats CSV written
+persistence_pitcher_csv,PASS,pitcher GameStats CSV written
+persistence_team_csv,PASS,team GameStats CSV written
+persistence_event_csv,PASS,match events CSV written
+summary_json,PASS,match_simulation_results included in CompetitionRun summary JSON
+annual_override_precedence,PASS,existing MAIN winner override bypasses ability simulation in integration test
+github_actions,PASS,Ran 430 tests in 10.045s

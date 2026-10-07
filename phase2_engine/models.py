@@ -65,6 +65,16 @@ class CompetitionOutcome:
     bracket_size: int
 
 
+@dataclass(frozen=True)
+class MatchResolution:
+    winner_id: str
+    loser_id: str
+    team1_score: int | None = None
+    team2_score: int | None = None
+    score_source: str = ""
+    detail: Dict[str, Any] = field(default_factory=dict)
+
+
 @dataclass
 class CompetitionRun:
     competition_id: str
@@ -76,6 +86,7 @@ class CompetitionRun:
     main_entrant_school_ids: List[str]
     warnings: List[str] = field(default_factory=list)
     outcome: CompetitionOutcome | None = None
+    match_simulation_results: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
