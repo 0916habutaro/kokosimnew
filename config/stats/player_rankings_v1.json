@@ -1,0 +1,43 @@
+{
+  "config_id": "player_rankings_v1",
+  "revision": 1,
+  "status": "design_default_not_tuned",
+  "description_ja": "Stage 13D-1 個人成績read modelとランキングの初期表示・規定値。高校野球の公式規定を表すものではなく、ゲーム内ランキング用の設計値。",
+  "rate_precision": 3,
+  "batter_qualification": {
+    "minimum_team_games": 1,
+    "plate_appearances_per_team_game": 2.0
+  },
+  "pitcher_qualification": {
+    "minimum_team_games": 1,
+    "outs_recorded_per_team_game": 3.0
+  },
+  "batter_rankings": {
+    "batting_average": "desc",
+    "on_base_percentage": "desc",
+    "slugging_percentage": "desc",
+    "ops": "desc",
+    "hits": "desc",
+    "home_runs": "desc",
+    "rbi": "desc",
+    "runs": "desc",
+    "walks": "desc",
+    "stolen_bases": "desc"
+  },
+  "pitcher_rankings": {
+    "earned_run_average": "asc",
+    "whip": "asc",
+    "strikeouts": "desc",
+    "strikeouts_per_9": "desc",
+    "walks_per_9": "asc",
+    "strikeout_walk_ratio": "desc",
+    "k_minus_bb_pct": "desc"
+  },
+  "rules": {
+    "rate_stats_are_derived": true,
+    "game_stats_counts_are_source_of_truth": true,
+    "ranking_qualification_is_game_design_not_official_rule": true,
+    "competition_filter_optional": true,
+    "school_filter_optional": true
+  }
+}
