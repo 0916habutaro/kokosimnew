@@ -160,9 +160,19 @@ class SeasonExecution:
         spring = [r for r in self.prefectural_rows if r.season_segment == "spring"]
         autumn = [r for r in self.prefectural_rows if r.season_segment == "autumn"]
         summer_runs = [cid for cid in self.summer_local_competition_ids if cid in self.competition_runs]
+        ability_match_count = sum(
+            len(run.match_simulation_results)
+            for run in self.competition_runs.values()
+        )
+        ability_competition_count = sum(
+            bool(run.match_simulation_results)
+            for run in self.competition_runs.values()
+        )
         return {
             "year": self.year,
             "rng_seed": self.rng_seed,
+            "ability_match_count": ability_match_count,
+            "ability_competition_count": ability_competition_count,
             "spring_prefectural_executed": len(spring),
             "autumn_prefectural_executed": len(autumn),
             "spring_prefectural_pass": sum(r.status == "PASS" for r in spring),
