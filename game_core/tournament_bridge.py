@@ -12,12 +12,12 @@ from .school_intake import SchoolAwarePlayerAbilityGenerator
 from .team_strength import TeamStrengthGenerator
 
 
-class AbilityMainMatchResolver:
-    """Bridge Phase 2 MAIN bracket execution to the Stage 13 ability model.
+class AbilityMatchResolver:
+    """Bridge Phase 2 tournament matches to the Stage 13 ability model.
 
-    Phase 2 remains responsible for bracket shape and progression. This resolver owns
-    each non-bye MAIN game's score/winner by constructing the two Stage 13 team inputs
-    and delegating the game itself to MatchSimulator.
+    Phase 2 remains responsible for tournament structure and progression. This resolver
+    owns each non-bye game's score/winner by constructing Stage 13 team inputs and
+    delegating the game itself to MatchSimulator.
     """
 
     def __init__(
@@ -123,3 +123,7 @@ class AbilityMainMatchResolver:
             score_source=result.score_source,
             detail=result.to_dict(),
         )
+
+
+# Backward-compatible Stage 13C-3 name.
+AbilityMainMatchResolver = AbilityMatchResolver

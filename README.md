@@ -26,6 +26,7 @@
 - Stage 13C-1: 能力ベース試合の入出力、MatchEvent、打者/投手/チームGameStats、winner ownership、ResultView `ability_model_v1` 接続、event/stats reconciliation contractを実装
 - Stage 13C-2: batter vs pitcher能力から打席eventを生成し、base/out state・9回＋延長・walk-off・投手継投・個人成績を一貫生成するMatchSimulatorを実装。3seed×各1,000試合監査で平均総得点9.80〜9.91、stronger側勝率61.4〜62.2%
 - Stage 13C-3: TournamentEngineのMAINへAbilityMainMatchResolverを正式接続。能力試合のscore/winnerがブラケット進行・CompetitionRun・ResultViewへ自動反映され、GameStats / MatchEventの大会単位保存にも対応
+- Stage 13C-4: pre-MAIN共通bracketへMatchResolutionを展開し、AbilityMatchResolverをMAIN/pre-MAIN共通化。SeasonOrchestratorから能力モデルをopt-in可能にし、GameStats / MatchEventをBrowseRepository SQLite schema v2へ永続化
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -108,4 +109,4 @@ python -m game_core.stage13c2_audit \
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-正式GUIの作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13C-3でMAIN本戦のブラケット進行を能力ベースMatchSimulatorへ正式接続し、能力試合のwinnerが次ラウンド・Championへそのまま反映されるようになった。CompetitionRunは完全なMatchSimulationResultを保持し、ResultViewは引数なしで `ability_model_v1` scoreを表示できる。大会保存時は打者・投手・チームGameStatsとMatchEventもCSV出力する。次工程はStage 13C-4としてpre-MAIN / SeasonOrchestratorへの能力resolver展開とGameStatsのSQLite永続化を進め、その後Stage 13Dの個人成績read modelへ接続する。秋季実績はStage 12Oのdueキューで後追い可能。
+正式GUIの作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13C-4でMAINだけでなくSEED_EVENT・地区予選・gate・league等が利用する共通bracketへMatchResolutionを展開し、SeasonOrchestratorから同じAbilityMatchResolverをMAIN/pre-MAIN双方へ注入できるようになった。BrowseRepositoryはschema version 2となり、ability_matches / batter_game_stats / pitcher_game_stats / team_game_stats / match_eventsを同一SQLiteへ保存できる。岐阜秋58校のSEED_EVENT→FIRST_TOURNAMENT→MAIN実走でも全非bye試合がability_model_v1で完走済み。次工程はStage 13D-1としてSQLiteのGameStatsから打者・投手の大会/シーズン集計、AVG/OBP/SLG/OPS、ERA/WHIP/K-BB等のread modelとランキングを実装する。秋季実績はStage 12Oのdueキューで後追い可能。

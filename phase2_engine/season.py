@@ -160,9 +160,19 @@ class SeasonExecution:
         spring = [r for r in self.prefectural_rows if r.season_segment == "spring"]
         autumn = [r for r in self.prefectural_rows if r.season_segment == "autumn"]
         summer_runs = [cid for cid in self.summer_local_competition_ids if cid in self.competition_runs]
+        ability_match_count = sum(
+            len(run.match_simulation_results)
+            for run in self.competition_runs.values()
+        )
+        ability_competition_count = sum(
+            bool(run.match_simulation_results)
+            for run in self.competition_runs.values()
+        )
         return {
             "year": self.year,
             "rng_seed": self.rng_seed,
+            "ability_match_count": ability_match_count,
+            "ability_competition_count": ability_competition_count,
             "spring_prefectural_executed": len(spring),
             "autumn_prefectural_executed": len(autumn),
             "spring_prefectural_pass": sum(r.status == "PASS" for r in spring),
@@ -406,10 +416,21 @@ class StructuralAnnualInputFactory:
 class SeasonOrchestrator:
     """Stage 12E season resolver including prefectural->regional qualification."""
 
-    def __init__(self, repo: DataRepository, data_dir: str | Path):
+    def __init__(
+        self,
+        repo: DataRepository,
+        data_dir: str | Path,
+        *,
+        match_resolver=None,
+    ):
         self.repo = repo
         self.data_dir = Path(data_dir)
-        self.engine = TournamentEngine(repo)
+        self.match_resolver = match_resolver
+        self.engine = TournamentEngine(
+            repo,
+            main_match_resolver=match_resolver,
+            pre_main_match_resolver=match_resolver,
+        )
         self.pref_index = self._read("prefectural_competition_index_2026.csv")
         self.calendars = {r["competition_id"]: r for r in self._read("season_calendar.csv")}
         self.access_rules = self._read("competition_access_rules.csv")
