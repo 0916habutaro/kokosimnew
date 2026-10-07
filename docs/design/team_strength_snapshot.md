@@ -105,6 +105,9 @@ TeamStrengthSnapshotには以下を保持する。
 - team_config_sha256
 - player_generation_sha256
 - generation_seed
+- school_intake_config_id
+- school_intake_config_revision
+- school_intake_config_sha256
 
 これにより後日configを調整しても、過去スナップショットがどの設定から生成されたか判定できる。
 
@@ -124,3 +127,12 @@ TournamentEngine winner/loser
 移行時は `score_source=ability_model_v1` を追加し、実スコアoverrideは最優先のまま維持する。
 
 最終的にはwinner/loserも能力ベース試合シミュレータが決めるが、Stage 13B-3では接続契約のみ固定する。
+
+
+## Stage 13B-4 source contract
+
+通常のTeamStrength生成では `SchoolAwarePlayerAbilityGenerator` の出力を使用する。
+
+baselineとschool-awareのPlayerAbilitySnapshotを同一TeamStrength入力へ混在させることは禁止し、validatorで拒否する。
+
+学校差は選手能力を通して形成されるため、TeamStrength集約式へ `school_bonus` のような直接補正は追加しない。

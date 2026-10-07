@@ -6,7 +6,8 @@ Stage 13B以降の能力生成・学校能力算出で使用する、機械可�
 
 - `ability_catalog_v1.json`: 能力IDと意味。意味変更は原則v2。
 - `ability_scale_v1.json`: 1〜100尺度・S〜G表示。
-- `player_generation_v1.json`: 選手能力生成の分布・namespace。
+- `player_generation_v1.json`: baseline選手能力生成の分布・namespace。
+- `school_intake_v1.json`: 合成program/cohort入部品質と能力調整幅。
 - `team_strength_v1.json`: 選手→学校能力の集約重み。
 
 ## version と revision
@@ -37,5 +38,7 @@ Stage 13B-2以降では大量生成監査を行い、変更前→理由→変更
 ## 禁止事項
 
 バランス調整値をPythonコードへ新規に直書きしない。
+
+学校masterへ固定の学校戦力や直接TeamStrength bonusを追加しない。学校差は選手生成・入部層を通して形成する。
 
 コードにはアルゴリズムを、JSONには調整値を置く。

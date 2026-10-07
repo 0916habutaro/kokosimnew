@@ -10,6 +10,7 @@ from phase2_engine.repository import DataRepository
 
 from .abilities import PlayerAbilityGenerator
 from .players import PlayerRosterGenerator
+from .school_intake import SchoolAwarePlayerAbilityGenerator
 from .team_strength import (
     TeamStrengthGenerator,
     TeamStrengthSnapshot,
@@ -67,6 +68,11 @@ def main() -> int:
     parser.add_argument("--school-limit", type=int)
     parser.add_argument("--output")
     parser.add_argument("--audit-output")
+    parser.add_argument(
+        "--baseline-no-school-intake",
+        action="store_true",
+        help="Disable Stage 13B-4 school intake adjustments for baseline audit",
+    )
     args = parser.parse_args()
 
     if not args.output and not args.audit_output:
@@ -78,7 +84,11 @@ def main() -> int:
 
     repo = DataRepository(Path(args.data_dir))
     roster_generator = PlayerRosterGenerator()
-    ability_generator = PlayerAbilityGenerator(Path(args.config_dir))
+    ability_generator = (
+        PlayerAbilityGenerator(Path(args.config_dir))
+        if args.baseline_no_school_intake
+        else SchoolAwarePlayerAbilityGenerator(Path(args.config_dir))
+    )
     team_generator = TeamStrengthGenerator(Path(args.config_dir))
 
     summary: dict[str, object] = {
@@ -86,6 +96,7 @@ def main() -> int:
         "seed": args.seed,
         "school_id": args.school_id,
         "school_limit": args.school_limit,
+        "school_intake_enabled": not args.baseline_no_school_intake,
     }
 
     def snapshots():

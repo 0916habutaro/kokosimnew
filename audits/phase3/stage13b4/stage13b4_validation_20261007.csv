@@ -1,0 +1,18 @@
+check,status,detail
+config_load,PASS,school_intake_v1 revision 1
+synthetic_rule,PASS,synthetic_not_real_school_rating=true
+direct_team_bonus,PASS,direct_team_strength_bonus=false
+program_persistence,PASS,same school program component persists across cohorts
+cohort_variation,PASS,entry_year changes cohort component
+baseline_available,PASS,PlayerAbilityGenerator remains available
+player_provenance,PASS,intake config id/revision/sha and latent values embedded
+team_provenance,PASS,TeamStrengthSnapshot stores intake config provenance
+mixed_source_rejection,PASS,baseline and intake snapshots cannot be mixed
+audit_scale,PASS,3 seeds x 1000 synthetic schools x 2 models
+audit_rows,PASS,66
+batting_sd_expansion,PASS,1.7013-1.7381 to 4.2374-4.3103
+pitching_sd_expansion,PASS,2.3198-2.4052 to 4.5583-4.7659
+representative_mean_drift,PASS,absolute drift <= 0.2319
+intake_latent_center,PASS,roster mean z between -0.0378 and 0.0429
+status,PASS,design_default_not_tuned retained
+github_actions,PASS,Ran 382 tests in 8.421s

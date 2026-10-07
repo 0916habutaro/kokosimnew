@@ -1,0 +1,64 @@
+{
+  "config_id": "school_intake_v1",
+  "revision": 1,
+  "status": "design_default_not_tuned",
+  "description_ja": "架空選手生成用の合成入部品質モデル。実在校の実力評価ではなく、学校間・年度間の選手流入差を再現するための暫定分布。",
+  "quality_model": {
+    "program_component": {
+      "mean": 0.0,
+      "stddev": 1.0,
+      "weight": 0.8
+    },
+    "cohort_component": {
+      "mean": 0.0,
+      "stddev": 1.0,
+      "weight": 0.6
+    },
+    "combined_clip": {
+      "min": -2.5,
+      "max": 2.5
+    }
+  },
+  "ability_adjustment_per_quality_z": {
+    "batter": {
+      "contact": 4.5,
+      "power": 5.0,
+      "plate_discipline": 4.0,
+      "strikeout_resistance": 4.0,
+      "bunt": 2.0,
+      "speed": 2.5,
+      "baserunning": 3.0,
+      "stealing": 3.0,
+      "arm_strength": 3.0,
+      "fielding": 4.0,
+      "throwing": 3.5
+    },
+    "catcher": {
+      "catching": 4.5,
+      "game_calling": 4.0
+    },
+    "pitcher": {
+      "velocity_kmh": 2.0,
+      "control": 4.5,
+      "stamina": 3.5,
+      "stuff": 5.0,
+      "strikeout": 4.5,
+      "groundball": 3.5,
+      "composure": 3.0
+    },
+    "primary_position_aptitude": 2.0,
+    "pitch_quality": 4.0,
+    "pitch_command": 4.0
+  },
+  "rules": {
+    "synthetic_not_real_school_rating": true,
+    "applied_before_team_strength": true,
+    "direct_team_strength_bonus": false,
+    "cohort_key": "entry_year",
+    "baseline_player_generator_remains_available": true
+  },
+  "rng_namespace_policy": {
+    "program": "school_intake_v1:program:{school_id}",
+    "cohort": "school_intake_v1:cohort:{school_id}:{entry_year}"
+  }
+}

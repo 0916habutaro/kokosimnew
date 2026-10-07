@@ -118,6 +118,10 @@ class TeamStrengthSnapshot:
     bullpen_strength: float
     pitching_strength: float
 
+    school_intake_config_id: str | None = None
+    school_intake_config_revision: int | None = None
+    school_intake_config_sha256: str | None = None
+
     def to_dict(self) -> dict:
         out = asdict(self)
         out["starting_lineup"] = self.starting_lineup.to_dict()
@@ -259,7 +263,7 @@ class TeamStrengthGenerator:
         snapshots: Iterable[PlayerAbilitySnapshot],
     ) -> StartingLineup:
         players = list(snapshots)
-        school_id, reference_year, _, _ = self._validate_source(players)
+        school_id, reference_year, *_ = self._validate_source(players)
 
         by_position = {
             position: [
@@ -328,7 +332,7 @@ class TeamStrengthGenerator:
         snapshots: Iterable[PlayerAbilitySnapshot],
     ) -> PitchingStaff:
         players = list(snapshots)
-        school_id, reference_year, _, _ = self._validate_source(players)
+        school_id, reference_year, *_ = self._validate_source(players)
         pitchers = [
             player for player in players if player.primary_position == "P"
         ]
@@ -372,9 +376,15 @@ class TeamStrengthGenerator:
         snapshots: Iterable[PlayerAbilitySnapshot],
     ) -> TeamStrengthSnapshot:
         players = list(snapshots)
-        school_id, reference_year, generation_seed, generation_sha = (
-            self._validate_source(players)
-        )
+        (
+            school_id,
+            reference_year,
+            generation_seed,
+            generation_sha,
+            intake_config_id,
+            intake_config_revision,
+            intake_config_sha,
+        ) = self._validate_source(players)
         lineup = self.select_starting_lineup(players)
         staff = self.select_pitching_staff(players)
         by_id = {player.player_id: player for player in players}
@@ -537,6 +547,9 @@ class TeamStrengthGenerator:
             ),
             bullpen_strength=_round_strength(bullpen_strength),
             pitching_strength=_round_strength(pitching_strength),
+            school_intake_config_id=intake_config_id,
+            school_intake_config_revision=intake_config_revision,
+            school_intake_config_sha256=intake_config_sha,
         )
         validate_team_strength_snapshot(snapshot)
         return snapshot
@@ -544,7 +557,15 @@ class TeamStrengthGenerator:
     @staticmethod
     def _validate_source(
         players: list[PlayerAbilitySnapshot],
-    ) -> tuple[str, int, int, str]:
+    ) -> tuple[
+        str,
+        int,
+        int,
+        str,
+        str | None,
+        int | None,
+        str | None,
+    ]:
         if len(players) < 12:
             raise ValueError(
                 "team strength requires at least 12 player snapshots"
@@ -554,6 +575,18 @@ class TeamStrengthGenerator:
         seeds = {player.generation_seed for player in players}
         generation_shas = {
             player.generation_sha256 for player in players
+        }
+        intake_ids = {
+            getattr(player, "intake_config_id", None)
+            for player in players
+        }
+        intake_revisions = {
+            getattr(player, "intake_config_revision", None)
+            for player in players
+        }
+        intake_shas = {
+            getattr(player, "intake_config_sha256", None)
+            for player in players
         }
         player_ids = [player.player_id for player in players]
         if len(school_ids) != 1:
@@ -572,6 +605,14 @@ class TeamStrengthGenerator:
             raise ValueError(
                 "player snapshots must share generation config"
             )
+        if (
+            len(intake_ids) != 1
+            or len(intake_revisions) != 1
+            or len(intake_shas) != 1
+        ):
+            raise ValueError(
+                "player snapshots must share school intake config"
+            )
         if len(player_ids) != len(set(player_ids)):
             raise ValueError(
                 "duplicate player_id in team strength input"
@@ -581,6 +622,9 @@ class TeamStrengthGenerator:
             next(iter(years)),
             next(iter(seeds)),
             next(iter(generation_shas)),
+            next(iter(intake_ids)),
+            next(iter(intake_revisions)),
+            next(iter(intake_shas)),
         )
 
     def iter_all_schools(
@@ -595,10 +639,12 @@ class TeamStrengthGenerator:
         roster_generator = (
             roster_generator or PlayerRosterGenerator()
         )
-        ability_generator = (
-            ability_generator
-            or PlayerAbilityGenerator(self.config_dir)
-        )
+        if ability_generator is None:
+            from .school_intake import SchoolAwarePlayerAbilityGenerator
+
+            ability_generator = SchoolAwarePlayerAbilityGenerator(
+                self.config_dir
+            )
         for roster in roster_generator.iter_all_rosters(
             repo,
             reference_year,
@@ -720,6 +766,9 @@ def write_team_strength_csv(
         "team_config_revision",
         "team_config_sha256",
         "player_generation_sha256",
+        "school_intake_config_id",
+        "school_intake_config_revision",
+        "school_intake_config_sha256",
         *TEAM_STRENGTH_METRICS,
         "starting_lineup_json",
         "pitching_staff_json",
