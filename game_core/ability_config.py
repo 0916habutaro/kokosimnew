@@ -273,6 +273,173 @@ def validate_player_generation(
             )
 
 
+
+def validate_school_intake(
+    document: ConfigDocument,
+    *,
+    catalog: ConfigDocument,
+) -> None:
+    payload = document.payload
+    quality = payload.get("quality_model")
+    if not isinstance(quality, dict):
+        raise ValueError("school intake: quality_model required")
+
+    components = ("program_component", "cohort_component")
+    squared_weight_sum = 0.0
+    for name in components:
+        component = quality.get(name)
+        if not isinstance(component, dict):
+            raise ValueError(f"school intake: {name} required")
+        stddev = _require_number(
+            component.get("stddev"),
+            f"school_intake.{name}.stddev",
+        )
+        if stddev <= 0:
+            raise ValueError(
+                f"school intake: {name}.stddev must be > 0"
+            )
+        weight = _require_number(
+            component.get("weight"),
+            f"school_intake.{name}.weight",
+        )
+        if weight < 0:
+            raise ValueError(
+                f"school intake: {name}.weight must be >= 0"
+            )
+        squared_weight_sum += weight * weight
+
+    if abs(squared_weight_sum - 1.0) > 1e-9:
+        raise ValueError(
+            "school intake: component squared weights must sum to 1.0"
+        )
+
+    clip = quality.get("combined_clip")
+    if not isinstance(clip, dict):
+        raise ValueError("school intake: combined_clip required")
+    clip_min = _require_number(
+        clip.get("min"),
+        "school_intake.combined_clip.min",
+    )
+    clip_max = _require_number(
+        clip.get("max"),
+        "school_intake.combined_clip.max",
+    )
+    if clip_min >= clip_max:
+        raise ValueError(
+            "school intake: combined_clip min must be < max"
+        )
+
+    adjustment = payload.get("ability_adjustment_per_quality_z")
+    if not isinstance(adjustment, dict):
+        raise ValueError(
+            "school intake: ability_adjustment_per_quality_z required"
+        )
+    expected = {
+        "batter": {
+            "contact",
+            "power",
+            "plate_discipline",
+            "strikeout_resistance",
+            "bunt",
+            "speed",
+            "baserunning",
+            "stealing",
+            "arm_strength",
+            "fielding",
+            "throwing",
+        },
+        "catcher": {"catching", "game_calling"},
+        "pitcher": {
+            "velocity_kmh",
+            "control",
+            "stamina",
+            "stuff",
+            "strikeout",
+            "groundball",
+            "composure",
+        },
+    }
+    catalog_ids = {
+        str(item["ability_id"])
+        for item in catalog.payload["abilities"]
+    }
+    for section, expected_ids in expected.items():
+        values = adjustment.get(section)
+        if not isinstance(values, dict):
+            raise ValueError(
+                f"school intake: adjustment section {section} required"
+            )
+        if set(values) != expected_ids:
+            raise ValueError(
+                f"school intake: {section} adjustment keys mismatch"
+            )
+        if not set(values).issubset(catalog_ids):
+            raise ValueError(
+                f"school intake: {section} references unknown ability"
+            )
+        for ability_id, value in values.items():
+            if _require_number(
+                value,
+                f"school_intake.{section}.{ability_id}",
+            ) < 0:
+                raise ValueError(
+                    f"school intake: {section}.{ability_id} must be >= 0"
+                )
+
+    for key in (
+        "primary_position_aptitude",
+        "pitch_quality",
+        "pitch_command",
+    ):
+        if _require_number(
+            adjustment.get(key),
+            f"school_intake.{key}",
+        ) < 0:
+            raise ValueError(f"school intake: {key} must be >= 0")
+
+    rules = payload.get("rules")
+    if not isinstance(rules, dict):
+        raise ValueError("school intake: rules required")
+    if rules.get("synthetic_not_real_school_rating") is not True:
+        raise ValueError(
+            "school intake: synthetic_not_real_school_rating must be true"
+        )
+    if rules.get("applied_before_team_strength") is not True:
+        raise ValueError(
+            "school intake: must be applied before team strength"
+        )
+    if rules.get("direct_team_strength_bonus") is not False:
+        raise ValueError(
+            "school intake: direct team strength bonus must remain false"
+        )
+    if rules.get("cohort_key") != "entry_year":
+        raise ValueError(
+            "school intake: cohort_key must remain entry_year"
+        )
+
+    namespaces = payload.get("rng_namespace_policy")
+    if not isinstance(namespaces, dict):
+        raise ValueError("school intake: rng_namespace_policy required")
+    if set(namespaces) != {"program", "cohort"}:
+        raise ValueError(
+            "school intake: rng namespace keys mismatch"
+        )
+    if "{school_id}" not in str(namespaces["program"]):
+        raise ValueError(
+            "school intake: program namespace requires school_id"
+        )
+    if (
+        "{school_id}" not in str(namespaces["cohort"])
+        or "{entry_year}" not in str(namespaces["cohort"])
+    ):
+        raise ValueError(
+            "school intake: cohort namespace requires school_id/entry_year"
+        )
+    if not all("_v1:" in str(value) for value in namespaces.values()):
+        raise ValueError(
+            "school intake: namespaces must be versioned"
+        )
+
 def validate_team_strength(
     document: ConfigDocument,
     *,
@@ -404,6 +571,10 @@ def load_and_validate_ability_configs(
         root / "player_generation_v1.json",
         expected_config_id="player_generation_v1",
     )
+    intake = load_config(
+        root / "school_intake_v1.json",
+        expected_config_id="school_intake_v1",
+    )
     team = load_config(
         root / "team_strength_v1.json",
         expected_config_id="team_strength_v1",
@@ -412,9 +583,10 @@ def load_and_validate_ability_configs(
     validate_ability_catalog(catalog)
     validate_ability_scale(scale)
     validate_player_generation(generation, catalog=catalog)
+    validate_school_intake(intake, catalog=catalog)
     validate_team_strength(team, catalog=catalog)
 
     return {
         document.config_id: document
-        for document in (catalog, scale, generation, team)
+        for document in (catalog, scale, generation, intake, team)
     }
