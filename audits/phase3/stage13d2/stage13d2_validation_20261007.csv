@@ -1,0 +1,18 @@
+check,status,detail
+seed_separation,PASS,match generation seed and team generation seed are separated
+season_identity,PASS,same school and year keep player ids across match seeds
+match_contract_compatibility,PASS,team_generation_seed optional preserves old callers
+player_master_snapshot,PASS,AbilityMatchResolver emits one row per generated player
+season_player_master,PASS,SeasonExecution holds player master snapshot
+sqlite_schema_version,PASS,BrowseRepository schema version 3
+sqlite_player_master,PASS,player_master table stores identity and display profile
+stats_normalization,PASS,GameStats do not duplicate player profile
+batter_master_join,PASS,batter aggregate joins player name and profile
+pitcher_master_join,PASS,pitcher aggregate joins player name and profile
+legacy_stats_fallback,PASS,missing player master falls back to player_id
+school_roster,PASS,school roster returns all 20 generated players
+bench_visibility,PASS,players without game stats remain visible in roster
+player_detail,PASS,master batting pitching payload
+player_search,PASS,name/id/school/position search
+competition_leaderboards,PASS,GUI contract returns batting and pitching rankings
+github_actions,PASS,Ran 459 tests in 19.457s; OK

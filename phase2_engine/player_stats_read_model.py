@@ -12,6 +12,12 @@ from .browse_repository import BrowseRepository
 @dataclass(frozen=True)
 class BatterAggregate:
     player_id: str
+    player_name: str
+    academic_year: int
+    roster_no: int
+    primary_position: str
+    bats: str
+    throws: str
     school_id: str
     school_name: str
     games: int
@@ -47,6 +53,12 @@ class BatterAggregate:
 @dataclass(frozen=True)
 class PitcherAggregate:
     player_id: str
+    player_name: str
+    academic_year: int
+    roster_no: int
+    primary_position: str
+    bats: str
+    throws: str
     school_id: str
     school_name: str
     games: int
@@ -79,6 +91,9 @@ class RankingRow:
     metric: str
     value: float | int
     player_id: str
+    player_name: str
+    academic_year: int
+    primary_position: str
     school_id: str
     school_name: str
     qualified: bool
@@ -314,6 +329,12 @@ class PlayerStatsReadModel:
             tg = int(team_games.get(sid, 0))
             out.append(BatterAggregate(
                 player_id=str(row["player_id"]),
+                player_name=str(row.get("player_name") or row["player_id"]),
+                academic_year=int(row.get("academic_year") or 0),
+                roster_no=int(row.get("roster_no") or 0),
+                primary_position=str(row.get("primary_position") or ""),
+                bats=str(row.get("bats") or ""),
+                throws=str(row.get("throws") or ""),
                 school_id=sid,
                 school_name=str(row["school_name"]),
                 games=int(row["games"]),
@@ -392,6 +413,12 @@ class PlayerStatsReadModel:
             tg = int(team_games.get(sid, 0))
             out.append(PitcherAggregate(
                 player_id=str(row["player_id"]),
+                player_name=str(row.get("player_name") or row["player_id"]),
+                academic_year=int(row.get("academic_year") or 0),
+                roster_no=int(row.get("roster_no") or 0),
+                primary_position=str(row.get("primary_position") or ""),
+                bats=str(row.get("bats") or ""),
+                throws=str(row.get("throws") or ""),
                 school_id=sid,
                 school_name=str(row["school_name"]),
                 games=int(row["games"]),
@@ -475,6 +502,9 @@ class PlayerStatsReadModel:
                 metric=metric,
                 value=value,
                 player_id=row.player_id,
+                player_name=row.player_name,
+                academic_year=row.academic_year,
+                primary_position=row.primary_position,
                 school_id=row.school_id,
                 school_name=row.school_name,
                 qualified=qualified,
@@ -551,6 +581,49 @@ class PlayerStatsReadModel:
             "year": year,
             "competition_id": competition_id,
             "player_id": player_id,
+            "player": self.repository.player_record(year, player_id),
             "batter": batters[0].to_dict() if batters else None,
             "pitcher": pitchers[0].to_dict() if pitchers else None,
         }
+
+    def school_roster_summary(
+        self,
+        year: int,
+        school_id: str,
+        *,
+        competition_id: str = "",
+    ) -> list[dict]:
+        roster = self.repository.school_roster(year, school_id)
+        batters = {
+            row.player_id: row
+            for row in self.batter_aggregates(
+                year,
+                competition_id=competition_id,
+                school_id=school_id,
+            )
+        }
+        pitchers = {
+            row.player_id: row
+            for row in self.pitcher_aggregates(
+                year,
+                competition_id=competition_id,
+                school_id=school_id,
+            )
+        }
+        out = []
+        for player in roster:
+            player_id = str(player["player_id"])
+            out.append({
+                "player": dict(player),
+                "batter": (
+                    batters[player_id].to_dict()
+                    if player_id in batters
+                    else None
+                ),
+                "pitcher": (
+                    pitchers[player_id].to_dict()
+                    if player_id in pitchers
+                    else None
+                ),
+            })
+        return out

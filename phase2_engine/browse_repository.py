@@ -16,7 +16,7 @@ from .repository import DataRepository
 from .season import SeasonExecution
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 _SCHEMA_SQL = """
@@ -128,6 +128,33 @@ CREATE INDEX IF NOT EXISTS idx_schools_year_name
 CREATE INDEX IF NOT EXISTS idx_schools_year_prefecture
     ON school_records(year, prefecture_code, wins DESC, school_id);
 
+
+CREATE TABLE IF NOT EXISTS player_master (
+    year INTEGER NOT NULL,
+    player_id TEXT NOT NULL,
+    school_id TEXT NOT NULL,
+    program_id TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    name_source TEXT NOT NULL,
+    academic_year INTEGER NOT NULL,
+    entry_year INTEGER NOT NULL,
+    roster_no INTEGER NOT NULL,
+    primary_position TEXT NOT NULL,
+    position_group TEXT NOT NULL,
+    bats TEXT NOT NULL,
+    throws TEXT NOT NULL,
+    roster_status TEXT NOT NULL,
+    generation_seed INTEGER NOT NULL,
+    PRIMARY KEY (year, player_id),
+    FOREIGN KEY (year) REFERENCES browse_seasons(year) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_player_master_year_school
+    ON player_master(year, school_id, roster_no, player_id);
+CREATE INDEX IF NOT EXISTS idx_player_master_year_name
+    ON player_master(year, display_name, player_id);
+CREATE INDEX IF NOT EXISTS idx_player_master_year_position
+    ON player_master(year, primary_position, school_id, roster_no);
 
 CREATE TABLE IF NOT EXISTS ability_matches (
     year INTEGER NOT NULL,
@@ -774,6 +801,12 @@ class BrowseRepository:
                 f"""
                 SELECT
                     b.player_id,
+                    COALESCE(pm.display_name, b.player_id) AS player_name,
+                    COALESCE(pm.academic_year, 0) AS academic_year,
+                    COALESCE(pm.roster_no, 0) AS roster_no,
+                    COALESCE(pm.primary_position, '') AS primary_position,
+                    COALESCE(pm.bats, '') AS bats,
+                    COALESCE(pm.throws, '') AS throws,
                     b.school_id,
                     COALESCE(s.school_name, '') AS school_name,
                     COUNT(*) AS games,
@@ -797,8 +830,20 @@ class BrowseRepository:
                 LEFT JOIN school_records AS s
                   ON s.year = b.year
                  AND s.school_id = b.school_id
+                LEFT JOIN player_master AS pm
+                  ON pm.year = b.year
+                 AND pm.player_id = b.player_id
                 WHERE {' AND '.join(clauses)}
-                GROUP BY b.player_id, b.school_id, s.school_name
+                GROUP BY
+                    b.player_id,
+                    pm.display_name,
+                    pm.academic_year,
+                    pm.roster_no,
+                    pm.primary_position,
+                    pm.bats,
+                    pm.throws,
+                    b.school_id,
+                    s.school_name
                 ORDER BY b.school_id, b.player_id
                 """,
                 params,
@@ -830,6 +875,12 @@ class BrowseRepository:
                 f"""
                 SELECT
                     p.player_id,
+                    COALESCE(pm.display_name, p.player_id) AS player_name,
+                    COALESCE(pm.academic_year, 0) AS academic_year,
+                    COALESCE(pm.roster_no, 0) AS roster_no,
+                    COALESCE(pm.primary_position, '') AS primary_position,
+                    COALESCE(pm.bats, '') AS bats,
+                    COALESCE(pm.throws, '') AS throws,
                     p.school_id,
                     COALESCE(s.school_name, '') AS school_name,
                     COUNT(*) AS games,
@@ -846,8 +897,20 @@ class BrowseRepository:
                 LEFT JOIN school_records AS s
                   ON s.year = p.year
                  AND s.school_id = p.school_id
+                LEFT JOIN player_master AS pm
+                  ON pm.year = p.year
+                 AND pm.player_id = p.player_id
                 WHERE {' AND '.join(clauses)}
-                GROUP BY p.player_id, p.school_id, s.school_name
+                GROUP BY
+                    p.player_id,
+                    pm.display_name,
+                    pm.academic_year,
+                    pm.roster_no,
+                    pm.primary_position,
+                    pm.bats,
+                    pm.throws,
+                    p.school_id,
+                    s.school_name
                 ORDER BY p.school_id, p.player_id
                 """,
                 params,
@@ -884,6 +947,200 @@ class BrowseRepository:
                 str(row["school_id"]): int(row["team_games"])
                 for row in rows
             }
+
+    @staticmethod
+    def _validate_player_master_record(
+        year: int,
+        player_id: str,
+        row: Mapping[str, object],
+    ) -> None:
+        if int(row.get("reference_year") or 0) != year:
+            raise ValueError(
+                f"{player_id}: player master reference_year mismatch"
+            )
+        if str(row.get("player_id") or "") != player_id:
+            raise ValueError(
+                f"{player_id}: player master player_id mismatch"
+            )
+        required_text = (
+            "school_id",
+            "program_id",
+            "display_name",
+            "name_source",
+            "primary_position",
+            "position_group",
+            "bats",
+            "throws",
+            "roster_status",
+        )
+        for key in required_text:
+            if not str(row.get(key) or ""):
+                raise ValueError(
+                    f"{player_id}: player master {key} required"
+                )
+        for key in (
+            "academic_year",
+            "entry_year",
+            "roster_no",
+            "generation_seed",
+        ):
+            value = row.get(key)
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise ValueError(
+                    f"{player_id}: player master {key} must be integer"
+                )
+
+    def replace_season_player_master(
+        self,
+        season: SeasonExecution,
+    ) -> dict:
+        year = season.year
+        records = dict(season.player_master_records or {})
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            with conn:
+                if conn.execute(
+                    "SELECT 1 FROM browse_seasons WHERE year = ?",
+                    (year,),
+                ).fetchone() is None:
+                    raise ValueError(
+                        "browse season must be stored before player master"
+                    )
+                conn.execute(
+                    "DELETE FROM player_master WHERE year = ?",
+                    (year,),
+                )
+                for player_id, row in sorted(records.items()):
+                    self._validate_player_master_record(
+                        year,
+                        str(player_id),
+                        row,
+                    )
+                    conn.execute(
+                        """
+                        INSERT INTO player_master (
+                            year, player_id, school_id, program_id,
+                            display_name, name_source,
+                            academic_year, entry_year, roster_no,
+                            primary_position, position_group,
+                            bats, throws, roster_status, generation_seed
+                        ) VALUES (
+                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        )
+                        """,
+                        (
+                            year,
+                            str(player_id),
+                            str(row["school_id"]),
+                            str(row["program_id"]),
+                            str(row["display_name"]),
+                            str(row["name_source"]),
+                            int(row["academic_year"]),
+                            int(row["entry_year"]),
+                            int(row["roster_no"]),
+                            str(row["primary_position"]),
+                            str(row["position_group"]),
+                            str(row["bats"]),
+                            str(row["throws"]),
+                            str(row["roster_status"]),
+                            int(row["generation_seed"]),
+                        ),
+                    )
+        return {
+            "player_master_count": len(records),
+        }
+
+    def player_record(
+        self,
+        year: int,
+        player_id: str,
+    ) -> dict | None:
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            row = conn.execute(
+                """
+                SELECT
+                    pm.*,
+                    COALESCE(s.school_name, '') AS school_name
+                FROM player_master AS pm
+                LEFT JOIN school_records AS s
+                  ON s.year = pm.year
+                 AND s.school_id = pm.school_id
+                WHERE pm.year = ? AND pm.player_id = ?
+                """,
+                (year, player_id),
+            ).fetchone()
+            return dict(row) if row is not None else None
+
+    def school_roster(
+        self,
+        year: int,
+        school_id: str,
+    ) -> list[dict]:
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            return self._rows(conn.execute(
+                """
+                SELECT
+                    pm.*,
+                    COALESCE(s.school_name, '') AS school_name
+                FROM player_master AS pm
+                LEFT JOIN school_records AS s
+                  ON s.year = pm.year
+                 AND s.school_id = pm.school_id
+                WHERE pm.year = ? AND pm.school_id = ?
+                ORDER BY pm.roster_no, pm.player_id
+                """,
+                (year, school_id),
+            ))
+
+    def search_players(
+        self,
+        year: int,
+        *,
+        text: str = "",
+        school_id: str = "",
+        position: str = "",
+        limit: int = 200,
+    ) -> list[dict]:
+        if limit < 1 or limit > 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        clauses = ["pm.year = ?"]
+        params: list[object] = [year]
+        if text:
+            clauses.append(
+                "(pm.display_name LIKE ? OR pm.player_id LIKE ?)"
+            )
+            token = f"%{text}%"
+            params.extend([token, token])
+        if school_id:
+            clauses.append("pm.school_id = ?")
+            params.append(school_id)
+        if position:
+            clauses.append("pm.primary_position = ?")
+            params.append(position)
+        params.append(limit)
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            return self._rows(conn.execute(
+                f"""
+                SELECT
+                    pm.*,
+                    COALESCE(s.school_name, '') AS school_name
+                FROM player_master AS pm
+                LEFT JOIN school_records AS s
+                  ON s.year = pm.year
+                 AND s.school_id = pm.school_id
+                WHERE {' AND '.join(clauses)}
+                ORDER BY
+                    s.school_name,
+                    pm.roster_no,
+                    pm.display_name,
+                    pm.player_id
+                LIMIT ?
+                """,
+                params,
+            ))
 
     @staticmethod
     def _rows(cursor: sqlite3.Cursor) -> list[dict]:
@@ -1256,5 +1513,6 @@ def save_season_browse_repository(
         season.rng_seed,
         views,
     )
+    summary.update(repository.replace_season_player_master(season))
     summary.update(repository.replace_season_match_results(season))
     return summary

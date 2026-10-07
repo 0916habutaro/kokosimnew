@@ -307,8 +307,9 @@ class Stage13C4PreMainSeasonSQLiteTests(unittest.TestCase):
                         "SELECT name FROM sqlite_master WHERE type='table'"
                     )
                 }
-            self.assertEqual(2, version)
+            self.assertEqual(3, version)
             self.assertTrue({
+                "player_master",
                 "ability_matches",
                 "batter_game_stats",
                 "pitcher_game_stats",

@@ -38,6 +38,7 @@ class MatchSimulationInput:
     generation_seed: int
     team1: TeamMatchInput
     team2: TeamMatchInput
+    team_generation_seed: int | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -45,6 +46,7 @@ class MatchSimulationInput:
             "competition_id": self.competition_id,
             "reference_year": self.reference_year,
             "generation_seed": self.generation_seed,
+            "team_generation_seed": self.team_generation_seed,
             "team1": self.team1.to_dict(),
             "team2": self.team2.to_dict(),
         }
@@ -340,6 +342,19 @@ def validate_match_simulation_input(
     validate_team_match_input(match_input.team1)
     validate_team_match_input(match_input.team2)
 
+    expected_team_seed = (
+        match_input.generation_seed
+        if match_input.team_generation_seed is None
+        else match_input.team_generation_seed
+    )
+    if (
+        not isinstance(expected_team_seed, int)
+        or isinstance(expected_team_seed, bool)
+    ):
+        raise ValueError(
+            "match simulation input: team_generation_seed must be integer"
+        )
+
     for label, team in (
         ("team1", match_input.team1),
         ("team2", match_input.team2),
@@ -349,9 +364,9 @@ def validate_match_simulation_input(
             raise ValueError(
                 f"match simulation input: {label} reference_year mismatch"
             )
-        if strength.generation_seed != match_input.generation_seed:
+        if strength.generation_seed != expected_team_seed:
             raise ValueError(
-                f"match simulation input: {label} generation_seed mismatch"
+                f"match simulation input: {label} team generation_seed mismatch"
             )
 
 
