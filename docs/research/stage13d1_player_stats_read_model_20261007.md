@@ -151,3 +151,14 @@ Stage 13D-2候補:
 - 学校ロスター成績一覧
 - 大会ランキング画面
 - batting / pitching leaderboard GUI navigation
+
+
+## GitHub Actions
+
+実装コード・専用fixtureを含むfull suite:
+
+- Python 3.12
+- 451 tests
+- OK
+
+Stage 13D-1専用テスト: 12件。
