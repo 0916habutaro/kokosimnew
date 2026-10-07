@@ -230,6 +230,70 @@ class Stage13C4PreMainSeasonSQLiteTests(unittest.TestCase):
         ))
         return run
 
+    def test_real_gifu_premain_and_main_use_one_ability_result_path(self):
+        competition_id = "CMP000110"
+        seed_stage = self.repo.stage_by_code(
+            competition_id,
+            "SEED_EVENT",
+        )
+        target_counts = [20, 10, 18, 10]
+        entrants = []
+        overrides = {}
+        for group, count in zip(
+            self.repo.groups_by_stage[seed_stage["stage_id"]],
+            target_counts,
+        ):
+            ids = sorted(
+                self.repo.group_school_ids(group, self.year)
+            )[:count]
+            self.assertEqual(count, len(ids))
+            entrants.extend(ids)
+            overrides[group["stage_group_id"]] = ids
+
+        resolver = AbilityMatchResolver(
+            self.repo,
+            ability_config_dir=ROOT / "config" / "abilities",
+            match_config_dir=ROOT / "config" / "match",
+        )
+        engine = TournamentEngine(
+            self.repo,
+            main_match_resolver=resolver,
+            pre_main_match_resolver=resolver,
+        )
+        run = engine.run(AnnualCompetitionInput(
+            competition_id=competition_id,
+            year=self.year,
+            entrant_school_ids=entrants,
+            rng_seed=self.seed,
+            group_entrant_school_ids=overrides,
+        ))
+
+        self.assertEqual(
+            ["SEED_EVENT", "FIRST_TOURNAMENT", "MAIN"],
+            [stage.stage_code for stage in run.stage_executions],
+        )
+        played = [
+            match
+            for stage in run.stage_executions
+            for match in stage.matches
+            if not match.is_bye
+        ]
+        self.assertTrue(played)
+        self.assertEqual(
+            {match.match_id for match in played},
+            set(run.match_simulation_results),
+        )
+        self.assertTrue(all(
+            match.metadata.get("score_source")
+            == "ability_model_v1"
+            for match in played
+        ))
+        self.assertIn(
+            run.outcome.champion_school_id,
+            run.main_entrant_school_ids,
+        )
+        self.assertEqual(len(set(entrants)), resolver.cache_size)
+
     def test_sqlite_schema_v2_contains_game_detail_tables(self):
         with tempfile.TemporaryDirectory() as td:
             db = Path(td) / "game.sqlite3"
