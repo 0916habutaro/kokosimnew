@@ -1,0 +1,69 @@
+{
+  "config_id": "ability_scale_v1",
+  "revision": 1,
+  "status": "design_default_not_tuned",
+  "scalar_scale": {
+    "min": 1,
+    "max": 100,
+    "neutral": 50
+  },
+  "display_bands": [
+    {
+      "grade": "S",
+      "min": 90,
+      "max": 100
+    },
+    {
+      "grade": "A",
+      "min": 80,
+      "max": 89
+    },
+    {
+      "grade": "B",
+      "min": 70,
+      "max": 79
+    },
+    {
+      "grade": "C",
+      "min": 60,
+      "max": 69
+    },
+    {
+      "grade": "D",
+      "min": 50,
+      "max": 59
+    },
+    {
+      "grade": "E",
+      "min": 40,
+      "max": 49
+    },
+    {
+      "grade": "F",
+      "min": 30,
+      "max": 39
+    },
+    {
+      "grade": "G",
+      "min": 1,
+      "max": 29
+    }
+  ],
+  "special_scales": {
+    "velocity_kmh": {
+      "min": 100,
+      "max": 165,
+      "unit": "km/h"
+    },
+    "position_aptitude": {
+      "min": 1,
+      "max": 100
+    }
+  },
+  "rules": {
+    "internal_precision": "integer",
+    "ui_default": "letter_grade_plus_numeric_optional",
+    "clamp_out_of_range": true,
+    "statistics_are_not_abilities": true
+  }
+}

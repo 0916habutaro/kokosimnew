@@ -1,0 +1,21 @@
+﻿check,result,detail
+design_first,PASS,Stage13B-2能力生成前に設計契約を固定
+ability_catalog,PASS,22能力を機械可読JSONで定義
+ability_scale,PASS,通常能力1-100・球速km/h・適性1-100
+display_bands,PASS,S/A/B/C/D/E/F/Gを設定JSON化
+player_snapshot_separation,PASS,Player/Ability/Condition/Statsを分離
+team_strength_derived,PASS,学校能力は選手+起用から導出
+direct_school_bonus,PASS,固定学校能力の直接加算を禁止
+team_components,PASS,打撃/走塁/守備/投手を複数componentで保持
+config_not_code,PASS,平均・標準偏差・weightをconfig/abilitiesへ配置
+config_versioning,PASS,意味変更=v2・数値調整=revision
+canonical_hash,PASS,再現用canonical_config_sha256を実装
+rng_namespace_isolation,PASS,ability/position/pitch単位でversion付きnamespace
+tuning_workflow,PASS,変更前→理由→変更→変更後→判断を標準化
+golden_seed_policy,PASS,unrelated change検出用の基準seed運用を設計
+adr_records,PASS,主要判断5件をADR化
+config_validation,PASS,能力ID・1-100帯・weight合計等をstdlib validatorで検査
+provisional_parameters,PASS,status=design_default_not_tunedを明示
+dedicated_tests,PASS,Stage13B-1専用17件追加
+ability_generation,NOT_STARTED,Stage13B-2で実装
+full_python_suite,NOT_RUN,全リポジトリPythonテストは未実行

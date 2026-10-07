@@ -1,0 +1,106 @@
+{
+  "config_id": "team_strength_v1",
+  "revision": 1,
+  "status": "design_default_not_tuned",
+  "notes_ja": "学校能力は選手能力から導出する。重みはStage 13B-3監査で調整する。",
+  "source_contract": {
+    "batting": "selected_starting_lineup_plus_bench",
+    "defense": "selected_defensive_alignment",
+    "pitching": "available_pitching_staff",
+    "direct_school_rating_bonus": false
+  },
+  "batting": {
+    "lineup_weights": {
+      "contact": 0.3,
+      "power": 0.25,
+      "plate_discipline": 0.15,
+      "strikeout_resistance": 0.1,
+      "speed": 0.05,
+      "bench_depth": 0.15
+    },
+    "bench_depth": {
+      "source": "top_3_nonstarters_by_batting_composite",
+      "composite_weights": {
+        "contact": 0.4,
+        "power": 0.35,
+        "plate_discipline": 0.25
+      }
+    }
+  },
+  "running": {
+    "weights": {
+      "speed": 0.45,
+      "baserunning": 0.35,
+      "stealing": 0.2
+    }
+  },
+  "defense": {
+    "player_formula_weights": {
+      "fielding": 0.55,
+      "throwing": 0.2,
+      "arm_strength": 0.1,
+      "position_aptitude": 0.15
+    },
+    "position_importance": {
+      "C": 1.2,
+      "1B": 0.8,
+      "2B": 1.1,
+      "3B": 1,
+      "SS": 1.25,
+      "LF": 0.85,
+      "CF": 1.2,
+      "RF": 0.9
+    },
+    "catcher_override": {
+      "enabled": true,
+      "weights": {
+        "fielding": 0.35,
+        "throwing": 0.15,
+        "arm_strength": 0.1,
+        "position_aptitude": 0.15,
+        "catching": 0.2,
+        "game_calling": 0.05
+      }
+    }
+  },
+  "pitching": {
+    "pitcher_quality_weights": {
+      "velocity_component": 0.2,
+      "control": 0.2,
+      "stuff": 0.2,
+      "strikeout": 0.15,
+      "groundball": 0.1,
+      "stamina": 0.1,
+      "composure": 0.05
+    },
+    "staff_weights": {
+      "ace": 0.45,
+      "second": 0.25,
+      "third": 0.15,
+      "remaining_depth": 0.15
+    },
+    "outputs": [
+      "ace_strength",
+      "depth_strength",
+      "bullpen_strength",
+      "pitching_strength"
+    ]
+  },
+  "outputs": [
+    "batting_strength",
+    "contact_strength",
+    "power_strength",
+    "discipline_strength",
+    "running_strength",
+    "defense_strength",
+    "ace_strength",
+    "pitching_depth_strength",
+    "bullpen_strength",
+    "pitching_strength"
+  ],
+  "rules": {
+    "match_simulation_should_use_components_not_single_overall": true,
+    "team_strength_is_snapshot_not_school_master": true,
+    "fatigue_and_condition_applied_after_base_strength": true
+  }
+}
