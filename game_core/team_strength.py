@@ -263,7 +263,7 @@ class TeamStrengthGenerator:
         snapshots: Iterable[PlayerAbilitySnapshot],
     ) -> StartingLineup:
         players = list(snapshots)
-        school_id, reference_year, _, _ = self._validate_source(players)
+        school_id, reference_year, *_ = self._validate_source(players)
 
         by_position = {
             position: [
