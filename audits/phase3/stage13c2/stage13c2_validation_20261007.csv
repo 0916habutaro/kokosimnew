@@ -1,0 +1,25 @@
+check,status,detail
+match_config_revision,PASS,match_simulation_v1 revision 2
+status,PASS,design_default_not_tuned
+base_probability_sum,PASS,normal event base probabilities sum to 1.0
+ability_driven_events,PASS,batter pitcher defense components modify event weights
+direct_score_bonus,PASS,TeamStrength total is not directly added to score
+seed_reproducibility,PASS,same input and match_id reproduce full result
+namespace_isolation,PASS,different match_id changes event sequence
+lineup_rotation,PASS,batting order continues across innings
+pitching_staff_usage,PASS,multiple pitchers can be used
+inning_progression,PASS,three outs advance half inning
+walkoff,PASS,bottom side can end game after regulation
+extra_innings,PASS,tie continues beyond regulation
+event_stats_reconciliation,PASS,Stage 13C-1 result validator required
+tournament_sync,PASS,winner loser and score metadata can synchronize to Match
+audit_scale,PASS,3 seeds x 1000 games
+audit_school_pool,PASS,240 generated schools per seed
+mean_total_runs,PASS,9.800-9.910 across seeds
+team2_bias,PASS,team2 win rate 0.487-0.523
+stronger_win_rate,PASS,overall stronger win rate 0.614-0.622
+edge_response,PASS,5-10 edge win rate >=0.665 and 10+ >=0.758
+event_seed_stability,PASS,SO BB H HR rates stable across seeds
+pitcher_usage,PASS,mean 3.176-3.213 pitchers per team
+high_score_tail,MONITOR,max total runs 28-40; calibration and mercy rules pending
+github_actions,PASS,Ran 417 tests in 10.157s in audit run
