@@ -5,6 +5,7 @@ from typing import Dict, List, Sequence
 
 from .models import AnnualCompetitionInput, CompetitionRun, MatchResolution, StageExecution
 from .premain_runtime_forest import BlockForestRuntimeState
+from .premain_runtime_fmt006 import Fmt006QualifierGroupRuntime
 from .repository import DataRepository
 from .tournament_runtime import MainTournamentRuntimeState
 
@@ -17,11 +18,36 @@ class Fmt001QualifierGroupRuntime:
     forest: BlockForestRuntimeState
 
     @property
+    def format_model_id(self) -> str:
+        return "FMT001"
+
+    @property
     def is_complete(self) -> bool:
         return self.forest.is_complete
 
+    def contains_match(self, match_id: str) -> bool:
+        return any(
+            match_id in runtime.matches
+            for runtime in self.forest.block_runtimes
+        )
+
+    def ready_matches(self) -> list[dict]:
+        return self.forest.ready_matches()
+
+    def resolve_match(self, match_id: str) -> MatchResolution:
+        return self.forest.resolve_match(match_id)
+
+    def resolve_ready_round(self) -> list[MatchResolution]:
+        return self.forest.resolve_ready_round()
+
+    def resolve_all(self) -> list[str]:
+        return self.forest.resolve_all()
+
     def output_school_ids(self) -> list[str]:
         return self.forest.winners()
+
+    def to_matches(self):
+        return self.forest.to_matches()
 
     def metadata(self) -> dict:
         return {
@@ -43,7 +69,7 @@ class QualifierMainRuntimeState:
     qualifier_stage: dict
     main_stage: dict
     qualifier_entrant_school_ids: List[str]
-    qualifier_groups: List[Fmt001QualifierGroupRuntime]
+    qualifier_groups: List[object]
     warnings: List[str]
     pre_main_match_simulation_results: Dict[str, dict]
     main_runtime: MainTournamentRuntimeState | None = None
@@ -164,6 +190,155 @@ class QualifierMainRuntimeState:
             main_match_resolver=main_match_resolver,
         )
 
+    @classmethod
+    def create_fmt006(
+        cls,
+        *,
+        repo: DataRepository,
+        annual: AnnualCompetitionInput,
+        entrants: Sequence[str],
+        direct: Sequence[str],
+        qualifier_entrants: Sequence[str],
+        qualifier_stage: dict,
+        main_stage: dict,
+        warnings: Sequence[str],
+        pre_main_match_resolver=None,
+        main_match_resolver=None,
+    ) -> "QualifierMainRuntimeState":
+        assignment = repo.assignments_by_stage.get(qualifier_stage["stage_id"])
+        if not assignment:
+            raise KeyError(f"no format assignment for {qualifier_stage['stage_id']}")
+        default_model = assignment["default_format_model_id"]
+        if default_model != "FMT006":
+            raise NotImplementedError(
+                "Stage 13E-3B-1 FMT006 runtime requires FMT006"
+            )
+
+        entrant_set = set(qualifier_entrants)
+        covered = set()
+        sink: Dict[str, dict] = {}
+        runtimes = []
+
+        for group in repo.groups_by_stage.get(qualifier_stage["stage_id"], []):
+            gid = group["stage_group_id"]
+            override = repo.group_format.get(gid)
+            model_id = (override or {}).get("format_model_id") or default_model
+            if model_id != "FMT006":
+                raise NotImplementedError(
+                    f"{gid}: Stage 13E-3B-1 does not yet support mixed {model_id}"
+                )
+
+            supplied = annual.group_entrant_school_ids.get(gid)
+            if supplied is not None:
+                eligible = list(dict.fromkeys(supplied))
+                outside = set(eligible) - entrant_set
+                if outside:
+                    raise ValueError(
+                        f"{gid}: annual group entrants outside competition entrant set: "
+                        f"{sorted(outside)}"
+                    )
+            else:
+                eligible = sorted(
+                    entrant_set & repo.group_school_ids(group, annual.year)
+                )
+
+            covered.update(eligible)
+            if not eligible:
+                continue
+
+            slots = repo.param(
+                qualifier_stage["stage_id"],
+                "output_slots",
+                gid,
+                int(
+                    group.get("advance_slots_to_next")
+                    or group.get("qualifier_slots_generated")
+                    or 0
+                ),
+            )
+            if slots is None or slots <= 0:
+                raise ValueError(f"{group['group_name']}: FMT006 requires output_slots")
+
+            supplied_pools = annual.group_pool_assignments.get(gid)
+            runtime_group = dict(group)
+            runtime_group["_runtime_supplied_pools"] = bool(supplied_pools)
+            runtimes.append(
+                Fmt006QualifierGroupRuntime.create(
+                    group=runtime_group,
+                    eligible_school_ids=eligible,
+                    output_slots=slots,
+                    competition_id=annual.competition_id,
+                    reference_year=annual.year,
+                    stage_id=qualifier_stage["stage_id"],
+                    stage_code=qualifier_stage["stage_code"],
+                    generation_seed=annual.rng_seed,
+                    supplied_pools=supplied_pools,
+                    match_resolver=pre_main_match_resolver,
+                    resolved_match_sink=sink,
+                )
+            )
+
+        uncovered = sorted(entrant_set - covered)
+        if uncovered:
+            raise ValueError(
+                f"qualifier entrants without a stage group: {uncovered[:10]}"
+            )
+
+        return cls(
+            repo=repo,
+            annual=annual,
+            entrant_school_ids=list(entrants),
+            direct_main_entry_school_ids=list(direct),
+            qualifier_stage=dict(qualifier_stage),
+            main_stage=dict(main_stage),
+            qualifier_entrant_school_ids=list(qualifier_entrants),
+            qualifier_groups=runtimes,
+            warnings=list(warnings),
+            pre_main_match_simulation_results=sink,
+            pre_main_match_resolver=pre_main_match_resolver,
+            main_match_resolver=main_match_resolver,
+        )
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        repo: DataRepository,
+        annual: AnnualCompetitionInput,
+        entrants: Sequence[str],
+        direct: Sequence[str],
+        qualifier_entrants: Sequence[str],
+        qualifier_stage: dict,
+        main_stage: dict,
+        warnings: Sequence[str],
+        pre_main_match_resolver=None,
+        main_match_resolver=None,
+    ) -> "QualifierMainRuntimeState":
+        assignment = repo.assignments_by_stage.get(qualifier_stage["stage_id"])
+        if not assignment:
+            raise KeyError(f"no format assignment for {qualifier_stage['stage_id']}")
+        model_id = assignment["default_format_model_id"]
+        factory = {
+            "FMT001": cls.create_fmt001,
+            "FMT006": cls.create_fmt006,
+        }.get(model_id)
+        if factory is None:
+            raise NotImplementedError(
+                f"Stage 13E-3B-1 qualifier runtime does not yet support {model_id}"
+            )
+        return factory(
+            repo=repo,
+            annual=annual,
+            entrants=entrants,
+            direct=direct,
+            qualifier_entrants=qualifier_entrants,
+            qualifier_stage=qualifier_stage,
+            main_stage=main_stage,
+            warnings=warnings,
+            pre_main_match_resolver=pre_main_match_resolver,
+            main_match_resolver=main_match_resolver,
+        )
+
     @property
     def qualifier_complete(self) -> bool:
         return all(group.is_complete for group in self.qualifier_groups)
@@ -177,7 +352,7 @@ class QualifierMainRuntimeState:
             return [
                 row
                 for group in self.qualifier_groups
-                for row in group.forest.ready_matches()
+                for row in group.ready_matches()
             ]
         self._activate_main()
         return self.main_runtime.ready_matches()
@@ -185,11 +360,8 @@ class QualifierMainRuntimeState:
     def resolve_match(self, match_id: str) -> MatchResolution:
         if not self.qualifier_complete:
             for group in self.qualifier_groups:
-                if any(
-                    match_id in runtime.matches
-                    for runtime in group.forest.block_runtimes
-                ):
-                    result = group.forest.resolve_match(match_id)
+                if group.contains_match(match_id):
+                    result = group.resolve_match(match_id)
                     if self.qualifier_complete:
                         self._activate_main()
                     return result
@@ -201,7 +373,7 @@ class QualifierMainRuntimeState:
         if not self.qualifier_complete:
             results = []
             for group in self.qualifier_groups:
-                results.extend(group.forest.resolve_ready_round())
+                results.extend(group.resolve_ready_round())
             if self.qualifier_complete:
                 self._activate_main()
             return results
@@ -210,7 +382,7 @@ class QualifierMainRuntimeState:
 
     def resolve_all(self) -> CompetitionRun:
         for group in self.qualifier_groups:
-            group.forest.resolve_all()
+            group.resolve_all()
         self._activate_main()
         self.main_runtime.resolve_all()
         return self.to_competition_run()
@@ -302,14 +474,16 @@ class QualifierMainRuntimeState:
             group_output = runtime.output_school_ids()
             outputs.extend(group_output)
             group_outputs[gid] = group_output
-            group_models[gid] = "FMT001"
+            group_models[gid] = runtime.format_model_id
             group_metadata[gid] = runtime.metadata()
-            matches.extend(runtime.forest.to_matches())
+            matches.extend(runtime.to_matches())
 
         return StageExecution(
             stage_id=self.qualifier_stage["stage_id"],
             stage_code=self.qualifier_stage["stage_code"],
-            format_model_id="FMT001",
+            format_model_id=self.repo.assignments_by_stage[
+                self.qualifier_stage["stage_id"]
+            ]["default_format_model_id"],
             entrant_school_ids=list(self.qualifier_entrant_school_ids),
             output_school_ids=list(dict.fromkeys(outputs)),
             matches=matches,
@@ -363,7 +537,7 @@ class QualifierMainRuntimeState:
             "qualifier_ready_match_ids": [
                 row["match_id"]
                 for group in self.qualifier_groups
-                for row in group.forest.ready_matches()
+                for row in group.ready_matches()
             ],
             "main": (
                 self.main_runtime.public_snapshot()

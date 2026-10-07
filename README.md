@@ -33,6 +33,7 @@
 - Stage 13E-1: SeasonRuntimeStateを追加し、ゲーム内current_date、pending/completed/unscheduled、play_today/next_day/advance_to/advance_throughを実装。未来のscore/winner/ability detailを非公開のまま、消化済み試合だけ学校戦績・大会状態へ反映
 - Stage 13E-2: MAINトーナメントをbracket skeletonと勝敗解決へ分離。MainTournamentRuntimeState / ScheduledMainTournamentRuntimeを追加し、ready matchだけを当日にMatchResolver実行するlazy・resumable進行を実装。random/Ability双方でlegacy一括runとのCompetitionRun完全一致を検証
 - Stage 13E-3A: pre-MAIN共通runtime primitive（single elimination / gate / round robin / block forest）を追加し、FMT001 qualifier→MAINをlazy化。北海道春CMP000004でlegacy CompetitionRun完全一致を検証
+- Stage 13E-3B-1: FMT006の3〜4校POOL_RR→3校pool2位CROSS_PLAYOFF→MAINをlazy化。神奈川春CMP000095でrandom/detailed resolver・annual pool overrideのlegacy CompetitionRun完全一致を検証
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -115,4 +116,4 @@ python -m game_core.stage13c2_audit \
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13E-3Aでpre-MAINの共通runtime primitiveを追加し、FMT001のBRANCH_QUALIFIER / PRELIMINARY_QUALIFIERからMAINへ進む大会をlazy化した。qualifier完了まではMAIN bracket自体を生成せず、最後の代表決定後に初めてMAINをactivateする。北海道春CMP000004ではlegacy TournamentEngine.run()とlazy CompetitionRunが完全一致した。次工程Stage 13E-3BではFMT006のpool RR＋cross playoff、FMT002〜025の複合repechage/secondary/seed event、FIRST_TOURNAMENTを同じruntime primitiveへ接続する。Stage 13D-3 GUI実ウィンドウ確認と秋季実績Stage 12O dueキューは後追い可能。
+正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13E-3B-1でFMT006をruntime化し、3〜4校POOL_RR終了後にだけ3校pool2位のCROSS_PLAYOFFを生成し、全代表確定後に初めてMAINをactivateする構造へ拡張した。神奈川春CMP000095ではrandom winner、詳細MatchResolution、annual group_pool_assignments overrideの各経路でlegacy TournamentEngine.run()とlazy CompetitionRunが完全一致した。次工程Stage 13E-3B-2ではFMT002〜005 / 007〜025のprimary→repechage/secondary等の複合phaseをruntime compositionへ接続する。その後3B-3でSEED_EVENT / FIRST_TOURNAMENT / seed event→qualifier→MAINをlazy化する。Stage 13D-3 GUI実ウィンドウ確認と秋季実績Stage 12O dueキューは後追い可能。

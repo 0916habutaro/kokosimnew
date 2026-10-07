@@ -332,8 +332,8 @@ class Stage13E3APreMainRuntimeTests(unittest.TestCase):
         self.assertFalse(snapshot["main_activated"])
         self.assertEqual([], snapshot["main_entrant_school_ids"])
 
-    def test_fmt006_graph_remains_explicitly_out_of_stage13e3a_scope(self):
-        competition_id = "CMP000095"
+    def test_fmt002_graph_remains_explicitly_out_of_stage13e3b1_scope(self):
+        competition_id = "CMP000074"
         pcode = self.repo.competition(competition_id)["prefecture_code"]
         entrants = sorted(
             school_id

@@ -1,0 +1,18 @@
+check,status,detail
+fmt006_runtime,PASS,Fmt006QualifierGroupRuntime implemented
+prepare_no_resolution,PASS,prepare calls resolver zero times
+pool_rr_first,PASS,only POOL_RR is ready before pool completion
+cross_not_prepared_early,PASS,CROSS_PLAYOFF does not exist before all pool results
+cross_activation,PASS,CROSS_PLAYOFF is generated after pool rankings are complete
+main_not_prepared_early,PASS,MAIN runtime absent until every FMT006 group completes
+direct_pool_rules,PASS,4-team top2 and 3-team top1 qualify directly
+three_team_runnerup_playoff,PASS,3-team pool runner-ups enter cross playoff
+cross_bye,PASS,odd cross-playoff candidate receives deterministic bye
+match_id_namespace_compatibility,PASS,CROSS_PLAYOFF IDs and namespaces match legacy run_head_to_head
+random_legacy_equivalence,PASS,CMP000095 lazy run exactly equals legacy random run
+detailed_legacy_equivalence,PASS,CMP000095 detailed MatchResolution lazy run exactly equals legacy run
+resolver_call_sequence,PASS,detailed resolver call order matches legacy
+result_sink_equivalence,PASS,match_simulation_results keys match resolver calls
+pool_override_equivalence,PASS,annual group_pool_assignments produces exact legacy result
+direct_main_entry,PASS,one direct MAIN team bypasses qualifier and rejoins MAIN
+github_actions,PASS,Ran 506 tests in 16.599s; OK

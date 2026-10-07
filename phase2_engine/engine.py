@@ -98,10 +98,15 @@ class TournamentEngine:
         )
         if (
             not assignment
-            or assignment["default_format_model_id"] != "FMT001"
+            or assignment["default_format_model_id"] not in {"FMT001", "FMT006"}
         ):
+            model_id = (
+                assignment["default_format_model_id"]
+                if assignment
+                else "missing"
+            )
             raise NotImplementedError(
-                "Stage 13E-3A competition runtime supports FMT001 only"
+                f"Stage 13E-3B-1 competition runtime does not yet support {model_id}"
             )
 
         qualifier_entrants, warnings = (
@@ -111,7 +116,7 @@ class TournamentEngine:
                 direct,
             )
         )
-        return QualifierMainRuntimeState.create_fmt001(
+        return QualifierMainRuntimeState.create(
             repo=self.repo,
             annual=annual,
             entrants=entrants,

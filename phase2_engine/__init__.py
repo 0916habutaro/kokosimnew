@@ -61,3 +61,4 @@ from .premain_runtime_gate import SingleRoundGateRuntimeState
 from .premain_runtime_round_robin import RoundRobinRuntimeState
 from .premain_runtime_forest import BlockForestRuntimeState
 from .premain_competition_runtime import QualifierMainRuntimeState
+from .premain_runtime_fmt006 import Fmt006QualifierGroupRuntime
