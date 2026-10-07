@@ -1,0 +1,27 @@
+check,status,detail
+composite_runtime,PASS,CompositeQualifierGroupRuntime implemented for FMT002-004 FMT007-017 FMT025
+fmt005_global_runtime,PASS,Fmt005GlobalQualifierRuntime implemented
+prepare_no_future_results,PASS,prepare creates only first phase and calls resolver zero times
+dependent_phase_lazy_activation,PASS,repechage and secondary phases are created only after dependency completion
+fmt002_repechage_boundary,PASS,REPECHAGE absent before PRIMARY completion
+fmt003_secondary_boundary,PASS,SECONDARY depends on PRIMARY outputs
+fmt004_protected_secondary,PASS,PRIMARY_TOP4 ranking feeds SECONDARY
+fmt005_global_repechage_boundary,PASS,REPECHAGE_GLOBAL absent before PRIMARY_GLOBAL completion
+fmt007_ranking_knockout,PASS,MAIN_KO ranking preserved
+fmt008_rep_deciders,PASS,MAIN_KO feeds REP_DECIDERS
+fmt010_primary_blocks,PASS,PRIMARY_BLOCKS top cohorts feed SECONDARY
+fmt011_fmt013_league_secondary,PASS,PRIMARY_LEAGUE rankings feed SECONDARY
+fmt012_zone_secondary,PASS,PRIMARY_ZONES winners feed SECONDARY
+fmt014_secondary,PASS,PRIMARY survivors feed SECONDARY
+fmt015_repechage_secondary,PASS,PRIMARY then PRIMARY_REPECHAGE then SECONDARY
+fmt016_secondary,PASS,PRIMARY direct representatives plus SECONDARY representative preserved
+fmt017_placement_playoffs,PASS,ZONE_RR feeds first and second place playoffs
+fmt025_ranking,PASS,PRIMARY plus REPECHAGE feeds post-qualification RANKING
+mixed_model_stage,PASS,CMP000113 and CMP000114 group format overrides execute lazily
+main_lazy_activation,PASS,MAIN runtime is absent until all qualifier groups complete
+random_legacy_equivalence,PASS,20 B2 qualifier competitions lazy CompetitionRun.to_dict exactly equals legacy
+detailed_legacy_equivalence,PASS,CMP000114 detailed resolver lazy run exactly equals legacy
+resolver_call_sequence,PASS,detailed resolver call order matches legacy
+result_sink_equivalence,PASS,match_simulation_results keys match resolver calls
+legacy_scope_guard_update,PASS,old FMT002 unsupported guard replaced by SEED_EVENT Stage 13E-3B-3 boundary
+github_actions,PASS,Ran 511 tests in 24.188s; OK

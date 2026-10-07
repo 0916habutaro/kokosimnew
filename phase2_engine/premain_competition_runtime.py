@@ -6,6 +6,11 @@ from typing import Dict, List, Sequence
 from .models import AnnualCompetitionInput, CompetitionRun, MatchResolution, StageExecution
 from .premain_runtime_forest import BlockForestRuntimeState
 from .premain_runtime_fmt006 import Fmt006QualifierGroupRuntime
+from .premain_runtime_composite import (
+    COMPOSITE_QUALIFIER_MODELS,
+    CompositeQualifierGroupRuntime,
+    Fmt005GlobalQualifierRuntime,
+)
 from .repository import DataRepository
 from .tournament_runtime import MainTournamentRuntimeState
 
@@ -300,6 +305,157 @@ class QualifierMainRuntimeState:
         )
 
     @classmethod
+    def create_composite(
+        cls,
+        *,
+        repo: DataRepository,
+        annual: AnnualCompetitionInput,
+        entrants: Sequence[str],
+        direct: Sequence[str],
+        qualifier_entrants: Sequence[str],
+        qualifier_stage: dict,
+        main_stage: dict,
+        warnings: Sequence[str],
+        pre_main_match_resolver=None,
+        main_match_resolver=None,
+    ) -> "QualifierMainRuntimeState":
+        assignment = repo.assignments_by_stage.get(qualifier_stage["stage_id"])
+        if not assignment:
+            raise KeyError(f"no format assignment for {qualifier_stage['stage_id']}")
+        default_model = assignment["default_format_model_id"]
+        if default_model not in COMPOSITE_QUALIFIER_MODELS:
+            raise NotImplementedError(
+                f"Stage 13E-3B-2 composite runtime does not support {default_model}"
+            )
+
+        entrant_set = set(qualifier_entrants)
+        covered = set()
+        sink: Dict[str, dict] = {}
+        runtimes = []
+
+        for group in repo.groups_by_stage.get(qualifier_stage["stage_id"], []):
+            gid = group["stage_group_id"]
+            override = repo.group_format.get(gid)
+            model_id = (override or {}).get("format_model_id") or default_model
+            if model_id not in COMPOSITE_QUALIFIER_MODELS:
+                raise NotImplementedError(
+                    f"{gid}: Stage 13E-3B-2 composite runtime "
+                    f"does not support mixed {model_id}"
+                )
+
+            supplied = annual.group_entrant_school_ids.get(gid)
+            if supplied is not None:
+                eligible = list(dict.fromkeys(supplied))
+                outside = set(eligible) - entrant_set
+                if outside:
+                    raise ValueError(
+                        f"{gid}: annual group entrants outside competition entrant set: "
+                        f"{sorted(outside)}"
+                    )
+            else:
+                eligible = sorted(
+                    entrant_set & repo.group_school_ids(group, annual.year)
+                )
+
+            covered.update(eligible)
+            if not eligible:
+                continue
+
+            slots = repo.param(
+                qualifier_stage["stage_id"],
+                "output_slots",
+                gid,
+                int(
+                    group.get("advance_slots_to_next")
+                    or group.get("qualifier_slots_generated")
+                    or 0
+                ),
+            )
+            if slots is None or slots <= 0:
+                raise ValueError(
+                    f"{group['group_name']}: {model_id} requires output_slots"
+                )
+
+            runtimes.append(
+                CompositeQualifierGroupRuntime.create(
+                    repo=repo,
+                    group=group,
+                    eligible_school_ids=eligible,
+                    output_slots=slots,
+                    format_model_id=model_id,
+                    competition_id=annual.competition_id,
+                    reference_year=annual.year,
+                    stage_id=qualifier_stage["stage_id"],
+                    stage_code=qualifier_stage["stage_code"],
+                    generation_seed=annual.rng_seed,
+                    match_resolver=pre_main_match_resolver,
+                    resolved_match_sink=sink,
+                )
+            )
+
+        uncovered = sorted(entrant_set - covered)
+        if uncovered:
+            raise ValueError(
+                f"qualifier entrants without a stage group: {uncovered[:10]}"
+            )
+
+        return cls(
+            repo=repo,
+            annual=annual,
+            entrant_school_ids=list(entrants),
+            direct_main_entry_school_ids=list(direct),
+            qualifier_stage=dict(qualifier_stage),
+            main_stage=dict(main_stage),
+            qualifier_entrant_school_ids=list(qualifier_entrants),
+            qualifier_groups=runtimes,
+            warnings=list(warnings),
+            pre_main_match_simulation_results=sink,
+            pre_main_match_resolver=pre_main_match_resolver,
+            main_match_resolver=main_match_resolver,
+        )
+
+    @classmethod
+    def create_fmt005(
+        cls,
+        *,
+        repo: DataRepository,
+        annual: AnnualCompetitionInput,
+        entrants: Sequence[str],
+        direct: Sequence[str],
+        qualifier_entrants: Sequence[str],
+        qualifier_stage: dict,
+        main_stage: dict,
+        warnings: Sequence[str],
+        pre_main_match_resolver=None,
+        main_match_resolver=None,
+    ) -> "QualifierMainRuntimeState":
+        sink: Dict[str, dict] = {}
+        runtime = Fmt005GlobalQualifierRuntime.create(
+            repo=repo,
+            entrant_school_ids=qualifier_entrants,
+            competition_id=annual.competition_id,
+            reference_year=annual.year,
+            stage=qualifier_stage,
+            generation_seed=annual.rng_seed,
+            match_resolver=pre_main_match_resolver,
+            resolved_match_sink=sink,
+        )
+        return cls(
+            repo=repo,
+            annual=annual,
+            entrant_school_ids=list(entrants),
+            direct_main_entry_school_ids=list(direct),
+            qualifier_stage=dict(qualifier_stage),
+            main_stage=dict(main_stage),
+            qualifier_entrant_school_ids=list(qualifier_entrants),
+            qualifier_groups=[runtime],
+            warnings=list(warnings),
+            pre_main_match_simulation_results=sink,
+            pre_main_match_resolver=pre_main_match_resolver,
+            main_match_resolver=main_match_resolver,
+        )
+
+    @classmethod
     def create(
         cls,
         *,
@@ -320,11 +476,14 @@ class QualifierMainRuntimeState:
         model_id = assignment["default_format_model_id"]
         factory = {
             "FMT001": cls.create_fmt001,
+            "FMT005": cls.create_fmt005,
             "FMT006": cls.create_fmt006,
         }.get(model_id)
+        if factory is None and model_id in COMPOSITE_QUALIFIER_MODELS:
+            factory = cls.create_composite
         if factory is None:
             raise NotImplementedError(
-                f"Stage 13E-3B-1 qualifier runtime does not yet support {model_id}"
+                f"Stage 13E-3B-2 qualifier runtime does not yet support {model_id}"
             )
         return factory(
             repo=repo,
@@ -463,10 +622,28 @@ class QualifierMainRuntimeState:
             raise ValueError(
                 "qualifier StageExecution unavailable before completion"
             )
+        default_model = self.repo.assignments_by_stage[
+            self.qualifier_stage["stage_id"]
+        ]["default_format_model_id"]
+        if default_model == "FMT005":
+            return self.qualifier_groups[0].stage_execution()
         outputs = []
         matches = []
-        group_outputs = {}
+        stage_groups = self.repo.groups_by_stage.get(
+            self.qualifier_stage["stage_id"], []
+        )
+        group_outputs = {
+            group["stage_group_id"]: []
+            for group in stage_groups
+        }
         group_models = {}
+        for group in stage_groups:
+            gid = group["stage_group_id"]
+            override = self.repo.group_format.get(gid)
+            group_models[gid] = (
+                (override or {}).get("format_model_id")
+                or default_model
+            )
         group_metadata = {}
 
         for runtime in self.qualifier_groups:
@@ -488,11 +665,7 @@ class QualifierMainRuntimeState:
             output_school_ids=list(dict.fromkeys(outputs)),
             matches=matches,
             metadata={
-                "group_count": len(
-                    self.repo.groups_by_stage.get(
-                        self.qualifier_stage["stage_id"], []
-                    )
-                ),
+                "group_count": len(stage_groups),
                 "group_outputs": group_outputs,
                 "group_models": group_models,
                 "group_metadata": group_metadata,
