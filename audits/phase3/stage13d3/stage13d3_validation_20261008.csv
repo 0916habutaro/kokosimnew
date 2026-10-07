@@ -1,17 +1,17 @@
 check,status,detail
-inherit_existing_gui,PENDING,Stage13D3BrowseApp extends Stage12UBrowseApp
-player_tab,PENDING,player and roster tab added
-rankings_tab,PENDING,individual statistics rankings tab added
-school_to_roster,PENDING,school selection navigates to roster
-roster_to_player,PENDING,roster row navigates to player detail
-competition_to_rankings,PENDING,competition selection navigates to rankings
-ranking_to_player,PENDING,batting and pitching rankings navigate to player detail
-player_search,PENDING,name id school position search uses BrowseGuiModel
-player_detail,PENDING,master batting pitching summary shown
-bench_visibility,PENDING,roster uses player master so bench players remain visible
-ranking_metrics,PENDING,all Stage13D1 configured ranking metrics selectable
-readonly_gui,PENDING,no write repository methods used in GUI
-launcher,PENDING,browse_gui launches Stage13D3BrowseApp
-legacy_gui,PENDING,Stage12U functionality remains inherited
-github_actions,PENDING,final full unittest suite
-local_display,PENDING,manual display checklist documented; requires desktop run
+inherit_existing_gui,PASS,Stage13D3BrowseApp extends Stage12UBrowseApp
+player_tab,PASS,player and roster tab added
+rankings_tab,PASS,individual statistics rankings tab added
+school_to_roster,PASS,school selection navigates to roster
+roster_to_player,PASS,roster row navigates to player detail
+competition_to_rankings,PASS,competition selection navigates to rankings
+ranking_to_player,PASS,batting and pitching rankings navigate to player detail
+player_search,PASS,name id school position search uses BrowseGuiModel
+player_detail,PASS,master batting pitching summary shown
+bench_visibility,PASS,roster uses player master so bench players remain visible
+ranking_metrics,PASS,all Stage13D1 configured ranking metrics selectable
+readonly_gui,PASS,no write repository methods used in GUI
+launcher,PASS,browse_gui launches Stage13D3BrowseApp
+legacy_gui,PASS,Stage12U functionality remains inherited
+github_actions,PASS,Ran 468 tests in 14.656s; OK
+local_display,MANUAL_PENDING,manual display checklist documented; desktop run required
