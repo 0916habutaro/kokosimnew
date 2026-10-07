@@ -406,10 +406,21 @@ class StructuralAnnualInputFactory:
 class SeasonOrchestrator:
     """Stage 12E season resolver including prefectural->regional qualification."""
 
-    def __init__(self, repo: DataRepository, data_dir: str | Path):
+    def __init__(
+        self,
+        repo: DataRepository,
+        data_dir: str | Path,
+        *,
+        match_resolver=None,
+    ):
         self.repo = repo
         self.data_dir = Path(data_dir)
-        self.engine = TournamentEngine(repo)
+        self.match_resolver = match_resolver
+        self.engine = TournamentEngine(
+            repo,
+            main_match_resolver=match_resolver,
+            pre_main_match_resolver=match_resolver,
+        )
         self.pref_index = self._read("prefectural_competition_index_2026.csv")
         self.calendars = {r["competition_id"]: r for r in self._read("season_calendar.csv")}
         self.access_rules = self._read("competition_access_rules.csv")
