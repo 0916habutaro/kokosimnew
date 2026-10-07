@@ -1,0 +1,21 @@
+﻿check,result,detail
+existing_player_system_audit,PASS,main検索でplayer/roster/individual statsの既存実装なし
+core_package,PASS,game_coreをPhase2 tournament engineから分離
+roster_size_contract,PASS,1校20人のactive_core構造ロスター
+grade_distribution,PASS,1年5人・2年7人・3年8人
+position_slots,PASS,P5/C2/IF7/OF6
+position_codes,PASS,P/C/1B/2B/3B/SS/LF/CF/RF
+deterministic_generation,PASS,seed+year+school単位で再現
+player_id_uniqueness,PASS,seed+year+school+roster_noのSHA-256由来
+school_affiliation,PASS,school_id/program_idを保持
+academic_year_entry_year,PASS,学年と入学年度を両方保持
+handedness,PASS,bats R/L/S・throws R/Lを構造化
+name_provider_contract,PASS,外部名前データへ差替可能
+placeholder_name_source,PASS,現段階はplaceholder_v1を明示
+ability_scope,PASS,能力値はStage13Aでは未導入
+statistics_scope,PASS,個人成績はStage13Aでは未導入
+full_roster_static_csv,PASS,74920人規模を正本CSVへ固定せずruntime生成
+csv_export,PASS,必要時のみCLIで出力
+all_school_generation,PASS,hardball program保有校をschool_id順にiterator生成
+dedicated_tests,PASS,Stage13A専用14件追加
+full_python_suite,NOT_RUN,全リポジトリPythonテストは未実行
