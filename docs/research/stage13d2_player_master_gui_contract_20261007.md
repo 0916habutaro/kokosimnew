@@ -101,3 +101,45 @@ BrowseGuiModel:
 - player name join
 - player search
 - competition leaderboard display payload
+
+
+## GitHub Actions
+
+Stage 13D-2専用テスト: 8件。
+
+確認:
+
+- season identity seed固定
+- 異なるmatch seedでもplayer_id不変
+- MatchSimulationInput team_generation_seed分離
+- player master 1選手1row
+- SQLite schema v3
+- 4校80人player master round-trip
+- 学校ロスター20人
+- bench player表示
+- player master→個人成績display join
+- player search
+- player detail
+- competition leaderboard GUI payload
+
+full suite:
+
+- Python 3.12
+- `Ran 459 tests in 19.457s`
+- **OK**
+
+## 判断
+
+Stage 13D-2を採用する。
+
+これにより同一2026 season内では選手identityが大会を跨いで安定し、個人成績read modelへ表示名・学年・守備位置を正規化joinできる。
+
+次工程はStage 13D-3として、既存read-only GUIへ
+
+- 学校ロスター成績
+- 選手詳細
+- 大会打撃ランキング
+- 大会投手ランキング
+- 選手検索
+
+の試験画面を追加し、画面遷移と表示契約を実機確認する。
