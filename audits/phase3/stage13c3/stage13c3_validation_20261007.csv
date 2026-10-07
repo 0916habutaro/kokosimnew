@@ -18,5 +18,5 @@ persistence_pitcher_csv,PASS,pitcher GameStats CSV written
 persistence_team_csv,PASS,team GameStats CSV written
 persistence_event_csv,PASS,match events CSV written
 summary_json,PASS,match_simulation_results included in CompetitionRun summary JSON
-annual_override_precedence,PASS,existing MAIN winner override remains above resolver by control flow
-github_actions,PASS,Ran 429 tests in 11.794s
+annual_override_precedence,PASS,existing MAIN winner override bypasses ability simulation in integration test
+github_actions,PASS,Ran 430 tests in 10.045s
