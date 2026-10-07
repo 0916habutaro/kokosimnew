@@ -1,8 +1,8 @@
 {
   "config_id": "match_simulation_v1",
-  "revision": 1,
-  "status": "design_contract",
-  "description_ja": "Stage 13C-1 能力ベース試合シミュレーションの入出力・RNG・ResultView接続契約。確率調整値はStage 13C-2以降で別revisionとして追加する。",
+  "revision": 2,
+  "status": "design_default_not_tuned",
+  "description_ja": "Stage 13C-2 初期能力ベース試合モデル。打席結果・走者進塁・投手運用の暫定値であり、実在高校野球へ校正済みではない。",
   "score_source": "ability_model_v1",
   "team_order": {
     "team1": "top_offense",
@@ -12,8 +12,9 @@
     "default_regulation_innings": 9,
     "competition_rule_override": true,
     "tie_allowed": false,
-    "extra_innings_policy": "competition_rule_provider",
-    "mercy_rule_policy": "competition_rule_provider"
+    "extra_innings_policy": "continue_until_decided",
+    "mercy_rule_policy": "competition_rule_provider",
+    "hard_max_innings": 30
   },
   "ownership": {
     "simulator_determines_score": true,
@@ -29,12 +30,72 @@
     "actual_score_override_remains_highest_priority": true,
     "winner_consistency_required": true
   },
+  "plate_appearance_model": {
+    "base_probabilities": {
+      "strikeout": 0.190,
+      "walk": 0.080,
+      "hit_by_pitch": 0.010,
+      "single": 0.155,
+      "double": 0.045,
+      "triple": 0.006,
+      "home_run": 0.025,
+      "reached_on_error": 0.020,
+      "fielder_choice": 0.019,
+      "field_out": 0.450
+    },
+    "ability_effect_scale": {
+      "strikeout": 0.012,
+      "walk": 0.010,
+      "single": 0.010,
+      "extra_base_hit": 0.011,
+      "home_run": 0.014,
+      "error": 0.012,
+      "field_out": 0.007
+    },
+    "probability_floor": 0.0001,
+    "defense_center": 50.0
+  },
+  "situational_events": {
+    "sacrifice_bunt": {
+      "enabled": true,
+      "base_probability": 0.035,
+      "minimum_bunt_ability": 45,
+      "max_outs": 1,
+      "allowed_score_margin": 2
+    },
+    "sacrifice_fly": {
+      "enabled": true,
+      "base_probability": 0.55,
+      "requires_runner_on_third": true,
+      "max_outs": 1
+    }
+  },
+  "baserunning": {
+    "single_runner_from_second_score_base": 0.72,
+    "single_runner_from_first_to_third_base": 0.30,
+    "double_runner_from_first_score_base": 0.58,
+    "error_runner_from_second_score_base": 0.45,
+    "speed_effect_per_point": 0.004,
+    "defense_effect_per_point": 0.003,
+    "min_probability": 0.05,
+    "max_probability": 0.95
+  },
+  "pitching_usage": {
+    "starter_bf_base": 23.0,
+    "starter_stamina_effect": 0.10,
+    "reliever_bf_base": 9.0,
+    "reliever_stamina_effect": 0.05,
+    "minimum_bf_before_change": 3,
+    "runs_allowed_quick_hook": 6
+  },
   "rules": {
     "team_strength_direct_bonus_for_score": false,
     "use_component_strengths": true,
     "player_abilities_drive_events": true,
     "complete_game_stats_required": true,
-    "event_stats_reconciliation_required": true
+    "event_stats_reconciliation_required": true,
+    "batting_substitutions_enabled": false,
+    "pitching_substitutions_enabled": true
   },
   "rng_namespace_policy": {
     "match": "match_v1:{competition_id}:{reference_year}:{match_id}",
