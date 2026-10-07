@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import unittest
 from dataclasses import replace
 from pathlib import Path
@@ -22,6 +23,13 @@ from phase2_engine.repository import DataRepository
 ROOT = Path(__file__).resolve().parents[1]
 ABILITY_CONFIG = ROOT / "config" / "abilities"
 MATCH_CONFIG = ROOT / "config" / "match"
+AUDIT_PATH = (
+    ROOT
+    / "audits"
+    / "phase3"
+    / "stage13c2"
+    / "stage13c2_match_distribution_20261007.csv"
+)
 
 
 class Stage13C2MatchSimulatorTests(unittest.TestCase):
@@ -317,6 +325,68 @@ class Stage13C2MatchSimulatorTests(unittest.TestCase):
             "ability_model_v1",
             match.metadata["score_source"],
         )
+
+    def test_saved_distribution_audit_has_three_seed_rows(self):
+        with AUDIT_PATH.open(encoding="utf-8", newline="") as f:
+            rows = list(csv.DictReader(f))
+        self.assertEqual(3, len(rows))
+        self.assertEqual(
+            {"2026100701", "2026100702", "2026100703"},
+            {row["seed"] for row in rows},
+        )
+        self.assertTrue(all(int(row["game_count"]) == 1000 for row in rows))
+        self.assertTrue(all(int(row["school_count"]) == 240 for row in rows))
+
+    def test_saved_audit_distribution_stays_in_initial_guardrails(self):
+        with AUDIT_PATH.open(encoding="utf-8", newline="") as f:
+            rows = list(csv.DictReader(f))
+        for row in rows:
+            total_runs = float(row["mean_total_runs"])
+            self.assertGreater(total_runs, 8.0)
+            self.assertLess(total_runs, 12.0)
+
+            team2_rate = float(row["team2_win_rate"])
+            self.assertGreater(team2_rate, 0.45)
+            self.assertLess(team2_rate, 0.55)
+
+            stronger = float(row["stronger_team_win_rate"])
+            self.assertGreater(stronger, 0.57)
+            self.assertLess(stronger, 0.68)
+
+            self.assertGreater(
+                float(row["stronger_win_rate_edge_5_10"]),
+                0.64,
+            )
+            self.assertGreater(
+                float(row["stronger_win_rate_edge_10_plus"]),
+                0.72,
+            )
+
+            self.assertGreater(float(row["strikeout_rate"]), 0.17)
+            self.assertLess(float(row["strikeout_rate"]), 0.22)
+            self.assertGreater(float(row["walk_rate"]), 0.06)
+            self.assertLess(float(row["walk_rate"]), 0.10)
+            self.assertGreater(float(row["hit_rate"]), 0.20)
+            self.assertLess(float(row["hit_rate"]), 0.26)
+            self.assertGreater(float(row["home_run_rate"]), 0.015)
+            self.assertLess(float(row["home_run_rate"]), 0.04)
+            self.assertLess(float(row["extra_innings_rate"]), 0.12)
+            self.assertGreater(
+                float(row["mean_pitchers_used_per_team"]),
+                2.5,
+            )
+            self.assertLess(
+                float(row["mean_pitchers_used_per_team"]),
+                4.0,
+            )
+
+    def test_audit_cli_defaults_to_three_seeds_and_1000_games(self):
+        source = (
+            ROOT / "game_core" / "stage13c2_audit.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("2026100701,2026100702,2026100703", source)
+        self.assertIn('default=240', source)
+        self.assertIn('default=1000', source)
 
     def test_match_config_is_revision_2_and_not_claimed_tuned(self):
         self.assertEqual(2, self.simulator.config.revision)
