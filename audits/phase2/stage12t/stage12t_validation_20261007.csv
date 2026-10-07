@@ -1,0 +1,23 @@
+﻿check,result,detail
+runtime_tkinter,PASS,Tk 8.6
+runtime_virtual_display,PASS,XvfbでGUIプロセスを実起動
+window_render,PASS,1240x820で描画
+top_level_tabs,PASS,日付別試合;大会結果;学校戦績
+initial_sqlite_load,PASS,2026年・試合5・大会2・学校4のサンプルDB
+date_competition_filter,PASS,大会combobox追加
+date_prefecture_filter,PASS,都道府県combobox追加
+prefecture_filter_sql,PASS,team1/team2の都道府県をJOINして絞り込み
+bracket_round_grouping,PASS,MAINのround_noで準決勝→決勝を構造化
+bracket_canvas_render,PASS,2ラウンド・カード・2→1接続線を描画
+irregular_bracket_guard,PASS,2対1でないラウンド間は接続線を推測しない
+date_to_competition_navigation,PASS,大会名ダブルクリック
+date_to_school_navigation,PASS,チーム1/チーム2/勝者ダブルクリック
+competition_to_school_navigation,PASS,試合一覧の学校名ダブルクリック
+school_to_competition_navigation,PASS,試合履歴の大会名ダブルクリック
+school_to_opponent_navigation,PASS,試合履歴の対戦相手ダブルクリック
+school_navigation_smoke,PASS,S1選択・履歴3件表示
+read_only_contract,PASS,Enhanced GUIにINSERT/UPDATE/DELETEなし
+stage12s_compatibility,PASS,BrowseAppを残しEnhancedBrowseAppを起動時に利用
+targeted_local_tests,PASS,ローカルGUIハーネス6件PASS
+full_python_suite,NOT_RUN,全リポジトリのPythonテストスイートは未実行
+windows_real_machine,NOT_RUN,ユーザーWindows実機では未確認
