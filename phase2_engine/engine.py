@@ -29,8 +29,9 @@ class TournamentEngine:
 
     SUPPORTED_FORMAT_MODELS = {f"FMT{i:03d}" for i in range(1, 27)}
 
-    def __init__(self, repo: DataRepository):
+    def __init__(self, repo: DataRepository, *, main_match_resolver=None):
         self.repo = repo
+        self.main_match_resolver = main_match_resolver
 
     def run(self, annual: AnnualCompetitionInput) -> CompetitionRun:
         entrants = self._validate_entrants(annual)
@@ -190,6 +191,9 @@ class TournamentEngine:
             annual_seed_order=annual_seeds,
             slot_override=exact_slots,
             winner_overrides=annual.main_match_winner_overrides,
+            match_resolver=self.main_match_resolver,
+            resolved_match_sink=base_run.match_simulation_results,
+            reference_year=annual.year,
         )
         base_run.stage_executions.append(execution)
         base_run.outcome = outcome
