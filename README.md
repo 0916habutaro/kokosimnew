@@ -18,6 +18,7 @@
 - Stage 12S: SQLite repositoryを読むread-only GUIを実装（年度・日付別試合・大会結果・学校戦績）
 - Stage 12T: GUI実行確認＋日付画面の大会/都道府県フィルタ＋トーナメント表示＋学校/大会間の画面遷移
 - Stage 12U: ホーム画面＋都道府県名表示＋春夏秋/大会種別フィルタ＋トーナメント学校クリック
+- Stage 13A: 架空選手・学校ロスター基盤を実装。1校20人をseed再現生成し、player_id・学年・守備位置・投打・所属を構造化
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -26,6 +27,7 @@
 - `data/schedules/2026/` 2026年日程マスター／試合日
 - `data/sources/` Phase 2調査出典
 - `phase2_engine/` 大会・シーズン共通エンジン
+- `game_core/` 選手・能力・個人成績・年度進行などゲーム本体の中核機能
 - `tests/` 回帰テスト
 - `audits/` Phase/Stage別の監査・manifest・validation
 - `archive/snapshots/` 移管元の完成ZIP（復旧用）
@@ -54,10 +56,17 @@ python -m phase2_engine.season_cli \
 python -m phase2_engine.browse_gui \
   --db out/kokosim_browse.sqlite3 \
   --data-dir data
+
+python -m game_core.player_cli \
+  --data-dir data \
+  --year 2026 \
+  --seed 2026100701 \
+  --school-id SCH000001 \
+  --output out/players_SCH000001.csv
 ```
 
 ## 正本ルール
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-Stage 12Uでホーム画面、都道府県名表示、春/夏/秋・大会種別フィルタ、トーナメント表から学校への直接遷移を追加。閲覧GUIの主要導線は一通り揃った。次工程はWindows実機確認、表示設定保存、主要大会/注目カード表示、選手・個人成績read modelを検討する。秋季実績はStage 12Oのdueキューで後追い可能。
+正式GUIの作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13Aでplayer_id・所属・学年・守備位置・投打を持つ20人構造ロスターをseed再現生成できるようにした。次工程はStage 13Bとして選手能力snapshotと学校打撃力/投手力/守備力を実装し、能力ベースの試合モデルへ接続する。秋季実績はStage 12Oのdueキューで後追い可能。
