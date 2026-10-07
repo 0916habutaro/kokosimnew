@@ -6,8 +6,16 @@ import unittest
 from pathlib import Path
 
 from game_core.tournament_bridge import AbilityMatchResolver
+from phase2_engine.brackets import (
+    run_block_winner_forest,
+    run_head_to_head,
+    run_round_robin,
+    run_single_elimination_ranking,
+    run_single_round_gate,
+)
 from phase2_engine.browse_repository import BrowseRepository, SCHEMA_VERSION
 from phase2_engine.browse_views import SeasonBrowseViews
+from phase2_engine.models import MatchResolution
 from phase2_engine.repository import DataRepository
 from phase2_engine.result_view import build_competition_result_view
 from phase2_engine.season import (
@@ -294,6 +302,154 @@ class Stage13C4PreMainSeasonPersistenceTests(unittest.TestCase):
         self.assertIn("--match-model", source)
         self.assertIn('choices=("legacy", "ability")', source)
         self.assertIn("AbilityMatchResolver", source)
+
+    @staticmethod
+    def _stub_match_resolver(**kwargs):
+        team1 = kwargs["team1"]
+        team2 = kwargs["team2"]
+        return MatchResolution(
+            winner_id=team1,
+            loser_id=team2,
+            team1_score=2,
+            team2_score=1,
+            score_source="ability_model_v1",
+            detail={
+                "match_id": kwargs["match_id"],
+                "competition_id": kwargs["competition_id"],
+                "reference_year": kwargs["reference_year"],
+                "generation_seed": kwargs["generation_seed"],
+                "team1_school_id": team1,
+                "team2_school_id": team2,
+                "team1_score": 2,
+                "team2_score": 1,
+                "winner_id": team1,
+                "loser_id": team2,
+                "score_source": "ability_model_v1",
+            },
+        )
+
+    def test_all_pre_main_bracket_primitives_accept_match_resolution(self):
+        def legacy(team1, team2, namespace):
+            return team2
+
+        sink = {}
+        common = dict(
+            competition_id="CMP-STUB",
+            stage_id="STG-STUB",
+            stage_code="QUALIFIER",
+            base_seed=123,
+            winner_resolver=legacy,
+            match_resolver=self._stub_match_resolver,
+            resolved_match_sink=sink,
+            reference_year=2026,
+        )
+
+        ranking, ko_matches = run_single_elimination_ranking(
+            ["S1", "S2", "S3", "S4"],
+            phase_code="KO",
+            group_id="G1",
+            group_name="G1",
+            **common,
+        )
+        self.assertEqual("S1", ranking[0])
+        self.assertTrue(
+            all(
+                match.metadata.get("score_source") == "ability_model_v1"
+                for match in ko_matches
+                if not match.is_bye
+            )
+        )
+
+        gate_winners, gate_matches = run_single_round_gate(
+            ["G1", "G2", "G3", "G4"],
+            phase_code="GATE",
+            **{
+                key: value
+                for key, value in common.items()
+                if key not in {"stage_id"}
+            },
+            stage_id="STG-GATE",
+        )
+        self.assertEqual(["G1", "G3"], gate_winners)
+        self.assertEqual(2, len(gate_matches))
+
+        forest_winners, forest_matches, _ = run_block_winner_forest(
+            ["F1", "F2", "F3", "F4"],
+            block_count=2,
+            phase_code="FOREST",
+            group_id="GF",
+            group_name="GF",
+            **{
+                key: value
+                for key, value in common.items()
+                if key not in {"stage_id"}
+            },
+            stage_id="STG-FOREST",
+        )
+        self.assertEqual(2, len(forest_winners))
+        self.assertEqual(2, len([
+            match for match in forest_matches if not match.is_bye
+        ]))
+
+        rr_ranking, rr_matches, standings = run_round_robin(
+            ["R1", "R2", "R3"],
+            phase_code="RR",
+            group_id="GR",
+            group_name="GR",
+            pool_no=1,
+            **{
+                key: value
+                for key, value in common.items()
+                if key not in {"stage_id"}
+            },
+            stage_id="STG-RR",
+        )
+        self.assertEqual(3, len(rr_matches))
+        self.assertEqual(2, standings[rr_ranking[0]]["wins"])
+
+        h2h = run_head_to_head(
+            "H1",
+            "H2",
+            phase_code="H2H",
+            group_id="GH",
+            group_name="GH",
+            match_no=1,
+            **{
+                key: value
+                for key, value in common.items()
+                if key not in {"stage_id"}
+            },
+            stage_id="STG-H2H",
+        )
+        self.assertEqual("H1", h2h.winner)
+        self.assertEqual("ability_model_v1", h2h.metadata["score_source"])
+
+        played = (
+            [m for m in ko_matches if not m.is_bye]
+            + [m for m in gate_matches if not m.is_bye]
+            + [m for m in forest_matches if not m.is_bye]
+            + [m for m in rr_matches if not m.is_bye]
+            + [h2h]
+        )
+        self.assertEqual(
+            {match.match_id for match in played},
+            set(sink),
+        )
+
+    def test_engine_passes_general_resolver_to_all_current_pre_main_calls(self):
+        source = (
+            ROOT / "phase2_engine" / "engine.py"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(
+            18,
+            source.count("match_resolver=self.match_resolver"),
+        )
+        self.assertEqual(
+            18,
+            source.count(
+                "resolved_match_sink=self._active_match_simulation_results"
+            ),
+        )
 
     def test_main_only_backward_alias_is_preserved(self):
         from game_core.tournament_bridge import (
