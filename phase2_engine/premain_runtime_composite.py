@@ -42,7 +42,16 @@ class _PhaseRecord:
         return all(runtime.is_complete for runtime in self.runtimes)
 
     def contains_match(self, match_id: str) -> bool:
-        return any(match_id in runtime.matches for runtime in self.runtimes)
+        for runtime in self.runtimes:
+            if isinstance(runtime, BlockForestRuntimeState):
+                if any(
+                    match_id in block_runtime.matches
+                    for block_runtime in runtime.block_runtimes
+                ):
+                    return True
+            elif match_id in runtime.matches:
+                return True
+        return False
 
     def ready_matches(self) -> list[dict]:
         return [
