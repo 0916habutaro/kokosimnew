@@ -267,7 +267,7 @@ class Stage13C4PreMainSeasonPersistenceTests(unittest.TestCase):
         season = SeasonExecution(
             year=self.year,
             rng_seed=self.seed,
-            competition_runs={self.competition_id: self.run},
+            competition_runs={self.competition_id: self.competition_run},
         )
         with tempfile.TemporaryDirectory() as td:
             repository = BrowseRepository(Path(td) / "season.sqlite3")
