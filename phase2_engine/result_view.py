@@ -126,7 +126,32 @@ def build_competition_result_view(
     ability_scores: Mapping[str, object] | None = None,
 ) -> list[ResultViewRow]:
     overrides = dict(score_overrides or {})
-    ability = dict(ability_scores or {})
+    ability: dict[str, object] = {}
+    embedded = dict(run.match_simulation_results or {})
+    for match_id, detail in embedded.items():
+        if not isinstance(detail, Mapping):
+            raise ValueError(
+                f"{match_id}: embedded match simulation result must be a mapping"
+            )
+        if detail.get("score_source") != SCORE_SOURCE_ABILITY_MODEL_V1:
+            raise ValueError(
+                f"{match_id}: embedded result score_source must be ability_model_v1"
+            )
+        ability[match_id] = {
+            "team1_score": detail.get("team1_score"),
+            "team2_score": detail.get("team2_score"),
+        }
+
+    for match_id, value in dict(ability_scores or {}).items():
+        if match_id in ability:
+            embedded_pair = _normalize_override(match_id, ability[match_id])
+            supplied_pair = _normalize_override(match_id, value)
+            if embedded_pair != supplied_pair:
+                raise ValueError(
+                    f"{match_id}: explicit ability score conflicts with embedded result"
+                )
+        ability[match_id] = value
+
     matches = [
         match
         for execution in run.stage_executions
@@ -151,6 +176,25 @@ def build_competition_result_view(
 
     rows: list[ResultViewRow] = []
     for match in matches:
+        embedded_detail = embedded.get(match.match_id)
+        if embedded_detail is not None:
+            if embedded_detail.get("team1_school_id") != match.team1:
+                raise ValueError(
+                    f"{match.match_id}: embedded result team1 does not match tournament match"
+                )
+            if embedded_detail.get("team2_school_id") != match.team2:
+                raise ValueError(
+                    f"{match.match_id}: embedded result team2 does not match tournament match"
+                )
+            if embedded_detail.get("winner_id") != match.winner:
+                raise ValueError(
+                    f"{match.match_id}: embedded result winner does not match tournament match"
+                )
+            if embedded_detail.get("loser_id") != match.loser:
+                raise ValueError(
+                    f"{match.match_id}: embedded result loser does not match tournament match"
+                )
+
         team1_name = _display_name(repo, match.team1)
         team2_name = _display_name(repo, match.team2)
         winner_name = _display_name(repo, match.winner)
