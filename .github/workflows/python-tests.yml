@@ -30,3 +30,34 @@ jobs:
 
       - name: Run full unittest suite
         run: python -m unittest discover -s tests -v
+
+      # TEMP_STAGE13C4_FULL_SEASON_AUDIT
+      - name: Stage 13C-4 full ability season audit
+        run: |
+          python -m phase2_engine.season_cli \
+            --data-dir data \
+            --year 2026 \
+            --seed 2026100501 \
+            --match-model ability \
+            --ability-config-dir config/abilities \
+            --match-config-dir config/match \
+            --sqlite-db /tmp/stage13c4_season.sqlite3 \
+            --output /tmp/stage13c4_summary.json
+          echo "STAGE13C4_SUMMARY_BEGIN"
+          cat /tmp/stage13c4_summary.json
+          echo "STAGE13C4_SUMMARY_END"
+          python - <<'PY'
+          import sqlite3
+          conn = sqlite3.connect("/tmp/stage13c4_season.sqlite3")
+          print("STAGE13C4_SQLITE_COUNTS_BEGIN")
+          for table in (
+              "ability_matches",
+              "batter_game_stats",
+              "pitcher_game_stats",
+              "team_game_stats",
+              "match_events",
+          ):
+              count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+              print(f"{table},{count}")
+          print("STAGE13C4_SQLITE_COUNTS_END")
+          PY
