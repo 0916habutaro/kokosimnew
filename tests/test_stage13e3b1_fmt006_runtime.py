@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from phase2_engine import AnnualCompetitionInput, DataRepository, MatchResolution, TournamentEngine
+from phase2_engine.cli import _kanagawa_demo
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -55,37 +56,17 @@ class Stage13E3B1Fmt006RuntimeTests(unittest.TestCase):
         cls.seed = 2026100804
 
     def _annual(self, competition_id="CMP000095", seed=None):
-        stages = self.repo.stages(competition_id)
-        event_groups = []
-        entrants = set()
-        for stage in stages:
-            if stage["stage_id"] not in self.repo.assignments_by_stage:
-                continue
-            for group in self.repo.groups_by_stage.get(stage["stage_id"], []):
-                event_groups.append(group)
-                entrants |= self.repo.group_school_ids(group, self.year)
-
-        group_override = {}
-        if not entrants:
-            prefecture_code = self.repo.competition(
-                competition_id
-            ).get("prefecture_code")
-            candidates = sorted(
-                school_id
-                for school_id, row in self.repo.schools.items()
-                if row.get("prefecture_code") == prefecture_code
-            )
-            entrants = set(candidates)
-            for index, school_id in enumerate(candidates):
-                gid = event_groups[index % len(event_groups)]["stage_group_id"]
-                group_override.setdefault(gid, []).append(school_id)
-
+        entrants, direct = _kanagawa_demo(
+            self.repo,
+            competition_id,
+            self.year,
+        )
         return AnnualCompetitionInput(
             competition_id=competition_id,
             year=self.year,
-            entrant_school_ids=sorted(entrants),
+            entrant_school_ids=entrants,
+            direct_main_entry_school_ids=direct,
             rng_seed=self.seed if seed is None else seed,
-            group_entrant_school_ids=group_override,
         )
 
     def test_fmt006_lazy_run_exactly_matches_legacy_random_run(self):
@@ -201,7 +182,10 @@ class Stage13E3B1Fmt006RuntimeTests(unittest.TestCase):
         for group in self.repo.groups_by_stage[stage["stage_id"]]:
             gid = group["stage_group_id"]
             eligible = sorted(
-                set(annual.entrant_school_ids)
+                (
+                    set(annual.entrant_school_ids)
+                    - set(annual.direct_main_entry_school_ids)
+                )
                 & self.repo.group_school_ids(group, self.year)
             )
             slots = self.repo.param(
