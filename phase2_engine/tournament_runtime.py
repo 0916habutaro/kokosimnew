@@ -94,6 +94,7 @@ class MainTournamentRuntimeState:
     champion_school_id: str = ""
     runner_up_school_id: str = ""
     draw_source: str = "deterministic_standard"
+    warnings: List[str] = field(default_factory=list)
 
     @classmethod
     def create(
@@ -211,7 +212,7 @@ class MainTournamentRuntimeState:
                 f"MAIN format {main_stage.get('format_type')} is not supported"
             )
 
-        return cls.create(
+        state = cls.create(
             competition_id=annual.competition_id,
             reference_year=annual.year,
             generation_seed=annual.rng_seed,
@@ -227,6 +228,23 @@ class MainTournamentRuntimeState:
             winner_overrides=annual.main_match_winner_overrides,
             match_resolver=match_resolver,
         )
+        if annual.direct_main_entry_school_ids:
+            state.warnings.append(
+                "direct_main_entry_school_ids has no bypass effect "
+                "because this competition begins at MAIN"
+            )
+        expected = main_stage.get("team_count", "")
+        if annual.year == 2026 and expected:
+            try:
+                expected_n = int(expected)
+            except ValueError:
+                expected_n = 0
+            if expected_n and expected_n != len(entrants):
+                state.warnings.append(
+                    f"2026 MAIN team_count={expected_n}, "
+                    f"current input/resolution={len(entrants)}"
+                )
+        return state
 
     def _build_bracket_skeleton(self) -> None:
         if self.bracket_size == 1:
@@ -858,7 +876,7 @@ class MainTournamentRuntimeState:
             seed_assignments=list(self.seed_assignments),
             stage_executions=[execution],
             main_entrant_school_ids=list(self.entrant_school_ids),
-            warnings=[],
+            warnings=list(self.warnings),
             outcome=self._outcome(),
             match_simulation_results=dict(
                 self.match_simulation_results
