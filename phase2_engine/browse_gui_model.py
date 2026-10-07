@@ -296,6 +296,82 @@ class BrowseGuiModel:
             self.repository.school_matches(year, school_id),
         )
 
+    def search_players(
+        self,
+        year: int,
+        *,
+        text: str = "",
+        school_id: str = "",
+        position: str = "",
+        limit: int = 200,
+    ) -> list[dict]:
+        return self.repository.search_players(
+            year,
+            text=text.strip(),
+            school_id=school_id.strip(),
+            position=position.strip(),
+            limit=limit,
+        )
+
+    def school_roster_stats(
+        self,
+        year: int,
+        school_id: str,
+        *,
+        competition_id: str = "",
+    ) -> list[dict]:
+        return self.player_stats.school_roster_summary(
+            year,
+            school_id,
+            competition_id=competition_id,
+        )
+
+    def player_detail(
+        self,
+        year: int,
+        player_id: str,
+        *,
+        competition_id: str = "",
+    ) -> dict:
+        return self.player_stats.player_summary(
+            year,
+            player_id,
+            competition_id=competition_id,
+        )
+
+    def competition_leaderboards(
+        self,
+        year: int,
+        competition_id: str,
+        *,
+        batting_metric: str = "ops",
+        pitching_metric: str = "earned_run_average",
+        limit: int = 20,
+    ) -> dict:
+        competition = self.repository.competition_result(
+            year,
+            competition_id,
+        )
+        return {
+            "year": year,
+            "competition_id": competition_id,
+            "competition": competition,
+            "batting_metric": batting_metric,
+            "pitching_metric": pitching_metric,
+            "batting": self.batting_leaderboard(
+                year,
+                batting_metric,
+                competition_id=competition_id,
+                limit=limit,
+            ),
+            "pitching": self.pitching_leaderboard(
+                year,
+                pitching_metric,
+                competition_id=competition_id,
+                limit=limit,
+            ),
+        }
+
     def player_stats_summary(
         self,
         year: int,
