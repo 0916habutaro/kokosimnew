@@ -1643,14 +1643,30 @@ class LiveSeasonDependencyRuntimeState:
             raise KeyError(
                 f"unknown competition_id: {competition_id}"
             )
-        rules = self.dependency_rules.get(
-            competition_id,
-            [],
+        sources = (
+            self._source_ids_for_destination(
+                competition_id
+            )
         )
-        sources = [
-            rule["source_competition_id_2026"]
-            for rule in rules
-        ]
+        family = (
+            "access"
+            if self.dependency_rules.get(
+                competition_id
+            )
+            else (
+                "qualification"
+                if self.qualification_rules.get(
+                    competition_id
+                )
+                else (
+                    "regional_feeder"
+                    if self.regional_feeder_rules.get(
+                        competition_id
+                    )
+                    else "root"
+                )
+            )
+        )
         scheduled = self.competitions.get(
             competition_id
         )
@@ -1659,6 +1675,7 @@ class LiveSeasonDependencyRuntimeState:
             "status": self.status_by_competition[
                 competition_id
             ],
+            "dependency_family": family,
             "dependency_source_competition_ids": (
                 list(dict.fromkeys(sources))
             ),
@@ -1706,6 +1723,15 @@ class LiveSeasonDependencyRuntimeState:
             "resolution_count": len(
                 self.resolutions
             ),
+            "qualification_resolution_count": len(
+                self.qualification_resolutions
+            ),
+            "regional_feeder_resolution_count": len(
+                self.regional_feeder_resolutions
+            ),
+            "regional_playoff_resolution_count": len(
+                self.regional_playoff_resolutions
+            ),
         }
 
     def public_snapshot(self) -> dict:
@@ -1725,5 +1751,17 @@ class LiveSeasonDependencyRuntimeState:
             "resolutions": [
                 row.to_dict()
                 for row in self.resolutions
+            ],
+            "qualification_resolutions": [
+                row.to_dict()
+                for row in self.qualification_resolutions
+            ],
+            "regional_feeder_resolutions": [
+                row.to_dict()
+                for row in self.regional_feeder_resolutions
+            ],
+            "regional_playoff_resolutions": [
+                row.to_dict()
+                for row in self.regional_playoff_resolutions
             ],
         }
