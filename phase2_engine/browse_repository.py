@@ -283,6 +283,36 @@ CREATE INDEX IF NOT EXISTS idx_events_year_batter
     ON match_events(year, batter_id, competition_id, match_id, event_no);
 CREATE INDEX IF NOT EXISTS idx_events_year_pitcher
     ON match_events(year, pitcher_id, competition_id, match_id, event_no);
+
+CREATE TABLE IF NOT EXISTS ranking_event_snapshots (
+    year INTEGER NOT NULL,
+    competition_id TEXT NOT NULL,
+    group_id TEXT NOT NULL,
+    snapshot_json TEXT NOT NULL,
+    PRIMARY KEY (year, competition_id, group_id)
+);
+CREATE TABLE IF NOT EXISTS ranking_matches (
+    year INTEGER NOT NULL,
+    competition_id TEXT NOT NULL,
+    group_id TEXT NOT NULL,
+    match_id TEXT NOT NULL,
+    match_date TEXT NOT NULL,
+    stage_code TEXT NOT NULL,
+    phase_code TEXT NOT NULL,
+    round_no INTEGER NOT NULL,
+    team1_id TEXT NOT NULL,
+    team2_id TEXT NOT NULL,
+    winner_id TEXT NOT NULL,
+    loser_id TEXT NOT NULL,
+    team1_score INTEGER,
+    team2_score INTEGER,
+    status TEXT NOT NULL,
+    qualifier_effect TEXT NOT NULL CHECK(qualifier_effect = 'none'),
+    PRIMARY KEY (year, competition_id, match_id)
+);
+CREATE INDEX IF NOT EXISTS idx_rank_year_date
+    ON ranking_matches(year, match_date, competition_id);
+
 """
 
 
@@ -1145,6 +1175,88 @@ class BrowseRepository:
     @staticmethod
     def _rows(cursor: sqlite3.Cursor) -> list[dict]:
         return [dict(row) for row in cursor.fetchall()]
+
+    def save_ranking_sidecar(self, year: int, sidecar) -> dict:
+        """Atomically persist optional ranking, without updating MAIN views."""
+        from .post_qualification_schedule import ScheduledRankingSidecar
+        if not isinstance(sidecar, ScheduledRankingSidecar):
+            raise TypeError("ScheduledRankingSidecar required")
+        snapshot = sidecar.snapshot()
+        rows = snapshot["matches"]
+        if any(not row["match_date"].startswith(f"{year}-") for row in rows):
+            raise ValueError("ranking year does not match the season")
+        event = sidecar.event
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            with conn:
+                conn.execute(
+                    "DELETE FROM ranking_matches WHERE year=? AND competition_id=? AND group_id=?",
+                    (year, event.competition_id, event.group_id),
+                )
+                conn.execute("""
+                    INSERT INTO ranking_event_snapshots
+                    (year, competition_id, group_id, snapshot_json)
+                    VALUES (?,?,?,?)
+                    ON CONFLICT(year, competition_id, group_id)
+                    DO UPDATE SET snapshot_json=excluded.snapshot_json
+                """, (year, event.competition_id, event.group_id,
+                      json.dumps(snapshot, ensure_ascii=False, sort_keys=True)))
+                conn.executemany("""
+                    INSERT INTO ranking_matches(
+                       year,competition_id,group_id,match_id,match_date,
+                       stage_code,phase_code,round_no,team1_id,team2_id,
+                       winner_id,loser_id,team1_score,team2_score,status,qualifier_effect
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, [
+                    (year, row["competition_id"], row["group_id"],
+                     row["match_id"], row["match_date"], row["stage_code"],
+                     row["phase_code"], row["round_no"], row["team1_id"],
+                     row["team2_id"], row["winner_id"], row["loser_id"],
+                     row["team1_score"], row["team2_score"], row["status"],
+                     row["qualifier_effect"])
+                    for row in rows
+                ])
+        return {"year": year, "competition_id": event.competition_id,
+                "group_id": event.group_id, "match_count": len(rows)}
+
+    def load_ranking_sidecar(self, year: int, competition_id: str, group_id: str):
+        from .post_qualification_schedule import ScheduledRankingSidecar
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            row = conn.execute(
+                "SELECT snapshot_json FROM ranking_event_snapshots "
+                "WHERE year=? AND competition_id=? AND group_id=?",
+                (year, competition_id, group_id),
+            ).fetchone()
+        return (ScheduledRankingSidecar.from_snapshot(json.loads(row["snapshot_json"]))
+                if row else None)
+
+    def ranking_matches_on_date(
+        self, year: int, match_date: str, *, competition_id: str = ""
+    ) -> list[dict]:
+        date.fromisoformat(match_date)
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            if competition_id:
+                return self._rows(conn.execute(
+                    "SELECT * FROM ranking_matches WHERE year=? AND match_date=? "
+                    "AND competition_id=? ORDER BY group_id, round_no, match_id",
+                    (year, match_date, competition_id),
+                ))
+            return self._rows(conn.execute(
+                "SELECT * FROM ranking_matches WHERE year=? AND match_date=? "
+                "ORDER BY competition_id, group_id, round_no, match_id",
+                (year, match_date),
+            ))
+
+    def competition_ranking_matches(self, year: int, competition_id: str) -> list[dict]:
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            return self._rows(conn.execute(
+                "SELECT * FROM ranking_matches WHERE year=? AND competition_id=? "
+                "ORDER BY match_date, group_id, round_no, match_id",
+                (year, competition_id),
+            ))
 
     def list_years(self) -> list[int]:
         with self._connect() as conn:
