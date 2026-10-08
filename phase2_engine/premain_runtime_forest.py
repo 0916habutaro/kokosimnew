@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Sequence
 
 from .brackets import balanced_partition
 from .models import Match, MatchResolution
@@ -78,6 +78,60 @@ class BlockForestRuntimeState:
             group_name=group_name,
             entrant_school_ids=items,
             blocks=blocks,
+            block_runtimes=runtimes,
+            match_simulation_results=sink,
+        )
+
+    @classmethod
+    def create_from_blocks(
+        cls,
+        blocks: Sequence[Sequence[str]],
+        *,
+        competition_id: str,
+        reference_year: int,
+        stage_id: str,
+        stage_code: str,
+        phase_code: str,
+        group_id: str,
+        group_name: str,
+        generation_seed: int,
+        match_resolver=None,
+        resolved_match_sink: Dict[str, dict] | None = None,
+    ) -> "BlockForestRuntimeState":
+        normalized = [list(block) for block in blocks]
+        if not normalized or any(not block for block in normalized):
+            raise ValueError("block forest requires non-empty blocks")
+        items = [team for block in normalized for team in block]
+        if len(items) != len(set(items)):
+            raise ValueError("block forest blocks contain duplicate entrants")
+        sink = resolved_match_sink if resolved_match_sink is not None else {}
+        runtimes = [
+            SingleEliminationRuntimeState.create(
+                block,
+                competition_id=competition_id,
+                reference_year=reference_year,
+                stage_id=stage_id,
+                stage_code=stage_code,
+                phase_code=phase_code,
+                group_id=f"{group_id or 'GLOBAL'}-B{index:02d}",
+                group_name=group_name,
+                generation_seed=generation_seed,
+                match_resolver=match_resolver,
+                resolved_match_sink=sink,
+            )
+            for index, block in enumerate(normalized, start=1)
+        ]
+        return cls(
+            competition_id=competition_id,
+            reference_year=reference_year,
+            generation_seed=generation_seed,
+            stage_id=stage_id,
+            stage_code=stage_code,
+            phase_code=phase_code,
+            group_id=group_id,
+            group_name=group_name,
+            entrant_school_ids=items,
+            blocks=normalized,
             block_runtimes=runtimes,
             match_simulation_results=sink,
         )
