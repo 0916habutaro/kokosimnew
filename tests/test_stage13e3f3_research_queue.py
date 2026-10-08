@@ -28,6 +28,7 @@ class Stage13E3F3ResearchQueueTests(unittest.TestCase):
             row["stage_calendar_id"]
             for row in tasks
             if row["task_type"] == "stage_calendar"
+            and row["status"] != "resolved"
         ]
         self.assertEqual(expected, set(actual))
         self.assertEqual(len(expected), len(actual))
