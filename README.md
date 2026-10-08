@@ -153,5 +153,18 @@ python -m game_core.stage13c2_audit \
 ## 正本ルール
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
-## 次工程
-正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13E-3F-1で2026 full-season live runtimeを12/31まで実行し、162大会中98完了・未完了64を機械分類した。直接blockerはpre-MAIN research_pendingへ到達した45大会、research queue外でMAIN calendar gapを残す秋田秋CMP000079、Senbatsu access resolutionでstage到達前にblockedとなる神奈川春CMP000095・愛知春CMP000113で、これらが春地区7・秋地区8・神宮1の計16 downstream大会を待機させている。49 stage rowsの優先度はP0 national 28・P1 regional 20・P2 local 1、追加blockerを含む修正actionはP0 29・P1 22・P2 1の計52。次工程Stage 13E-3F-2ではP0 national chainを優先し、まずCMP000079の前段予選構造を正式stage化できるか確認した上で、秋季pre-MAIN 28 rowsの実日付を調査・verified化し、同じE2E監査で神宮chainの改善を再計測する。Stage 13D-3 GUI実ウィンドウ確認と秋季実績Stage 12O dueキューは後追い可能。
+## 最新工程（Stage 13E-3F-4）
+
+2026年全162大会の年間E2E監査を実施。**ゲーム内のシミュレーションとして161大会を完了**し、神宮大会CMP000003の個別日程が未公開のため1大会が保留。pre-MAIN日程は50/50件verified、研究待ち0件。大会数・進出依存関係・日付・CSV正規化を監査する。なお、実際の2026年の全大会が終了したという意味ではない。
+
+岐阜県秋季大会では一次（8/29・30・9/5）と二次（9/5以降）が同日に重なる9/5を根拠付きで許可し、MAINから一次専用の8/29・30を除外した。ほかの予選／MAIN日付重複は検出する。
+
+```bash
+python -m phase2_engine.final_season_integrity_audit_cli \
+  --data-dir data --year 2026 --seed 2026100827 \
+  --output-dir out/final_season_integrity_audit
+```
+
+結果はJSON・CSVに出力され、未公開日程と未確定設計はDEFERREDとして明示する。研究報告：`docs/research/stage13e3f4_final_season_integrity_20261008.md`。
+
+次は2026/10/17以降の神宮高校部公式抽選・個別日程公開の確認（RS2026022）と、順位決定戦の残存2方式FMT022/FMT025（RS2026025/26）の設計を進める。正式GUIは引き続き中核機能の確認後に実装する。
