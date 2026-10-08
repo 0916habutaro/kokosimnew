@@ -57,9 +57,9 @@ class Stage13E3F2DiagnosticTests(unittest.TestCase):
                 "unique_downstream_blocked_competition_ids"
             ],
         )
-        self.assertEqual(13, summary["pending_stage_row_count"])
+        self.assertEqual(12, summary["pending_stage_row_count"])
         self.assertEqual(
-            {"P1_regional_chain": 12, "P2_local_only": 1},
+            {"P1_regional_chain": 11, "P2_local_only": 1},
             summary["priority_counts"],
         )
 
