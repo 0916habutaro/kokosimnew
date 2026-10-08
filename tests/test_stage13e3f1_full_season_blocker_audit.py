@@ -76,8 +76,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
         )
         self.assertEqual(
             {
-                BLOCKER_BLOCKED: 2,
-                BLOCKER_CALENDAR_GAP: 20,
+                BLOCKER_CALENDAR_GAP: 22,
                 BLOCKER_COMPLETE: 133,
                 BLOCKER_WAITING_DEPENDENCY: 7,
             },
@@ -86,8 +85,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
         self.assertEqual(
             {
                 ORIGIN_CALENDAR_WITHOUT_STAGE: 1,
-                ORIGIN_DEPENDENCY_RESOLUTION: 2,
-                ORIGIN_PENDING_STAGE_CALENDAR: 19,
+                ORIGIN_PENDING_STAGE_CALENDAR: 21,
                 ORIGIN_UPSTREAM_DEPENDENCY: 7,
             },
             summary["blocker_origin_counts"],
@@ -105,13 +103,13 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             ],
         )
         self.assertEqual(
-            19,
+            21,
             summary[
                 "pending_stage_reached_row_count"
             ],
         )
         self.assertEqual(
-            2,
+            0,
             summary[
                 "pending_stage_blocked_before_reach_row_count"
             ],
@@ -124,7 +122,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             summary["priority_counts"],
         )
         self.assertEqual(
-            20,
+            22,
             summary[
                 "direct_calendar_gap_competition_count"
             ],
@@ -136,7 +134,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             ],
         )
         self.assertEqual(
-            2,
+            0,
             summary[
                 "runtime_blocked_competition_count"
             ],
@@ -148,10 +146,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             ],
         )
         self.assertEqual(
-            [
-                "CMP000095",
-                "CMP000113",
-            ],
+            [],
             summary[
                 "dependency_resolution_blocked_competition_ids"
             ],
@@ -169,12 +164,11 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             ],
         )
         self.assertEqual(
-            24,
+            22,
             summary["action_count"],
         )
         self.assertEqual(
             {
-                ACTION_FIX_DEPENDENCY: 2,
                 ACTION_REVIEW_STRUCTURE: 1,
                 ACTION_VERIFY_STAGE_DATES: 21,
             },
@@ -183,7 +177,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
         self.assertEqual(
             {
                 PRIORITY_LOCAL: 2,
-                PRIORITY_REGIONAL: 22,
+                PRIORITY_REGIONAL: 20,
             },
             summary[
                 "action_priority_counts"
@@ -277,10 +271,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             if not row.stage_reached
         }
         self.assertEqual(
-            {
-                "CMP000095",
-                "CMP000113",
-            },
+            set(),
             blocked_before_stage,
         )
 
@@ -354,20 +345,10 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
 
         kanagawa = by_comp["CMP000095"]
         aichi = by_comp["CMP000113"]
-        self.assertTrue(
-            kanagawa.resolution_failures[
-                0
-            ].startswith(
-                "ACR000008:FAIL:"
-            )
-        )
-        self.assertTrue(
-            aichi.resolution_failures[
-                0
-            ].startswith(
-                "ACR000012:FAIL:"
-            )
-        )
+        self.assertEqual((), kanagawa.resolution_failures)
+        self.assertEqual((), aichi.resolution_failures)
+        self.assertEqual(BLOCKER_CALENDAR_GAP, kanagawa.blocker_kind)
+        self.assertEqual(BLOCKER_CALENDAR_GAP, aichi.blocker_kind)
 
         action_by_id = {
             row.action_id: row
@@ -385,18 +366,8 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
                 "structure:CMP000003"
             ].priority_tier,
         )
-        self.assertEqual(
-            ACTION_FIX_DEPENDENCY,
-            action_by_id[
-                "dependency:CMP000095"
-            ].action_type,
-        )
-        self.assertEqual(
-            ACTION_FIX_DEPENDENCY,
-            action_by_id[
-                "dependency:CMP000113"
-            ].action_type,
-        )
+        self.assertNotIn("dependency:CMP000095", action_by_id)
+        self.assertNotIn("dependency:CMP000113", action_by_id)
 
     def test_priority_tiers_follow_dependency_impact(
         self,
@@ -535,7 +506,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
                 len(stage_rows),
             )
             self.assertEqual(
-                24,
+                22,
                 len(action_rows),
             )
             self.assertEqual(
