@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import date
-from typing import Dict, Iterable, Mapping, Sequence
+from typing import Dict, Iterable, List, Mapping, Sequence
 
 from .models import CompetitionRun, MatchResolution
 from .repository import DataRepository
