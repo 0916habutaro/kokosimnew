@@ -153,6 +153,18 @@ python -m game_core.stage13c2_audit \
 ## 正本ルール
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
+## Stage 13E-3G-2（任意順位決定戦のスケジュール・保存・結果閲覧）
+
+代表・シード確定後の任意順位試合を、**明示した試合日だけ**年間の`today_matches()`へ表示し、専用`play_today_rankings()`で勝敗を入力できるようにした。既存の大会完了・進出・年間E2E依存判定を変更しない。
+
+- `ScheduledRankingSidecar`：日付、試合中止、勝者・スコア、途中セーブ/再開
+- `ScheduledCompetitionRuntime` / `LiveSeasonDependencyRuntimeState`：任意順位試合の登録、一覧、明示的進行
+- `BrowseRepository`：専用SQLite表に保存し、日付別・大会別に追加順位戦を閲覧
+- FMT025等の年度別カードが未確定の場合、日程・相手を推測せず**未登録**
+- FMT022/FMT025研究タスクは完全な実大会再現までdesign_pendingを維持
+
+設計：`docs/design/post_qualification_schedule_stage13e3g2.md`
+
 ## Stage 13E-3G-1（代表決定後の任意順位決定戦）
 
 FMT022（徳島・沖縄）とFMT025（静岡・広島）について、**代表・シード枠を固定した後だけ**試合を行う非blocking順位戦の独立ランタイムを追加した。
