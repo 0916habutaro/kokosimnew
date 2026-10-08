@@ -377,6 +377,93 @@ class LiveSeasonDependencyRuntimeState:
             )
             rules[destination] = selected
 
+        qualification_rows = cls._read_csv(
+            repo.data_dir,
+            "qualification_rules.csv",
+        )
+        qualification_rules: dict[str, list[dict]] = {
+            cid: []
+            for cid in templates
+        }
+        for row in qualification_rows:
+            destination = row.get(
+                "destination_competition_id",
+                "",
+            )
+            if (
+                destination not in templates
+                or row.get("effective_year") != str(year)
+            ):
+                continue
+            qualification_rules[
+                destination
+            ].append(dict(row))
+        for rows in qualification_rules.values():
+            rows.sort(
+                key=lambda row: row["rule_id"]
+            )
+
+        feeder_rows = cls._read_csv(
+            repo.data_dir,
+            "regional_feeder_rules.csv",
+        )
+        regional_feeder_rules: dict[
+            str,
+            list[dict],
+        ] = {
+            cid: []
+            for cid in templates
+        }
+        for row in feeder_rows:
+            destination = row.get(
+                "destination_competition_id",
+                "",
+            )
+            if (
+                destination not in templates
+                or row.get("effective_year") != str(year)
+            ):
+                continue
+            regional_feeder_rules[
+                destination
+            ].append(dict(row))
+        for rows in regional_feeder_rules.values():
+            rows.sort(
+                key=lambda row: (
+                    int(row.get("priority") or 0),
+                    row["feeder_rule_id"],
+                )
+            )
+
+        playoff_rows = cls._read_csv(
+            repo.data_dir,
+            "regional_qualification_playoffs.csv",
+        )
+        regional_playoffs: dict[
+            str,
+            list[dict],
+        ] = {
+            cid: []
+            for cid in templates
+        }
+        for row in playoff_rows:
+            destination = row.get(
+                "destination_competition_id",
+                "",
+            )
+            if (
+                destination not in templates
+                or row.get("effective_year") != str(year)
+            ):
+                continue
+            regional_playoffs[
+                destination
+            ].append(dict(row))
+        for rows in regional_playoffs.values():
+            rows.sort(
+                key=lambda row: row["playoff_id"]
+            )
+
         all_dates = []
         for cid, row in calendar_by_comp.items():
             if cid not in templates:
@@ -412,6 +499,9 @@ class LiveSeasonDependencyRuntimeState:
             calendar_rows=calendar_by_comp,
             stage_date_lists=stage_dates,
             dependency_rules=rules,
+            qualification_rules=qualification_rules,
+            regional_feeder_rules=regional_feeder_rules,
+            regional_playoffs=regional_playoffs,
         )
         state._initialize_statuses()
         state._activate_roots()
