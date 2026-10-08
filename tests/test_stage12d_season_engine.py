@@ -35,8 +35,8 @@ class Stage12DSeasonEngineTests(unittest.TestCase):
         self.assertEqual(232, tokyo.entrant_count)
         self.assertEqual(64, tokyo.main_entrant_count)
 
-    def test_all_22_access_rules_resolve(self):
-        self.assertEqual(22, len(self.season.access_resolutions))
+    def test_all_23_access_rules_resolve(self):
+        self.assertEqual(23, len(self.season.access_resolutions))
         self.assertTrue(all(r.status == "PASS" for r in self.season.access_resolutions))
         self.assertFalse(any(r.date_status == "FAIL" for r in self.season.access_resolutions))
 

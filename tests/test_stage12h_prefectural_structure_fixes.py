@@ -84,8 +84,8 @@ class Stage12HPrefecturalStructureFixTests(unittest.TestCase):
         self.assertIn(summer_champ, run.stage_executions[1].entrant_school_ids)
         self.assertIn(summer_champ, {a.school_id for a in run.seed_assignments})
 
-    def test_all_22_access_rules_and_94_prefectural_runs_pass(self):
-        self.assertEqual(22, len(self.season.access_resolutions))
+    def test_all_23_access_rules_and_94_prefectural_runs_pass(self):
+        self.assertEqual(23, len(self.season.access_resolutions))
         self.assertTrue(all(r.status == "PASS" for r in self.season.access_resolutions))
         self.assertEqual(94, len(self.season.prefectural_rows))
         self.assertEqual(94, sum(r.status == "PASS" for r in self.season.prefectural_rows))

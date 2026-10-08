@@ -16,6 +16,7 @@ from .models import AnnualCompetitionInput, CompetitionRun, Match, SeedAssignmen
 from .main_tournament import run_main_single_elimination
 from .randomness import shuffled
 from .repository import DataRepository
+from .direct_access_quota import effective_qualifier_group_output_slots
 
 
 class TournamentEngine:
@@ -375,6 +376,7 @@ class TournamentEngine:
                 stage=stage,
                 winner_resolver=winner_resolver,
                 protected_school_ids=[a.school_id for a in seed_assignments],
+                direct_school_ids=direct,
             )
             qualifier_execution.metadata["seed_context_school_ids"] = [
                 a.school_id for a in seed_assignments
@@ -434,6 +436,7 @@ class TournamentEngine:
                 entrants=stage_entrants,
                 stage=stage,
                 winner_resolver=winner_resolver,
+                direct_school_ids=direct,
             )
             main_entrants = self._dedup(qualifier_execution.output_school_ids + direct)
             if not set(main_entrants).issubset(set(entrants)):
@@ -663,7 +666,8 @@ class TournamentEngine:
     # Qualifier stage dispatch (FMT001 / FMT005 / FMT006)
     # ------------------------------------------------------------------
     def _run_qualifier_stage(
-        self, annual, entrants, stage, winner_resolver, protected_school_ids: Sequence[str] = ()
+        self, annual, entrants, stage, winner_resolver, protected_school_ids: Sequence[str] = (),
+        direct_school_ids: Sequence[str] = (),
     ) -> StageExecution:
         assignment = self.repo.assignments_by_stage.get(stage["stage_id"])
         if not assignment:
@@ -705,8 +709,16 @@ class TournamentEngine:
                 "FMT010", "FMT011", "FMT012", "FMT013", "FMT014",
                 "FMT015", "FMT016", "FMT017", "FMT025",
             }:
+                nominal_slots = self.repo.param(
+                    stage["stage_id"], "output_slots", group_id,
+                    int(group.get("advance_slots_to_next") or 0),
+                )
+                effective_slots = effective_qualifier_group_output_slots(
+                    self.repo, annual, group, nominal_slots, direct_school_ids,
+                )
                 out, ms, meta = self._run_generic_qualifier_group(
-                    model_id, annual, stage, group, eligible, winner_resolver
+                    model_id, annual, stage, group, eligible, winner_resolver,
+                    output_slots_override=effective_slots,
                 )
             else:
                 raise NotImplementedError(f"qualifier handler does not support {model_id}")
@@ -1037,13 +1049,16 @@ class TournamentEngine:
         return rankings, matches, pools, tables
 
     def _run_generic_qualifier_group(
-        self, model_id, annual, stage, group, eligible, winner_resolver
+        self, model_id, annual, stage, group, eligible, winner_resolver,
+        output_slots_override=None,
     ):
         gid = group["stage_group_id"]
         slots = self.repo.param(
             stage["stage_id"], "output_slots", gid,
             int(group.get("advance_slots_to_next") or group.get("qualifier_slots_generated") or 0),
         )
+        if output_slots_override is not None:
+            slots = output_slots_override
         if slots <= 0 or slots > len(eligible):
             raise ValueError(
                 f"{group['group_name']}: {model_id} output_slots={slots} entrants={len(eligible)}"

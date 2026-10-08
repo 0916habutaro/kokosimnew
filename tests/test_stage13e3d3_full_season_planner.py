@@ -59,25 +59,25 @@ class Stage13E3D3FullSeasonPlannerTests(
             summary["topological_count"],
         )
         self.assertEqual(
-            165,
+            166,
             summary["dependency_edge_count"],
         )
         self.assertEqual(
             {
-                STRATEGY_DEFERRED_STRUCTURAL: 13,
+                STRATEGY_DEFERRED_STRUCTURAL: 14,
                 STRATEGY_DEPENDENCY_AGGREGATE: 18,
                 STRATEGY_SENBATSU_BOOTSTRAP: 1,
-                STRATEGY_STRUCTURAL: 81,
+                STRATEGY_STRUCTURAL: 80,
                 STRATEGY_SUMMER_AREA: 49,
             },
             summary["strategy_counts"],
         )
         self.assertEqual(
             {
-                PLAN_ACCESS: 13,
+                PLAN_ACCESS: 14,
                 PLAN_QUALIFICATION: 2,
                 PLAN_REGIONAL_FEEDER: 16,
-                PLAN_ROOT: 131,
+                PLAN_ROOT: 130,
             },
             summary[
                 "dependency_family_counts"
