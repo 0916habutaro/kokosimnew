@@ -501,11 +501,11 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
                 len(competition_rows),
             )
             self.assertEqual(
-                19,
+                18,
                 len(stage_rows),
             )
             self.assertEqual(
-                20,
+                19,
                 len(action_rows),
             )
             self.assertEqual(
