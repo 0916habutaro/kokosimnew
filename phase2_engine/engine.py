@@ -41,6 +41,52 @@ class TournamentEngine:
         self.pre_main_match_resolver = pre_main_match_resolver
         self._active_pre_main_results: dict[str, dict] = {}
 
+    def prepare_post_qualification_ranking(
+        self,
+        *,
+        stage_execution: StageExecution,
+        group_id: str,
+        pairings: Sequence[Sequence[str]] = (),
+    ):
+        """Opt-in ranking-only sidecar after the real stage output is locked.
+
+        This does not change CompetitionRun, seed assignments, MAIN entrants,
+        runtime completion gates, or qualification dependencies. The caller
+        must explicitly resolve and persist the optional ranking matches.
+        """
+        from .post_qualification_ranking import (
+            RankingOnlyEventRuntime,
+            load_post_qualification_profiles,
+        )
+
+        group = self.repo.groups.get(group_id)
+        if group is None or group["stage_id"] != stage_execution.stage_id:
+            raise ValueError("ranking group is not part of source stage")
+        competition_id = group["competition_id"]
+        profiles = load_post_qualification_profiles(self.repo.data_dir)
+        profile = profiles.get(competition_id)
+        if profile is None or profile["stage_id"] != stage_execution.stage_id:
+            raise ValueError("no post-qualification ranking profile for stage")
+        model_id = profile["format_model_id"]
+        group_models = stage_execution.metadata.get("group_models", {})
+        if group_models.get(group_id) != model_id:
+            raise ValueError("ranking profile disagrees with executed group model")
+        locked = stage_execution.metadata.get("group_outputs", {}).get(group_id)
+        if locked is None or not locked:
+            raise ValueError("qualifier/seed group outputs must be locked first")
+        if not set(locked).issubset(stage_execution.output_school_ids):
+            raise ValueError("ranking group includes an unqualified school")
+        return RankingOnlyEventRuntime.create(
+            competition_id=competition_id,
+            stage_id=stage_execution.stage_id,
+            stage_code=stage_execution.stage_code,
+            group_id=group_id,
+            format_model_id=model_id,
+            mode=profile["ranking_event_mode"],
+            locked_school_ids=locked,
+            pairings=pairings,
+        )
+
     def prepare_main_runtime(
         self,
         annual: AnnualCompetitionInput,
