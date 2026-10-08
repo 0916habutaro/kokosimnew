@@ -751,9 +751,20 @@ class LiveSeasonDependencyRuntimeState:
         scheduled = self.competitions.get(
             source_id
         )
+        selector = rule.get(
+            "source_result_selector",
+            "",
+        )
+        participant_selector = selector in {
+            "participant_from_destination_prefecture",
+            "participants_from_destination_prefecture",
+        }
         if (
             scheduled is None
-            or not scheduled.is_complete
+            or (
+                not scheduled.is_complete
+                and not participant_selector
+            )
         ):
             return LiveAccessDependencyResolution(
                 access_rule_id=rule[
@@ -1451,18 +1462,26 @@ class LiveSeasonDependencyRuntimeState:
                         cid
                     )
                 )
+                participant_sources = {
+                    rule["source_competition_id_2026"]
+                    for rule in self.dependency_rules.get(
+                        cid, []
+                    )
+                    if rule.get("source_result_selector") in {
+                        "participant_from_destination_prefecture",
+                        "participants_from_destination_prefecture",
+                    }
+                }
                 if not all(
                     source in self.competitions
-                    and self.competitions[
-                        source
-                    ].is_complete
                     and (
-                        not self._competition_completion_date(
-                            source
-                        )
-                        or activation_date
-                        >= self._competition_completion_date(
-                            source
+                        source in participant_sources
+                        or (
+                            self.competitions[source].is_complete
+                            and (
+                                not self._competition_completion_date(source)
+                                or activation_date >= self._competition_completion_date(source)
+                            )
                         )
                     )
                     for source in source_ids
@@ -1518,6 +1537,7 @@ class LiveSeasonDependencyRuntimeState:
                         source
                     )
                     for source in source_ids
+                    if source not in participant_sources
                 ]
                 source_completion_dates = [
                     value
