@@ -69,14 +69,14 @@ class Stage13E3F3FukuokaSpringPreMainTests(unittest.TestCase):
         stages = {row["stage_calendar_id"]: row for row in read_rows(STAGE)}
         self.assertEqual("resolved", queue["RS2026021"]["status"])
         self.assertEqual("verified", stages["SC2026045"]["date_status"])
-        self.assertEqual("needs_research", queue["RS2026001"]["status"])
-        self.assertEqual("research_pending", stages["SC2026001"]["date_status"])
+        self.assertEqual("resolved", queue["RS2026001"]["status"])
+        self.assertEqual("verified", stages["SC2026001"]["date_status"])
         pending = [
             row["stage_calendar_id"]
             for row in stages.values()
             if row["date_status"] == "research_pending"
         ]
-        self.assertEqual(["SC2026001"], pending)
+        self.assertEqual([], pending)
 
 
 if __name__ == "__main__":
