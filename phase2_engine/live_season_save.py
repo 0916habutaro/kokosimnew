@@ -12,6 +12,11 @@ from .live_season_planner import (
     LiveSeasonGraphPlan,
     LiveSeasonGraphPlanner,
 )
+from .save_migrations import (
+    DEFAULT_SAVE_MIGRATION_REGISTRY,
+    SaveMigrationError,
+    SaveMigrationRegistry,
+)
 
 
 SAVE_SCHEMA_VERSION = "stage13e3e1.live-season-save.v1"
@@ -291,6 +296,29 @@ def create_live_season_save(
     return body
 
 
+def migrate_live_season_save_payload(
+    payload: Mapping[str, Any],
+    *,
+    migration_registry: (
+        SaveMigrationRegistry | None
+    ) = None,
+) -> dict:
+    registry = (
+        migration_registry
+        if migration_registry is not None
+        else DEFAULT_SAVE_MIGRATION_REGISTRY
+    )
+    try:
+        return registry.migrate(
+            payload,
+            target_version=SAVE_SCHEMA_VERSION,
+        )
+    except SaveMigrationError as exc:
+        raise LiveSeasonSaveCompatibilityError(
+            str(exc)
+        ) from exc
+
+
 def _validate_save_payload(
     payload: Mapping[str, Any],
 ) -> dict:
@@ -368,9 +396,18 @@ def restore_live_season_save(
     resolver_contract: str = (
         DEFAULT_RESOLVER_CONTRACT
     ),
+    migration_registry: (
+        SaveMigrationRegistry | None
+    ) = None,
 ):
+    migrated = migrate_live_season_save_payload(
+        payload,
+        migration_registry=(
+            migration_registry
+        ),
+    )
     data = _validate_save_payload(
-        payload
+        migrated
     )
     if data["year"] != planner.year:
         raise LiveSeasonSaveCompatibilityError(
@@ -547,6 +584,10 @@ def write_live_season_save(
 
 def inspect_live_season_save(
     path: str | Path,
+    *,
+    migration_registry: (
+        SaveMigrationRegistry | None
+    ) = None,
 ) -> dict:
     source = Path(path)
     try:
@@ -562,7 +603,15 @@ def inspect_live_season_save(
         raise LiveSeasonSaveSchemaError(
             f"cannot read save file: {source}"
         ) from exc
-    data = _validate_save_payload(payload)
+    migrated = migrate_live_season_save_payload(
+        payload,
+        migration_registry=(
+            migration_registry
+        ),
+    )
+    data = _validate_save_payload(
+        migrated
+    )
     return {
         "schema_version": data["schema_version"],
         "year": data["year"],
@@ -598,6 +647,9 @@ def read_live_season_save(
     resolver_contract: str = (
         DEFAULT_RESOLVER_CONTRACT
     ),
+    migration_registry: (
+        SaveMigrationRegistry | None
+    ) = None,
 ):
     source = Path(path)
     try:
@@ -618,4 +670,7 @@ def read_live_season_save(
         payload,
         engine=engine,
         resolver_contract=resolver_contract,
+        migration_registry=(
+            migration_registry
+        ),
     )
