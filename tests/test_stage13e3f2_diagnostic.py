@@ -29,12 +29,12 @@ class Stage13E3F2DiagnosticTests(unittest.TestCase):
     def test_autumn_p0_chain_is_resolved_to_jingu_calendar_only(self):
         summary = self.audit.summary()
 
-        self.assertEqual(149, summary["completed_competition_count"])
+        self.assertEqual(150, summary["completed_competition_count"])
         self.assertGreater(summary["completed_match_count"], 10308)
         self.assertEqual(
             {
-                "calendar_gap": 10,
-                "complete": 149,
+                "calendar_gap": 9,
+                "complete": 150,
                 "waiting_dependency": 3,
             },
             summary["blocker_counts"],
@@ -55,9 +55,9 @@ class Stage13E3F2DiagnosticTests(unittest.TestCase):
                 "unique_downstream_blocked_competition_ids"
             ],
         )
-        self.assertEqual(9, summary["pending_stage_row_count"])
+        self.assertEqual(8, summary["pending_stage_row_count"])
         self.assertEqual(
-            {"P1_regional_chain": 8, "P2_local_only": 1},
+            {"P1_regional_chain": 7, "P2_local_only": 1},
             summary["priority_counts"],
         )
 
