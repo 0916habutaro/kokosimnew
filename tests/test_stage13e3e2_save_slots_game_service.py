@@ -446,15 +446,15 @@ class Stage13E3E2SaveSlotsGameServiceTests(
                 ],
             )
             self.assertEqual(
-                131,
+                135,
                 runtime[
                     "active_runtime_count"
                 ],
             )
             self.assertEqual(
                 {
-                    "active": 131,
-                    "waiting_dependencies": 31,
+                    "active": 135,
+                    "waiting_dependencies": 27,
                 },
                 runtime[
                     "status_counts"

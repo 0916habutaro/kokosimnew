@@ -92,13 +92,13 @@ class Stage13E3D3FullSeasonPlannerTests(
             summary["season_segment_counts"],
         )
         self.assertEqual(
-            16,
+            15,
             summary[
                 "stage_calendar_pending_count"
             ],
         )
         self.assertEqual(
-            34,
+            35,
             summary[
                 "stage_calendar_verified_count"
             ],
@@ -306,13 +306,13 @@ class Stage13E3D3FullSeasonPlannerTests(
             ],
         )
         self.assertEqual(
-            131,
+            135,
             summary["active_runtime_count"],
         )
         self.assertEqual(
             {
-                "active": 131,
-                "waiting_dependencies": 31,
+                "active": 135,
+                "waiting_dependencies": 27,
             },
             summary["status_counts"],
         )
@@ -330,6 +330,20 @@ class Stage13E3D3FullSeasonPlannerTests(
         )
         self.assertIn(
             "CMP000034",
+            state.competitions,
+        )
+        # The spring access benefit depends on Senbatsu participants,
+        # not on the tournament winner or its completion date.
+        self.assertIn(
+            "CMP000113",
+            state.competitions,
+        )
+        self.assertIn(
+            "CMP000095",
+            state.competitions,
+        )
+        self.assertNotIn(
+            "CMP000002",
             state.competitions,
         )
 
