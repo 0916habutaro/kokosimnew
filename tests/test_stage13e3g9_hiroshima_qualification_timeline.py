@@ -132,7 +132,7 @@ class Stage13E3G9HiroshimaQualificationTimeline(unittest.TestCase):
             root = Path(t)
             fixture(root)
             change(root, lambda rows: next(r for r in rows
-                if r["team1_name"] == "修道" and r["team2_name"] == "宮島工"
+                if r["team1_name"] == "舟入" and r["team2_name"] == "広島井口"
                 and r["match_date"] == "2026-03-21").update(
                     winner_berth_status="berth_award",
                     round_label="予選代表決定戦",
