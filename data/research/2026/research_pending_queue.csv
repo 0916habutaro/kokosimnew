@@ -5,7 +5,7 @@ RS2026003,P1,stage_calendar,CMP000074,SC2026006,,BRANCH_QUALIFIERの2026年実�
 RS2026004,P1,stage_calendar,CMP000076,SC2026008,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC013,2026-10-08,resolved,公式2026年資料と照合しstage calendar verifiedへ変更,公式4地区結果から4/18・19・22・25・26・29・30・5/2・3・4・5の11実試合日を登録。MAIN5/15以降を除外
 RS2026005,P1,stage_calendar,CMP000082,SC2026010,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC023,2026-10-08,resolved,公式2026年資料と照合しstage calendar verifiedへ変更,2026春季福島6支部および敗者復活戦の実試合日10日を確認。県MAIN日程は除外
 RS2026006,P1,stage_calendar,CMP000084,SC2026012,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC026,2026-10-08,resolved,公式2026年資料と照合しstage calendar verifiedへ変更,茨城県高野連2026春季地区予選公式試合結果4/8〜13の6日を登録。MAIN4/18以降除外
-RS2026007,P1,stage_calendar,CMP000090,SC2026014,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC031,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026007,P1,stage_calendar,CMP000090,SC2026014,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC031,2026-10-08,resolved,公式2026年資料と照合しstage calendar verifiedへ変更,2026埼玉春季4地区の個別試合結果から4月10〜16の実試合日7日を登録。県MAIN4/23以降は除外
 RS2026008,P1,stage_calendar,CMP000092,SC2026016,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC033,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
 RS2026009,P1,stage_calendar,CMP000094,SC2026018,,PRELIMINARY_QUALIFIERの2026年実試合日union,P2SRC256,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
 RS2026010,P1,stage_calendar,CMP000095,SC2026019,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC036,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
