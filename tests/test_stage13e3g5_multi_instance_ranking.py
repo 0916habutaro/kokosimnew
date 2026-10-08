@@ -283,9 +283,9 @@ class Stage13E3G5MultiInstanceRankingTests(unittest.TestCase):
             new, _ = historical_west_shizuoka_pair()
             db.save_ranking_sidecar(2026, new)
             self.assertEqual(1, len(db.ranking_matches_on_date(2026, "2026-04-01")))
-            self.assertEqual(1, len(db.list_ranking_sidecars(
+            self.assertEqual(2, len(db.list_ranking_sidecars(
                 2026, "CMP000111", "SGR000105"
-            )) - 1)
+            )))
             db.save_ranking_sidecar(2026, old)
             self.assertEqual(len(new.matches_for_date("2026-04-04")),
                              len(db.ranking_matches_on_date(2026, "2026-04-04")))
