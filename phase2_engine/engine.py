@@ -1030,7 +1030,19 @@ class TournamentEngine:
                 )
                 matches.extend(ms2)
             out = primary + secondary
-            if model_id == "FMT025" and len(out) > 1:
+            rank_order_required = bool(
+                self.repo.param(
+                    stage["stage_id"],
+                    "rank_order_required",
+                    gid,
+                    False,
+                )
+            )
+            if (
+                model_id == "FMT025"
+                and rank_order_required
+                and len(out) > 1
+            ):
                 ranking, rms = self._rank_knockout(
                     annual, stage, group, out, "RANKING", winner_resolver, suffix="-RANK"
                 )
