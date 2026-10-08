@@ -332,6 +332,20 @@ class Stage13E3D3FullSeasonPlannerTests(
             "CMP000034",
             state.competitions,
         )
+        # The spring access benefit depends on Senbatsu participants,
+        # not on the tournament winner or its completion date.
+        self.assertIn(
+            "CMP000113",
+            state.competitions,
+        )
+        self.assertIn(
+            "CMP000095",
+            state.competitions,
+        )
+        self.assertNotIn(
+            "CMP000002",
+            state.competitions,
+        )
 
     def test_full_plan_automatically_materializes_summer_national_and_tokyo_autumn(
         self,
