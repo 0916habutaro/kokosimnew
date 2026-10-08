@@ -92,8 +92,8 @@ def audit_2026_hiroshima_stage13e3g13(data_dir: str | Path) -> dict:
         errors.append(f"expected 22 new winning berth deciders in five regions, found {dict(count_by_region)}")
     if any(x["match_id"] not in seen_ids for x in evidence):
         errors.append("some evidence rows have empty or duplicate match ID")
-    if len(matches) != 83:
-        errors.append(f"expected 83 cumulative dated fixtures, got {len(matches)}")
+    if len(matches) != 108:
+        errors.append(f"expected 108 cumulative dated fixtures, got {len(matches)}")
     all_awards = {
         (m["season"], m["district_code"], m["winner_name"])
         for m in matches if m["winner_berth_status"] == "berth_award"

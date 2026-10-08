@@ -171,7 +171,7 @@ def audit_2026_hiroshima_qualification_timeline(data_dir: str | Path) -> dict:
         errors.append("sample must retain at least one verified fixture for each district-season")
     if anchor_overlaps != len(anchors) or anchor_overlaps != 8:
         errors.append(f"expected all eight protected anchors: {anchor_overlaps}")
-    if len(lines) < 83 or len(awards) < 63:
+    if len(lines) < 108 or len(awards) < 63:
         errors.append("unexpected loss of Stage 3G-12 cumulative match/qualification evidence")
     return {
         "ok": not errors,
