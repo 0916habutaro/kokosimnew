@@ -1,0 +1,11 @@
+audit_id,area,severity,status,observed_count,detail,next_action
+G4-001,phase1_master,info,verified,3746,2026学校マスター3746校は既存mainに存在し大容量取得の空判定は誤認,再作成禁止
+G4-002,phase1_programs,info,verified,3746,2026硬式野球プログラム3746件確認,既存school_idを使用
+G4-003,area_memberships,info,verified,6871,2026学校地区所属6871件確認,既存program_idとscheme_id照合
+G4-004,observed_school_names,info,mapped,53,2026順位戦に登場する53校名を正式school_idへ対応,変更時は別途aliasレビュー
+G4-005,short_name_alias,info,reviewed,11,高野連掲載名と異なる略称11件を明示学校IDと正式名称へ紐付け,自動部分一致は禁止
+G4-006,fmt022_fixtures,info,school_id_mapped,5,徳島沖縄の4シード校ID確認済み,実年度の確定参加校4IDの入力を要求
+G4-007,fmt025_same_area,info,group_id_mapped,25,静岡春秋の同一地区25試合をstage groupまで確認,代表確定済みの単日sidecarを手動生成可能
+G4-008,fmt025_cross_area,medium,review_pending,1,静岡秋藤枝明誠中部と沼津東東部の越境1試合を検出,地区を強制変更せず横断イベント方式を設計
+G4-009,hiroshima_qualifier,medium,excluded,3,広島春秋の代表決定3試合をoptional rankingから除外,真正な代表確定後順位戦の公式照合を継続
+G4-010,rank_multi_day,medium,design_pending,1,同一stage group内の複数試合日で現在のsidecar match_idが衝突,日別イベントinstance_id拡張を設計
