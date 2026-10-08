@@ -13,6 +13,7 @@ from .premain_runtime_composite import (
 )
 from .randomness import shuffled
 from .repository import DataRepository
+from .direct_access_quota import effective_qualifier_group_output_slots
 from .tournament_runtime import MainTournamentRuntimeState
 
 
@@ -465,6 +466,9 @@ class QualifierMainRuntimeState:
                     or group.get("qualifier_slots_generated")
                     or 0
                 ),
+            )
+            slots = effective_qualifier_group_output_slots(
+                repo, annual, group, slots, direct,
             )
             if slots is None or slots <= 0:
                 raise ValueError(
