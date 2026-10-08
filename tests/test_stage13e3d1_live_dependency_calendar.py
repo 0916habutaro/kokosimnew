@@ -116,11 +116,11 @@ class Stage13E3D1LiveDependencyCalendarTests(
             summary["row_count"],
         )
         self.assertEqual(
-            49,
+            50,
             summary["verified_count"],
         )
         self.assertEqual(
-            1,
+            0,
             summary["research_pending_count"],
         )
         self.assertEqual(
@@ -132,7 +132,7 @@ class Stage13E3D1LiveDependencyCalendarTests(
             ],
         )
 
-    def test_pending_stage_stays_empty_and_verified_kanagawa_has_dates(
+    def test_hokkaido_and_kanagawa_both_have_verified_dates(
         self,
     ):
         mapping = (
@@ -143,10 +143,8 @@ class Stage13E3D1LiveDependencyCalendarTests(
         )
         self.assertIn("CMP000004", mapping)
         self.assertEqual(
-            [],
-            mapping["CMP000004"][
-                "BRANCH_QUALIFIER"
-            ],
+            [f"2026-05-{day:02d}" for day in range(8, 18)],
+            mapping["CMP000004"]["BRANCH_QUALIFIER"],
         )
         self.assertEqual(
             [
