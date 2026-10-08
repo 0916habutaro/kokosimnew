@@ -291,6 +291,14 @@ CREATE TABLE IF NOT EXISTS ranking_event_snapshots (
     snapshot_json TEXT NOT NULL,
     PRIMARY KEY (year, competition_id, group_id)
 );
+CREATE TABLE IF NOT EXISTS ranking_event_snapshots_v2 (
+    year INTEGER NOT NULL,
+    competition_id TEXT NOT NULL,
+    group_id TEXT NOT NULL,
+    ranking_instance_id TEXT NOT NULL,
+    snapshot_json TEXT NOT NULL,
+    PRIMARY KEY (year, competition_id, group_id, ranking_instance_id)
+);
 CREATE TABLE IF NOT EXISTS ranking_matches (
     year INTEGER NOT NULL,
     competition_id TEXT NOT NULL,
@@ -308,6 +316,7 @@ CREATE TABLE IF NOT EXISTS ranking_matches (
     team2_score INTEGER,
     status TEXT NOT NULL,
     qualifier_effect TEXT NOT NULL CHECK(qualifier_effect = 'none'),
+    ranking_instance_id TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (year, competition_id, match_id)
 );
 CREATE INDEX IF NOT EXISTS idx_rank_year_date
@@ -332,6 +341,14 @@ class BrowseRepository:
     @staticmethod
     def _initialize_schema_conn(conn: sqlite3.Connection) -> None:
         conn.executescript(_SCHEMA_SQL)
+        # The old ranking_matches table predates instance IDs. Add the column
+        # in place: existing matches and snapshots must remain readable.
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(ranking_matches)")}
+        if "ranking_instance_id" not in cols:
+            conn.execute(
+                "ALTER TABLE ranking_matches "
+                "ADD COLUMN ranking_instance_id TEXT NOT NULL DEFAULT ''"
+            )
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     def initialize_schema(self) -> None:
@@ -435,6 +452,9 @@ class BrowseRepository:
                 )
                 conn.execute(
                     "DELETE FROM ranking_event_snapshots WHERE year = ?", (year,)
+                )
+                conn.execute(
+                    "DELETE FROM ranking_event_snapshots_v2 WHERE year = ?", (year,)
                 )
                 conn.execute(
                     "DELETE FROM browse_seasons WHERE year = ?",
