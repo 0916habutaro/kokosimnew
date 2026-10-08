@@ -38,6 +38,7 @@
 - Stage 13E-3B-3: SEED_EVENT系FMT001 / 009 / 018〜024、岐阜秋FMT026 gate、愛媛秋seed→qualifierをlazy化。seed完了前は後続stageを生成せず、対象9大会でlegacy CompetitionRun完全一致を検証
 - Stage 13E-3C: ScheduledCompetitionRuntime / LiveSeasonRuntimeStateを追加し、ready frontierだけを大会日程へ割り当ててcurrent_date当日にMatchResolverを実行。北海道春qualifier→MAIN・岐阜秋seed→gate→MAINを日付進行してlegacy CompetitionRun完全一致を検証。pre-MAIN日付不足はcalendar gapとして停止
 - Stage 13E-3D-1: 2026 pre-MAIN stage calendar masterを49 stageで新設し、全件research_pendingとしてMAIN日程の誤流用を防止。同年competition_access_rulesをlive dependency化し、宮城の夏優勝→秋直接出場、三重の夏優勝→秋SEED_EVENT免除＋seed付与をsource公式最終日まで遅延してactivate。両destinationでlegacy CompetitionRun完全一致を検証
+- Stage 13E-3D-2: qualification_rules 59件・regional_feeder_rules 96件・近畿regional playoff 2件をLiveSeasonDependencyRuntimeStateへ接続。49地方大会→夏甲子園、四国4県→春季四国、近畿playoff、秋10代表→神宮entrant生成をlive化し、夏甲子園・春季四国ではlegacy CompetitionRun完全一致を検証
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -120,4 +121,4 @@ python -m game_core.stage13c2_audit \
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13E-3D-1で2026 pre-MAIN 49 stageのcalendar masterを新設し、既存MAIN日程を未確認pre-MAINへ流用しない契約を固定した。同年competition_access_rulesもLiveSeasonDependencyRuntimeStateへ接続し、source大会結果確定前はdestination runtimeを生成せず、結果解禁はsource公式game_date_list最終日まで遅延する。宮城の夏優勝→秋直接出場、三重の夏優勝→秋SEED_EVENT免除＋seed付与でlive progressionとlegacy CompetitionRunの完全一致を確認済み。次工程Stage 13E-3D-2ではqualification_rules（49地方大会→夏甲子園、秋地区等→神宮）とregional_feeder_rules / regional playoff（県大会順位→地区大会）をlive dependency graphへ拡張する。pre-MAIN正確日付49 stageの調査・verified化は並行して進められる。Stage 13D-3 GUI実ウィンドウ確認と秋季実績Stage 12O dueキューは後追い可能。
+正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13E-3D-2でqualification_rules 59件、regional_feeder_rules 96件、近畿regional playoff 2件をLiveSeasonDependencyRuntimeStateへ接続した。49地方大会の全winnerが公式最終日まで確定して初めて夏甲子園49代表をmaterializeし、県大会final_rankingから地区大会へ進むrank_range / 重複除外 / quota補充 / playoff_candidateもlegacyと同じ順序で解決する。夏甲子園CMP000002と春季四国CMP000011ではlive日付進行後のCompetitionRunがlegacy一括runと完全一致し、近畿playoff winnerもlegacy resolverと一致した。次工程Stage 13E-3D-3ではannual templateの自動生成とsource/destinationのtopological planningを行い、full-season live dependency graphを手作業なしで構築できるようにする。同時にpre-MAIN 49 stageの正確日付を調査しresearch_pendingからverifiedへ段階的に更新する。Stage 13D-3 GUI実ウィンドウ確認と秋季実績Stage 12O dueキューは後追い可能。
