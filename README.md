@@ -40,6 +40,7 @@
 - Stage 13E-3D-1: 2026 pre-MAIN stage calendar masterを49 stageで新設し、全件research_pendingとしてMAIN日程の誤流用を防止。同年competition_access_rulesをlive dependency化し、宮城の夏優勝→秋直接出場、三重の夏優勝→秋SEED_EVENT免除＋seed付与をsource公式最終日まで遅延してactivate。両destinationでlegacy CompetitionRun完全一致を検証
 - Stage 13E-3D-2: qualification_rules 59件・regional_feeder_rules 96件・近畿regional playoff 2件をLiveSeasonDependencyRuntimeStateへ接続。49地方大会→夏甲子園、四国4県→春季四国、近畿playoff、秋10代表→神宮entrant生成をlive化し、夏甲子園・春季四国ではlegacy CompetitionRun完全一致を検証
 - Stage 13E-3D-3: LiveSeasonGraphPlannerを追加し、2026全162大会・165 dependency edge・season calendar 162件・pre-MAIN stage calendar 49件からannual templateとtopological live graphを自動構築。131 root / 31 dependency待ちで起動し、49地方大会→夏甲子園・東西東京夏優勝→秋東京232校構造まで手動AnnualCompetitionInputなしで自動materializeする回帰を確認
+- Stage 13E-3E-1: full-season live runtimeのJSON save/load v1を実装。plan fingerprint＋processed date＋完了MatchResolutionからfresh runtimeをdeterministic replayし、current_date・dependency状態・activated_on・score/ability detailまで完全照合して再開。atomic write、checksum、resolver contract、plan変更・改ざん検出を追加
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -122,4 +123,4 @@ python -m game_core.stage13c2_audit \
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13E-3D-3でLiveSeasonGraphPlannerを追加し、2026全162大会をseason開始時に自動planできるようにした。annual template strategyはsenbatsu bootstrap 1・summer area 49・structural 81・deferred structural 13・dependency aggregate 18で、165 edgeをcycleなしでtopological sortする。plannerからLiveSeasonDependencyRuntimeStateを直接起動すると131 root大会がactive、31大会がdependency待ちとなり、1/1から8/5までの実回帰で49地方大会→夏甲子園49代表、および東西東京夏優勝→秋東京direct2校＋総232校構造まで手動AnnualCompetitionInputなしで自動materializeできた。Stage 13E-3D系列の大会構造・日付・大会間依存・年間graph自動構築はここで一区切りとする。次工程Stage 13E-3E-1ではfull-season live runtimeのsave/load contractを実装し、current_date・未消化試合・完了結果・未materialize dependencyを保存して完全再開できるようにする。pre-MAIN 49 stageの正確日付research_pending→verified化は並行調査として継続する。Stage 13D-3 GUI実ウィンドウ確認と秋季実績Stage 12O dueキューは後追い可能。
+正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13E-3E-1でfull-season live runtimeのsave/load contractを実装した。save v1はPython objectを直接保存せず、plan fingerprint・season clock・processed dates・完了試合結果・dependency状態・activated_on・resolver contractをJSONへ保存し、load時にfresh runtimeをdeterministic replayしてscore・ability detail・public snapshotまで完全照合する。7/28当日未処理状態の宮城夏→秋dependencyを保存・復元し、復元後play_todayで同じ秋大会がactivateすること、activate後のfile roundtripと将来進行が一致することを確認済み。checksum、plan変更、resolver変更、結果改ざんはいずれもload拒否する。次工程Stage 13E-3E-2ではsave slot manager・autosave・rolling backup・new/load/save game facadeを追加し、ゲーム起動と永続化の正式service contractを固定する。pre-MAIN 49 stageの正確日付research_pending→verified化は並行調査として継続する。Stage 13D-3 GUI実ウィンドウ確認と秋季実績Stage 12O dueキューは後追い可能。
