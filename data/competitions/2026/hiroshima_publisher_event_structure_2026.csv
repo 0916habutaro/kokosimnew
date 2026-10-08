@@ -1,0 +1,9 @@
+season,district_code,competition_id,stage_group_id,first_place_child_events,second_place_child_events,cross_zone_entry_decider_child_events,qualifier_child_event_count,competition_parent_child_event_count,prefectural_main_child_event_count,source_url,source_scope,pdf_body_inspected
+spring,west,CMP000135,SGR000140,4,4,1,9,44,1,https://www.sportsonline.jp/reportv2/PublisherFull/Rally.aspx?parentid=RX_ZV,tournament_publisher_event_index_not_official_bracket_pdf,no
+spring,north,CMP000135,SGR000141,4,4,2,10,44,1,https://www.sportsonline.jp/reportv2/PublisherFull/Rally.aspx?parentid=RX_ZV,tournament_publisher_event_index_not_official_bracket_pdf,no
+spring,south,CMP000135,SGR000142,6,6,3,15,44,1,https://www.sportsonline.jp/reportv2/PublisherFull/Rally.aspx?parentid=RX_ZV,tournament_publisher_event_index_not_official_bracket_pdf,no
+spring,east,CMP000135,SGR000143,5,4,0,9,44,1,https://www.sportsonline.jp/reportv2/PublisherFull/Rally.aspx?parentid=RX_ZV,tournament_publisher_event_index_not_official_bracket_pdf,no
+autumn,west,CMP000136,SGR000144,4,4,1,9,45,1,https://www.sportsonline.jp/reportv2/PublisherFull/Rally.aspx?ParentID=RX%5DSZ,tournament_publisher_event_index_not_official_bracket_pdf,no
+autumn,north,CMP000136,SGR000145,4,4,2,10,45,1,https://www.sportsonline.jp/reportv2/PublisherFull/Rally.aspx?ParentID=RX%5DSZ,tournament_publisher_event_index_not_official_bracket_pdf,no
+autumn,south,CMP000136,SGR000146,6,6,4,16,45,1,https://www.sportsonline.jp/reportv2/PublisherFull/Rally.aspx?ParentID=RX%5DSZ,tournament_publisher_event_index_not_official_bracket_pdf,no
+autumn,east,CMP000136,SGR000147,5,3,1,9,45,1,https://www.sportsonline.jp/reportv2/PublisherFull/Rally.aspx?ParentID=RX%5DSZ,tournament_publisher_event_index_not_official_bracket_pdf,no
