@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import csv
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Mapping, Sequence
@@ -10,6 +11,8 @@ from .competition_schedule_runtime import (
     _iso_date,
 )
 from .models import AnnualCompetitionInput
+from .paths import resolve_data_file
+from .randomness import shuffled
 from .repository import DataRepository
 from .stage_calendar import (
     stage_date_lists_by_competition,
@@ -54,6 +57,80 @@ class LiveAccessDependencyResolution:
                 self.resolved_school_ids
             ),
             "expected_count": self.expected_count,
+            "status": self.status,
+            "notes": self.notes,
+        }
+
+
+@dataclass(frozen=True)
+class LiveQualificationDependencyResolution:
+    rule_id: str
+    source_competition_id: str
+    destination_competition_id: str
+    source_result: str
+    resolved_school_ids: tuple[str, ...]
+    expected_count: int
+    status: str
+    notes: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "rule_id": self.rule_id,
+            "source_competition_id": self.source_competition_id,
+            "destination_competition_id": self.destination_competition_id,
+            "source_result": self.source_result,
+            "resolved_school_ids": list(self.resolved_school_ids),
+            "expected_count": self.expected_count,
+            "status": self.status,
+            "notes": self.notes,
+        }
+
+
+@dataclass(frozen=True)
+class LiveRegionalFeederDependencyResolution:
+    feeder_rule_id: str
+    destination_competition_id: str
+    source_competition_id: str
+    source_prefecture_code: str
+    selector: str
+    qualification_mode: str
+    resolved_school_ids: tuple[str, ...]
+    expected_count: int
+    status: str
+    notes: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "feeder_rule_id": self.feeder_rule_id,
+            "destination_competition_id": self.destination_competition_id,
+            "source_competition_id": self.source_competition_id,
+            "source_prefecture_code": self.source_prefecture_code,
+            "selector": self.selector,
+            "qualification_mode": self.qualification_mode,
+            "resolved_school_ids": list(self.resolved_school_ids),
+            "expected_count": self.expected_count,
+            "status": self.status,
+            "notes": self.notes,
+        }
+
+
+@dataclass(frozen=True)
+class LiveRegionalPlayoffDependencyResolution:
+    playoff_id: str
+    destination_competition_id: str
+    candidate_school_id_a: str
+    candidate_school_id_b: str
+    winner_school_id: str
+    status: str
+    notes: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "playoff_id": self.playoff_id,
+            "destination_competition_id": self.destination_competition_id,
+            "candidate_school_id_a": self.candidate_school_id_a,
+            "candidate_school_id_b": self.candidate_school_id_b,
+            "winner_school_id": self.winner_school_id,
             "status": self.status,
             "notes": self.notes,
         }
