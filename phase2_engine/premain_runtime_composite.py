@@ -62,7 +62,13 @@ class _PhaseRecord:
 
     def resolve_match(self, match_id: str) -> MatchResolution:
         for runtime in self.runtimes:
-            if match_id in runtime.matches:
+            if isinstance(runtime, BlockForestRuntimeState):
+                if any(
+                    match_id in block_runtime.matches
+                    for block_runtime in runtime.block_runtimes
+                ):
+                    return runtime.resolve_match(match_id)
+            elif match_id in runtime.matches:
                 return runtime.resolve_match(match_id)
         raise KeyError(f"unknown match_id: {match_id}")
 
