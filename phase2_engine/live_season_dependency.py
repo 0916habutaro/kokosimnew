@@ -528,26 +528,94 @@ class LiveSeasonDependencyRuntimeState:
         end = int(end_value) if end_value else year
         return start <= year <= end
 
-    def _initialize_statuses(self) -> None:
-        for cid in self.annual_templates:
-            rules = self.dependency_rules.get(
-                cid,
+    def _source_ids_for_destination(
+        self,
+        competition_id: str,
+    ) -> list[str]:
+        sources: list[str] = []
+        sources.extend(
+            rule["source_competition_id_2026"]
+            for rule in self.dependency_rules.get(
+                competition_id,
                 [],
             )
-            if not rules:
+            if rule.get("source_competition_id_2026")
+        )
+        sources.extend(
+            rule["source_competition_id"]
+            for rule in self.qualification_rules.get(
+                competition_id,
+                [],
+            )
+            if rule.get("source_competition_id")
+        )
+        sources.extend(
+            rule["source_competition_id"]
+            for rule in self.regional_feeder_rules.get(
+                competition_id,
+                [],
+            )
+            if rule.get("source_competition_id")
+        )
+        return list(dict.fromkeys(sources))
+
+    def _dependency_family_count(
+        self,
+        competition_id: str,
+    ) -> int:
+        return sum([
+            bool(self.dependency_rules.get(competition_id)),
+            bool(self.qualification_rules.get(competition_id)),
+            bool(self.regional_feeder_rules.get(competition_id)),
+        ])
+
+    def _region_prefecture_codes(
+        self,
+        region_id: str,
+    ) -> set[str]:
+        rows = self._read_csv(
+            self.repo.data_dir,
+            "prefecture_region_memberships.csv",
+        )
+        return {
+            row["prefecture_code"]
+            for row in rows
+            if (
+                row.get("region_id") == region_id
+                and row.get("season_segment")
+                == "autumn"
+                and row.get("effective_year")
+                == str(self.year)
+            )
+        }
+
+    def _initialize_statuses(self) -> None:
+        for cid in self.annual_templates:
+            family_count = (
+                self._dependency_family_count(cid)
+            )
+            if family_count == 0:
                 self.status_by_competition[
                     cid
                 ] = DEPENDENCY_ACTIVE
                 continue
+            if family_count > 1:
+                self.status_by_competition[
+                    cid
+                ] = DEPENDENCY_BLOCKED
+                self.history.append({
+                    "action": "block_dependency_family_overlap",
+                    "competition_id": cid,
+                    "dependency_family_count": family_count,
+                })
+                continue
+            sources = self._source_ids_for_destination(
+                cid
+            )
             missing_sources = {
-                rule[
-                    "source_competition_id_2026"
-                ]
-                for rule in rules
-                if rule[
-                    "source_competition_id_2026"
-                ]
-                not in self.annual_templates
+                source
+                for source in sources
+                if source not in self.annual_templates
             }
             self.status_by_competition[cid] = (
                 DEPENDENCY_WAITING_EXTERNAL
