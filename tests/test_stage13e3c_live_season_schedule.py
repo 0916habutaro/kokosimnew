@@ -363,9 +363,30 @@ class Stage13E3CLiveSeasonScheduleTests(unittest.TestCase):
             main_dates[-1]
         )
         self.assertTrue(scheduled.is_complete)
+        lazy = scheduled.to_competition_run()
+        self.assertEqual(
+            legacy.seed_assignments,
+            lazy.seed_assignments,
+            "Gifu schedule: seed assignments differ",
+        )
+        self.assertEqual(
+            legacy.main_entrant_school_ids,
+            lazy.main_entrant_school_ids,
+            "Gifu schedule: MAIN entrants differ",
+        )
+        self.assertEqual(
+            legacy.stage_executions,
+            lazy.stage_executions,
+            "Gifu schedule: stage executions differ",
+        )
+        self.assertEqual(
+            legacy.outcome,
+            lazy.outcome,
+            "Gifu schedule: outcome differs",
+        )
         self.assertEqual(
             legacy.to_dict(),
-            scheduled.to_competition_run().to_dict(),
+            lazy.to_dict(),
         )
 
         completed = list(
