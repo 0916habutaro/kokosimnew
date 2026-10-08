@@ -503,7 +503,14 @@ class CompositeQualifierGroupRuntime:
 
     def _after_primary_secondary(self) -> None:
         out = list(self.state["primary"]) + list(self.state["secondary"])
-        if self.format_model_id == "FMT025" and len(out) > 1:
+        rank_order_required = bool(
+            self._param("rank_order_required", False)
+        )
+        if (
+            self.format_model_id == "FMT025"
+            and rank_order_required
+            and len(out) > 1
+        ):
             self._add_rank(
                 "ranking",
                 out,
