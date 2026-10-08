@@ -11,6 +11,7 @@ from .premain_runtime_composite import (
     CompositeQualifierGroupRuntime,
     Fmt005GlobalQualifierRuntime,
 )
+from .randomness import shuffled
 from .repository import DataRepository
 from .tournament_runtime import MainTournamentRuntimeState
 
@@ -21,6 +22,8 @@ class Fmt001QualifierGroupRuntime:
     eligible_school_ids: List[str]
     output_slots: int
     forest: BlockForestRuntimeState
+    protected_seed_count: int = 0
+    protected_seed_blocks: List[int] = field(default_factory=list)
 
     @property
     def format_model_id(self) -> str:
@@ -60,8 +63,8 @@ class Fmt001QualifierGroupRuntime:
             "output_slots": self.output_slots,
             "representative_block_count": len(self.forest.blocks),
             "block_sizes": [len(block) for block in self.forest.blocks],
-            "protected_seed_count": 0,
-            "protected_seed_blocks": [],
+            "protected_seed_count": self.protected_seed_count,
+            "protected_seed_blocks": list(self.protected_seed_blocks),
         }
 
 
@@ -96,6 +99,7 @@ class QualifierMainRuntimeState:
         warnings: Sequence[str],
         pre_main_match_resolver=None,
         main_match_resolver=None,
+        protected_seed_school_ids: Sequence[str] = (),
     ) -> "QualifierMainRuntimeState":
         assignment = repo.assignments_by_stage.get(qualifier_stage["stage_id"])
         if not assignment:
@@ -151,26 +155,117 @@ class QualifierMainRuntimeState:
             if slots <= 0:
                 raise ValueError(f"{group['group_name']}: FMT001 requires output_slots")
 
-            forest = BlockForestRuntimeState.create(
-                eligible,
-                block_count=slots,
-                competition_id=annual.competition_id,
-                reference_year=annual.year,
-                stage_id=qualifier_stage["stage_id"],
-                stage_code=qualifier_stage["stage_code"],
-                phase_code="BLOCK_KO",
-                group_id=gid,
-                group_name=group["group_name"],
-                generation_seed=annual.rng_seed,
-                match_resolver=pre_main_match_resolver,
-                resolved_match_sink=sink,
-            )
+            eligible_set = set(eligible)
+            protected = [
+                school_id
+                for school_id in dict.fromkeys(protected_seed_school_ids)
+                if school_id in eligible_set
+            ]
+            if len(protected) > slots:
+                raise ValueError(
+                    f"{group['group_name']}: protected seeds={len(protected)} "
+                    f"exceed output blocks={slots}"
+                )
+
+            protected_blocks = []
+            if protected:
+                q, remainder = divmod(len(eligible), slots)
+                sizes = [
+                    q + (1 if index < remainder else 0)
+                    for index in range(slots)
+                ]
+                blocks = [[] for _ in range(slots)]
+                block_order = shuffled(
+                    range(slots),
+                    annual.rng_seed,
+                    (
+                        f"{annual.competition_id}:"
+                        f"{qualifier_stage['stage_id']}:{gid}:"
+                        "seed_block_order"
+                    ),
+                )
+                seed_order = shuffled(
+                    protected,
+                    annual.rng_seed,
+                    (
+                        f"{annual.competition_id}:"
+                        f"{qualifier_stage['stage_id']}:{gid}:"
+                        "seed_order"
+                    ),
+                )
+                for block_index, school_id in zip(
+                    block_order,
+                    seed_order,
+                ):
+                    blocks[block_index].append(school_id)
+                    protected_blocks.append(block_index + 1)
+
+                nonseeds = shuffled(
+                    [
+                        school_id
+                        for school_id in eligible
+                        if school_id not in set(protected)
+                    ],
+                    annual.rng_seed,
+                    (
+                        f"{annual.competition_id}:"
+                        f"{qualifier_stage['stage_id']}:{gid}:"
+                        "nonseed_fill"
+                    ),
+                )
+                pos = 0
+                for block_index, size in enumerate(sizes):
+                    need = size - len(blocks[block_index])
+                    blocks[block_index].extend(
+                        nonseeds[pos:pos + need]
+                    )
+                    pos += need
+                if (
+                    pos != len(nonseeds)
+                    or any(
+                        len(block) != size
+                        for block, size in zip(blocks, sizes)
+                    )
+                ):
+                    raise AssertionError(
+                        "seeded FMT001 block partition mismatch"
+                    )
+                forest = BlockForestRuntimeState.create_from_blocks(
+                    blocks,
+                    competition_id=annual.competition_id,
+                    reference_year=annual.year,
+                    stage_id=qualifier_stage["stage_id"],
+                    stage_code=qualifier_stage["stage_code"],
+                    phase_code="BLOCK_KO",
+                    group_id=gid,
+                    group_name=group["group_name"],
+                    generation_seed=annual.rng_seed,
+                    match_resolver=pre_main_match_resolver,
+                    resolved_match_sink=sink,
+                )
+            else:
+                forest = BlockForestRuntimeState.create(
+                    eligible,
+                    block_count=slots,
+                    competition_id=annual.competition_id,
+                    reference_year=annual.year,
+                    stage_id=qualifier_stage["stage_id"],
+                    stage_code=qualifier_stage["stage_code"],
+                    phase_code="BLOCK_KO",
+                    group_id=gid,
+                    group_name=group["group_name"],
+                    generation_seed=annual.rng_seed,
+                    match_resolver=pre_main_match_resolver,
+                    resolved_match_sink=sink,
+                )
             runtimes.append(
                 Fmt001QualifierGroupRuntime(
                     group=group,
                     eligible_school_ids=eligible,
                     output_slots=slots,
                     forest=forest,
+                    protected_seed_count=len(protected),
+                    protected_seed_blocks=sorted(protected_blocks),
                 )
             )
 
@@ -469,6 +564,7 @@ class QualifierMainRuntimeState:
         warnings: Sequence[str],
         pre_main_match_resolver=None,
         main_match_resolver=None,
+        protected_seed_school_ids: Sequence[str] = (),
     ) -> "QualifierMainRuntimeState":
         assignment = repo.assignments_by_stage.get(qualifier_stage["stage_id"])
         if not assignment:
@@ -485,7 +581,7 @@ class QualifierMainRuntimeState:
             raise NotImplementedError(
                 f"Stage 13E-3B-2 qualifier runtime does not yet support {model_id}"
             )
-        return factory(
+        kwargs = dict(
             repo=repo,
             annual=annual,
             entrants=entrants,
@@ -497,6 +593,11 @@ class QualifierMainRuntimeState:
             pre_main_match_resolver=pre_main_match_resolver,
             main_match_resolver=main_match_resolver,
         )
+        if model_id == "FMT001":
+            kwargs["protected_seed_school_ids"] = list(
+                protected_seed_school_ids
+            )
+        return factory(**kwargs)
 
     @property
     def qualifier_complete(self) -> bool:
@@ -669,8 +770,18 @@ class QualifierMainRuntimeState:
                 "group_outputs": group_outputs,
                 "group_models": group_models,
                 "group_metadata": group_metadata,
-                "protected_seed_count": 0,
-                "protected_seed_blocks": [],
+                "protected_seed_count": sum(
+                    int(meta.get("protected_seed_count") or 0)
+                    for meta in group_metadata.values()
+                ),
+                "protected_seed_blocks": sorted({
+                    block
+                    for meta in group_metadata.values()
+                    for block in meta.get(
+                        "protected_seed_blocks",
+                        [],
+                    )
+                }),
             },
         )
 
