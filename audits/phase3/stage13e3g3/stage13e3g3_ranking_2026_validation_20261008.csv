@@ -1,0 +1,8 @@
+item,status,verified_count,qualification_decider_excluded,remaining_issue
+FMT022_TOKUSHIMA,partially_ready,2,0,正式学校ID投入後に4シード名を照合しライブstageへ接続
+FMT022_OKINAWA,partially_ready,3,0,正式学校ID投入後に4シード名を照合しライブstageへ接続
+FMT025_SHIZUOKA_SPRING,reference_verified,13,0,3地区のgroup_idと学校IDを確認
+FMT025_SHIZUOKA_AUTUMN,reference_verified,13,0,3地区のgroup_idと学校IDを確認
+FMT025_HIROSHIMA_SPRING,needs_classification,0,1,代表決定と順位決定の試合を分離して公式照合
+FMT025_HIROSHIMA_AUTUMN,needs_classification,0,2,代表決定と順位決定の試合を分離して公式照合
+TOTAL,partial_reference_complete,31,3,研究タスク2件はdesign_pendingを維持
