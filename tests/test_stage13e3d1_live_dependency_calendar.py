@@ -132,7 +132,7 @@ class Stage13E3D1LiveDependencyCalendarTests(
             ],
         )
 
-    def test_pending_stage_calendar_maps_to_empty_dates(
+    def test_pending_stage_stays_empty_and_verified_kanagawa_has_dates(
         self,
     ):
         mapping = (
@@ -149,7 +149,13 @@ class Stage13E3D1LiveDependencyCalendarTests(
             ],
         )
         self.assertEqual(
-            [],
+            [
+                "2026-03-20",
+                "2026-03-21",
+                "2026-03-22",
+                "2026-03-27",
+                "2026-03-28",
+            ],
             mapping["CMP000095"][
                 "BRANCH_QUALIFIER"
             ],
