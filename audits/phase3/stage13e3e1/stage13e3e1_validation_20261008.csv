@@ -1,0 +1,28 @@
+check,status,detail
+save_schema_version,PASS,stage13e3e1.live-season-save.v1
+json_contract,PASS,UTF-8 JSON without pickle/runtime object serialization
+plan_fingerprint,PASS,annual templates calendars stage calendars dependencies and topology are fingerprinted
+payload_checksum,PASS,SHA-256 canonical payload checksum
+season_clock_save,PASS,start_date current_date and processed_dates saved
+midday_boundary,PASS,current date may be last processed date or following unprocessed day
+completed_results_save,PASS,completed matches only are saved
+future_results_absent,PASS,pending and unmaterialized future match results are not serialized
+score_detail_save,PASS,scores score_source and ability_detail are preserved
+dependency_state_save,PASS,status_by_competition and activated_on preserved
+runtime_history_save,PASS,history restored after replay validation
+deterministic_replay,PASS,fresh runtime replays processed dates from plan
+public_snapshot_replay,PASS,restored public snapshot fingerprint matches saved runtime
+runtime_summary_replay,PASS,restored summary matches saved runtime
+dependency_replay,PASS,status and activation dates match saved runtime
+resolver_contract_guard,PASS,mismatched resolver contract rejected
+plan_change_guard,PASS,changed plan fingerprint rejected
+checksum_tamper_guard,PASS,raw payload tamper rejected
+rehash_tamper_guard,PASS,semantic match tamper with recomputed checksum rejected by replay
+custom_score_replay,PASS,4-2 custom deterministic score replays exactly
+ability_detail_replay,PASS,custom resolution detail preserved and replayed exactly
+pre_release_restore,PASS,2026-07-28 unprocessed current date restores with CMP000077 still waiting
+post_release_continue,PASS,restore then play_today activates same CMP000077 direct entrant
+atomic_file_write,PASS,.tmp write then Path.replace
+json_file_roundtrip,PASS,post-dependency activation state restores exactly from file
+future_continuation,PASS,original and restored states remain equal after advancing to 2026-08-02
+full_suite,PASS,Ran 549 tests in 33.960s; OK
