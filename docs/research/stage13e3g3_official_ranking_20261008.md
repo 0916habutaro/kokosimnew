@@ -47,7 +47,7 @@ FMT022の歴史的な「日時・初戦2カード」を、資格4校の明示的
 - [静岡2026秋季上位決定戦の学校別全13試合](https://www.hb-nippon.com/tournaments/1923)
 - [静岡市立高公式：8/23代表確定→8/30静岡商との上位決定戦](https://shizuokacity-h.ed.jp/%EF%BC%9C%E9%87%8E%E7%90%83%E9%83%A8%EF%BC%9E%E7%A7%8B%E5%AD%A3%E7%9C%8C%E5%A4%A7%E4%BC%9A%E4%BA%88%E9%81%B8%E4%BB%A3%E8%A1%A8%E6%B1%BA%E5%AE%9A%E6%88%A6/)
 
-**既存の正式GitHubデータには学校マスター`data/master/schools.csv`と学校地区所属CSV`data/areas/school_area_memberships.csv`が空である。** 当年実在校名の正式school_id、3地区`SGR000103～108`との確実な対応付けは現状できない。よって歴史参考として実結果を保存するが、`group_id`と`school_id`は埋めず、FMT025の`explicit_annual_pairs_required`を解除しない。無根拠のペア紐付けは大会構造の破壊につながる。
+**2026-10-08 追記（Stage 13E-3G-4）**：本工程時点で「学校マスターと学校地区所属CSVが空」と判定したのは、大容量ファイル取得が空の応答になったことによる誤認だった。Git blob APIで実体を確認し、学校3,746校・硬式野球部3,746件・地区所属6,871件を正常に読み取れた。34試合の学校IDはすべて対応済み。静岡の同一地区25件はgroup IDまで確定し、藤枝明誠―沼津東の1件だけは登録地区をまたぐため単一地区groupに強制対応させず保留。詳細は`stage13e3g4_school_area_reconciliation_20261008.md`を参照。
 
 ## 広島：同じ見出しに資格決定戦が混在する問題
 
