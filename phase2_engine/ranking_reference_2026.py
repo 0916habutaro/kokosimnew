@@ -93,6 +93,14 @@ def validate_ranking_observations(
         if row["format_model_id"] == "FMT022" and (
                 row["stage_group_id"] not in ("SGR000171", "SGR000184")):
             errors.append(f"{context}: FMT022 requires a verified group")
+        if (cid in ("CMP000135", "CMP000136")
+                and row["reference_classification"] == VERIFIED):
+            # The Hiroshima district sources also contain matches deciding
+            # prefectural qualification. Post-cut proof is still missing;
+            # never infer a nonblocking sidecar from a tournament title.
+            errors.append(
+                f"{context}: Hiroshima placement requires proof both teams qualified"
+            )
         if row["reference_classification"] == VERIFIED:
             counts[cid] += 1
     for cid, size in (("CMP000140", 2), ("CMP000162", 3),
