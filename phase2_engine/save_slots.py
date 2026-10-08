@@ -58,6 +58,8 @@ class SaveSlotFile:
     path: str
     exists: bool
     metadata: dict | None = None
+    status: str = "missing"
+    error: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -65,6 +67,8 @@ class SaveSlotFile:
             "source": self.source,
             "path": self.path,
             "exists": self.exists,
+            "status": self.status,
+            "error": self.error,
             "metadata": (
                 dict(self.metadata)
                 if self.metadata is not None
@@ -565,15 +569,36 @@ class SaveSlotManager:
                 path=str(path),
                 exists=False,
                 metadata=None,
+                status="missing",
+                error="",
+            )
+        try:
+            metadata = (
+                inspect_live_season_save(
+                    path
+                )
+            )
+        except Exception as exc:
+            return SaveSlotFile(
+                slot_id=slot_id,
+                source=source,
+                path=str(path),
+                exists=True,
+                metadata=None,
+                status="invalid",
+                error=(
+                    f"{type(exc).__name__}: "
+                    f"{exc}"
+                ),
             )
         return SaveSlotFile(
             slot_id=slot_id,
             source=source,
             path=str(path),
             exists=True,
-            metadata=inspect_live_season_save(
-                path
-            ),
+            metadata=metadata,
+            status="valid",
+            error="",
         )
 
     @staticmethod
