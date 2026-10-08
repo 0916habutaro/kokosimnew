@@ -35,6 +35,8 @@ class SingleEliminationRuntimeState:
     matches: Dict[str, RuntimePreMainMatch]
     match_order: List[str]
     match_ids_by_round: Dict[int, List[str]]
+    stop_at_survivors: int = 1
+    survivor_sources: List[str] = field(default_factory=list)
     match_resolver: object | None = field(default=None, repr=False)
     match_simulation_results: Dict[str, dict] = field(default_factory=dict)
     eliminated_by_round: Dict[int, List[str]] = field(
@@ -56,6 +58,7 @@ class SingleEliminationRuntimeState:
         generation_seed: int,
         match_resolver=None,
         resolved_match_sink: Dict[str, dict] | None = None,
+        stop_at_survivors: int = 1,
     ) -> "SingleEliminationRuntimeState":
         active = shuffled(
             teams,
@@ -64,6 +67,11 @@ class SingleEliminationRuntimeState:
         )
         if not active:
             raise ValueError("single elimination runtime requires entrants")
+        if stop_at_survivors <= 0 or stop_at_survivors > len(active):
+            raise ValueError(
+                f"stop_at_survivors={stop_at_survivors} is invalid "
+                f"for entrants={len(active)}"
+            )
 
         matches = {}
         order = []
@@ -71,7 +79,14 @@ class SingleEliminationRuntimeState:
         sources = [team_source(team) for team in active]
         round_no = 1
         match_seq = 1
-        while len(sources) > 1:
+        while len(sources) > stop_at_survivors:
+            next_count = (len(sources) + 1) // 2
+            if next_count < stop_at_survivors:
+                raise ValueError(
+                    "single elimination cutoff does not align with a round boundary: "
+                    f"entrants={len(sources)} "
+                    f"stop_at_survivors={stop_at_survivors}"
+                )
             next_sources = []
             round_ids = []
             for i in range(0, len(sources), 2):
@@ -117,6 +132,8 @@ class SingleEliminationRuntimeState:
             matches=matches,
             match_order=order,
             match_ids_by_round=by_round,
+            stop_at_survivors=stop_at_survivors,
+            survivor_sources=list(sources),
             match_resolver=match_resolver,
             match_simulation_results=sink,
         )
@@ -215,17 +232,41 @@ class SingleEliminationRuntimeState:
                 raise RuntimeError("single elimination runtime stalled")
         return self.ranking()
 
+    def survivors(self) -> list[str]:
+        if not self.is_complete:
+            raise ValueError("survivors unavailable before completion")
+        return [
+            value
+            for source in self.survivor_sources
+            if (value := source_value(source, self.matches))
+        ]
+
     def champion(self) -> str:
+        if self.stop_at_survivors != 1:
+            return ""
         if len(self.entrant_school_ids) == 1:
             return self.entrant_school_ids[0]
         if not self.is_complete:
             return ""
-        return self.matches[self.match_order[-1]].winner
+        survivors = self.survivors()
+        return survivors[0] if survivors else ""
 
     def ranking(self) -> list[str]:
         if not self.is_complete:
             raise ValueError("ranking unavailable before completion")
-        ranking = [self.champion()]
+        survivors = self.survivors()
+        if self.stop_at_survivors == 1:
+            ranking = list(survivors)
+        else:
+            ranking = shuffled(
+                survivors,
+                self.generation_seed,
+                (
+                    f"{self.competition_id}:{self.stage_id}:"
+                    f"{self.group_id}:survivor_order:"
+                    f"{self.stop_at_survivors}"
+                ),
+            )
         for round_no in sorted(self.eliminated_by_round, reverse=True):
             ranking.extend(
                 shuffled(
