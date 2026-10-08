@@ -35,7 +35,6 @@ class Stage13E3F2DiagnosticTests(unittest.TestCase):
             {
                 "calendar_gap": 2,
                 "complete": 160,
-                "waiting_dependency": 0,
             },
             summary["blocker_counts"],
         )
@@ -53,7 +52,7 @@ class Stage13E3F2DiagnosticTests(unittest.TestCase):
         )
         self.assertEqual(1, summary["pending_stage_row_count"])
         self.assertEqual(
-            {"P1_regional_chain": 0, "P2_local_only": 1},
+            {"P2_local_only": 1},
             summary["priority_counts"],
         )
 
