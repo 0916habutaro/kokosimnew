@@ -1398,16 +1398,11 @@ class LiveSeasonDependencyRuntimeState:
                     != DEPENDENCY_WAITING
                 ):
                     continue
-                rules = self.dependency_rules.get(
-                    cid,
-                    [],
+                source_ids = set(
+                    self._source_ids_for_destination(
+                        cid
+                    )
                 )
-                source_ids = {
-                    rule[
-                        "source_competition_id_2026"
-                    ]
-                    for rule in rules
-                }
                 if not all(
                     source in self.competitions
                     and self.competitions[
@@ -1426,14 +1421,43 @@ class LiveSeasonDependencyRuntimeState:
                 ):
                     continue
 
-                annual, resolutions = (
-                    self._build_destination_annual(
-                        cid
+                (
+                    annual,
+                    resolutions,
+                    playoff_resolutions,
+                ) = self._build_destination_annual(
+                    cid
+                )
+                if self.dependency_rules.get(cid):
+                    self.resolutions.extend(
+                        resolution
+                        for resolution in resolutions
+                        if isinstance(
+                            resolution,
+                            LiveAccessDependencyResolution,
+                        )
                     )
-                )
-                self.resolutions.extend(
-                    resolutions
-                )
+                elif self.qualification_rules.get(cid):
+                    self.qualification_resolutions.extend(
+                        resolution
+                        for resolution in resolutions
+                        if isinstance(
+                            resolution,
+                            LiveQualificationDependencyResolution,
+                        )
+                    )
+                elif self.regional_feeder_rules.get(cid):
+                    self.regional_feeder_resolutions.extend(
+                        resolution
+                        for resolution in resolutions
+                        if isinstance(
+                            resolution,
+                            LiveRegionalFeederDependencyResolution,
+                        )
+                    )
+                    self.regional_playoff_resolutions.extend(
+                        playoff_resolutions
+                    )
                 if annual is None:
                     self.status_by_competition[
                         cid
