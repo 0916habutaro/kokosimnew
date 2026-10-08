@@ -1476,6 +1476,11 @@ class TournamentEngine:
                 stage_code=stage["stage_code"], phase_code=phase,
                 group_id=gid, group_name=gname, base_seed=annual.rng_seed,
                 winner_resolver=winner_resolver,
+                stop_at_survivors=(
+                    output_slots
+                    if model_id == "FMT022"
+                    else 1
+                ),
             **self._pre_main_resolution_kwargs(annual),
             )
             return ranking, matches, {
