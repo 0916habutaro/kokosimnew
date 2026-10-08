@@ -63,13 +63,13 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             summary["competition_count"],
         )
         self.assertEqual(
-            98,
+            133,
             summary[
                 "completed_competition_count"
             ],
         )
         self.assertEqual(
-            64,
+            29,
             summary[
                 "blocked_competition_count"
             ],
@@ -77,9 +77,9 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
         self.assertEqual(
             {
                 BLOCKER_BLOCKED: 2,
-                BLOCKER_CALENDAR_GAP: 46,
-                BLOCKER_COMPLETE: 98,
-                BLOCKER_WAITING_DEPENDENCY: 16,
+                BLOCKER_CALENDAR_GAP: 20,
+                BLOCKER_COMPLETE: 133,
+                BLOCKER_WAITING_DEPENDENCY: 7,
             },
             summary["blocker_counts"],
         )
@@ -87,25 +87,25 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             {
                 ORIGIN_CALENDAR_WITHOUT_STAGE: 1,
                 ORIGIN_DEPENDENCY_RESOLUTION: 2,
-                ORIGIN_PENDING_STAGE_CALENDAR: 45,
-                ORIGIN_UPSTREAM_DEPENDENCY: 16,
+                ORIGIN_PENDING_STAGE_CALENDAR: 19,
+                ORIGIN_UPSTREAM_DEPENDENCY: 7,
             },
             summary["blocker_origin_counts"],
         )
         self.assertEqual(
-            49,
+            21,
             summary[
                 "pending_stage_row_count"
             ],
         )
         self.assertEqual(
-            47,
+            21,
             summary[
                 "pending_stage_competition_count"
             ],
         )
         self.assertEqual(
-            47,
+            19,
             summary[
                 "pending_stage_reached_row_count"
             ],
@@ -119,19 +119,18 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
         self.assertEqual(
             {
                 PRIORITY_LOCAL: 1,
-                PRIORITY_NATIONAL: 28,
                 PRIORITY_REGIONAL: 20,
             },
             summary["priority_counts"],
         )
         self.assertEqual(
-            46,
+            20,
             summary[
                 "direct_calendar_gap_competition_count"
             ],
         )
         self.assertEqual(
-            16,
+            7,
             summary[
                 "dependency_wait_competition_count"
             ],
@@ -143,7 +142,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             ],
         )
         self.assertEqual(
-            ["CMP000079"],
+            ["CMP000003"],
             summary[
                 "calendar_gap_without_pending_stage_competition_ids"
             ],
@@ -158,7 +157,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             ],
         )
         self.assertEqual(
-            16,
+            7,
             summary[
                 "unique_downstream_blocked_competition_count"
             ],
@@ -170,21 +169,20 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             ],
         )
         self.assertEqual(
-            52,
+            24,
             summary["action_count"],
         )
         self.assertEqual(
             {
                 ACTION_FIX_DEPENDENCY: 2,
                 ACTION_REVIEW_STRUCTURE: 1,
-                ACTION_VERIFY_STAGE_DATES: 49,
+                ACTION_VERIFY_STAGE_DATES: 21,
             },
             summary["action_counts"],
         )
         self.assertEqual(
             {
-                PRIORITY_LOCAL: 1,
-                PRIORITY_NATIONAL: 29,
+                PRIORITY_LOCAL: 2,
                 PRIORITY_REGIONAL: 22,
             },
             summary[
@@ -192,7 +190,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             ],
         )
         self.assertEqual(
-            6176,
+            10308,
             summary["completed_match_count"],
         )
 
@@ -207,7 +205,6 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
         }
         self.assertEqual(
             {
-                "CMP000003",
                 "CMP000005",
                 "CMP000006",
                 "CMP000007",
@@ -215,14 +212,6 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
                 "CMP000009",
                 "CMP000010",
                 "CMP000012",
-                "CMP000014",
-                "CMP000015",
-                "CMP000017",
-                "CMP000018",
-                "CMP000019",
-                "CMP000020",
-                "CMP000021",
-                "CMP000022",
             },
             waiting,
         )
@@ -247,11 +236,20 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             == "CMP000003"
         )
         self.assertEqual(
-            10,
-            len(
-                jingu
-                .unresolved_source_competition_ids
-            ),
+            BLOCKER_CALENDAR_GAP,
+            jingu.blocker_kind,
+        )
+        self.assertEqual(
+            ORIGIN_CALENDAR_WITHOUT_STAGE,
+            jingu.blocker_origin,
+        )
+        self.assertEqual(
+            (),
+            jingu.unresolved_source_competition_ids,
+        )
+        self.assertEqual(
+            2,
+            jingu.calendar_gap_count,
         )
 
     def test_pending_stage_runtime_reachability_is_explicit(
@@ -268,7 +266,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             in self.audit.stage_priority_rows
         }
         self.assertEqual(
-            47,
+            21,
             len(pending_competitions),
         )
 
