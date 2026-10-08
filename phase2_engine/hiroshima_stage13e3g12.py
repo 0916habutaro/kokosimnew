@@ -95,7 +95,7 @@ def audit_2026_hiroshima_stage13e3g12(data_dir: str | Path) -> dict:
         (r["season"], r["district_code"], r["school_name"])
         for r in queue
     }
-    if actual_missing != expected_missing or len(queue) != 22:
+    if actual_missing != expected_missing or len(queue) != 0:
         errors.append(f"remaining gap queue and qualifying roster differ: {len(queue)}")
     if len(actual_missing) != len(queue):
         errors.append("remaining gap queue contains duplicate schools")
