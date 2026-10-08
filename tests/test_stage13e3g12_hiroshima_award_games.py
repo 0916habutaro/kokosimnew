@@ -44,7 +44,7 @@ class Stage13E3G12BerthGameEvidenceTests(unittest.TestCase):
         r = audit_2026_hiroshima_stage13e3g12(ROOT)
         self.assertTrue(r["ok"], r["errors"])
         self.assertEqual(24, r["supplemental_qualifying_games"])
-        self.assertEqual(83, r["cumulative_dated_matches"])
+        self.assertEqual(108, r["cumulative_dated_matches"])
         self.assertEqual(63, r["cumulative_evidenced_qualification_events"])
         self.assertEqual(0, r["remaining_unlinked_qualifying_schools"])
         self.assertTrue(r["historic_match_timeline_pass"])

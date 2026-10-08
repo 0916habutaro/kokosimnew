@@ -39,7 +39,7 @@ class Stage13E3G9HiroshimaQualificationTimeline(unittest.TestCase):
     def test_all_8_district_seasons_are_sampled_without_exhaustive_claim(self):
         report = audit_2026_hiroshima_qualification_timeline(DATA)
         self.assertTrue(report["ok"], report["errors"])
-        self.assertEqual(83, report["sampled_result_match_count"])
+        self.assertEqual(108, report["sampled_result_match_count"])
         self.assertEqual(8, report["district_seasons_with_sampled_results"])
         self.assertEqual(63, report["evidenced_winner_berth_lock_count"])
         self.assertEqual(8, report["prior_3g8_anchor_matches"])
