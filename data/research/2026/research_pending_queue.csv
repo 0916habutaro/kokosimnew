@@ -24,4 +24,4 @@ RS2026022,P0,main_calendar,CMP000003,,,2026明治神宮大会のMAIN個別試合
 RS2026023,P1,access_rule,CMP000095,,ACR000008,選抜出場校の実績数とシミュレーション数の区別,P2SRC148,2026-10-08,needs_engine_fix,2026実績1校を保持し可変の生成出場校すべてを適切に免除,expected=1 resolved=2によるblockを解消
 RS2026024,P1,access_rule,CMP000113,,ACR000012,選抜出場校の実績数とシミュレーション数の区別,P2SRC063,2026-10-08,needs_engine_fix,2026実績1校を保持し可変の生成出場校すべてを適切に免除,expected=1 resolved=2によるblockを解消
 RS2026025,P2,format_research,CMP000140,,,FMT022シード確定後の順位決定試合,,2026-10-08,design_pending,非blockingイベントとして再現する設計方針を確定,徳島秋・沖縄秋にも同方式を適用
-RS2026026P2format_researchCMP000112FMT025代表確定後の順位決定試合2026-10-08design_pending公式順位決定方式を調査し限定的subgraphとして定義静岡秋・広島秋にも同方式を適用
+RS2026026,P2,format_research,CMP000112,,,FMT025代表確定後の順位決定試合,,2026-10-08,design_pending,公式順位決定方式を調査し限定的subgraphとして定義,静岡秋・広島秋にも同方式を適用
