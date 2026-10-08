@@ -1,0 +1,9 @@
+anchor_id,season,competition_id,district_code,match_date,team1_name,team2_name,team1_score,team2_score,winner_name,classification,pre_match_proof,match_result_source_url
+HM20260001,spring,CMP000135,west,2026-04-11,広島城北,山陽,5,3,広島城北,qualification_decider,at_least_one_side_unqualified_before_match,https://www.hb-nippon.com/articles/12356
+HM20260002,spring,CMP000135,north,2026-03-29,高陽東,安西,2,1,高陽東,qualification_decider,at_least_one_side_unqualified_before_match,https://www.reiwa-hb-sch-and-res-gatr-fod.com/hiroshima/2026spring/north-area/
+HM20260003,spring,CMP000135,south,2026-04-05,広島市工,広島桜が丘,4,3,広島市工,qualification_decider,at_least_one_side_unqualified_before_match,https://www.reiwa-hb-sch-and-res-gatr-fod.com/hiroshima/2026spring/south-area/
+HM20260004,spring,CMP000135,east,2026-03-29,近大福山,尾道東,13,4,近大福山,qualification_decider,at_least_one_side_unqualified_before_match,https://www.reiwa-hb-sch-and-res-gatr-fod.com/hiroshima/2026spring/east-area/
+HM20260005,autumn,CMP000136,west,2026-08-30,広島井口,宮島工,6,2,広島井口,qualification_decider,at_least_one_side_unqualified_before_match,https://www.reiwa-hb-sch-and-res-gatr-fod.com/hiroshima/2026autumn/west-area/
+HM20260006,autumn,CMP000136,north,2026-08-30,三次,上下,9,3,三次,qualification_decider,at_least_one_side_unqualified_before_match,https://www.reiwa-hb-sch-and-res-gatr-fod.com/hiroshima/2026autumn/north-area/
+HM20260007,autumn,CMP000136,south,2026-09-06,熊野,安芸府中,10,4,熊野,qualification_decider,at_least_one_side_unqualified_before_match,https://www.reiwa-hb-sch-and-res-gatr-fod.com/hiroshima/2026autumn/south-area/
+HM20260008,autumn,CMP000136,east,2026-09-05,神辺旭,英数学館,5,0,神辺旭,qualification_decider,at_least_one_side_unqualified_before_match,https://www.reiwa-hb-sch-and-res-gatr-fod.com/hiroshima/2026autumn/east-area/
