@@ -49,11 +49,36 @@ class Stage13E3F2DiagnosticTests(unittest.TestCase):
                     row.resolution_failures
                 ),
             })
+        residual_gap_details = {}
+        for cid in (
+            "CMP000112",
+            "CMP000136",
+            "CMP000140",
+            "CMP000162",
+        ):
+            scheduled = audit.state.competitions[
+                cid
+            ]
+            residual_gap_details[cid] = [
+                {
+                    "match_id": row["match_id"],
+                    "stage_code": row["stage_code"],
+                    "phase_code": row["phase_code"],
+                    "round_no": row["round_no"],
+                    "group_id": row["group_id"],
+                }
+                for row
+                in scheduled.calendar_gap_matches()
+            ]
+
         self.maxDiff = None
         self.assertEqual(
             {},
             {
                 "summary": audit.summary(),
+                "residual_gap_details": (
+                    residual_gap_details
+                ),
                 "noncomplete": noncomplete,
                 "actions": [
                     {
