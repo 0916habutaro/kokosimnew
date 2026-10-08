@@ -1,0 +1,27 @@
+check,status,detail
+competition_master_coverage,PASS,162 of 162 2026 competitions planned
+calendar_coverage,PASS,162 of 162 competitions have season_calendar rows
+strategy_senbatsu,PASS,1 national invitational structural bootstrap
+strategy_summer_area,PASS,49 summer local templates generated from area membership
+strategy_structural,PASS,81 structural annual templates generated immediately
+strategy_deferred_structural,PASS,13 same-year result-dependent structural templates deferred
+strategy_dependency_aggregate,PASS,18 national/regional fan-in templates remain empty until dependencies resolve
+dependency_family_root,PASS,131 root competitions
+dependency_family_access,PASS,13 access destinations
+dependency_family_qualification,PASS,2 qualification destinations
+dependency_family_regional_feeder,PASS,16 regional feeder destinations
+dependency_edges,PASS,165 unique source-to-destination edges
+topological_order,PASS,162 competitions sorted with every source before destination
+dependency_cycle,PASS,no cycles detected
+external_access_bootstrap,PASS,8 of 8 graph-external access rules resolved structurally
+external_access_unresolved,PASS,0 unresolved external access rules
+external_access_warning,PASS,0 planner warnings
+senbatsu_bootstrap,PASS,CMP000001 template has 32 unique entrants
+tokyo_spring_bootstrap,PASS,CMP000094 has 64 prior-autumn direct entries
+okinawa_newcomer_bootstrap,PASS,CMP000128 has 4 newcomer direct entries
+future_placeholder_absence,PASS,CMP000016 planned with zero entrants and zero direct schools
+full_runtime_startup,PASS,162 templates create 131 active root runtimes and 31 waiting destinations
+summer_national_auto_materialize,PASS,full planner progression creates CMP000002 with 49 unique local champions
+tokyo_autumn_deferred_build,PASS,CMP000016 materializes after east/west summer results with 2 direct and 232 total entrants
+pre_main_pending_preserved,PASS,49 research_pending stage calendars remain gaps instead of guessed dates
+full_suite,PASS,Ran 544 tests in 34.753s; OK
