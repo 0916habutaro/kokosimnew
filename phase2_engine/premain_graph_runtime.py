@@ -29,6 +29,7 @@ class SeededCompetitionRuntimeState:
     qualifier_entrant_school_ids: List[str] = field(default_factory=list)
     qualifier_warnings: List[str] = field(default_factory=list)
     gate_runtime: SingleRoundGateRuntimeState | None = None
+    gate_entrant_school_ids: List[str] = field(default_factory=list)
     qualifier_runtime: QualifierMainRuntimeState | None = None
     main_runtime: MainTournamentRuntimeState | None = None
     warnings: List[str] = field(default_factory=list)
@@ -207,6 +208,7 @@ class SeededCompetitionRuntimeState:
                 raise NotImplementedError(
                     "gate handler requires FMT026"
                 )
+            self.gate_entrant_school_ids = list(nonseed)
             self.gate_runtime = SingleRoundGateRuntimeState.create(
                 nonseed,
                 competition_id=self.annual.competition_id,
@@ -297,7 +299,7 @@ class SeededCompetitionRuntimeState:
             ),
         }
         observed = {
-            "nonseed": len(self.gate_runtime.entrant_school_ids),
+            "nonseed": len(self.gate_entrant_school_ids),
             "winners": len(self.gate_runtime.winners()),
             "seed": len(assignments),
             "main": len(main_entrants),
@@ -426,14 +428,14 @@ class SeededCompetitionRuntimeState:
             stage_code="FIRST_TOURNAMENT",
             format_model_id="FMT026",
             entrant_school_ids=list(
-                self.gate_runtime.entrant_school_ids
+                self.gate_entrant_school_ids
             ),
             output_school_ids=list(winners),
             matches=self.gate_runtime.to_matches(),
             metadata={
                 "seed_bypass_count": len(assignments),
                 "nonseed_count": len(
-                    self.gate_runtime.entrant_school_ids
+                    self.gate_entrant_school_ids
                 ),
                 "gate_winner_count": len(winners),
                 "bye_count": sum(
