@@ -55,8 +55,8 @@ class TestStage13E3G10HiroshimaMainBerthRoster(unittest.TestCase):
         r = audit_2026_hiroshima_prefectural_berth_roster(DATA)
         self.assertTrue(r["ok"], r["errors"])
         self.assertEqual(["崇徳"],r["confirmed_in_secondary_source_exemption"])
-        self.assertEqual(41,r["sampled_match_berth_winners_reconciled"])
-        self.assertEqual(22,r["qualifying_teams_lacking_sampled_award_game"])
+        self.assertEqual(63,r["sampled_match_berth_winners_reconciled"])
+        self.assertEqual(0,r["qualifying_teams_lacking_sampled_award_game"])
 
     def test_listed_entrants_do_not_prove_a_complete_official_pdf_audit(self):
         r = audit_2026_hiroshima_prefectural_berth_roster(DATA)
