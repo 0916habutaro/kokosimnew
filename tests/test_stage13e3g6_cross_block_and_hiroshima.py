@@ -155,7 +155,7 @@ class Stage13E3G6CrossBlock2026Tests(unittest.TestCase):
                 writer.writerows(rows)
             report = audit_ranking_school_mapping_2026(root)
             self.assertFalse(report["ok"])
-            self.assertTrue(any("paired-block" in error for error in report["errors"]))
+            self.assertTrue(any("cross-block" in error for error in report["errors"]))
 
     def test_hiroshima_qualifying_games_remain_excluded(self):
         guard = hiroshima_2026_qualification_guard(DATA)
