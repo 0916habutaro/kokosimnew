@@ -1,0 +1,27 @@
+task_id,priority,task_type,competition_id,stage_calendar_id,access_rule_id,missing_information,source_id,review_not_before,status,completion_criteria,notes
+RS2026001,P2,stage_calendar,CMP000004,SC2026001,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC141,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026002,P1,stage_calendar,CMP000072,SC2026004,,SEED_EVENTの2026年実試合日union,P2SRC009,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026003,P1,stage_calendar,CMP000074,SC2026006,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC011,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026004,P1,stage_calendar,CMP000076,SC2026008,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC013,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026005,P1,stage_calendar,CMP000082,SC2026010,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC023,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026006,P1,stage_calendar,CMP000084,SC2026012,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC026,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026007,P1,stage_calendar,CMP000090,SC2026014,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC031,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026008,P1,stage_calendar,CMP000092,SC2026016,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC033,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026009,P1,stage_calendar,CMP000094,SC2026018,,PRELIMINARY_QUALIFIERの2026年実試合日union,P2SRC256,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026010,P1,stage_calendar,CMP000095,SC2026019,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC036,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026011,P1,stage_calendar,CMP000107,SC2026021,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC045,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026012,P1,stage_calendar,CMP000109,SC2026023,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC057,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026013,P1,stage_calendar,CMP000111,SC2026026,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC059,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026014,P1,stage_calendar,CMP000113,SC2026028,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC063,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026015,P1,stage_calendar,CMP000115,SC2026030,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC067,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026016,P1,stage_calendar,CMP000119,SC2026032,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC073,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026017,P1,stage_calendar,CMP000123,SC2026033,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC078,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026018,P1,stage_calendar,CMP000133,SC2026036,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC089,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026019,P1,stage_calendar,CMP000135,SC2026038,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC091,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026020,P1,stage_calendar,CMP000137,SC2026040,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC093,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026021,P1,stage_calendar,CMP000147,SC2026045,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC111,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026022,P0,main_calendar,CMP000003,,,2026明治神宮大会のMAIN個別試合日,P2SRC,2026-10-17,awaiting_publication,公式組み合わせ・日程からgame_date_listを確定,開催期間2026-11-19〜11-24のみ確認済み
+RS2026023,P1,access_rule,CMP000095,,ACR000008,選抜出場校の実績数とシミュレーション数の区別,P2SRC148,2026-10-08,needs_engine_fix,2026実績1校を保持し可変の生成出場校すべてを適切に免除,expected=1 resolved=2によるblockを解消
+RS2026024,P1,access_rule,CMP000113,,ACR000012,選抜出場校の実績数とシミュレーション数の区別,P2SRC063,2026-10-08,needs_engine_fix,2026実績1校を保持し可変の生成出場校すべてを適切に免除,expected=1 resolved=2によるblockを解消
+RS2026025,P2,format_research,CMP000140,,,FMT022シード確定後の順位決定試合,,2026-10-08,design_pending,非blockingイベントとして再現する設計方針を確定,徳島秋・沖縄秋にも同方式を適用
+RS2026026P2format_researchCMP000112FMT025代表確定後の順位決定試合2026-10-08design_pending公式順位決定方式を調査し限定的subgraphとして定義静岡秋・広島秋にも同方式を適用
