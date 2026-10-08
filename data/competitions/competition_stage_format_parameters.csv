@@ -345,3 +345,4 @@ PAR0343,CMP000144,STG000211,SGR000249,FMT001,output_slots,16,integer,BLOCK_KO,20
 PAR0344,CMP000144,STG000211,SGR000249,FMT001,representative_block_count,16,integer,BLOCK_KO,2026 official structure,P2SRC259,本選16代表枠。
 PAR0345,CMP000079,STG000212,,FMT005,primary_qualifier_slots,8,integer,PRIMARY_GLOBAL,2026 official/observed structure,P2SRC332,一次予選4会場×2ブロックの8代表。
 PAR0346,CMP000079,STG000212,,FMT005,repechage_qualifier_slots,8,integer,REPECHAGE_GLOBAL,2026 official/observed structure,P2SRC332,一次予選非通過校側の二次予選8代表。
+PAR0347,CMP000135,STG000192,SGR000140,FMT025,group_quota_includes_direct_access,true,boolean,,2026 official berth composition,P2SRC091,西部地区7枠には選抜出場による直接MAIN出場枠を含む。人数に応じて予選通過枠を減算。
