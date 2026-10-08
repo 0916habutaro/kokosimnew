@@ -33,8 +33,7 @@ class Stage13E3F2DiagnosticTests(unittest.TestCase):
         self.assertEqual(10308, summary["completed_match_count"])
         self.assertEqual(
             {
-                "blocked": 2,
-                "calendar_gap": 20,
+                "calendar_gap": 22,
                 "complete": 133,
                 "waiting_dependency": 7,
             },

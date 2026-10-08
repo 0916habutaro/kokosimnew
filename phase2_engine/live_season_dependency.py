@@ -846,9 +846,20 @@ class LiveSeasonDependencyRuntimeState:
             or rule.get("quota")
             or 0
         )
+        # observed_2026_count records the actual 2026 field, not a
+        # fixed quota imposed on simulated entrants.  For all_matches
+        # selectors, every qualifying source entrant receives the access
+        # benefit; its count naturally varies with the simulation seed.
+        variable_count = (
+            rule.get("quota_mode") == "all_matches"
+        )
+        if variable_count:
+            expected = len(ids)
         status = (
             "PASS"
-            if not expected or len(ids) == expected
+            if variable_count
+            or not expected
+            or len(ids) == expected
             else "FAIL"
         )
         return LiveAccessDependencyResolution(

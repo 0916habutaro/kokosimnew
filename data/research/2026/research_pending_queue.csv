@@ -21,7 +21,7 @@ RS2026019,P1,stage_calendar,CMP000135,SC2026038,,BRANCH_QUALIFIERの2026年実�
 RS2026020,P1,stage_calendar,CMP000137,SC2026040,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC093,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
 RS2026021,P1,stage_calendar,CMP000147,SC2026045,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC111,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
 RS2026022,P0,main_calendar,CMP000003,,,2026明治神宮大会のMAIN個別試合日,P2SRC,2026-10-17,awaiting_publication,公式組み合わせ・日程からgame_date_listを確定,開催期間2026-11-19〜11-24のみ確認済み
-RS2026023,P1,access_rule,CMP000095,,ACR000008,選抜出場校の実績数とシミュレーション数の区別,P2SRC148,2026-10-08,needs_engine_fix,2026実績1校を保持し可変の生成出場校すべてを適切に免除,expected=1 resolved=2によるblockを解消
-RS2026024,P1,access_rule,CMP000113,,ACR000012,選抜出場校の実績数とシミュレーション数の区別,P2SRC063,2026-10-08,needs_engine_fix,2026実績1校を保持し可変の生成出場校すべてを適切に免除,expected=1 resolved=2によるblockを解消
+RS2026023,P1,access_rule,CMP000095,,ACR000008,選抜出場校の実績数とシミュレーション数の区別,P2SRC148,2026-10-08,resolved,2026実績1校を保持し可変の生成出場校すべてを適切に免除,quota_mode all_matchesを可変人数として評価。Stage13E-3F-3修正
+RS2026024,P1,access_rule,CMP000113,,ACR000012,選抜出場校の実績数とシミュレーション数の区別,P2SRC063,2026-10-08,resolved,2026実績1校を保持し可変の生成出場校すべてを適切に免除,quota_mode all_matchesを可変人数として評価。Stage13E-3F-3修正
 RS2026025,P2,format_research,CMP000140,,,FMT022シード確定後の順位決定試合,,2026-10-08,design_pending,非blockingイベントとして再現する設計方針を確定,徳島秋・沖縄秋にも同方式を適用
 RS2026026,P2,format_research,CMP000112,,,FMT025代表確定後の順位決定試合,,2026-10-08,design_pending,公式順位決定方式を調査し限定的subgraphとして定義,静岡秋・広島秋にも同方式を適用
