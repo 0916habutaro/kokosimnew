@@ -43,7 +43,7 @@ class Stage13E3G13HiroshimaAllBerthWinners(unittest.TestCase):
         r = audit_2026_hiroshima_stage13e3g13(DATA)
         self.assertTrue(r["ok"], r["errors"])
         self.assertEqual(22, r["newly_documented_qualification_games"])
-        self.assertEqual(108, r["cumulative_sample_match_count"])
+        self.assertEqual(223, r["cumulative_sample_match_count"])
         self.assertEqual(63, r["match_proven_qualification_school_count"])
         self.assertEqual(1, r["exempt_seasonal_entrant_count"])
         self.assertEqual(64, r["secondary_source_seasonal_entrant_count"])
@@ -102,7 +102,7 @@ class Stage13E3G13HiroshimaAllBerthWinners(unittest.TestCase):
             edit(root,TIMELINE_FILE,lambda rr: rr.pop())
             report = audit_2026_hiroshima_stage13e3g13(root)
             self.assertFalse(report["ok"])
-            self.assertTrue(any("108" in e or "qualification winners" in e for e in report["errors"]))
+            self.assertTrue(any("223" in e or "qualification winners" in e for e in report["errors"]))
 
     def test_reintroduced_unlinked_school_is_detected(self):
         with tempfile.TemporaryDirectory() as t:

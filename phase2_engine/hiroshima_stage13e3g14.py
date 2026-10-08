@@ -20,6 +20,12 @@ ADDITIONS = "competitions/2026/hiroshima_nonaward_fixtures_stage13e3g14.csv"
 CENSUS = "competitions/2026/hiroshima_fixture_census_2026.csv"
 OFFICIAL_PDF_LIST = "competitions/2026/hiroshima_bracket_pdf_review_2026.csv"
 COMPLETE_SECONDARY = {("spring", "west"): 24, ("autumn", "east"): 30}
+ALL_SECONDARY_COUNTS = {
+    ("spring", "west"): 24, ("spring", "north"): 24,
+    ("spring", "south"): 33, ("spring", "east"): 31,
+    ("autumn", "west"): 25, ("autumn", "north"): 22,
+    ("autumn", "south"): 34, ("autumn", "east"): 30,
+}
 EXPECTED_DISTRICTS = {
     ("spring", "west"), ("spring", "north"), ("spring", "south"), ("spring", "east"),
     ("autumn", "west"), ("autumn", "north"), ("autumn", "south"), ("autumn", "east"),
@@ -69,8 +75,8 @@ def audit_2026_hiroshima_stage13e3g14(data_dir: str | Path) -> dict:
 
     if newcounts != {("spring", "west"): 4, ("autumn", "east"): 21}:
         errors.append(f"expected 4+21 supplementary non-award matches, found {dict(newcounts)}")
-    if len(additions) != 25 or len(fixtures) != 108:
-        errors.append(f"expected 108 total matches/25 additions, found {len(fixtures)}/{len(additions)}")
+    if len(additions) != 25 or len(fixtures) != 223:
+        errors.append(f"expected 223 total matches/25 additions, found {len(fixtures)}/{len(additions)}")
 
     pdf_by_group = {(r["season"], r["district_code"]): r for r in official}
     matrix_by_group = {(r["season"], r["district_code"]): r for r in matrix}
@@ -94,14 +100,11 @@ def audit_2026_hiroshima_stage13e3g14(data_dir: str | Path) -> dict:
             errors.append(f"unsupported PDF completeness claim {sd}")
         if m["registered_dated_result_games"] != str(counts[sd]):
             errors.append(f"registered result count disagrees with district timeline {sd}")
-        if sd in COMPLETE_SECONDARY:
-            if (m["secondary_html_status"] != "full_displayed_results_transcribed"
-                    or m["secondary_listed_games_transcribed"] != str(COMPLETE_SECONDARY[sd])
-                    or counts[sd] != COMPLETE_SECONDARY[sd]):
-                errors.append(f"secondary HTML census mismatch {sd}")
-        elif (m["secondary_html_status"] != "pending_full_result_transcription"
-              or m["secondary_listed_games_transcribed"]):
-            errors.append(f"unsubstantiated secondary complete status {sd}")
+        expected = ALL_SECONDARY_COUNTS[sd]
+        if (m["secondary_html_status"] != "full_displayed_results_transcribed"
+                or m["secondary_listed_games_transcribed"] != str(expected)
+                or counts[sd] != expected):
+            errors.append(f"secondary HTML census mismatch {sd}")
 
     qualification_count = sum(x["winner_berth_status"] == "berth_award" for x in fixtures)
     if qualification_count != 63:
@@ -114,8 +117,8 @@ def audit_2026_hiroshima_stage13e3g14(data_dir: str | Path) -> dict:
         "source_page_new_non_award_fixtures": len(additions),
         "historical_sample_fixture_count": len(fixtures),
         "verified_berth_award_events": qualification_count,
-        "secondarily_fully_transcribed_district_seasons": 2,
-        "district_seasons_without_complete_secondary_transcription": 6,
+        "secondarily_fully_transcribed_district_seasons": 8,
+        "district_seasons_without_complete_secondary_transcription": 0,
         "source_page_transcribed_fixture_counts": {
             f"{s}_{d}": counts[(s,d)] for s,d in sorted(COMPLETE_SECONDARY)
         },
@@ -127,5 +130,5 @@ def audit_2026_hiroshima_stage13e3g14(data_dir: str | Path) -> dict:
         "official_federation_pdf_bodies_read": 0,
         "full_official_match_census_complete": False,
         "fmt025_release_allowed": False,
-        "review_scope": "two_complete_secondary_html_result_pages_not_any_official_pdf_body",
+        "review_scope": "eight_complete_secondary_html_result_pages_not_any_official_pdf_body",
     }
