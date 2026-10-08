@@ -1,0 +1,30 @@
+check,status,detail
+save_slot_directory,PASS,one directory per validated slot id
+slot_id_guard,PASS,path traversal and invalid slot ids rejected
+manual_primary,PASS,manual.json maintained independently
+autosave_primary,PASS,autosave.json maintained independently
+manual_backup_chain,PASS,manual.NNN rolling generations
+autosave_backup_chain,PASS,autosave.NNN rolling generations
+backup_bound,PASS,max_backups enforces fixed generation count
+backup_generation_order,PASS,generation 1 is newest previous primary
+backup_restore,PASS,manual_backup_2 restored successfully
+atomic_primary_write,PASS,primary save reuses Stage13E-3E-1 atomic JSON writer
+save_inspection,PASS,validated metadata available without runtime restore
+latest_game_date,PASS,current_date is primary latest ordering key
+latest_processed_count,PASS,processed count is second latest ordering key
+latest_autosave_tiebreak,PASS,autosave wins exact state tie
+mtime_independence,PASS,latest policy does not use filesystem mtime
+new_game_facade,PASS,planner plan runtime session and initial manual save created
+load_game_facade,PASS,metadata selects seed/year then deterministic restore
+manual_save_facade,PASS,save_game writes manual by default
+autosave_facade,PASS,autosave_game writes independent autosave primary
+play_today_autosave,PASS,service action can autosave after completion
+next_day_autosave,PASS,next_day creates autosave by default
+advance_autosave_override,PASS,per-call autosave false/true supported
+slot_list,PASS,valid save slots listed in stable slot-id order
+slot_delete,PASS,slot directory removed by service
+full_season_new_game,PASS,real planner starts 162 templates without manual annual inputs
+full_season_root_count,PASS,131 active root runtimes
+full_season_waiting_count,PASS,31 dependency destinations waiting
+initial_full_save,PASS,2026-01-01 full season manual save created
+full_suite,PASS,Ran 555 tests in 33.233s; OK
