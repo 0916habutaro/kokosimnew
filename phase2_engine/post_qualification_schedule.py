@@ -55,6 +55,12 @@ class ScheduledRankingSidecar:
                    qualification_locked_on=locked_on)
 
     @property
+    def instance_key(self) -> str:
+        """Old snapshots use the group key; opt-in instances get unique keys."""
+        return (f"{self.event.group_id}@{self.event.event_id}"
+                if self.event.event_id else self.event.group_id)
+
+    @property
     def is_complete(self) -> bool:
         return self.canceled or self.event.is_complete
 
@@ -71,6 +77,8 @@ class ScheduledRankingSidecar:
                 "stage_code": self.event.stage_code,
                 "phase_code": match["phase_code"],
                 "group_id": self.event.group_id,
+                **({"ranking_instance_id": self.event.event_id}
+                   if self.event.event_id else {}),
                 "match_id": match_id,
                 "match_date": self.match_dates[match["round_no"] - 1],
                 "round_no": match["round_no"],
