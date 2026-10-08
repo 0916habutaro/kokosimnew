@@ -35,6 +35,7 @@
 - Stage 13E-3A: pre-MAIN共通runtime primitive（single elimination / gate / round robin / block forest）を追加し、FMT001 qualifier→MAINをlazy化。北海道春CMP000004でlegacy CompetitionRun完全一致を検証
 - Stage 13E-3B-1: FMT006の3〜4校POOL_RR→3校pool2位CROSS_PLAYOFF→MAINをlazy化。神奈川春CMP000095でrandom/detailed resolver・annual pool overrideのlegacy CompetitionRun完全一致を検証
 - Stage 13E-3B-2: FMT002〜005 / 007〜017 / 025の複合qualifierをlazy phase composition化。PRIMARY→敗者復活/SECONDARY、league/zone→secondary、FMT005 global repechage、mixed-model stageを対象20大会でlegacy CompetitionRun完全一致検証
+- Stage 13E-3B-3: SEED_EVENT系FMT001 / 009 / 018〜024、岐阜秋FMT026 gate、愛媛秋seed→qualifierをlazy化。seed完了前は後続stageを生成せず、対象9大会でlegacy CompetitionRun完全一致を検証
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -117,4 +118,4 @@ python -m game_core.stage13c2_audit \
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13E-3B-2でFMT002〜005 / 007〜017 / 025をruntime compositionへ接続し、PRIMARY完了後にのみ敗者復活/SECONDARYを生成する構造、FMT005の全県global repechage、league/zoneからのsecondary、mixed-model stageをlazy化した。対象20大会ではlegacy TournamentEngine.run()とlazy CompetitionRunの完全一致を確認する回帰テストを追加済み。次工程Stage 13E-3B-3ではSEED_EVENT / FIRST_TOURNAMENT / seed event→qualifier→MAINをlazy化する。Stage 13D-3 GUI実ウィンドウ確認と秋季実績Stage 12O dueキューは後追い可能。
+正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13E-3B-3でSEED_EVENT系FMT001 / 009 / 018〜024、岐阜秋のSEED_EVENT→FMT026 FIRST_TOURNAMENT→MAIN、愛媛秋のSEED_EVENT→PRELIMINARY_QUALIFIER→MAINをlazy化した。seed結果確定前は後続stageを生成せず、対象9大会でlegacy TournamentEngine.run()とlazy CompetitionRunの完全一致を確認済み。これで既存都道府県大会のpre-MAIN graphは主要方式をlazy実行可能になった。次工程Stage 13E-3Cではcompetition runtimeをSeasonRuntimeStateと大会日程へ接続し、current_dateに応じてpre-MAINからMAINまで試合を発火する。Stage 13D-3 GUI実ウィンドウ確認と秋季実績Stage 12O dueキューは後追い可能。
