@@ -153,6 +153,18 @@ python -m game_core.stage13c2_audit \
 ## 正本ルール
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
+## Stage 13E-3G-3（2026実大会の順位戦対戦カード照合）
+
+2026年の徳島・沖縄・静岡について、**確認できた順位決定戦31試合**を実日付・学校名・スコア・出典付きで参照用CSVに保存。広島の代表決定戦3試合は`qualification_decider_not_ranking`として別分類し、任意の順位戦へ自動投入しない。
+
+- `data/competitions/2026/post_qualification_rank_observations.csv`：歴史的観測34レコード
+- `phase2_engine/ranking_reference_2026.py`：試合参照CSVの整合性監査と、学校ID・資格済み4校を**明示照合**できたFMT022だけの未実施fixture生成
+- 学校マスターと学校地区所属が現行GitHub版では空ファイルなので、FMT025の実校名→グループIDへの推測接続は禁止
+- 架空年度の勝者・スコアを2026実試合の勝敗で上書きしない
+- 静岡・広島の正式地区紐付けと参照試合の資格分類が残るため、RS2026025/RS2026026は`design_pending`のまま継続
+
+調査報告：`docs/research/stage13e3g3_official_ranking_20261008.md`
+
 ## Stage 13E-3G-2（任意順位決定戦のスケジュール・保存・結果閲覧）
 
 代表・シード確定後の任意順位試合を、**明示した試合日だけ**年間の`today_matches()`へ表示し、専用`play_today_rankings()`で勝敗を入力できるようにした。既存の大会完了・進出・年間E2E依存判定を変更しない。
