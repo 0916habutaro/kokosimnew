@@ -1,0 +1,45 @@
+check,status,detail
+full_season_processed,PASS,2026-01-01 through 2026-12-31 processed without invented dates
+competition_total,PASS,162 competitions audited
+competition_complete,PASS,98 competitions complete
+competition_incomplete,PASS,64 competitions remain incomplete
+blocker_calendar_gap,PASS,46 active competitions have calendar gaps
+blocker_runtime_blocked,PASS,2 competitions blocked before runtime materialization
+blocker_waiting_dependency,PASS,16 competitions wait on upstream results
+blocker_incomplete_other,PASS,0 unexplained incomplete-active competitions
+completed_matches,PASS,6176 completed matches
+origin_pending_stage_calendar,PASS,45 competitions reach research_pending pre-MAIN calendar gaps
+origin_calendar_without_pending_stage,PASS,CMP000079 has one calendar gap without a pending stage calendar row
+origin_dependency_resolution,PASS,CMP000095 and CMP000113 fail live access resolution
+origin_upstream_dependency,PASS,16 downstream competitions wait on incomplete sources
+pending_stage_rows,PASS,49 research_pending rows
+pending_stage_competitions,PASS,47 competitions own the 49 pending rows
+pending_stage_reached,PASS,47 stage rows are reached by runtime
+pending_stage_blocked_before_reach,PASS,2 stage rows are hidden behind dependency-resolution blockers
+priority_p0_stage,PASS,28 autumn stage rows block the Jingu chain
+priority_p1_stage,PASS,20 spring stage rows block regional tournaments
+priority_p2_stage,PASS,1 Hokkaido spring row has no same-year downstream dependency
+additional_p0_structure,PASS,CMP000079 adds one national-chain structure action
+additional_p1_dependency,PASS,CMP000095 and CMP000113 add two regional-chain dependency actions
+action_total,PASS,52 remediation actions
+action_type_stage_dates,PASS,49 verify_pre_main_stage_dates actions
+action_type_structure,PASS,1 review_unmodeled_pre_main_structure action
+action_type_dependency,PASS,2 fix_dependency_resolution actions
+action_priority_p0,PASS,29 P0 actions
+action_priority_p1,PASS,22 P1 actions
+action_priority_p2,PASS,1 P2 action
+downstream_blocked_unique,PASS,16 unique downstream competitions
+spring_regional_wait,PASS,CMP000005/006/007/008/009/010/012 wait
+spring_shikoku_complete,PASS,CMP000011 completes
+autumn_regional_wait,PASS,CMP000014/015/017/018/019/020/021/022 wait
+senbatsu_complete,PASS,CMP000001 completes
+summer_koshien_complete,PASS,CMP000002 completes
+jingu_blocked,PASS,CMP000003 waits on all 10 autumn representatives
+akita_structure_signal,PASS,CAL000079 excludes 8/27-9/7 preliminary but STG000079 is MAIN only
+kanagawa_access_signal,PASS,ACR000008 fails expected Senbatsu prefecture participant count
+aichi_access_signal,PASS,ACR000012 fails expected Senbatsu prefecture participant count
+machine_output_competitions,PASS,competition_blockers.csv has 162 rows
+machine_output_stages,PASS,stage_calendar_priorities.csv has 49 rows
+machine_output_actions,PASS,blocker_actions.csv has 52 rows
+machine_output_summary,PASS,summary.json matches in-memory audit
+full_suite,PASS,Ran 568 tests in 53.286s; OK
