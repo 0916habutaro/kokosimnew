@@ -4,9 +4,11 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from datetime import date
 
 from phase2_engine import BrowseRepository, DataRepository
 from phase2_engine.competition_schedule_runtime import ScheduledCompetitionRuntime
+from phase2_engine.live_season_dependency import LiveSeasonDependencyRuntimeState
 from phase2_engine.post_qualification_ranking import RankingOnlyEventRuntime
 from phase2_engine.post_qualification_schedule import ScheduledRankingSidecar
 
@@ -199,6 +201,40 @@ class Stage13E3G2ScheduledRankingTests(unittest.TestCase):
             self.assertIsNone(repo.load_ranking_sidecar(
                 2026, "CMP000162", "NONE",
             ))
+
+    def test_live_season_today_shows_optional_rankings_without_blocking(self):
+        repo = DataRepository(DATA)
+        scheduled = ScheduledCompetitionRuntime(
+            repo=repo, runtime=CompletedMainRuntime(),
+            competition_id="CMP000162", competition_name="沖縄秋",
+            calendar_dates=[], stage_date_lists={},
+            calendar_status="official_schedule",
+        )
+        live = LiveSeasonDependencyRuntimeState(
+            engine=None, repo=repo, current_date=date(2026, 8, 13)
+        )
+        live.competitions["CMP000162"] = scheduled
+        live.register_ranking_sidecar("CMP000162", sidecar())
+        rows = live.today_matches()
+        self.assertEqual(2, len(rows))
+        self.assertTrue(all(r["competition_name"] == "沖縄秋" for r in rows))
+        self.assertTrue(all(r["ranking_only"] for r in rows))
+        self.assertTrue(scheduled.is_complete)
+        live.play_today_rankings({
+            "CMP000162": {"SGR000184": {
+                rows[0]["match_id"]: "A", rows[1]["match_id"]: "B",
+            }},
+        })
+        self.assertTrue(scheduled.is_complete)
+        self.assertEqual("play_today_rankings", live.history[-1]["action"])
+
+    def test_live_season_rejects_unregistered_competition(self):
+        repo = DataRepository(DATA)
+        live = LiveSeasonDependencyRuntimeState(
+            engine=None, repo=repo, current_date=date(2026, 8, 13)
+        )
+        with self.assertRaisesRegex(ValueError, "not been activated"):
+            live.register_ranking_sidecar("CMP000162", sidecar())
 
     def test_2026_main_tables_and_queue_are_untouched(self):
         repo = DataRepository(DATA)
