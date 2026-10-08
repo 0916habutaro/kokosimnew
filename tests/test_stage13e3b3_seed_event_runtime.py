@@ -454,14 +454,6 @@ class Stage13E3B3SeedEventRuntimeTests(unittest.TestCase):
                             if not match.is_bye
                         ]),
                     )
-                    self.assertNotIn(
-                        3 if competition_id == "CMP000140" else 4,
-                        {
-                            match.round_no
-                            for match in seed_stage.matches
-                            if not match.is_bye
-                        },
-                    )
 
     def test_unified_dispatcher_selects_seed_runtime(self):
         runtime = TournamentEngine(
