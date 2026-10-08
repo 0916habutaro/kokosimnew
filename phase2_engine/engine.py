@@ -259,6 +259,28 @@ class TournamentEngine:
             f"competition graph {sorted(stage_codes)}"
         )
 
+    def prepare_scheduled_competition_runtime(
+        self,
+        annual: AnnualCompetitionInput,
+        calendar_row,
+        *,
+        stage_date_lists=None,
+    ):
+        """Prepare a lazy competition runtime and bind its next ready wave to dates."""
+        from .competition_schedule_runtime import (
+            ScheduledCompetitionRuntime,
+        )
+
+        runtime = self.prepare_competition_runtime(
+            annual
+        )
+        return ScheduledCompetitionRuntime.from_calendar_row(
+            self.repo,
+            runtime,
+            calendar_row,
+            stage_date_lists=stage_date_lists,
+        )
+
     def _pre_main_resolution_kwargs(self, annual: AnnualCompetitionInput) -> dict:
         if self.pre_main_match_resolver is None:
             return {}
