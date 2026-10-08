@@ -1,0 +1,25 @@
+check,status,detail
+qualification_rules_load,PASS,59 effective 2026 qualification rules available
+summer_qualification_rules,PASS,QRL000001-049 aggregate 49 local winners
+jingu_qualification_rules,PASS,QRL000050-059 aggregate 10 autumn representatives
+qualification_wait_all_sources,PASS,destination is absent until every source is complete and officially released
+qualification_team_count_guard,PASS,destination activates only when entrant count matches competition team_count
+summer_national_live,PASS,49 local live competitions activate CMP000002
+summer_national_entrant_count,PASS,49 unique local champions
+summer_national_legacy_equivalence,PASS,CMP000002 live CompetitionRun exactly matches explicit-entrant legacy run
+regional_feeder_rules_load,PASS,96 effective 2026 feeder rules available
+regional_rank_range,PASS,source final_ranking_school_ids supports rank_range
+regional_exclude_selected,PASS,exclude_already_selected implemented
+regional_fill_to_quota,PASS,fill_to_quota scans lower ranking positions
+regional_invitational_region_filter,PASS,completed invitational entrants can be filtered by regional membership
+shikoku_spring_live,PASS,CMP000139/141/143/145 feed CMP000011
+shikoku_entrant_order_legacy,PASS,8 live entrants exactly match SeasonOrchestrator legacy resolver order
+shikoku_competition_legacy,PASS,CMP000011 live CompetitionRun exactly matches legacy
+regional_playoff_rules_load,PASS,KPL2026A and KPL2026B loaded
+regional_playoff_namespace,PASS,playoff winner uses legacy deterministic namespace and season seed
+kinki_playoff_legacy,PASS,feeder ids playoff winners and 16 entrant order match legacy resolver
+dependency_family_state,PASS,access qualification regional_feeder and root are exposed
+family_overlap_guard,PASS,multiple dependency families block instead of implicit merge
+jingu_ten_winner_template,PASS,10 autumn winners build CMP000003 annual entrants
+jingu_unknown_game_dates_safe,PASS,current CMP000003 calendar may remain calendar gap until exact dates are known
+full_suite,PASS,Ran 537 tests in 25.255s; OK

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import csv
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Mapping, Sequence
@@ -10,6 +11,8 @@ from .competition_schedule_runtime import (
     _iso_date,
 )
 from .models import AnnualCompetitionInput
+from .paths import resolve_data_file
+from .randomness import shuffled
 from .repository import DataRepository
 from .stage_calendar import (
     stage_date_lists_by_competition,
@@ -59,6 +62,80 @@ class LiveAccessDependencyResolution:
         }
 
 
+@dataclass(frozen=True)
+class LiveQualificationDependencyResolution:
+    rule_id: str
+    source_competition_id: str
+    destination_competition_id: str
+    source_result: str
+    resolved_school_ids: tuple[str, ...]
+    expected_count: int
+    status: str
+    notes: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "rule_id": self.rule_id,
+            "source_competition_id": self.source_competition_id,
+            "destination_competition_id": self.destination_competition_id,
+            "source_result": self.source_result,
+            "resolved_school_ids": list(self.resolved_school_ids),
+            "expected_count": self.expected_count,
+            "status": self.status,
+            "notes": self.notes,
+        }
+
+
+@dataclass(frozen=True)
+class LiveRegionalFeederDependencyResolution:
+    feeder_rule_id: str
+    destination_competition_id: str
+    source_competition_id: str
+    source_prefecture_code: str
+    selector: str
+    qualification_mode: str
+    resolved_school_ids: tuple[str, ...]
+    expected_count: int
+    status: str
+    notes: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "feeder_rule_id": self.feeder_rule_id,
+            "destination_competition_id": self.destination_competition_id,
+            "source_competition_id": self.source_competition_id,
+            "source_prefecture_code": self.source_prefecture_code,
+            "selector": self.selector,
+            "qualification_mode": self.qualification_mode,
+            "resolved_school_ids": list(self.resolved_school_ids),
+            "expected_count": self.expected_count,
+            "status": self.status,
+            "notes": self.notes,
+        }
+
+
+@dataclass(frozen=True)
+class LiveRegionalPlayoffDependencyResolution:
+    playoff_id: str
+    destination_competition_id: str
+    candidate_school_id_a: str
+    candidate_school_id_b: str
+    winner_school_id: str
+    status: str
+    notes: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "playoff_id": self.playoff_id,
+            "destination_competition_id": self.destination_competition_id,
+            "candidate_school_id_a": self.candidate_school_id_a,
+            "candidate_school_id_b": self.candidate_school_id_b,
+            "winner_school_id": self.winner_school_id,
+            "status": self.status,
+            "notes": self.notes,
+        }
+
+
 @dataclass
 class LiveSeasonDependencyRuntimeState:
     """Activate same-year destination competitions from completed source results.
@@ -93,6 +170,18 @@ class LiveSeasonDependencyRuntimeState:
         default_factory=dict,
         repr=False,
     )
+    qualification_rules: dict[str, list[dict]] = field(
+        default_factory=dict,
+        repr=False,
+    )
+    regional_feeder_rules: dict[str, list[dict]] = field(
+        default_factory=dict,
+        repr=False,
+    )
+    regional_playoffs: dict[str, list[dict]] = field(
+        default_factory=dict,
+        repr=False,
+    )
     competitions: dict[
         str,
         ScheduledCompetitionRuntime,
@@ -106,7 +195,34 @@ class LiveSeasonDependencyRuntimeState:
     resolutions: list[
         LiveAccessDependencyResolution
     ] = field(default_factory=list)
+    qualification_resolutions: list[
+        LiveQualificationDependencyResolution
+    ] = field(default_factory=list)
+    regional_feeder_resolutions: list[
+        LiveRegionalFeederDependencyResolution
+    ] = field(default_factory=list)
+    regional_playoff_resolutions: list[
+        LiveRegionalPlayoffDependencyResolution
+    ] = field(default_factory=list)
     history: list[dict] = field(default_factory=list)
+
+    @staticmethod
+    def _read_csv(
+        data_dir,
+        name: str,
+    ) -> list[dict]:
+        path = resolve_data_file(
+            data_dir,
+            name,
+        )
+        if not path.exists():
+            return []
+        with path.open(
+            "r",
+            encoding="utf-8-sig",
+            newline="",
+        ) as f:
+            return list(csv.DictReader(f))
 
     @classmethod
     def from_annual_templates(
@@ -261,6 +377,93 @@ class LiveSeasonDependencyRuntimeState:
             )
             rules[destination] = selected
 
+        qualification_rows = cls._read_csv(
+            repo.data_dir,
+            "qualification_rules.csv",
+        )
+        qualification_rules: dict[str, list[dict]] = {
+            cid: []
+            for cid in templates
+        }
+        for row in qualification_rows:
+            destination = row.get(
+                "destination_competition_id",
+                "",
+            )
+            if (
+                destination not in templates
+                or row.get("effective_year") != str(year)
+            ):
+                continue
+            qualification_rules[
+                destination
+            ].append(dict(row))
+        for rows in qualification_rules.values():
+            rows.sort(
+                key=lambda row: row["rule_id"]
+            )
+
+        feeder_rows = cls._read_csv(
+            repo.data_dir,
+            "regional_feeder_rules.csv",
+        )
+        regional_feeder_rules: dict[
+            str,
+            list[dict],
+        ] = {
+            cid: []
+            for cid in templates
+        }
+        for row in feeder_rows:
+            destination = row.get(
+                "destination_competition_id",
+                "",
+            )
+            if (
+                destination not in templates
+                or row.get("effective_year") != str(year)
+            ):
+                continue
+            regional_feeder_rules[
+                destination
+            ].append(dict(row))
+        for rows in regional_feeder_rules.values():
+            rows.sort(
+                key=lambda row: (
+                    int(row.get("priority") or 0),
+                    row["feeder_rule_id"],
+                )
+            )
+
+        playoff_rows = cls._read_csv(
+            repo.data_dir,
+            "regional_qualification_playoffs.csv",
+        )
+        regional_playoffs: dict[
+            str,
+            list[dict],
+        ] = {
+            cid: []
+            for cid in templates
+        }
+        for row in playoff_rows:
+            destination = row.get(
+                "destination_competition_id",
+                "",
+            )
+            if (
+                destination not in templates
+                or row.get("effective_year") != str(year)
+            ):
+                continue
+            regional_playoffs[
+                destination
+            ].append(dict(row))
+        for rows in regional_playoffs.values():
+            rows.sort(
+                key=lambda row: row["playoff_id"]
+            )
+
         all_dates = []
         for cid, row in calendar_by_comp.items():
             if cid not in templates:
@@ -296,6 +499,9 @@ class LiveSeasonDependencyRuntimeState:
             calendar_rows=calendar_by_comp,
             stage_date_lists=stage_dates,
             dependency_rules=rules,
+            qualification_rules=qualification_rules,
+            regional_feeder_rules=regional_feeder_rules,
+            regional_playoffs=regional_playoffs,
         )
         state._initialize_statuses()
         state._activate_roots()
@@ -322,26 +528,94 @@ class LiveSeasonDependencyRuntimeState:
         end = int(end_value) if end_value else year
         return start <= year <= end
 
-    def _initialize_statuses(self) -> None:
-        for cid in self.annual_templates:
-            rules = self.dependency_rules.get(
-                cid,
+    def _source_ids_for_destination(
+        self,
+        competition_id: str,
+    ) -> list[str]:
+        sources: list[str] = []
+        sources.extend(
+            rule["source_competition_id_2026"]
+            for rule in self.dependency_rules.get(
+                competition_id,
                 [],
             )
-            if not rules:
+            if rule.get("source_competition_id_2026")
+        )
+        sources.extend(
+            rule["source_competition_id"]
+            for rule in self.qualification_rules.get(
+                competition_id,
+                [],
+            )
+            if rule.get("source_competition_id")
+        )
+        sources.extend(
+            rule["source_competition_id"]
+            for rule in self.regional_feeder_rules.get(
+                competition_id,
+                [],
+            )
+            if rule.get("source_competition_id")
+        )
+        return list(dict.fromkeys(sources))
+
+    def _dependency_family_count(
+        self,
+        competition_id: str,
+    ) -> int:
+        return sum([
+            bool(self.dependency_rules.get(competition_id)),
+            bool(self.qualification_rules.get(competition_id)),
+            bool(self.regional_feeder_rules.get(competition_id)),
+        ])
+
+    def _region_prefecture_codes(
+        self,
+        region_id: str,
+    ) -> set[str]:
+        rows = self._read_csv(
+            self.repo.data_dir,
+            "prefecture_region_memberships.csv",
+        )
+        return {
+            row["prefecture_code"]
+            for row in rows
+            if (
+                row.get("region_id") == region_id
+                and row.get("season_segment")
+                == "autumn"
+                and row.get("effective_year")
+                == str(self.year)
+            )
+        }
+
+    def _initialize_statuses(self) -> None:
+        for cid in self.annual_templates:
+            family_count = (
+                self._dependency_family_count(cid)
+            )
+            if family_count == 0:
                 self.status_by_competition[
                     cid
                 ] = DEPENDENCY_ACTIVE
                 continue
+            if family_count > 1:
+                self.status_by_competition[
+                    cid
+                ] = DEPENDENCY_BLOCKED
+                self.history.append({
+                    "action": "block_dependency_family_overlap",
+                    "competition_id": cid,
+                    "dependency_family_count": family_count,
+                })
+                continue
+            sources = self._source_ids_for_destination(
+                cid
+            )
             missing_sources = {
-                rule[
-                    "source_competition_id_2026"
-                ]
-                for rule in rules
-                if rule[
-                    "source_competition_id_2026"
-                ]
-                not in self.annual_templates
+                source
+                for source in sources
+                if source not in self.annual_templates
             }
             self.status_by_competition[cid] = (
                 DEPENDENCY_WAITING_EXTERNAL
@@ -580,7 +854,7 @@ class LiveSeasonDependencyRuntimeState:
             notes="",
         )
 
-    def _build_destination_annual(
+    def _build_access_destination_annual(
         self,
         competition_id: str,
     ) -> tuple[
@@ -686,6 +960,426 @@ class LiveSeasonDependencyRuntimeState:
         )
         return annual, resolutions
 
+    def _resolve_qualification_rule(
+        self,
+        rule: Mapping[str, str],
+    ) -> LiveQualificationDependencyResolution:
+        source_id = rule["source_competition_id"]
+        scheduled = self.competitions.get(source_id)
+        ids: list[str] = []
+        notes = ""
+        if scheduled is None or not scheduled.is_complete:
+            notes = "source competition not complete"
+        elif rule.get("source_result") == "winner":
+            run = scheduled.to_competition_run()
+            if run.outcome and run.outcome.champion_school_id:
+                ids = [run.outcome.champion_school_id]
+        else:
+            notes = (
+                "unsupported qualification source_result="
+                f"{rule.get('source_result', '')}"
+            )
+
+        expected = int(rule.get("quota") or 0)
+        status = (
+            "PASS"
+            if len(ids) == expected and not notes
+            else "BLOCKED"
+        )
+        return LiveQualificationDependencyResolution(
+            rule_id=rule["rule_id"],
+            source_competition_id=source_id,
+            destination_competition_id=rule[
+                "destination_competition_id"
+            ],
+            source_result=rule.get("source_result", ""),
+            resolved_school_ids=tuple(ids),
+            expected_count=expected,
+            status=status,
+            notes=notes,
+        )
+
+    def _build_qualification_destination_annual(
+        self,
+        competition_id: str,
+    ) -> tuple[
+        AnnualCompetitionInput | None,
+        list[LiveQualificationDependencyResolution],
+    ]:
+        resolutions = [
+            self._resolve_qualification_rule(rule)
+            for rule in self.qualification_rules.get(
+                competition_id,
+                [],
+            )
+        ]
+        if any(
+            row.status != "PASS"
+            for row in resolutions
+        ):
+            return None, resolutions
+
+        entrants = list(dict.fromkeys(
+            school_id
+            for row in resolutions
+            for school_id in row.resolved_school_ids
+        ))
+        expected = int(
+            self.repo.competition(
+                competition_id
+            ).get("team_count") or 0
+        )
+        if expected and len(entrants) != expected:
+            return None, [
+                LiveQualificationDependencyResolution(
+                    rule_id=row.rule_id,
+                    source_competition_id=(
+                        row.source_competition_id
+                    ),
+                    destination_competition_id=(
+                        row.destination_competition_id
+                    ),
+                    source_result=row.source_result,
+                    resolved_school_ids=(
+                        row.resolved_school_ids
+                    ),
+                    expected_count=row.expected_count,
+                    status="BLOCKED",
+                    notes=(
+                        "destination entrant total "
+                        f"{len(entrants)} != expected "
+                        f"{expected}"
+                    ),
+                )
+                for row in resolutions
+            ]
+
+        annual = deepcopy(
+            self.annual_templates[competition_id]
+        )
+        annual.entrant_school_ids = entrants
+        annual.direct_main_entry_school_ids = []
+        annual.seed_event_bypass_school_ids = []
+        return annual, resolutions
+
+    def _resolve_regional_feeder_destination(
+        self,
+        competition_id: str,
+    ) -> tuple[
+        list[str],
+        list[LiveRegionalFeederDependencyResolution],
+        list[LiveRegionalPlayoffDependencyResolution],
+    ]:
+        selected: list[str] = []
+        selected_set: set[str] = set()
+        candidate_by_rule: dict[str, str] = {}
+        resolutions: list[
+            LiveRegionalFeederDependencyResolution
+        ] = []
+
+        for rule in self.regional_feeder_rules.get(
+            competition_id,
+            [],
+        ):
+            quota = int(rule.get("quota") or 0)
+            source_id = rule.get(
+                "source_competition_id",
+                "",
+            )
+            source_type = rule.get(
+                "source_type",
+                "",
+            )
+            selector = rule.get("selector", "")
+            ids: list[str] = []
+            notes = ""
+
+            scheduled = self.competitions.get(source_id)
+            if scheduled is None or not scheduled.is_complete:
+                notes = "source competition not complete"
+            elif (
+                source_type
+                == "national_invitational_participants"
+                and selector
+                == "participants_from_region"
+            ):
+                region = rule.get(
+                    "source_region_filter",
+                    "",
+                )
+                pref_codes = (
+                    self._region_prefecture_codes(
+                        region
+                    )
+                )
+                run = scheduled.to_competition_run()
+                ids = [
+                    school_id
+                    for school_id
+                    in run.entrant_school_ids
+                    if self.repo.schools.get(
+                        school_id,
+                        {},
+                    ).get("prefecture_code")
+                    in pref_codes
+                ][:quota]
+                notes = (
+                    "completed invitational entrants "
+                    "filtered by regional membership"
+                )
+            elif selector == "rank_range":
+                run = scheduled.to_competition_run()
+                if run.outcome is None:
+                    notes = "source outcome missing"
+                else:
+                    ranking = list(
+                        run.outcome.final_ranking_school_ids
+                    )
+                    lo = max(
+                        int(rule.get("rank_from") or 1),
+                        1,
+                    )
+                    hi = max(
+                        int(rule.get("rank_to") or lo),
+                        lo,
+                    )
+                    if (
+                        rule.get("fill_to_quota")
+                        == "yes"
+                    ):
+                        pool = ranking[lo - 1:]
+                    else:
+                        pool = ranking[lo - 1:hi]
+                    if (
+                        rule.get(
+                            "exclude_already_selected"
+                        )
+                        == "yes"
+                    ):
+                        pool = [
+                            school_id
+                            for school_id in pool
+                            if school_id
+                            not in selected_set
+                        ]
+                    ids = pool[:quota]
+            else:
+                notes = (
+                    "unsupported feeder source/selector: "
+                    f"{source_type}/{selector}"
+                )
+
+            mode = rule.get(
+                "qualification_mode",
+                "direct",
+            )
+            status = (
+                "PASS"
+                if len(ids) == quota
+                else "BLOCKED"
+            )
+            if status == "PASS":
+                if mode == "direct":
+                    for school_id in ids:
+                        if school_id not in selected_set:
+                            selected.append(school_id)
+                            selected_set.add(school_id)
+                elif mode == "playoff_candidate":
+                    if len(ids) == 1:
+                        candidate_by_rule[
+                            rule["feeder_rule_id"]
+                        ] = ids[0]
+                    else:
+                        status = "BLOCKED"
+                        notes = (
+                            "playoff candidate rule must "
+                            "resolve exactly one school"
+                        )
+                else:
+                    status = "BLOCKED"
+                    notes = (
+                        "unsupported qualification_mode="
+                        f"{mode}"
+                    )
+
+            resolutions.append(
+                LiveRegionalFeederDependencyResolution(
+                    feeder_rule_id=rule[
+                        "feeder_rule_id"
+                    ],
+                    destination_competition_id=(
+                        competition_id
+                    ),
+                    source_competition_id=source_id,
+                    source_prefecture_code=rule.get(
+                        "source_prefecture_code",
+                        "",
+                    ),
+                    selector=selector,
+                    qualification_mode=mode,
+                    resolved_school_ids=tuple(ids),
+                    expected_count=quota,
+                    status=status,
+                    notes=notes,
+                )
+            )
+
+        playoff_resolutions: list[
+            LiveRegionalPlayoffDependencyResolution
+        ] = []
+        for playoff in self.regional_playoffs.get(
+            competition_id,
+            [],
+        ):
+            a = candidate_by_rule.get(
+                playoff["candidate_rule_id_a"],
+                "",
+            )
+            b = candidate_by_rule.get(
+                playoff["candidate_rule_id_b"],
+                "",
+            )
+            if a and b:
+                winner = shuffled(
+                    [a, b],
+                    self.rng_seed,
+                    (
+                        "regional_playoff:"
+                        f"{playoff['playoff_id']}:"
+                        f"{a}:{b}"
+                    ),
+                )[0]
+                if winner not in selected_set:
+                    selected.append(winner)
+                    selected_set.add(winner)
+                status = "PASS"
+                notes = (
+                    "deterministic structural playoff; "
+                    "official annual result may override"
+                )
+            else:
+                winner = ""
+                status = "BLOCKED"
+                notes = "playoff candidate missing"
+            playoff_resolutions.append(
+                LiveRegionalPlayoffDependencyResolution(
+                    playoff_id=playoff[
+                        "playoff_id"
+                    ],
+                    destination_competition_id=(
+                        competition_id
+                    ),
+                    candidate_school_id_a=a,
+                    candidate_school_id_b=b,
+                    winner_school_id=winner,
+                    status=status,
+                    notes=notes,
+                )
+            )
+
+        return (
+            selected,
+            resolutions,
+            playoff_resolutions,
+        )
+
+    def _build_regional_destination_annual(
+        self,
+        competition_id: str,
+    ) -> tuple[
+        AnnualCompetitionInput | None,
+        list[LiveRegionalFeederDependencyResolution],
+        list[LiveRegionalPlayoffDependencyResolution],
+    ]:
+        (
+            entrants,
+            resolutions,
+            playoff_resolutions,
+        ) = self._resolve_regional_feeder_destination(
+            competition_id
+        )
+        expected = int(
+            self.repo.competition(
+                competition_id
+            ).get("team_count") or 0
+        )
+        valid = (
+            all(
+                row.status == "PASS"
+                for row in resolutions
+            )
+            and all(
+                row.status == "PASS"
+                for row in playoff_resolutions
+            )
+            and (
+                not expected
+                or len(entrants) == expected
+            )
+        )
+        if not valid:
+            return (
+                None,
+                resolutions,
+                playoff_resolutions,
+            )
+
+        annual = deepcopy(
+            self.annual_templates[competition_id]
+        )
+        annual.entrant_school_ids = list(entrants)
+        annual.direct_main_entry_school_ids = []
+        annual.seed_event_bypass_school_ids = []
+        return (
+            annual,
+            resolutions,
+            playoff_resolutions,
+        )
+
+    def _build_destination_annual(
+        self,
+        competition_id: str,
+    ) -> tuple[
+        AnnualCompetitionInput | None,
+        list[object],
+        list[LiveRegionalPlayoffDependencyResolution],
+    ]:
+        if self.dependency_rules.get(
+            competition_id
+        ):
+            annual, resolutions = (
+                self._build_access_destination_annual(
+                    competition_id
+                )
+            )
+            return annual, list(resolutions), []
+        if self.qualification_rules.get(
+            competition_id
+        ):
+            annual, resolutions = (
+                self._build_qualification_destination_annual(
+                    competition_id
+                )
+            )
+            return annual, list(resolutions), []
+        if self.regional_feeder_rules.get(
+            competition_id
+        ):
+            return (
+                self._build_regional_destination_annual(
+                    competition_id
+                )
+            )
+        return (
+            deepcopy(
+                self.annual_templates[
+                    competition_id
+                ]
+            ),
+            [],
+            [],
+        )
+
     def _activate_ready_destinations(
         self,
         *,
@@ -704,16 +1398,11 @@ class LiveSeasonDependencyRuntimeState:
                     != DEPENDENCY_WAITING
                 ):
                     continue
-                rules = self.dependency_rules.get(
-                    cid,
-                    [],
+                source_ids = set(
+                    self._source_ids_for_destination(
+                        cid
+                    )
                 )
-                source_ids = {
-                    rule[
-                        "source_competition_id_2026"
-                    ]
-                    for rule in rules
-                }
                 if not all(
                     source in self.competitions
                     and self.competitions[
@@ -732,14 +1421,43 @@ class LiveSeasonDependencyRuntimeState:
                 ):
                     continue
 
-                annual, resolutions = (
-                    self._build_destination_annual(
-                        cid
+                (
+                    annual,
+                    resolutions,
+                    playoff_resolutions,
+                ) = self._build_destination_annual(
+                    cid
+                )
+                if self.dependency_rules.get(cid):
+                    self.resolutions.extend(
+                        resolution
+                        for resolution in resolutions
+                        if isinstance(
+                            resolution,
+                            LiveAccessDependencyResolution,
+                        )
                     )
-                )
-                self.resolutions.extend(
-                    resolutions
-                )
+                elif self.qualification_rules.get(cid):
+                    self.qualification_resolutions.extend(
+                        resolution
+                        for resolution in resolutions
+                        if isinstance(
+                            resolution,
+                            LiveQualificationDependencyResolution,
+                        )
+                    )
+                elif self.regional_feeder_rules.get(cid):
+                    self.regional_feeder_resolutions.extend(
+                        resolution
+                        for resolution in resolutions
+                        if isinstance(
+                            resolution,
+                            LiveRegionalFeederDependencyResolution,
+                        )
+                    )
+                    self.regional_playoff_resolutions.extend(
+                        playoff_resolutions
+                    )
                 if annual is None:
                     self.status_by_competition[
                         cid
@@ -925,14 +1643,30 @@ class LiveSeasonDependencyRuntimeState:
             raise KeyError(
                 f"unknown competition_id: {competition_id}"
             )
-        rules = self.dependency_rules.get(
-            competition_id,
-            [],
+        sources = (
+            self._source_ids_for_destination(
+                competition_id
+            )
         )
-        sources = [
-            rule["source_competition_id_2026"]
-            for rule in rules
-        ]
+        family = (
+            "access"
+            if self.dependency_rules.get(
+                competition_id
+            )
+            else (
+                "qualification"
+                if self.qualification_rules.get(
+                    competition_id
+                )
+                else (
+                    "regional_feeder"
+                    if self.regional_feeder_rules.get(
+                        competition_id
+                    )
+                    else "root"
+                )
+            )
+        )
         scheduled = self.competitions.get(
             competition_id
         )
@@ -941,6 +1675,7 @@ class LiveSeasonDependencyRuntimeState:
             "status": self.status_by_competition[
                 competition_id
             ],
+            "dependency_family": family,
             "dependency_source_competition_ids": (
                 list(dict.fromkeys(sources))
             ),
@@ -988,6 +1723,15 @@ class LiveSeasonDependencyRuntimeState:
             "resolution_count": len(
                 self.resolutions
             ),
+            "qualification_resolution_count": len(
+                self.qualification_resolutions
+            ),
+            "regional_feeder_resolution_count": len(
+                self.regional_feeder_resolutions
+            ),
+            "regional_playoff_resolution_count": len(
+                self.regional_playoff_resolutions
+            ),
         }
 
     def public_snapshot(self) -> dict:
@@ -1007,5 +1751,17 @@ class LiveSeasonDependencyRuntimeState:
             "resolutions": [
                 row.to_dict()
                 for row in self.resolutions
+            ],
+            "qualification_resolutions": [
+                row.to_dict()
+                for row in self.qualification_resolutions
+            ],
+            "regional_feeder_resolutions": [
+                row.to_dict()
+                for row in self.regional_feeder_resolutions
+            ],
+            "regional_playoff_resolutions": [
+                row.to_dict()
+                for row in self.regional_playoff_resolutions
             ],
         }

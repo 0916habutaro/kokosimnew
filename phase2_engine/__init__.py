@@ -95,5 +95,8 @@ from .live_season_dependency import (
     DEPENDENCY_WAITING,
     DEPENDENCY_WAITING_EXTERNAL,
     LiveAccessDependencyResolution,
+    LiveQualificationDependencyResolution,
+    LiveRegionalFeederDependencyResolution,
+    LiveRegionalPlayoffDependencyResolution,
     LiveSeasonDependencyRuntimeState,
 )
