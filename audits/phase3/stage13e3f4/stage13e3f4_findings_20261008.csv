@@ -1,0 +1,5 @@
+finding_id,category,severity,status,competition_id,scope,detail,follow_up
+F4-001,calendar_boundary,medium,fixed,CMP000110,岐阜秋1次／2次,"MAINに誤登録した8/29・8/30を除外。9/5は一次二次の同日開催として根拠付き例外へ登録",根拠付き同日開催を継続監査
+F4-002,calendar_publication,p0,awaiting_publication,CMP000003,2026神宮高校部,11/19～24開催期間のみ確定し組合せ抽選前,2026-10-17以降に公式高校部の個別日程・組合せを確認
+F4-003,format_design,p2,design_pending,CMP000140,FMT022,代表決定後順位決定戦のnonblocking表現が未確定,徳島秋と沖縄秋の設計仕様を整理
+F4-004,format_design,p2,design_pending,CMP000112,FMT025,代表決定後順位決定戦の独立limited subgraphが未確定,静岡秋と広島秋の設計仕様を整理
