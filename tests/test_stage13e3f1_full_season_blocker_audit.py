@@ -342,7 +342,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
         aichi = by_comp["CMP000113"]
         self.assertEqual((), kanagawa.resolution_failures)
         self.assertEqual((), aichi.resolution_failures)
-        self.assertEqual(BLOCKER_CALENDAR_GAP, kanagawa.blocker_kind)
+        self.assertEqual(BLOCKER_COMPLETE, kanagawa.blocker_kind)
         self.assertEqual(BLOCKER_COMPLETE, aichi.blocker_kind)
 
         action_by_id = {
