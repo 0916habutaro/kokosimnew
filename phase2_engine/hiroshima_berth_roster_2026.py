@@ -147,7 +147,7 @@ def audit_2026_hiroshima_prefectural_berth_roster(data_dir: str | Path) -> dict:
     counted = Counter(r["season"] for r in roster)
     if counted != {"spring": 32, "autumn": 32}:
         errors.append(f"seasonal MAIN entrant counts differ: {dict(counted)}")
-    if len(locks) != 17:
+    if len(locks) != 41:
         errors.append(f"Stage13E-3G-9 historical lock anchor count changed: {len(locks)}")
     qualifier_without_sampled_lock = sum(
         1 for sd, entrants in district_entries.items() for name, r in entrants.items()
