@@ -425,6 +425,36 @@ class Stage13E3B3SeedEventRuntimeTests(unittest.TestCase):
             set(lazy_resolver.calls),
         )
 
+    def test_fmt022_stops_when_top_four_seed_pool_is_known(self):
+        for competition_id in ("CMP000140", "CMP000162"):
+            with self.subTest(competition_id=competition_id):
+                annual = self._input_for(competition_id)
+                legacy = TournamentEngine(self.repo).run(annual)
+                lazy = TournamentEngine(
+                    self.repo
+                ).prepare_seeded_competition_runtime(
+                    annual
+                ).resolve_all()
+
+                for run in (legacy, lazy):
+                    seed_stage = next(
+                        execution
+                        for execution in run.stage_executions
+                        if execution.stage_code == "SEED_EVENT"
+                    )
+                    self.assertEqual(
+                        4,
+                        len(seed_stage.output_school_ids),
+                    )
+                    self.assertEqual(
+                        len(seed_stage.entrant_school_ids) - 4,
+                        len([
+                            match
+                            for match in seed_stage.matches
+                            if not match.is_bye
+                        ]),
+                    )
+
     def test_unified_dispatcher_selects_seed_runtime(self):
         runtime = TournamentEngine(
             self.repo

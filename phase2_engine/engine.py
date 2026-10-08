@@ -1030,7 +1030,19 @@ class TournamentEngine:
                 )
                 matches.extend(ms2)
             out = primary + secondary
-            if model_id == "FMT025" and len(out) > 1:
+            rank_order_required = bool(
+                self.repo.param(
+                    stage["stage_id"],
+                    "rank_order_required",
+                    gid,
+                    False,
+                )
+            )
+            if (
+                model_id == "FMT025"
+                and rank_order_required
+                and len(out) > 1
+            ):
                 ranking, rms = self._rank_knockout(
                     annual, stage, group, out, "RANKING", winner_resolver, suffix="-RANK"
                 )
@@ -1476,6 +1488,11 @@ class TournamentEngine:
                 stage_code=stage["stage_code"], phase_code=phase,
                 group_id=gid, group_name=gname, base_seed=annual.rng_seed,
                 winner_resolver=winner_resolver,
+                stop_at_survivors=(
+                    output_slots
+                    if model_id == "FMT022"
+                    else 1
+                ),
             **self._pre_main_resolution_kwargs(annual),
             )
             return ranking, matches, {

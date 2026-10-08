@@ -291,6 +291,11 @@ class SeedGroupRuntimeState:
                 generation_seed=self.generation_seed,
                 match_resolver=self.match_resolver,
                 resolved_match_sink=self.match_simulation_results,
+                stop_at_survivors=(
+                    self.output_slots
+                    if model == "FMT022"
+                    else 1
+                ),
             )
             return
 

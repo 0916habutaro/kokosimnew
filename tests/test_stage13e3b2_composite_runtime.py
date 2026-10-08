@@ -165,6 +165,31 @@ class Stage13E3B2CompositeRuntimeTests(unittest.TestCase):
             }.issubset(covered_models)
         )
 
+    def test_fmt025_skips_ranking_without_explicit_requirement(self):
+        for competition_id in ("CMP000112", "CMP000136"):
+            with self.subTest(competition_id=competition_id):
+                annual = self._input_for(competition_id)
+                legacy = TournamentEngine(self.repo).run(annual)
+                lazy = TournamentEngine(
+                    self.repo
+                ).prepare_qualifier_main_runtime(
+                    annual
+                ).resolve_all()
+
+                for run in (legacy, lazy):
+                    qualifier = next(
+                        execution
+                        for execution in run.stage_executions
+                        if execution.stage_code == "BRANCH_QUALIFIER"
+                    )
+                    self.assertNotIn(
+                        "RANKING",
+                        {
+                            match.phase_code
+                            for match in qualifier.matches
+                        },
+                    )
+
     def test_repechage_is_not_created_before_primary_completion(self):
         resolver = StubDetailedResolver()
         runtime = TournamentEngine(

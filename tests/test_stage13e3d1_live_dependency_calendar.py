@@ -97,7 +97,7 @@ class Stage13E3D1LiveDependencyCalendarTests(
             for index in range(count)
         ]
 
-    def test_stage_calendar_covers_all_49_pre_main_stages(
+    def test_stage_calendar_covers_all_pre_main_stages(
         self,
     ):
         summary = (
@@ -108,23 +108,23 @@ class Stage13E3D1LiveDependencyCalendarTests(
             )
         )
         self.assertEqual(
-            49,
+            50,
             summary["pre_main_stage_count"],
         )
         self.assertEqual(
-            49,
+            50,
             summary["row_count"],
         )
         self.assertEqual(
-            0,
+            29,
             summary["verified_count"],
         )
         self.assertEqual(
-            49,
+            21,
             summary["research_pending_count"],
         )
         self.assertEqual(
-            26,
+            27,
             summary[
                 "calendar_relation_counts"
             ][
@@ -141,17 +141,17 @@ class Stage13E3D1LiveDependencyCalendarTests(
                 include_pending=True,
             )
         )
-        self.assertIn("CMP000077", mapping)
+        self.assertIn("CMP000004", mapping)
         self.assertEqual(
             [],
-            mapping["CMP000077"][
+            mapping["CMP000004"][
                 "BRANCH_QUALIFIER"
             ],
         )
         self.assertEqual(
             [],
-            mapping["CMP000116"][
-                "SEED_EVENT"
+            mapping["CMP000095"][
+                "BRANCH_QUALIFIER"
             ],
         )
 
@@ -166,6 +166,14 @@ class Stage13E3D1LiveDependencyCalendarTests(
             "CMP000077",
             2,
         )
+        pending_stage_rows = deepcopy(
+            self.stage_calendar_rows
+        )
+        for row in pending_stage_rows:
+            if row["competition_id"] == "CMP000077":
+                row["date_list"] = ""
+                row["date_status"] = "research_pending"
+
         state = (
             LiveSeasonDependencyRuntimeState
             .from_annual_templates(
@@ -188,7 +196,7 @@ class Stage13E3D1LiveDependencyCalendarTests(
                 rng_seed=self.seed,
                 start_date="2026-07-01",
                 stage_calendar_rows=(
-                    self.stage_calendar_rows
+                    pending_stage_rows
                 ),
             )
         )
