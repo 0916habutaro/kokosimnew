@@ -6,7 +6,8 @@ import unittest
 from pathlib import Path
 from datetime import date
 
-from phase2_engine import BrowseRepository, DataRepository
+from phase2_engine import DataRepository
+from phase2_engine.browse_repository import BrowseRepository
 from phase2_engine.competition_schedule_runtime import ScheduledCompetitionRuntime
 from phase2_engine.live_season_dependency import LiveSeasonDependencyRuntimeState
 from phase2_engine.post_qualification_ranking import RankingOnlyEventRuntime
