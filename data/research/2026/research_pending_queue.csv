@@ -1,7 +1,7 @@
 task_id,priority,task_type,competition_id,stage_calendar_id,access_rule_id,missing_information,source_id,review_not_before,status,completion_criteria,notes
 RS2026001,P2,stage_calendar,CMP000004,SC2026001,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC141,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
 RS2026002,P1,stage_calendar,CMP000072,SC2026004,,SEED_EVENTの2026年実試合日union,P2SRC009,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
-RS2026003,P1,stage_calendar,CMP000074,SC2026006,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC011,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026003,P1,stage_calendar,CMP000074,SC2026006,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC011,2026-10-08,resolved,公式2026年資料と照合しstage calendar verifiedへ変更,2026岩手春季5地区予選・敗者復活戦の実試合日12日を確認。県MAIN5/15以降を除外
 RS2026004,P1,stage_calendar,CMP000076,SC2026008,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC013,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
 RS2026005,P1,stage_calendar,CMP000082,SC2026010,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC023,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
 RS2026006,P1,stage_calendar,CMP000084,SC2026012,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC026,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
