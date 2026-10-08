@@ -63,22 +63,22 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             summary["competition_count"],
         )
         self.assertEqual(
-            143,
+            145,
             summary[
                 "completed_competition_count"
             ],
         )
         self.assertEqual(
-            19,
+            17,
             summary[
                 "blocked_competition_count"
             ],
         )
         self.assertEqual(
             {
-                BLOCKER_CALENDAR_GAP: 14,
-                BLOCKER_COMPLETE: 143,
-                BLOCKER_WAITING_DEPENDENCY: 5,
+                BLOCKER_CALENDAR_GAP: 13,
+                BLOCKER_COMPLETE: 145,
+                BLOCKER_WAITING_DEPENDENCY: 4,
             },
             summary["blocker_counts"],
         )
@@ -86,7 +86,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             {
                 ORIGIN_CALENDAR_WITHOUT_STAGE: 1,
                 ORIGIN_PENDING_STAGE_CALENDAR: 12,
-                ORIGIN_UPSTREAM_DEPENDENCY: 5,
+                ORIGIN_UPSTREAM_DEPENDENCY: 4,
             },
             summary["blocker_origin_counts"],
         )
@@ -122,13 +122,13 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             summary["priority_counts"],
         )
         self.assertEqual(
-            14,
+            13,
             summary[
                 "direct_calendar_gap_competition_count"
             ],
         )
         self.assertEqual(
-            5,
+            4,
             summary[
                 "dependency_wait_competition_count"
             ],
@@ -152,7 +152,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             ],
         )
         self.assertEqual(
-            5,
+            4,
             summary[
                 "unique_downstream_blocked_competition_count"
             ],
@@ -164,7 +164,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             ],
         )
         self.assertEqual(
-            14,
+            13,
             summary["action_count"],
         )
         self.assertEqual(
@@ -201,7 +201,6 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             {
                 "CMP000005",
                 "CMP000006",
-                "CMP000009",
                 "CMP000010",
                 "CMP000012",
             },
