@@ -184,6 +184,22 @@ class Stage13E3G3HistoricalRankingReferenceTests(unittest.TestCase):
             self.assertTrue(any("duplicate dated matchup" in err
                                 for err in report["errors"]))
 
+    def test_hiroshima_qualifier_mislabel_is_rejected_even_without_duplicates(self):
+        with tempfile.TemporaryDirectory() as temp:
+            data = Path(temp)
+            copy_reference_fixture(data)
+            ref = data / "competitions/2026/post_qualification_rank_observations.csv"
+
+            def mislabel(rows):
+                rows[-1]["reference_classification"] = "verified_ranking_only"
+            tamper(ref, mislabel)
+            report = validate_ranking_observations(data)
+            self.assertFalse(report["ok"])
+            self.assertTrue(any(
+                "Hiroshima placement requires proof" in error
+                for error in report["errors"]
+            ))
+
     def test_unverified_name_map_remains_a_hard_gate(self):
         report = validate_ranking_observations(DATA)
         self.assertGreater(report["unmapped_group_count"], 0)
