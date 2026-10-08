@@ -92,13 +92,13 @@ class Stage13E3D3FullSeasonPlannerTests(
             summary["season_segment_counts"],
         )
         self.assertEqual(
-            49,
+            21,
             summary[
                 "stage_calendar_pending_count"
             ],
         )
         self.assertEqual(
-            0,
+            29,
             summary[
                 "stage_calendar_verified_count"
             ],
@@ -392,11 +392,15 @@ class Stage13E3D3FullSeasonPlannerTests(
                 set(annual.entrant_school_ids)
             )
         )
-        self.assertGreater(
+        self.assertEqual(
+            0,
             tokyo_autumn.summary()[
                 "calendar_gap_count"
             ],
-            0,
+        )
+        self.assertEqual(
+            "2026-09-12",
+            tokyo_autumn.next_scheduled_date(),
         )
 
 
