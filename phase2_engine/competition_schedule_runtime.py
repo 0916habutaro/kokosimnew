@@ -374,7 +374,17 @@ class ScheduledCompetitionRuntime:
         """Ranking matches remain observable even after MAIN has completed."""
         normalized = _iso_date(target, "target_date")
         return sorted(
-            (row for sidecar in self.ranking_sidecars.values()
+            ({
+                **row,
+                "competition_name": self.competition_name,
+                "round_name": "順位決定戦",
+                "group_name": self.repo.groups.get(
+                    row["group_id"], {}
+                ).get("group_name", ""),
+                "team1_name": self._school_name(row["team1_id"]),
+                "team2_name": self._school_name(row["team2_id"]),
+            }
+             for sidecar in self.ranking_sidecars.values()
              for row in sidecar.matches_for_date(normalized)),
             key=lambda row: (row["match_date"], row["group_id"],
                              row["round_no"], row["match_id"]),
