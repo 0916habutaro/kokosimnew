@@ -1,0 +1,9 @@
+season,district_code,stage_group_id,fixture_count,distinct_team_or_joint_entry_count,observed_transitions,primary_winner_continuation,primary_loser_to_repechage,repechage_winner_continuation,repechage_loser_continuation,observed_block_label_changes,qualification_award_wins,source_scope,official_pdf_draw_graph_verified
+spring,west,SGR000140,24,17,31,9,13,9,0,1,6,secondary_result_chronological_team_sequence,no
+spring,north,SGR000141,24,17,31,9,13,8,1,0,7,secondary_result_chronological_team_sequence,no
+spring,south,SGR000142,33,24,42,12,18,12,0,2,9,secondary_result_chronological_team_sequence,no
+spring,east,SGR000143,31,22,40,12,17,10,1,3,9,secondary_result_chronological_team_sequence,no
+autumn,west,SGR000144,25,18,32,10,14,8,0,1,7,secondary_result_chronological_team_sequence,no
+autumn,north,SGR000145,22,16,28,8,12,8,0,1,6,secondary_result_chronological_team_sequence,no
+autumn,south,SGR000146,34,24,44,12,18,12,2,0,10,secondary_result_chronological_team_sequence,no
+autumn,east,SGR000147,30,21,39,11,16,10,2,2,9,secondary_result_chronological_team_sequence,no

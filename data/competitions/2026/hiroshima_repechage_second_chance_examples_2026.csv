@@ -1,0 +1,7 @@
+special_case_id,season,district_code,school_display_name,first_qualification_decider_loss_id,first_match_date,first_match_winner,first_match_score,second_qualification_decider_id,second_match_date,second_match_winner,second_match_score,second_match_winner_has_berth_award,evidence_transition_id,proven_same_team_next_game,extra_gate_topology_from_pdf,source_url
+HSR2026001,autumn,south,呉三津田,HT20260023,2026-09-05,広島桜が丘,9-4,HT20260020,2026-09-06,呉三津田,8-5,yes,HPTR20260031,yes,unverified,https://www.reiwa-hb-sch-and-res-gatr-fod.com/hiroshima/2026autumn/south-area/
+HSR2026002,autumn,south,熊野,HT20260022,2026-09-05,瀬戸内,4-3,HT20260021,2026-09-06,熊野,10-4,yes,HPTR20260038,yes,unverified,https://www.reiwa-hb-sch-and-res-gatr-fod.com/hiroshima/2026autumn/south-area/
+HSR2026003,spring,north,安西,HT20260032,2026-03-29,高陽東,2-1,HT20260067,2026-04-05,庄原格致,7-6,yes,HPTR20260061,yes,unverified,https://www.reiwa-hb-sch-and-res-gatr-fod.com/hiroshima/2026spring/north-area/
+HSR2026004,autumn,east,神辺旭,HT20260061,2026-08-30,盈進,10-1,HT20260037,2026-09-05,神辺旭,5-0,yes,HPTR20260086,yes,unverified,https://www.reiwa-hb-sch-and-res-gatr-fod.com/hiroshima/2026autumn/east-area/
+HSR2026005,autumn,east,英数学館,HT20260057,2026-08-30,近大福山,6-2,HT20260037,2026-09-05,神辺旭,5-0,yes,HPTR20260090,yes,unverified,https://www.reiwa-hb-sch-and-res-gatr-fod.com/hiroshima/2026autumn/east-area/
+HSR2026006,spring,east,総合技術,HT20260042,2026-03-29,福山,6-2,HT20260044,2026-04-05,総合技術,13-3,yes,HPTR20260108,yes,unverified,https://www.reiwa-hb-sch-and-res-gatr-fod.com/hiroshima/2026spring/east-area/
