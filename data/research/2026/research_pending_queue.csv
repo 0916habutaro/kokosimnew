@@ -19,7 +19,7 @@ RS2026017,P1,stage_calendar,CMP000123,SC2026033,,BRANCH_QUALIFIERの2026年実�
 RS2026018,P1,stage_calendar,CMP000133,SC2026036,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC089,2026-10-08,resolved,公式2026年資料と照合しstage calendar verifiedへ変更,岡山県高野連公式発表と東部西部北部の実試合結果で4月11・12・18・19日を確認
 RS2026019,P1,stage_calendar,CMP000135,SC2026038,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC091,2026-10-08,resolved,公式2026年資料と照合しstage calendar verifiedへ変更,2026広島春地区予選の実試合日3/21・22・28・29・4/5・11を確認しverified登録
 RS2026020,P1,stage_calendar,CMP000137,SC2026040,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC093,2026-10-08,resolved,公式2026年資料と照合しstage calendar verifiedへ変更,2026山口春地区予選4/11・12・17・18・19実試合確認。MAIN4/24〜28除外
-RS2026021,P1,stage_calendar,CMP000147,SC2026045,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC111,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026021,P1,stage_calendar,CMP000147,SC2026045,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC111,2026-10-08,resolved,公式2026年資料と照合しstage calendar verifiedへ変更,2026第158回春季福岡大会北部・南部予選の3/20～24・26～30の10実試合日を確認。3/25雨天中止・MAIN4/2以降は除外
 RS2026022,P0,main_calendar,CMP000003,,,2026明治神宮大会のMAIN個別試合日,P2SRC,2026-10-17,awaiting_publication,公式組み合わせ・日程からgame_date_listを確定,開催期間2026-11-19〜11-24のみ確認済み
 RS2026023,P1,access_rule,CMP000095,,ACR000008,選抜出場校の実績数とシミュレーション数の区別,P2SRC148,2026-10-08,resolved,2026実績1校を保持し可変の生成出場校すべてを適切に免除,quota_mode all_matchesを可変人数として評価。Stage13E-3F-3修正
 RS2026024,P1,access_rule,CMP000113,,ACR000012,選抜出場校の実績数とシミュレーション数の区別,P2SRC063,2026-10-08,resolved,2026実績1校を保持し可変の生成出場校すべてを適切に免除,quota_mode all_matchesを可変人数として評価。Stage13E-3F-3修正
