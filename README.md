@@ -153,13 +153,26 @@ python -m game_core.stage13c2_audit \
 ## 正本ルール
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
+## Stage 13E-3G-4（既存学校ID・地区所属の正式照合）
+
+大容量ファイル取得の問題により空と誤認していたPhase 1マスターの実体を確認。**学校3,746校・野球部3,746件・2026地区所属6,871件は既存mainに登録済み**であり、再作成や上書きは行わない。
+
+- `data/competitions/2026/post_qualification_rank_school_aliases.csv`：学校名略称11件の明示ID対応
+- `data/competitions/2026/post_qualification_rank_school_mapping.csv`：歴史的観測34試合の両校school_idと地区対応。53校すべてをID対応
+- FMT022の5試合は代表・シード校の確定後のみ実行可能。静岡FMT025は同地区25試合をgroup確定、藤枝明誠（中部）―沼津東（東部）の1件は跨地区となり保留
+- 広島の代表決定戦3件は資格確定に影響するため、非blocking順位戦へ**登録禁止**
+- `phase2_engine/ranking_school_reconciliation_2026.py`：全マスター整合監査と資格済み校限定FMT025**単日**sidecar生成
+- 同一地区の**複数日**順位戦は現行group単位sidecarでは試合IDが衝突するため、次工程でインスタンスキー対応を設計する。RS2026025/26は設計保留のまま
+
+調査報告：`docs/research/stage13e3g4_school_area_reconciliation_20261008.md`
+
 ## Stage 13E-3G-3（2026実大会の順位戦対戦カード照合）
 
 2026年の徳島・沖縄・静岡について、**確認できた順位決定戦31試合**を実日付・学校名・スコア・出典付きで参照用CSVに保存。広島の代表決定戦3試合は`qualification_decider_not_ranking`として別分類し、任意の順位戦へ自動投入しない。
 
 - `data/competitions/2026/post_qualification_rank_observations.csv`：歴史的観測34レコード
 - `phase2_engine/ranking_reference_2026.py`：試合参照CSVの整合性監査と、学校ID・資格済み4校を**明示照合**できたFMT022だけの未実施fixture生成
-- 学校マスターと学校地区所属が現行GitHub版では空ファイルなので、FMT025の実校名→グループIDへの推測接続は禁止
+- 3G-4でGit blobを再取得した結果、学校マスター3,746校・2026地区所属6,871件が存在すると確認。空判定は大容量ファイル取得の問題による誤認。FMT025は25件の同地区groupまで明示照合し、越境1件を保留
 - 架空年度の勝者・スコアを2026実試合の勝敗で上書きしない
 - 静岡・広島の正式地区紐付けと参照試合の資格分類が残るため、RS2026025/RS2026026は`design_pending`のまま継続
 
