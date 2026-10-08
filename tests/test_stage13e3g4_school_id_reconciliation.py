@@ -109,7 +109,7 @@ class Stage13E3G4SchoolMappingTests(unittest.TestCase):
 
     def test_federation_names_and_reviewed_aliases_have_real_master_ids(self):
         self.assertEqual("SCH002490", self.by_id["RR20260014"]["team2_school_id"])
-        self.assertEqual("SCH002509", self.by_id["RR20260024"]["team1_school_id"])
+        self.assertEqual("SCH002509", self.by_id["RR20260021"]["team1_school_id"])
         self.assertEqual("SCH002724", self.by_id["RR20260004"]["team2_school_id"])
         self.assertEqual("SCH001834", self.by_id["RR20260032"]["team2_school_id"])
 
