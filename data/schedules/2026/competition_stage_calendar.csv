@@ -48,3 +48,4 @@ SC2026046,2026,CMP000148,STG000197,BRANCH_QUALIFIER,,research_pending,not_struct
 SC2026047,2026,CMP000158,STG000204,SEED_EVENT,,research_pending,explicitly_excluded_from_main_calendar,P2SRC133,2026-10-08,season_calendarはMAIN日程。pre-MAIN SEED_EVENT は注記上除外済みのため、正確なstage日付の追加調査が必要。
 SC2026048,2026,CMP000160,STG000205,SEED_EVENT,,research_pending,not_structured_separately,P2SRC135,2026-10-08,season_calendarのgame_date_listをpre-MAINへ流用しない。SEED_EVENTの正確なstage日付は未構造化。
 SC2026049,2026,CMP000162,STG000206,SEED_EVENT,,research_pending,explicitly_excluded_from_main_calendar,P2SRC139,2026-10-08,season_calendarはMAIN日程。pre-MAIN SEED_EVENT は注記上除外済みのため、正確なstage日付の追加調査が必要。
+SC2026050,2026,CMP000079,STG000212,PRELIMINARY_QUALIFIER,2026-08-27;2026-08-28;2026-08-31;2026-09-01;2026-09-04;2026-09-05;2026-09-06;2026-09-07,verified,explicitly_excluded_from_main_calendar,P2SRC016,2026-10-08,Stage13E-3F-2。秋田県高野連公式大会日程の予選使用日を登録。9/12以降はMAIN。
