@@ -206,6 +206,21 @@ class Stage13E3B3SeedEventRuntimeTests(unittest.TestCase):
                 graph_types.add(runtime.graph_type)
                 lazy = runtime.resolve_all()
                 self.assertEqual(
+                    legacy.seed_assignments,
+                    lazy.seed_assignments,
+                    f"{competition_id}: seed assignments differ",
+                )
+                self.assertEqual(
+                    legacy.main_entrant_school_ids,
+                    lazy.main_entrant_school_ids,
+                    f"{competition_id}: MAIN entrants differ",
+                )
+                self.assertEqual(
+                    legacy.stage_executions,
+                    lazy.stage_executions,
+                    f"{competition_id}: stage executions differ",
+                )
+                self.assertEqual(
                     legacy.to_dict(),
                     lazy.to_dict(),
                 )
@@ -387,12 +402,23 @@ class Stage13E3B3SeedEventRuntimeTests(unittest.TestCase):
         ).resolve_all()
 
         self.assertEqual(
-            legacy.to_dict(),
-            lazy.to_dict(),
+            legacy.seed_assignments,
+            lazy.seed_assignments,
+            "Gifu detailed: seed assignments differ",
+        )
+        self.assertEqual(
+            legacy.main_entrant_school_ids,
+            lazy.main_entrant_school_ids,
+            "Gifu detailed: MAIN entrants differ",
         )
         self.assertEqual(
             legacy_resolver.calls,
             lazy_resolver.calls,
+            "Gifu detailed: resolver call order differs",
+        )
+        self.assertEqual(
+            legacy.to_dict(),
+            lazy.to_dict(),
         )
         self.assertEqual(
             set(lazy.match_simulation_results),
