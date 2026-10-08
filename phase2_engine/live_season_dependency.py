@@ -170,6 +170,18 @@ class LiveSeasonDependencyRuntimeState:
         default_factory=dict,
         repr=False,
     )
+    qualification_rules: dict[str, list[dict]] = field(
+        default_factory=dict,
+        repr=False,
+    )
+    regional_feeder_rules: dict[str, list[dict]] = field(
+        default_factory=dict,
+        repr=False,
+    )
+    regional_playoffs: dict[str, list[dict]] = field(
+        default_factory=dict,
+        repr=False,
+    )
     competitions: dict[
         str,
         ScheduledCompetitionRuntime,
@@ -183,7 +195,34 @@ class LiveSeasonDependencyRuntimeState:
     resolutions: list[
         LiveAccessDependencyResolution
     ] = field(default_factory=list)
+    qualification_resolutions: list[
+        LiveQualificationDependencyResolution
+    ] = field(default_factory=list)
+    regional_feeder_resolutions: list[
+        LiveRegionalFeederDependencyResolution
+    ] = field(default_factory=list)
+    regional_playoff_resolutions: list[
+        LiveRegionalPlayoffDependencyResolution
+    ] = field(default_factory=list)
     history: list[dict] = field(default_factory=list)
+
+    @staticmethod
+    def _read_csv(
+        data_dir,
+        name: str,
+    ) -> list[dict]:
+        path = resolve_data_file(
+            data_dir,
+            name,
+        )
+        if not path.exists():
+            return []
+        with path.open(
+            "r",
+            encoding="utf-8-sig",
+            newline="",
+        ) as f:
+            return list(csv.DictReader(f))
 
     @classmethod
     def from_annual_templates(
