@@ -60,6 +60,20 @@ def _json_copy(value: Any) -> Any:
     return json.loads(_canonical_json(value))
 
 
+def rechecksum_live_season_save_payload(
+    payload: Mapping[str, Any],
+) -> dict:
+    data = deepcopy(dict(payload))
+    data.pop(
+        "payload_checksum",
+        None,
+    )
+    data["payload_checksum"] = (
+        _fingerprint(data)
+    )
+    return data
+
+
 def plan_identity(
     plan: LiveSeasonGraphPlan,
 ) -> dict:
