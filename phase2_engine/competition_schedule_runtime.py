@@ -249,6 +249,43 @@ class ScheduledCompetitionRuntime:
             team2_name=self._school_name(team2),
         )
 
+    def _frontier_ready_rows(
+        self,
+        ready: Sequence[Mapping[str, object]],
+    ) -> list[Mapping[str, object]]:
+        """Keep only the current round frontier for each independent runtime lane.
+
+        MAIN brackets with structural byes can expose some round-2 matches as READY
+        before every round-1 game is resolved. Legacy resolve_ready_round() always
+        consumes the minimum round first. The same rule is required here so outcome
+        cohort ordering and resolver call order remain identical.
+        """
+        minimum_round: dict[tuple[str, str, str], int] = {}
+        for row in ready:
+            key = (
+                str(row.get("stage_code") or ""),
+                str(row.get("phase_code") or ""),
+                str(row.get("group_id") or ""),
+            )
+            round_no = int(row.get("round_no") or 0)
+            if key not in minimum_round:
+                minimum_round[key] = round_no
+            else:
+                minimum_round[key] = min(
+                    minimum_round[key],
+                    round_no,
+                )
+        return [
+            row
+            for row in ready
+            if int(row.get("round_no") or 0)
+            == minimum_round[(
+                str(row.get("stage_code") or ""),
+                str(row.get("phase_code") or ""),
+                str(row.get("group_id") or ""),
+            )]
+        ]
+
     def ensure_next_wave_scheduled(
         self,
     ) -> list[ScheduledRuntimeMatch]:
@@ -260,7 +297,9 @@ class ScheduledCompetitionRuntime:
             return pending
 
         ready = sorted(
-            self.runtime.ready_matches(),
+            self._frontier_ready_rows(
+                self.runtime.ready_matches()
+            ),
             key=self._row_sort_key,
         )
         if not ready:
