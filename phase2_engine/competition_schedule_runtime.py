@@ -101,6 +101,7 @@ class ScheduledCompetitionRuntime:
     processed_dates: List[str] = field(default_factory=list)
     last_scheduled_date: str = ""
     calendar_gap_match_ids: List[str] = field(default_factory=list)
+    ranking_sidecars: Dict[str, object] = field(default_factory=dict, repr=False)
 
     @classmethod
     def from_calendar_row(
@@ -356,13 +357,90 @@ class ScheduledCompetitionRuntime:
         )
         return assigned
 
+    def attach_ranking_sidecar(self, sidecar) -> None:
+        """Attach an explicitly scheduled post-qualification event.
+
+        Qualification was locked by the caller before creating the event;
+        the ranking fixture cannot change MAIN entrants or runtime completion.
+        """
+        if sidecar.event.competition_id != self.competition_id:
+            raise ValueError("ranking sidecar belongs to another competition")
+        key = sidecar.event.group_id
+        if key in self.ranking_sidecars:
+            raise ValueError("ranking sidecar for group is already attached")
+        self.ranking_sidecars[key] = sidecar
+
+    def ranking_matches_for_date(self, target: str) -> list[dict]:
+        """Ranking matches remain observable even after MAIN has completed."""
+        normalized = _iso_date(target, "target_date")
+        return sorted(
+            ({
+                **row,
+                "competition_name": self.competition_name,
+                "round_name": "順位決定戦",
+                "group_name": self.repo.groups.get(
+                    row["group_id"], {}
+                ).get("group_name", ""),
+                "team1_name": self._school_name(row["team1_id"]),
+                "team2_name": self._school_name(row["team2_id"]),
+            }
+             for sidecar in self.ranking_sidecars.values()
+             for row in sidecar.matches_for_date(normalized)),
+            key=lambda row: (row["match_date"], row["group_id"],
+                             row["round_no"], row["match_id"]),
+        )
+
+    def resolve_ranking_date(
+        self,
+        target: str,
+        *,
+        winners_by_group: Mapping[str, Mapping[str, str]],
+        scores_by_group: Mapping[str, Mapping[str, tuple[int, int]]] | None = None,
+    ) -> list[dict]:
+        """Explicitly resolve optional placement matches, never progression."""
+        date_value = _iso_date(target, "target_date")
+        scores = dict(scores_by_group or {})
+        active = {
+            group_id: sidecar for group_id, sidecar in self.ranking_sidecars.items()
+            if any(row["status"] == "pending"
+                   for row in sidecar.matches_for_date(date_value))
+        }
+        if set(winners_by_group) != set(active):
+            raise ValueError("winners must cover every active ranking group")
+        if not set(scores).issubset(active):
+            raise ValueError("scores reference an inactive ranking group")
+        result = []
+        for group_id, sidecar in sorted(active.items()):
+            result.extend(sidecar.resolve_date(
+                date_value, winners_by_group[group_id],
+                scores=scores.get(group_id),
+            ))
+        return result
+
+    def ranking_snapshot(self) -> dict:
+        return {
+            group_id: sidecar.snapshot()
+            for group_id, sidecar in sorted(self.ranking_sidecars.items())
+        }
+
+    def restore_ranking_snapshot(self, snapshot: Mapping[str, dict]) -> None:
+        from .post_qualification_schedule import ScheduledRankingSidecar
+        restored = {}
+        for group_id, payload in sorted(snapshot.items()):
+            sidecar = ScheduledRankingSidecar.from_snapshot(payload)
+            if (sidecar.event.competition_id != self.competition_id
+                    or sidecar.event.group_id != group_id):
+                raise ValueError("ranking snapshot does not belong to competition")
+            restored[group_id] = sidecar
+        self.ranking_sidecars = restored
+
     def matches_for_date(
         self,
         target: str,
     ) -> list[dict]:
         normalized = _iso_date(target, "target_date")
         self.ensure_next_wave_scheduled()
-        return [
+        main_rows = [
             match.public_dict()
             for match in sorted(
                 self.matches.values(),
@@ -376,6 +454,7 @@ class ScheduledCompetitionRuntime:
             )
             if match.match_date == normalized
         ]
+        return main_rows + self.ranking_matches_for_date(normalized)
 
     def next_scheduled_date(self) -> str:
         pending = self._pending_records()
@@ -565,4 +644,6 @@ class ScheduledCompetitionRuntime:
             "calendar_gap_matches": (
                 self.calendar_gap_matches()
             ),
+            **({"ranking_sidecars": self.ranking_snapshot()}
+               if self.ranking_sidecars else {}),
         }

@@ -1569,6 +1569,49 @@ class LiveSeasonDependencyRuntimeState:
                 )
                 progress = progress or activated
 
+    def register_ranking_sidecar(
+        self, competition_id: str, sidecar
+    ) -> None:
+        """Opt-in placement event after its group qualification is locked.
+
+        The sidecar is never part of qualification dependencies or normal
+        play_today() completion. Explicit annual dates must be supplied.
+        """
+        scheduled = self.competitions.get(competition_id)
+        if scheduled is None:
+            raise ValueError("ranking competition has not been activated")
+        if sidecar.event.competition_id != competition_id:
+            raise ValueError("ranking sidecar competition mismatch")
+        scheduled.attach_ranking_sidecar(sidecar)
+
+    def play_today_rankings(
+        self,
+        winners_by_competition: Mapping[
+            str, Mapping[str, Mapping[str, str]]
+        ],
+    ) -> list[dict]:
+        """Resolve explicitly supplied ranking winners; do not touch MAIN."""
+        target = self.current_date.isoformat()
+        active = {
+            cid: scheduled for cid, scheduled in self.competitions.items()
+            if any(row["status"] == "pending"
+                   for row in scheduled.ranking_matches_for_date(target))
+        }
+        if set(winners_by_competition) != set(active):
+            raise ValueError("ranking winners must cover active competitions")
+        rows = []
+        for cid, scheduled in sorted(active.items()):
+            rows.extend(scheduled.resolve_ranking_date(
+                target,
+                winners_by_group=winners_by_competition[cid],
+            ))
+        self.history.append({
+            "action": "play_today_rankings",
+            "date": target,
+            "match_count": len(rows),
+        })
+        return rows
+
     def today_matches(self) -> list[dict]:
         target = self.current_date.isoformat()
         rows = [
