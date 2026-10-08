@@ -306,13 +306,13 @@ class Stage13E3D3FullSeasonPlannerTests(
             ],
         )
         self.assertEqual(
-            131,
+            135,
             summary["active_runtime_count"],
         )
         self.assertEqual(
             {
-                "active": 131,
-                "waiting_dependencies": 31,
+                "active": 135,
+                "waiting_dependencies": 27,
             },
             summary["status_counts"],
         )
