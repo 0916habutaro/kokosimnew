@@ -17,7 +17,7 @@ RS2026015,P1,stage_calendar,CMP000115,SC2026030,,BRANCH_QUALIFIERの2026年実�
 RS2026016,P1,stage_calendar,CMP000119,SC2026032,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC073,2026-10-08,resolved,公式2026年資料と照合しstage calendar verifiedへ変更,京都府高野連公式と2026実試合結果で4/11・12・18・25を確認。予備日と二次戦は除外
 RS2026017,P1,stage_calendar,CMP000123,SC2026033,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC078,2026-10-08,resolved,公式2026年資料と照合しstage calendar verifiedへ変更,神戸新聞の2026地区大会10実試合日をSC2026033にverified登録
 RS2026018,P1,stage_calendar,CMP000133,SC2026036,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC089,2026-10-08,resolved,公式2026年資料と照合しstage calendar verifiedへ変更,岡山県高野連公式発表と東部西部北部の実試合結果で4月11・12・18・19日を確認
-RS2026019,P1,stage_calendar,CMP000135,SC2026038,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC091,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026019,P1,stage_calendar,CMP000135,SC2026038,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC091,2026-10-08,resolved,公式2026年資料と照合しstage calendar verifiedへ変更,2026広島春地区予選の実試合日3/21・22・28・29・4/5・11を確認しverified登録
 RS2026020,P1,stage_calendar,CMP000137,SC2026040,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC093,2026-10-08,resolved,公式2026年資料と照合しstage calendar verifiedへ変更,2026山口春地区予選4/11・12・17・18・19実試合確認。MAIN4/24〜28除外
 RS2026021,P1,stage_calendar,CMP000147,SC2026045,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC111,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
 RS2026022,P0,main_calendar,CMP000003,,,2026明治神宮大会のMAIN個別試合日,P2SRC,2026-10-17,awaiting_publication,公式組み合わせ・日程からgame_date_listを確定,開催期間2026-11-19〜11-24のみ確認済み
