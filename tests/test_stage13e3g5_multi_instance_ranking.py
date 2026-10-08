@@ -296,7 +296,7 @@ class Stage13E3G5MultiInstanceRankingTests(unittest.TestCase):
         self.assertEqual("RR20260023", report["cross_area_review"][0]["reference_id"])
         self.assertEqual(
             {"excluded_qualification_decider": 3,
-             "review_cross_area_fixture": 1},
+             "mapped_cross_block_ranking_reference": 1},
             {name: count for name, count in report["classification_counts"].items()
              if name in ("excluded_qualification_decider",
                          "review_cross_area_fixture")},
