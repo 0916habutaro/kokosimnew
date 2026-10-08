@@ -1,0 +1,24 @@
+check,status,detail
+seed_group_runtime,PASS,FMT001 FMT009 FMT018-024 seed group runtime implemented
+seed_event_runtime,PASS,SeedEventRuntimeState implemented
+seed_main_graph,PASS,SEED_EVENT to MAIN activates MAIN only after seed completion
+seed_gate_graph,PASS,Gifu SEED_EVENT to FMT026 gate to MAIN is lazy
+seed_qualifier_graph,PASS,Ehime SEED_EVENT to PRELIMINARY_QUALIFIER to MAIN is lazy
+prepare_no_resolution,PASS,prepare calls resolver zero times
+future_stage_hidden,PASS,gate qualifier and MAIN absent before seed completion
+fmt018_secondary_lazy,PASS,SEED_REPECHAGE created only after PRIMARY_SEED_KO completion
+fmt020_secondary_lazy,PASS,THIRD_SEED created only after PRIMARY_SEED_KO completion
+fmt019_dependent_phase_lazy,PASS,RANKING phase depends on primary league completion
+fmt021_dependent_phase_lazy,PASS,CROSS_DECIDERS depend on district round robin completion
+fmt026_gate_lazy,PASS,FIRST_TOURNAMENT generated only after seed assignments are known
+ehime_seeded_fmt001,PASS,12 protected seeds distributed into distinct qualifier blocks
+explicit_block_forest,PASS,BlockForestRuntimeState create_from_blocks added
+main_seed_destination_filter,PASS,only MAIN destination seed assignments affect MAIN draw
+seed_context_not_carried_to_main,PASS,Ehime seed context protects qualifier draw but MAIN seed_count remains zero
+random_legacy_equivalence,PASS,9 seed graph competitions exactly match legacy CompetitionRun.to_dict
+gifu_detailed_equivalence,PASS,detailed MatchResolution run exactly matches legacy
+resolver_call_sequence,PASS,Gifu detailed resolver call order matches legacy
+result_sink_equivalence,PASS,match_simulation_results matches detailed resolver calls
+gate_stage_entrant_order,PASS,legacy pre-draw nonseed order preserved in FIRST_TOURNAMENT StageExecution
+unified_dispatcher,PASS,prepare_competition_runtime dispatches seed graph
+github_actions,PASS,Ran 518 tests in 19.819s; OK
