@@ -43,6 +43,7 @@
 - Stage 13E-3E-1: full-season live runtimeのJSON save/load v1を実装。plan fingerprint＋processed date＋完了MatchResolutionからfresh runtimeをdeterministic replayし、current_date・dependency状態・activated_on・score/ability detailまで完全照合して再開。atomic write、checksum、resolver contract、plan変更・改ざん検出を追加
 - Stage 13E-3E-2: SaveSlotManager / LiveGameServiceを追加し、1スロット内でmanual/autosaveを独立管理。世代backup、latest判定、旧世代復旧、slot一覧・削除、new/load/save/autosave、日付進行後autosaveをservice化。実full-season new_gameで162 template / 131 active / 31 waitingを起動しinitial manual saveまで確認
 - Stage 13E-3E-3: user-facing `slot_metadata.json`、破損saveを隔離できるrecovery source一覧、backup→primary復旧昇格、SaveMigrationRegistry、LiveGameService CLIを追加。CLIはnew/list/status/recoveries/rename/save/recover/play-today/next-day/advance/deleteをservice経由で実行し、fake旧schema→現行v1 migration・unknown schema拒否も回帰確認
+- Stage 13E-3F-1: 2026 full-season live runtimeを12/31までE2E監査。162大会中98完了、calendar gap 46、dependency待ち16、runtime blocked 2を確認。49 pre-MAIN pending rowsをP0/P1/P2へ優先度付けし、秋田秋CMP000079の前段予選未構造化疑い1件と神奈川春CMP000095・愛知春CMP000113のSenbatsu access解決失敗2件を追加blockerとして52 actionへ整理
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -108,6 +109,12 @@ python -m phase2_engine.live_game_cli \
   --save-root out/saves \
   recoveries slot01
 
+python -m phase2_engine.full_season_live_audit_cli \
+  --data-dir data \
+  --year 2026 \
+  --seed 2026100827 \
+  --output-dir out/full_season_live_audit
+
 python -m game_core.player_cli \
   --data-dir data \
   --year 2026 \
@@ -147,4 +154,4 @@ python -m game_core.stage13c2_audit \
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13E-3E-3でuser-facing slot metadata、primary/backupのvalid/invalid recovery inventory、backup→primary復旧昇格、SaveMigrationRegistry、LiveGameService CLIを追加した。slot_metadata.jsonはgame state saveから分離し、metadataやautosaveが破損しても正常manual/backupから復旧可能。CLIはLiveGameServiceのみを経由し、新規ゲーム・続きから・日付進行・手動save・復旧候補確認・復旧・削除まで同一service contractで扱える。fake旧schema→現行v1 migrationとunknown schema拒否も確認済み。Stage 13E-3E系列のsave/load・slot・autosave・backup・recovery・migration入口はここで一区切りとする。次工程Stage 13E-3F-1では2026 full-season live runtimeを年間末まで実行するE2E blocker監査を行い、49件のpre-MAIN `research_pending` がどの大会・依存チェーンを停止させるかを定量化し、実日付verified化の優先順位を決める。Stage 13D-3 GUI実ウィンドウ確認と秋季実績Stage 12O dueキューは後追い可能。
+正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13E-3F-1で2026 full-season live runtimeを12/31まで実行し、162大会中98完了・未完了64を機械分類した。直接blockerはpre-MAIN research_pendingへ到達した45大会、research queue外でMAIN calendar gapを残す秋田秋CMP000079、Senbatsu access resolutionでstage到達前にblockedとなる神奈川春CMP000095・愛知春CMP000113で、これらが春地区7・秋地区8・神宮1の計16 downstream大会を待機させている。49 stage rowsの優先度はP0 national 28・P1 regional 20・P2 local 1、追加blockerを含む修正actionはP0 29・P1 22・P2 1の計52。次工程Stage 13E-3F-2ではP0 national chainを優先し、まずCMP000079の前段予選構造を正式stage化できるか確認した上で、秋季pre-MAIN 28 rowsの実日付を調査・verified化し、同じE2E監査で神宮chainの改善を再計測する。Stage 13D-3 GUI実ウィンドウ確認と秋季実績Stage 12O dueキューは後追い可能。
