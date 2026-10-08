@@ -135,15 +135,27 @@ def run_single_elimination_ranking(
     match_resolver=None,
     resolved_match_sink: Dict[str, dict] | None = None,
     reference_year: int | None = None,
+    stop_at_survivors: int = 1,
 ) -> Tuple[List[str], List[Match]]:
     active = shuffled(teams, base_seed, f"{competition_id}:{stage_id}:{group_id}:draw")
     if not active:
         return [], []
+    if stop_at_survivors <= 0 or stop_at_survivors > len(active):
+        raise ValueError(
+            f"stop_at_survivors={stop_at_survivors} is invalid "
+            f"for entrants={len(active)}"
+        )
     eliminated_by_round: Dict[int, List[str]] = defaultdict(list)
     matches: List[Match] = []
     round_no = 1
     match_seq = 1
-    while len(active) > 1:
+    while len(active) > stop_at_survivors:
+        next_count = (len(active) + 1) // 2
+        if next_count < stop_at_survivors:
+            raise ValueError(
+                "single elimination cutoff does not align with a round boundary: "
+                f"entrants={len(active)} stop_at_survivors={stop_at_survivors}"
+            )
         next_round: List[str] = []
         i = 0
         while i < len(active):
@@ -211,8 +223,17 @@ def run_single_elimination_ranking(
             i += 2
         active = next_round
         round_no += 1
-    champion = active[0]
-    ranking = [champion]
+    if stop_at_survivors == 1:
+        ranking = [active[0]]
+    else:
+        ranking = shuffled(
+            active,
+            base_seed,
+            (
+                f"{competition_id}:{stage_id}:{group_id}:"
+                f"survivor_order:{stop_at_survivors}"
+            ),
+        )
     for rno in sorted(eliminated_by_round, reverse=True):
         cohort = shuffled(
             eliminated_by_round[rno], base_seed,
