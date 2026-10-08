@@ -37,6 +37,7 @@
 - Stage 13E-3B-2: FMT002〜005 / 007〜017 / 025の複合qualifierをlazy phase composition化。PRIMARY→敗者復活/SECONDARY、league/zone→secondary、FMT005 global repechage、mixed-model stageを対象20大会でlegacy CompetitionRun完全一致検証
 - Stage 13E-3B-3: SEED_EVENT系FMT001 / 009 / 018〜024、岐阜秋FMT026 gate、愛媛秋seed→qualifierをlazy化。seed完了前は後続stageを生成せず、対象9大会でlegacy CompetitionRun完全一致を検証
 - Stage 13E-3C: ScheduledCompetitionRuntime / LiveSeasonRuntimeStateを追加し、ready frontierだけを大会日程へ割り当ててcurrent_date当日にMatchResolverを実行。北海道春qualifier→MAIN・岐阜秋seed→gate→MAINを日付進行してlegacy CompetitionRun完全一致を検証。pre-MAIN日付不足はcalendar gapとして停止
+- Stage 13E-3D-1: 2026 pre-MAIN stage calendar masterを49 stageで新設し、全件research_pendingとしてMAIN日程の誤流用を防止。同年competition_access_rulesをlive dependency化し、宮城の夏優勝→秋直接出場、三重の夏優勝→秋SEED_EVENT免除＋seed付与をsource公式最終日まで遅延してactivate。両destinationでlegacy CompetitionRun完全一致を検証
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -119,4 +120,4 @@ python -m game_core.stage13c2_audit \
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13E-3Cでcompetition runtimeをLiveSeasonRuntimeStateと大会日程へ接続し、current_date当日にready frontierだけを実行するlive progressionを実装した。MAIN-onlyに加え北海道春のBRANCH_QUALIFIER→MAIN、岐阜秋のSEED_EVENT→FIRST_TOURNAMENT→MAINを日付進行し、最終CompetitionRunはlegacy一括runと完全一致する。既存season_calendarにpre-MAIN日程が不足する場合は架空日付を生成せずcalendar gapで停止し、正確なstage日程はstage_date_listsで注入可能。次工程Stage 13E-3Dでは2026実データのpre-MAIN stage calendarを構造化し、SeasonExecutorのsource/destination competition dependencyをlive executionへ接続する。Stage 13D-3 GUI実ウィンドウ確認と秋季実績Stage 12O dueキューは後追い可能。
+正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13E-3D-1で2026 pre-MAIN 49 stageのcalendar masterを新設し、既存MAIN日程を未確認pre-MAINへ流用しない契約を固定した。同年competition_access_rulesもLiveSeasonDependencyRuntimeStateへ接続し、source大会結果確定前はdestination runtimeを生成せず、結果解禁はsource公式game_date_list最終日まで遅延する。宮城の夏優勝→秋直接出場、三重の夏優勝→秋SEED_EVENT免除＋seed付与でlive progressionとlegacy CompetitionRunの完全一致を確認済み。次工程Stage 13E-3D-2ではqualification_rules（49地方大会→夏甲子園、秋地区等→神宮）とregional_feeder_rules / regional playoff（県大会順位→地区大会）をlive dependency graphへ拡張する。pre-MAIN正確日付49 stageの調査・verified化は並行して進められる。Stage 13D-3 GUI実ウィンドウ確認と秋季実績Stage 12O dueキューは後追い可能。

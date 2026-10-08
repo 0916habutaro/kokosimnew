@@ -38,6 +38,7 @@ FILE_SUBDIR = {
     'stage12c3_structured_competition_execution.csv': "competitions",
     'tokyo_autumn_preliminary_policies.csv': "competitions",
     'season_calendar.csv': "schedules/2026",
+    'competition_stage_calendar.csv': "schedules/2026",
     'stage12g_tohoku_match_days_20261005.csv': "schedules/2026",
     'phase2_sources.csv': "sources",
 }
