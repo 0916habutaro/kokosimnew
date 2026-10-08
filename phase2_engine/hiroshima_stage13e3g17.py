@@ -103,7 +103,7 @@ def audit_2026_hiroshima_stage13e3g17(data_dir: str | Path) -> dict:
             continue
         route_seen.add(rid)
         src = by_route[rid]
-        kind = route["route_kind"] if False else src["route_kind"]
+        kind = src["route_kind"]
         expected = MAP.get(kind)
         if expected is None:
             errors.append(f"unknown qualification route type {rid}: {kind}")
