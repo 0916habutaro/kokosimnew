@@ -299,7 +299,7 @@ class Stage13E3G5MultiInstanceRankingTests(unittest.TestCase):
              "mapped_cross_block_ranking_reference": 1},
             {name: count for name, count in report["classification_counts"].items()
              if name in ("excluded_qualification_decider",
-                         "review_cross_area_fixture")},
+                         "mapped_cross_block_ranking_reference")},
         )
 
 
