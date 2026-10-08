@@ -158,6 +158,14 @@ class LiveSeasonDependencyRuntimeState:
         default_factory=dict,
         repr=False,
     )
+    annual_build_strategies: dict[str, str] = field(
+        default_factory=dict,
+        repr=False,
+    )
+    structural_factory: object | None = field(
+        default=None,
+        repr=False,
+    )
     calendar_rows: dict[str, dict] = field(
         default_factory=dict,
         repr=False,
@@ -233,6 +241,10 @@ class LiveSeasonDependencyRuntimeState:
         annual_templates: Sequence[AnnualCompetitionInput],
         calendar_rows: Sequence[Mapping[str, str]],
         rng_seed: int,
+        annual_build_strategies: (
+            Mapping[str, str] | None
+        ) = None,
+        structural_factory: object | None = None,
         start_date: str | date | None = None,
         stage_calendar_rows: (
             Sequence[Mapping[str, str]] | None
@@ -496,6 +508,10 @@ class LiveSeasonDependencyRuntimeState:
             start_date=initial,
             end_date=end,
             annual_templates=templates,
+            annual_build_strategies=dict(
+                annual_build_strategies or {}
+            ),
+            structural_factory=structural_factory,
             calendar_rows=calendar_by_comp,
             stage_date_lists=stage_dates,
             dependency_rules=rules,
@@ -949,15 +965,36 @@ class LiveSeasonDependencyRuntimeState:
                     )
                 ]
 
+        direct = list(dict.fromkeys(direct))
+        bypass = list(dict.fromkeys(bypass))
+        if (
+            self.annual_build_strategies.get(
+                competition_id
+            )
+            == "deferred_structural"
+        ):
+            if self.structural_factory is None:
+                raise ValueError(
+                    f"{competition_id}: deferred structural "
+                    "template requires structural_factory"
+                )
+            annual = (
+                self.structural_factory
+                .build_prefectural(
+                    competition_id,
+                    self.year,
+                    direct_main_entry_school_ids=direct,
+                    seed_event_bypass_school_ids=bypass,
+                    rng_seed=annual.rng_seed,
+                )
+            )
+            return annual, resolutions
+
         annual.entrant_school_ids = list(
             dict.fromkeys(entrants)
         )
-        annual.direct_main_entry_school_ids = list(
-            dict.fromkeys(direct)
-        )
-        annual.seed_event_bypass_school_ids = list(
-            dict.fromkeys(bypass)
-        )
+        annual.direct_main_entry_school_ids = direct
+        annual.seed_event_bypass_school_ids = bypass
         return annual, resolutions
 
     def _resolve_qualification_rule(
