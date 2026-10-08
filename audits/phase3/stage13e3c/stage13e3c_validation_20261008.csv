@@ -1,0 +1,19 @@
+check,status,detail
+scheduled_competition_runtime,PASS,ready competition runtime is bound to dates without resolving future matches
+live_season_runtime,PASS,current_date drives genuinely lazy competition execution
+prepare_resolver_zero,PASS,preparation calls MatchResolver zero times
+one_wave_per_date,PASS,dependent wave is scheduled only after previous scheduled wave completes
+round_frontier,PASS,minimum round per stage phase group prevents bye-propagated future-round early resolution
+direct_main_legacy_equivalence,PASS,8-team MAIN date progression exactly matches legacy CompetitionRun
+hokkaido_premain_date_progression,PASS,CMP000004 BRANCH_QUALIFIER to MAIN completes by staged dates
+hokkaido_legacy_equivalence,PASS,CMP000004 scheduled final CompetitionRun exactly matches legacy
+gifu_seed_gate_date_progression,PASS,CMP000110 SEED_EVENT to FIRST_TOURNAMENT to MAIN date progression completes
+gifu_legacy_equivalence,PASS,CMP000110 CompetitionOutcome and CompetitionRun exactly match legacy
+stage_date_lists,PASS,stage-specific pre-MAIN dates can override competition-wide date pool
+calendar_gap,PASS,date exhaustion stops runtime without inventing date or winner
+future_winner_hidden,PASS,pending public records have no winner or score
+midseason_start,PASS,only dates before start_date are resolved during initialization
+school_records_completed_only,PASS,school records are derived only from completed live matches
+champion_hidden_until_complete,PASS,champion is empty before competition completion
+engine_schedule_entrypoint,PASS,TournamentEngine.prepare_scheduled_competition_runtime added
+full_suite,PASS,Ran 526 tests in 13.378s; OK
