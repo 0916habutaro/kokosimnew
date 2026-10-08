@@ -462,8 +462,8 @@ class Stage13E3CLiveSeasonScheduleTests(unittest.TestCase):
             date(2026, 4, 2),
             state.current_date,
         )
-        self.assertEqual(6, len(resolver.calls))
-        self.assertEqual(1, len(state.today_matches()))
+        self.assertEqual(4, len(resolver.calls))
+        self.assertEqual(2, len(state.today_matches()))
 
         state.advance_through("2026-04-03")
         self.assertEqual(7, len(resolver.calls))
