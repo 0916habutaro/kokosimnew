@@ -53,15 +53,16 @@ class Stage13E3F3KanagawaSpringCalendarTests(unittest.TestCase):
         stages = {r["stage_calendar_id"]: r for r in rows(STAGE)}
         self.assertEqual("resolved", queue["RS2026010"]["status"])
         self.assertEqual("verified", stages["SC2026019"]["date_status"])
+        self.assertEqual("resolved", queue["RS2026009"]["status"])
+        self.assertEqual("verified", stages["SC2026018"]["date_status"])
         for task, stage in (
             ("RS2026001", "SC2026001"),
-            ("RS2026009", "SC2026018"),
             ("RS2026021", "SC2026045"),
         ):
             self.assertEqual("needs_research", queue[task]["status"])
             self.assertEqual("research_pending", stages[stage]["date_status"])
         self.assertEqual(
-            3,
+            2,
             sum(r["date_status"] == "research_pending" for r in stages.values()),
         )
 
