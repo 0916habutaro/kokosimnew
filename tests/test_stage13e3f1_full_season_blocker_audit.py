@@ -78,7 +78,6 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             {
                 BLOCKER_CALENDAR_GAP: 2,
                 BLOCKER_COMPLETE: 160,
-                BLOCKER_WAITING_DEPENDENCY: 0,
             },
             summary["blocker_counts"],
         )
@@ -86,7 +85,6 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             {
                 ORIGIN_CALENDAR_WITHOUT_STAGE: 1,
                 ORIGIN_PENDING_STAGE_CALENDAR: 1,
-                ORIGIN_UPSTREAM_DEPENDENCY: 0,
             },
             summary["blocker_origin_counts"],
         )
@@ -117,7 +115,6 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
         self.assertEqual(
             {
                 PRIORITY_LOCAL: 1,
-                PRIORITY_REGIONAL: 0,
             },
             summary["priority_counts"],
         )
@@ -177,7 +174,6 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
         self.assertEqual(
             {
                 PRIORITY_LOCAL: 2,
-                PRIORITY_REGIONAL: 0,
             },
             summary[
                 "action_priority_counts"
