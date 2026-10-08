@@ -92,7 +92,7 @@ class Stage12LFullSeasonIntegrationAuditTests(unittest.TestCase):
     def test_static_dependency_master_counts(self):
         self.assertEqual(96, len(self.feeder_rules))
         self.assertEqual(59, len(self.qualification_rules))
-        self.assertEqual(22, len(self.access_rules))
+        self.assertEqual(23, len(self.access_rules))
         self.assertEqual(12, len(self.selection_rules))
         self.assertEqual(
             32,
@@ -119,7 +119,7 @@ class Stage12LFullSeasonIntegrationAuditTests(unittest.TestCase):
         self.assertEqual(59, len(self.season.qualification_resolutions))
         self.assertEqual(59, sum(r.status == "PASS" for r in self.season.qualification_resolutions))
         self.assertFalse(any(r.date_status == "FAIL" for r in self.season.qualification_resolutions))
-        self.assertEqual(22, len(self.season.access_resolutions))
+        self.assertEqual(23, len(self.season.access_resolutions))
         self.assertTrue(all(r.status == "PASS" for r in self.season.access_resolutions))
 
     def test_runtime_has_no_structural_calendar_or_bridge_gaps(self):

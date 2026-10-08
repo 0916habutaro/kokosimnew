@@ -70,7 +70,7 @@ class Stage12FTokyoPreliminaryTests(unittest.TestCase):
     def test_stage12f_closes_all_prefectural_internal_gaps(self):
         self.assertEqual(94,sum(r.status=='PASS' for r in self.season.prefectural_rows))
         self.assertEqual(0,len(self.season.internal_structure_gaps))
-        self.assertEqual(22,len(self.season.access_resolutions))
+        self.assertEqual(23,len(self.season.access_resolutions))
         self.assertTrue(all(r.status=='PASS' for r in self.season.access_resolutions))
 
     def test_policy_preserves_school_vs_team_unit_distinction(self):
