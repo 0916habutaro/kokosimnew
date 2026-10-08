@@ -45,6 +45,28 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
         self,
     ):
         summary = self.audit.summary()
+        print(
+            "STAGE13E3F1_SUMMARY",
+            json.dumps(
+                summary,
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+        )
+        print(
+            "STAGE13E3F1_NONCOMPLETE",
+            json.dumps(
+                [
+                    row.to_dict()
+                    for row
+                    in self.audit.competition_rows
+                    if row.blocker_kind
+                    != BLOCKER_COMPLETE
+                ],
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+        )
 
         self.assertEqual(
             "2026-12-31",
