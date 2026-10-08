@@ -85,7 +85,7 @@ STG000076,CMP000076,MAIN,県大会本体,main_tournament,2,,,,,Stage 12A: 地区
 STG000168,CMP000077,BRANCH_QUALIFIER,地区・支部予選,branch_qualifier,1,format_model_driven,,P2SRC014,2026-10-04,Stage 12B: competition_stage_format_assignments / group overrides / phases / parametersで2026内部方式を機械実行可能に構造化。年次の学校名・対戦カードは保持しない。
 STG000077,CMP000077,MAIN,県大会本体,main_tournament,2,,,,,Stage 12A: 地区・支部予選通過校と動的直接出場校を統合して本戦を生成。
 STG000078,CMP000078,MAIN,県大会本体,main_tournament,1,,,,,Phase 2段階1構造登録。詳細は都道府県別調査で確定。
-STG000079,CMP000079,MAIN,県大会本体,main_tournament,1,,,,,Phase 2段階1構造登録。詳細は都道府県別調査で確定。
+STG000079,CMP000079,MAIN,県大会本体,main_tournament,2,,,,,Stage13E-3F-2: 8/27〜9/7の県大会予選16代表を受けて県大会本体を実施。
 STG000080,CMP000080,MAIN,県大会本体,main_tournament,1,,,,,Phase 2段階1構造登録。詳細は都道府県別調査で確定。
 STG000081,CMP000081,MAIN,県大会本体,main_tournament,1,,,,,Phase 2段階1構造登録。詳細は都道府県別調査で確定。
 STG000169,CMP000082,BRANCH_QUALIFIER,地区・支部予選,branch_qualifier,1,format_model_driven,,P2SRC023,2026-10-04,Stage 12B: competition_stage_format_assignments / group overrides / phases / parametersで2026内部方式を機械実行可能に構造化。年次の学校名・対戦カードは保持しない。
@@ -210,3 +210,4 @@ STG000208,CMP000016,PRELIMINARY_QUALIFIER,一次予選（31ブロックA/B代表
 STG000209,CMP000094,PRELIMINARY_QUALIFIER,一次予選,preliminary_qualifier,1,format_model_driven,,P2SRC256,2026-10-06,Stage 12H: 前年秋本大会出場校を除く参加校から47代表を選出する年次抽選ブロック予選。
 STG000210,CMP000128,PRELIMINARY_QUALIFIER,県一次予選,preliminary_qualifier,1,format_model_driven,,P2SRC258,2026-10-06,Stage 12H: 新人戦ベスト4を除く参加校を4ゾーンに分け各1代表を選出。
 STG000211,CMP000144,PRELIMINARY_QUALIFIER,県大会予選,preliminary_qualifier,2,format_model_driven,,P2SRC259,2026-10-06,Stage 12H: SEED_EVENTのシード情報を適用した県内一括予選から本選16校を選出。
+STG000212,CMP000079,PRELIMINARY_QUALIFIER,県大会予選（一次・二次）,preliminary_qualifier,1,format_model_driven,,P2SRC332,2026-10-08,Stage13E-3F-2: 全県一次予選8代表＋一次非通過校による二次予選8代表＝計16校を県大会本体へ送る。
