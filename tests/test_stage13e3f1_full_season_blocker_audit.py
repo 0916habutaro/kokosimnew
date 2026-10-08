@@ -63,21 +63,21 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             summary["competition_count"],
         )
         self.assertEqual(
-            137,
+            138,
             summary[
                 "completed_competition_count"
             ],
         )
         self.assertEqual(
-            25,
+            24,
             summary[
                 "blocked_competition_count"
             ],
         )
         self.assertEqual(
             {
-                BLOCKER_CALENDAR_GAP: 19,
-                BLOCKER_COMPLETE: 137,
+                BLOCKER_CALENDAR_GAP: 18,
+                BLOCKER_COMPLETE: 138,
                 BLOCKER_WAITING_DEPENDENCY: 6,
             },
             summary["blocker_counts"],
@@ -122,7 +122,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             summary["priority_counts"],
         )
         self.assertEqual(
-            19,
+            18,
             summary[
                 "direct_calendar_gap_competition_count"
             ],
@@ -164,7 +164,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             ],
         )
         self.assertEqual(
-            19,
+            18,
             summary["action_count"],
         )
         self.assertEqual(
