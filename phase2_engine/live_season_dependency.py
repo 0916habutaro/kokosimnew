@@ -437,6 +437,13 @@ class LiveSeasonDependencyRuntimeState:
         scheduled = self.competitions[
             competition_id
         ]
+        # Dependency results must not be released earlier than the official
+        # competition calendar's last game date. A generic wave scheduler can
+        # finish an internal bracket earlier when the calendar has multiple
+        # dates within one round, but the real champion is not available to a
+        # downstream tournament until the source event's final date.
+        if scheduled.calendar_dates:
+            return max(scheduled.calendar_dates)
         values = [
             match.completed_on
             for match in scheduled.matches.values()
@@ -712,6 +719,15 @@ class LiveSeasonDependencyRuntimeState:
                     and self.competitions[
                         source
                     ].is_complete
+                    and (
+                        not self._competition_completion_date(
+                            source
+                        )
+                        or activation_date
+                        >= self._competition_completion_date(
+                            source
+                        )
+                    )
                     for source in source_ids
                 ):
                     continue
