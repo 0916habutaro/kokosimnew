@@ -116,6 +116,7 @@ class LiveGameService:
         *,
         rng_seed: int,
         start_date: str | None = None,
+        title: str | None = None,
         engine=None,
         save_initial: bool = True,
     ) -> LiveGameSession:
@@ -141,6 +142,11 @@ class LiveGameService:
                 self.resolver_contract
             ),
         )
+        if title is not None:
+            self.slots.write_user_metadata(
+                slot,
+                title=title,
+            )
         if save_initial:
             self.save_game(
                 session,
@@ -331,6 +337,45 @@ class LiveGameService:
             summary.to_dict()
             for summary in self.slots.list_slots()
         ]
+
+    def recovery_sources(
+        self,
+        slot_id: str,
+    ) -> list[dict]:
+        return self.slots.recovery_sources(
+            slot_id
+        )
+
+    def rename_game(
+        self,
+        slot_id: str,
+        title: str,
+    ) -> dict:
+        return (
+            self.slots.rename_slot(
+                slot_id,
+                title,
+            ).to_dict()
+        )
+
+    def recover_game(
+        self,
+        slot_id: str,
+        *,
+        source: str,
+        promote_kind: str = SAVE_KIND_MANUAL,
+        engine=None,
+    ) -> LiveGameSession:
+        session = self.load_game(
+            slot_id,
+            source=source,
+            engine=engine,
+        )
+        self.save_game(
+            session,
+            kind=promote_kind,
+        )
+        return session
 
     def delete_game(
         self,

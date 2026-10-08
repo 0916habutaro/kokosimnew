@@ -1,0 +1,32 @@
+check,status,detail
+slot_metadata_file,PASS,user-facing metadata stored separately in slot_metadata.json
+metadata_title,PASS,new_game and rename_game support user-facing title
+metadata_created_at,PASS,created_at preserved across rename/save
+metadata_last_source,PASS,last manual/autosave source recorded
+metadata_non_authoritative,PASS,corrupt metadata returns None without invalidating game save
+save_payload_title_absent,PASS,user title is not added to canonical game state payload
+save_slot_status,PASS,SaveSlotFile exposes missing valid invalid
+corrupt_primary_isolation,PASS,broken autosave does not break slot summary
+latest_valid_fallback,PASS,manual becomes latest when autosave is invalid
+recovery_inventory,PASS,primary and backup sources listed with validation state
+invalid_recovery_visible,PASS,broken source remains visible with error details
+valid_backup_visible,PASS,valid autosave backup remains recoverable behind corrupt primary
+recovery_promotion,PASS,backup can be loaded and promoted to manual primary
+recovery_keeps_old_primary,PASS,old primary rotates to backup 1 during promotion
+migration_registry,PASS,explicit from-version to-version registry implemented
+migration_noop_current,PASS,current schema requires zero migration steps
+migration_custom_v0_v1,PASS,fake legacy v0 migrates to current v1 and restores identical runtime
+migration_unknown_rejected,PASS,unknown schema without migration path rejected
+migration_cycle_guard,PASS,registry path implementation guards cycles
+migration_checksum_helper,PASS,migrated payload can be canonically rechecksummed
+migration_restore_entrypoint,PASS,restore inspect and read paths accept migration registry
+cli_new,PASS,CLI creates titled game through LiveGameService
+cli_list,PASS,CLI lists save slots
+cli_status,PASS,CLI inspects latest save metadata without direct runtime logic
+cli_recoveries,PASS,CLI lists recovery candidates
+cli_rename,PASS,CLI updates user-facing title
+cli_next_day,PASS,CLI uses existing next_day from_date/to_date contract
+cli_delete_guard,PASS,delete requires explicit --confirm
+initial_ci,INFO,Ran 561 tests with 1 test-contract error; implementation unaffected
+initial_ci_fix,PASS,next_day test corrected from current_date to to_date
+full_suite,PASS,Ran 561 tests in 33.743s; OK

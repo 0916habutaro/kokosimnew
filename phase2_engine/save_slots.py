@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
+import json
 from pathlib import Path
 import re
 import shutil
-from typing import Literal
 
 from .live_season_save import (
     DEFAULT_RESOLVER_CONTRACT,
@@ -27,12 +28,38 @@ _SLOT_RE = re.compile(
 
 
 @dataclass(frozen=True)
+class SaveSlotMetadata:
+    slot_id: str
+    title: str
+    created_at: str
+    last_saved_at: str
+    last_source: str
+    year: int | None
+    rng_seed: int | None
+    current_date: str
+
+    def to_dict(self) -> dict:
+        return {
+            "slot_id": self.slot_id,
+            "title": self.title,
+            "created_at": self.created_at,
+            "last_saved_at": self.last_saved_at,
+            "last_source": self.last_source,
+            "year": self.year,
+            "rng_seed": self.rng_seed,
+            "current_date": self.current_date,
+        }
+
+
+@dataclass(frozen=True)
 class SaveSlotFile:
     slot_id: str
     source: str
     path: str
     exists: bool
     metadata: dict | None = None
+    status: str = "missing"
+    error: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -40,6 +67,8 @@ class SaveSlotFile:
             "source": self.source,
             "path": self.path,
             "exists": self.exists,
+            "status": self.status,
+            "error": self.error,
             "metadata": (
                 dict(self.metadata)
                 if self.metadata is not None
@@ -54,6 +83,7 @@ class SaveSlotSummary:
     manual: SaveSlotFile
     autosave: SaveSlotFile
     latest_source: str
+    user_metadata: SaveSlotMetadata | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -61,6 +91,11 @@ class SaveSlotSummary:
             "manual": self.manual.to_dict(),
             "autosave": self.autosave.to_dict(),
             "latest_source": self.latest_source,
+            "user_metadata": (
+                self.user_metadata.to_dict()
+                if self.user_metadata is not None
+                else None
+            ),
         }
 
 
@@ -100,6 +135,220 @@ class SaveSlotManager:
             slot_id
         )
         return self.root_dir / value
+
+    @staticmethod
+    def _now_iso() -> str:
+        return datetime.now(
+            timezone.utc
+        ).replace(
+            microsecond=0
+        ).isoformat()
+
+    def metadata_path(
+        self,
+        slot_id: str,
+    ) -> Path:
+        return (
+            self.slot_dir(slot_id)
+            / "slot_metadata.json"
+        )
+
+    def read_user_metadata(
+        self,
+        slot_id: str,
+    ) -> SaveSlotMetadata | None:
+        value = self.validate_slot_id(
+            slot_id
+        )
+        path = self.metadata_path(value)
+        if not path.exists():
+            return None
+        try:
+            raw = json.loads(
+                path.read_text(
+                    encoding="utf-8"
+                )
+            )
+        except (
+            OSError,
+            json.JSONDecodeError,
+        ):
+            return None
+        try:
+            return SaveSlotMetadata(
+                slot_id=value,
+                title=str(
+                    raw.get("title")
+                    or value
+                ),
+                created_at=str(
+                    raw.get("created_at")
+                    or ""
+                ),
+                last_saved_at=str(
+                    raw.get("last_saved_at")
+                    or ""
+                ),
+                last_source=str(
+                    raw.get("last_source")
+                    or ""
+                ),
+                year=(
+                    int(raw["year"])
+                    if raw.get("year")
+                    is not None
+                    else None
+                ),
+                rng_seed=(
+                    int(raw["rng_seed"])
+                    if raw.get("rng_seed")
+                    is not None
+                    else None
+                ),
+                current_date=str(
+                    raw.get("current_date")
+                    or ""
+                ),
+            )
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return None
+
+    def write_user_metadata(
+        self,
+        slot_id: str,
+        *,
+        title: str | None = None,
+        save_metadata: dict | None = None,
+        last_source: str = "",
+    ) -> SaveSlotMetadata:
+        value = self.validate_slot_id(
+            slot_id
+        )
+        existing = self.read_user_metadata(
+            value
+        )
+        now = self._now_iso()
+        effective_title = (
+            str(title).strip()
+            if title is not None
+            else (
+                existing.title
+                if existing is not None
+                else value
+            )
+        )
+        if not effective_title:
+            effective_title = value
+
+        metadata = SaveSlotMetadata(
+            slot_id=value,
+            title=effective_title,
+            created_at=(
+                existing.created_at
+                if (
+                    existing is not None
+                    and existing.created_at
+                )
+                else now
+            ),
+            last_saved_at=(
+                now
+                if save_metadata is not None
+                else (
+                    existing.last_saved_at
+                    if existing is not None
+                    else ""
+                )
+            ),
+            last_source=(
+                last_source
+                if save_metadata is not None
+                else (
+                    existing.last_source
+                    if existing is not None
+                    else ""
+                )
+            ),
+            year=(
+                int(
+                    save_metadata["year"]
+                )
+                if (
+                    save_metadata is not None
+                    and save_metadata.get(
+                        "year"
+                    ) is not None
+                )
+                else (
+                    existing.year
+                    if existing is not None
+                    else None
+                )
+            ),
+            rng_seed=(
+                int(
+                    save_metadata["rng_seed"]
+                )
+                if (
+                    save_metadata is not None
+                    and save_metadata.get(
+                        "rng_seed"
+                    ) is not None
+                )
+                else (
+                    existing.rng_seed
+                    if existing is not None
+                    else None
+                )
+            ),
+            current_date=(
+                str(
+                    save_metadata.get(
+                        "current_date"
+                    )
+                    or ""
+                )
+                if save_metadata is not None
+                else (
+                    existing.current_date
+                    if existing is not None
+                    else ""
+                )
+            ),
+        )
+        path = self.metadata_path(value)
+        path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+        temp = path.with_name(
+            path.name + ".tmp"
+        )
+        temp.write_text(
+            json.dumps(
+                metadata.to_dict(),
+                ensure_ascii=False,
+                sort_keys=True,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        temp.replace(path)
+        return metadata
+
+    def rename_slot(
+        self,
+        slot_id: str,
+        title: str,
+    ) -> SaveSlotMetadata:
+        return self.write_user_metadata(
+            slot_id,
+            title=title,
+        )
 
     def save_path(
         self,
@@ -235,6 +484,11 @@ class SaveSlotManager:
                 resolver_contract
             ),
         )
+        user_metadata = self.write_user_metadata(
+            slot_id,
+            save_metadata=payload,
+            last_source=kind,
+        )
         return {
             "slot_id": slot_id,
             "kind": kind,
@@ -252,6 +506,9 @@ class SaveSlotManager:
                     slot_id,
                     kind,
                 )
+            ),
+            "user_metadata": (
+                user_metadata.to_dict()
             ),
         }
 
@@ -312,15 +569,36 @@ class SaveSlotManager:
                 path=str(path),
                 exists=False,
                 metadata=None,
+                status="missing",
+                error="",
+            )
+        try:
+            metadata = (
+                inspect_live_season_save(
+                    path
+                )
+            )
+        except Exception as exc:
+            return SaveSlotFile(
+                slot_id=slot_id,
+                source=source,
+                path=str(path),
+                exists=True,
+                metadata=None,
+                status="invalid",
+                error=(
+                    f"{type(exc).__name__}: "
+                    f"{exc}"
+                ),
             )
         return SaveSlotFile(
             slot_id=slot_id,
             source=source,
             path=str(path),
             exists=True,
-            metadata=inspect_live_season_save(
-                path
-            ),
+            metadata=metadata,
+            status="valid",
+            error="",
         )
 
     @staticmethod
@@ -396,6 +674,11 @@ class SaveSlotManager:
             latest_source=self._latest_source(
                 manual,
                 autosave,
+            ),
+            user_metadata=(
+                self.read_user_metadata(
+                    value
+                )
             ),
         )
 
@@ -478,6 +761,81 @@ class SaveSlotManager:
                 f"save source not found: {path}"
             )
         return path
+
+    def recovery_sources(
+        self,
+        slot_id: str,
+    ) -> list[dict]:
+        value = self.validate_slot_id(
+            slot_id
+        )
+        candidates: list[
+            tuple[str, Path]
+        ] = [
+            (
+                SAVE_KIND_MANUAL,
+                self.save_path(
+                    value,
+                    SAVE_KIND_MANUAL,
+                ),
+            ),
+            (
+                SAVE_KIND_AUTOSAVE,
+                self.save_path(
+                    value,
+                    SAVE_KIND_AUTOSAVE,
+                ),
+            ),
+        ]
+        for kind in (
+            SAVE_KIND_MANUAL,
+            SAVE_KIND_AUTOSAVE,
+        ):
+            for generation in range(
+                1,
+                self.max_backups + 1,
+            ):
+                candidates.append((
+                    (
+                        f"{kind}_backup_"
+                        f"{generation}"
+                    ),
+                    self.backup_path(
+                        value,
+                        kind,
+                        generation,
+                    ),
+                ))
+
+        output = []
+        for source, path in candidates:
+            if not path.exists():
+                continue
+            try:
+                metadata = (
+                    inspect_live_season_save(
+                        path
+                    )
+                )
+                output.append({
+                    "source": source,
+                    "path": str(path),
+                    "status": "valid",
+                    "error": "",
+                    "metadata": metadata,
+                })
+            except Exception as exc:
+                output.append({
+                    "source": source,
+                    "path": str(path),
+                    "status": "invalid",
+                    "error": (
+                        f"{type(exc).__name__}: "
+                        f"{exc}"
+                    ),
+                    "metadata": None,
+                })
+        return output
 
     def inspect(
         self,
