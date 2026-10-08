@@ -1,0 +1,10 @@
+example_id,season,competition_id,district_code,match_date,team1_name,team2_name,team1_score,team2_score,winner_name,prior_reference_id,source_url,qualification_effect
+HQ20260001,spring,CMP000135,west,2026-04-11,広島城北,山陽,5,3,広島城北,RR20260034,https://www.hb-nippon.com/articles/12356,qualifier_effect
+HQ20260002,autumn,CMP000136,west,2026-08-29,広島商,宮島工,11,1,広島商,,https://www.hb-nippon.com/tournaments/1843,qualifier_effect
+HQ20260003,autumn,CMP000136,west,2026-08-29,山陽,基町,6,0,山陽,,https://www.hb-nippon.com/tournaments/1843,qualifier_effect
+HQ20260004,autumn,CMP000136,east,2026-08-29,福山,府中,10,1,福山,,https://www.hb-nippon.com/tournaments/1845,qualifier_effect
+HQ20260005,autumn,CMP000136,east,2026-09-05,神辺旭,英数学館,5,0,神辺旭,,https://www.hb-nippon.com/tournaments/1926,qualifier_effect
+HQ20260006,autumn,CMP000136,north,2026-08-23,広島新庄,可部,12,2,広島新庄,,https://www.hb-nippon.com/tournaments/1842,qualifier_effect
+HQ20260007,autumn,CMP000136,north,2026-08-23,高陽東,三次,6,2,高陽東,,https://www.hb-nippon.com/tournaments/1842,qualifier_effect
+HQ20260008,autumn,CMP000136,south,2026-09-05,瀬戸内,熊野,4,3,瀬戸内,RR20260032,https://www.hb-nippon.com/articles/16879,qualifier_effect
+HQ20260009,autumn,CMP000136,south,2026-09-05,広島桜が丘,呉三津田,9,4,広島桜が丘,RR20260033,https://www.hb-nippon.com/articles/16879,qualifier_effect

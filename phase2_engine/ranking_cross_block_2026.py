@@ -79,7 +79,15 @@ def build_verified_2026_cross_block_sidecar(
 
 
 def hiroshima_2026_qualification_guard(data_dir: str | Path) -> dict:
-    """Refuse to infer optional matches from '1st/2nd/rank' bracket titles."""
+    """Refuse to infer optional matches from '1st/2nd/rank' bracket titles.
+
+    Audit both the protected three match-level examples AND every named
+    spring/autumn route through which prefectural berths were allocated.
+    """
+    from .hiroshima_district_qualification_2026 import (
+        audit_2026_hiroshima_qualification_routes,
+    )
+    route_audit = audit_2026_hiroshima_qualification_routes(data_dir)
     rows = [
         r for r in load_2026_ranking_observations(data_dir)
         if r["competition_id"] in {"CMP000135", "CMP000136"}
@@ -95,9 +103,14 @@ def hiroshima_2026_qualification_guard(data_dir: str | Path) -> dict:
     if any(mapping[ref]["mapping_status"] != "excluded_qualification_decider"
            for ref in excluded):
         errors.append("Hiroshima ranking/qualification classification mismatch")
+    if not route_audit["ok"]:
+        errors.extend(route_audit["errors"])
     return {
         "ok": not errors,
         "errors": errors,
+        "route_audit": route_audit,
+        "district_sub_tournament_route_count": route_audit["sub_tournament_route_count"],
+        "district_route_scope": route_audit["matching_scope"],
         "excluded_qualification_reference_ids": sorted(excluded),
         "verified_optional_ranking_count": 0,
         "federation_main_berths_per_season": 32,

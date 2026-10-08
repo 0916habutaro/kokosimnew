@@ -1,0 +1,10 @@
+finding,scope,status,route_count,qualification_examples,ranking_optional_confirmed,issue
+G7-001,2026春西部,route_inventory_verified,9,1,0,全カードの資格取得時点は未検証
+G7-002,2026春北部,route_inventory_verified,10,0,0,全カードの資格取得時点は未検証
+G7-003,2026春南部,route_inventory_verified,15,0,0,全カードの資格取得時点は未検証
+G7-004,2026春東部,route_inventory_verified,9,0,0,全カードの資格取得時点は未検証
+G7-005,2026秋西部,route_inventory_verified,9,2,0,全カードの資格取得時点は未検証
+G7-006,2026秋北部,route_inventory_verified,10,2,0,全カードの資格取得時点は未検証
+G7-007,2026秋南部,route_inventory_verified,16,2,0,9月5日の既知代表決定戦2件を保護
+G7-008,2026秋東部,route_inventory_verified,9,2,0,全カードの資格取得時点は未検証
+G7-009,FMT025,design_pending,87,9,0,経路一覧完了だが全試合の資格確定前後照合は未完
