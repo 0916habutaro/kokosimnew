@@ -851,7 +851,7 @@ class LiveSeasonDependencyRuntimeState:
         # selectors, every qualifying source entrant receives the access
         # benefit; its count naturally varies with the simulation seed.
         variable_count = (
-            rule.get("selection_mode") == "all_matches"
+            rule.get("quota_mode") == "all_matches"
         )
         if variable_count:
             expected = len(ids)
