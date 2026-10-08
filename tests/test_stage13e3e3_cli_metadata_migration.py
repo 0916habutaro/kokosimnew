@@ -498,7 +498,7 @@ class Stage13E3E3CliMetadataMigrationTests(
             self.assertEqual(
                 "2026-07-02",
                 next_result[
-                    "current_date"
+                    "to_date"
                 ],
             )
 
