@@ -428,6 +428,14 @@ class BrowseRepository:
         with self._connect() as conn:
             self._initialize_schema_conn(conn)
             with conn:
+                # A rebuilt season invalidates any optional ranking sidecars
+                # saved against the previous year's competition outputs.
+                conn.execute(
+                    "DELETE FROM ranking_matches WHERE year = ?", (year,)
+                )
+                conn.execute(
+                    "DELETE FROM ranking_event_snapshots WHERE year = ?", (year,)
+                )
                 conn.execute(
                     "DELETE FROM browse_seasons WHERE year = ?",
                     (year,),
