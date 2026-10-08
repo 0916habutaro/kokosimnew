@@ -380,9 +380,9 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             ].action_type,
         )
         self.assertEqual(
-            PRIORITY_NATIONAL,
+            PRIORITY_LOCAL,
             action_by_id[
-                "structure:CMP000079"
+                "structure:CMP000003"
             ].priority_tier,
         )
         self.assertEqual(
