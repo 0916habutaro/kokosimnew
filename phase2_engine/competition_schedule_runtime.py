@@ -365,9 +365,16 @@ class ScheduledCompetitionRuntime:
         """
         if sidecar.event.competition_id != self.competition_id:
             raise ValueError("ranking sidecar belongs to another competition")
-        key = sidecar.event.group_id
+        key = sidecar.instance_key
         if key in self.ranking_sidecars:
-            raise ValueError("ranking sidecar for group is already attached")
+            raise ValueError("ranking sidecar instance is already attached")
+        new_ids = {row["match_id"] for row in sidecar.snapshot()["matches"]}
+        existing_ids = {
+            row["match_id"] for existing in self.ranking_sidecars.values()
+            for row in existing.snapshot()["matches"]
+        }
+        if new_ids & existing_ids:
+            raise ValueError("ranking match IDs collide across event instances")
         self.ranking_sidecars[key] = sidecar
 
     def ranking_matches_for_date(self, target: str) -> list[dict]:
@@ -401,7 +408,8 @@ class ScheduledCompetitionRuntime:
         date_value = _iso_date(target, "target_date")
         scores = dict(scores_by_group or {})
         active = {
-            group_id: sidecar for group_id, sidecar in self.ranking_sidecars.items()
+            instance_key: sidecar
+            for instance_key, sidecar in self.ranking_sidecars.items()
             if any(row["status"] == "pending"
                    for row in sidecar.matches_for_date(date_value))
         }
@@ -410,28 +418,28 @@ class ScheduledCompetitionRuntime:
         if not set(scores).issubset(active):
             raise ValueError("scores reference an inactive ranking group")
         result = []
-        for group_id, sidecar in sorted(active.items()):
+        for instance_key, sidecar in sorted(active.items()):
             result.extend(sidecar.resolve_date(
-                date_value, winners_by_group[group_id],
-                scores=scores.get(group_id),
+                date_value, winners_by_group[instance_key],
+                scores=scores.get(instance_key),
             ))
         return result
 
     def ranking_snapshot(self) -> dict:
         return {
-            group_id: sidecar.snapshot()
-            for group_id, sidecar in sorted(self.ranking_sidecars.items())
+            instance_key: sidecar.snapshot()
+            for instance_key, sidecar in sorted(self.ranking_sidecars.items())
         }
 
     def restore_ranking_snapshot(self, snapshot: Mapping[str, dict]) -> None:
         from .post_qualification_schedule import ScheduledRankingSidecar
         restored = {}
-        for group_id, payload in sorted(snapshot.items()):
+        for instance_key, payload in sorted(snapshot.items()):
             sidecar = ScheduledRankingSidecar.from_snapshot(payload)
             if (sidecar.event.competition_id != self.competition_id
-                    or sidecar.event.group_id != group_id):
+                    or sidecar.instance_key != instance_key):
                 raise ValueError("ranking snapshot does not belong to competition")
-            restored[group_id] = sidecar
+            restored[instance_key] = sidecar
         self.ranking_sidecars = restored
 
     def matches_for_date(

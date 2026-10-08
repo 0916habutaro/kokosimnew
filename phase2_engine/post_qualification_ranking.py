@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass, field
+import re
 from pathlib import Path
 from typing import Sequence
 
@@ -60,6 +61,7 @@ class RankingOnlyEventRuntime:
     mode: str
     locked_school_ids: tuple[str, ...]
     pairings: tuple[tuple[str, str], ...]
+    event_id: str = ""
     results: dict[str, str] = field(default_factory=dict)
 
     @classmethod
@@ -74,7 +76,10 @@ class RankingOnlyEventRuntime:
         mode: str,
         locked_school_ids: Sequence[str],
         pairings: Sequence[Sequence[str]] = (),
+        event_id: str = "",
     ) -> "RankingOnlyEventRuntime":
+        if event_id and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", event_id):
+            raise ValueError("invalid post-qualification event_id")
         locked = tuple(locked_school_ids)
         if len(locked) != len(set(locked)) or not locked or any(not sid for sid in locked):
             raise ValueError("locked qualifiers must be nonempty and unique")
@@ -117,10 +122,12 @@ class RankingOnlyEventRuntime:
             mode=mode,
             locked_school_ids=locked,
             pairings=pairs,
+            event_id=event_id,
         )
 
     def _id(self, code: str) -> str:
-        return f"{self.stage_id}-{self.group_id}-POST_RANK-{code}"
+        suffix = f"{self.event_id}-" if self.event_id else ""
+        return f"{self.stage_id}-{self.group_id}-POST_RANK-{suffix}{code}"
 
     def all_fixtures(self) -> list[dict]:
         fixtures = [
@@ -206,6 +213,7 @@ class RankingOnlyEventRuntime:
 
     def snapshot(self) -> dict:
         return {
+            **({"event_id": self.event_id} if self.event_id else {}),
             "competition_id": self.competition_id,
             "stage_id": self.stage_id,
             "stage_code": self.stage_code,
@@ -231,6 +239,7 @@ class RankingOnlyEventRuntime:
             mode=snapshot["mode"],
             locked_school_ids=snapshot["locked_school_ids"],
             pairings=snapshot["pairings"],
+            event_id=snapshot.get("event_id", ""),
         )
         # Replaying through ready_matches validates round ordering and winners.
         for completed_id, winner in snapshot["results"].items():

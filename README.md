@@ -153,6 +153,18 @@ python -m game_core.stage13c2_audit \
 ## 正本ルール
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
+## Stage 13E-3G-5（同地区・複数日順位戦と旧DB互換）
+
+順位決定戦の`event_id`を任意で追加し、**同じ地区の複数日イベントを別々に保存・閲覧・再開**できるようにした。静岡春西部地区の4月4日と11日を回帰テストで再現する。
+
+- 旧順位戦ID／snapshotはそのまま読み込める。`event_id`ありだけ`group_id@event_id`とする
+- `ScheduledCompetitionRuntime`は複数イベントを同時保持。任意順位戦は代表・シードや大会完了に影響しない
+- SQLiteは旧表を維持し、専用v2 snapshot表と`ranking_instance_id`列を安全に追加
+- 異なる日付の順位戦を上書きせず、旧データと新データを同一日付／大会別read modelで閲覧
+- 静岡秋の越境1件と広島の代表決定・順位決定区分の追加調査は未完。研究台帳RS2026025/26は保留維持
+
+日本語設計：`docs/design/post_qualification_multi_instance_stage13e3g5.md`
+
 ## Stage 13E-3G-4（既存学校ID・地区所属の正式照合）
 
 大容量ファイル取得の問題により空と誤認していたPhase 1マスターの実体を確認。**学校3,746校・野球部3,746件・2026地区所属6,871件は既存mainに登録済み**であり、再作成や上書きは行わない。
