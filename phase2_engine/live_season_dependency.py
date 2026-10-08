@@ -792,7 +792,11 @@ class LiveSeasonDependencyRuntimeState:
                 notes="source competition not complete",
             )
 
-        run = scheduled.to_competition_run()
+        run = (
+            scheduled.to_competition_run()
+            if scheduled.is_complete
+            else None
+        )
         selector = rule.get(
             "source_result_selector",
             "",
@@ -816,7 +820,13 @@ class LiveSeasonDependencyRuntimeState:
             ids = [
                 school_id
                 for school_id
-                in run.entrant_school_ids
+                in (
+                    run.entrant_school_ids
+                    if run is not None
+                    else self.annual_templates[
+                        source_id
+                    ].entrant_school_ids
+                )
                 if self.repo.schools.get(
                     school_id,
                     {},
