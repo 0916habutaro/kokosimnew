@@ -153,6 +153,18 @@ python -m game_core.stage13c2_audit \
 ## 正本ルール
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
+## Stage 13E-3G-1（代表決定後の任意順位決定戦）
+
+FMT022（徳島・沖縄）とFMT025（静岡・広島）について、**代表・シード枠を固定した後だけ**試合を行う非blocking順位戦の独立ランタイムを追加した。
+
+- `phase2_engine/post_qualification_ranking.py`：2ブロック決勝／準決勝＋決勝／明示ペア順位決定、途中結果の保存・再開。
+- `data/competitions/post_qualification_ranking_profiles.csv`：県・方式別プロファイル6大会。
+- `TournamentEngine.prepare_post_qualification_ranking()`：既存StageExecutionの確定出力校を利用する**明示オプトインAPI**。
+- 既存の`CompetitionRun`、シード割当・県本戦進出校・年度スケジューラは変更しない。日付・実スコアを推測して増やさない。
+- 後続3G-2で任意順位試合の日付処理・セーブ・read modelとの接続を検討。FMT022/FMT025の調査台帳（RS2026025/26）はこの段階では設計保留を維持。
+
+日本語設計：`docs/design/post_qualification_ranking_stage13e3g1.md`
+
 ## 最新工程（Stage 13E-3F-4）
 
 2026年全162大会の年間E2E監査を実施。**ゲーム内のシミュレーションとして161大会を完了**し、神宮大会CMP000003の個別日程が未公開のため1大会が保留。pre-MAIN日程は50/50件verified、研究待ち0件。大会数・進出依存関係・日付・CSV正規化を監査する。なお、実際の2026年の全大会が終了したという意味ではない。
