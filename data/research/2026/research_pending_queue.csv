@@ -9,7 +9,7 @@ RS2026007,P1,stage_calendar,CMP000090,SC2026014,,BRANCH_QUALIFIERの2026年実�
 RS2026008,P1,stage_calendar,CMP000092,SC2026016,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC033,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
 RS2026009,P1,stage_calendar,CMP000094,SC2026018,,PRELIMINARY_QUALIFIERの2026年実試合日union,P2SRC256,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
 RS2026010,P1,stage_calendar,CMP000095,SC2026019,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC036,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
-RS2026011,P1,stage_calendar,CMP000107,SC2026021,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC045,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
+RS2026011,P1,stage_calendar,CMP000107,SC2026021,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC045,2026-10-08,resolved,公式2026年資料と照合しstage calendar verifiedへ変更,長野県高野連公式4支部の2026春季結果を確認。SC2026021をverified化
 RS2026012,P1,stage_calendar,CMP000109,SC2026023,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC057,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
 RS2026013,P1,stage_calendar,CMP000111,SC2026026,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC059,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
 RS2026014,P1,stage_calendar,CMP000113,SC2026028,,BRANCH_QUALIFIERの2026年実試合日union,P2SRC063,2026-10-08,needs_research,公式2026年資料と照合しstage calendar verifiedへ変更,MAIN試合日から推測・流用しない
