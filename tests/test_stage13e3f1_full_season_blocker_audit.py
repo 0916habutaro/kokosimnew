@@ -63,21 +63,21 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             summary["competition_count"],
         )
         self.assertEqual(
-            154,
+            155,
             summary[
                 "completed_competition_count"
             ],
         )
         self.assertEqual(
-            8,
+            7,
             summary[
                 "blocked_competition_count"
             ],
         )
         self.assertEqual(
             {
-                BLOCKER_CALENDAR_GAP: 6,
-                BLOCKER_COMPLETE: 154,
+                BLOCKER_CALENDAR_GAP: 5,
+                BLOCKER_COMPLETE: 155,
                 BLOCKER_WAITING_DEPENDENCY: 2,
             },
             summary["blocker_counts"],
@@ -85,25 +85,25 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
         self.assertEqual(
             {
                 ORIGIN_CALENDAR_WITHOUT_STAGE: 1,
-                ORIGIN_PENDING_STAGE_CALENDAR: 5,
+                ORIGIN_PENDING_STAGE_CALENDAR: 4,
                 ORIGIN_UPSTREAM_DEPENDENCY: 2,
             },
             summary["blocker_origin_counts"],
         )
         self.assertEqual(
-            5,
+            4,
             summary[
                 "pending_stage_row_count"
             ],
         )
         self.assertEqual(
-            5,
+            4,
             summary[
                 "pending_stage_competition_count"
             ],
         )
         self.assertEqual(
-            5,
+            4,
             summary[
                 "pending_stage_reached_row_count"
             ],
@@ -117,12 +117,12 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
         self.assertEqual(
             {
                 PRIORITY_LOCAL: 1,
-                PRIORITY_REGIONAL: 4,
+                PRIORITY_REGIONAL: 3,
             },
             summary["priority_counts"],
         )
         self.assertEqual(
-            6,
+            5,
             summary[
                 "direct_calendar_gap_competition_count"
             ],
@@ -164,20 +164,20 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             ],
         )
         self.assertEqual(
-            6,
+            5,
             summary["action_count"],
         )
         self.assertEqual(
             {
                 ACTION_REVIEW_STRUCTURE: 1,
-                ACTION_VERIFY_STAGE_DATES: 5,
+                ACTION_VERIFY_STAGE_DATES: 4,
             },
             summary["action_counts"],
         )
         self.assertEqual(
             {
                 PRIORITY_LOCAL: 2,
-                PRIORITY_REGIONAL: 4,
+                PRIORITY_REGIONAL: 3,
             },
             summary[
                 "action_priority_counts"
@@ -255,7 +255,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             in self.audit.stage_priority_rows
         }
         self.assertEqual(
-            5,
+            4,
             len(pending_competitions),
         )
 
@@ -390,7 +390,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
         ]
 
         self.assertEqual(0, len(p0))
-        self.assertEqual(4, len(p1))
+        self.assertEqual(3, len(p1))
         self.assertEqual(1, len(p2))
 
         self.assertTrue(all(
@@ -497,11 +497,11 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
                 len(competition_rows),
             )
             self.assertEqual(
-                5,
+                4,
                 len(stage_rows),
             )
             self.assertEqual(
-                6,
+                5,
                 len(action_rows),
             )
             self.assertEqual(
