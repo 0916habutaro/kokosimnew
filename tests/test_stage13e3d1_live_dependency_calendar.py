@@ -116,11 +116,11 @@ class Stage13E3D1LiveDependencyCalendarTests(
             summary["row_count"],
         )
         self.assertEqual(
-            44,
+            45,
             summary["verified_count"],
         )
         self.assertEqual(
-            6,
+            5,
             summary["research_pending_count"],
         )
         self.assertEqual(
