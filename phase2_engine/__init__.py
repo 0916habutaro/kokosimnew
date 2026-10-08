@@ -96,6 +96,7 @@ from .save_slots import (
     SAVE_KIND_MANUAL,
     SaveSlotFile,
     SaveSlotManager,
+    SaveSlotMetadata,
     SaveSlotSummary,
 )
 from .live_season_save import (
@@ -107,10 +108,18 @@ from .live_season_save import (
     LiveSeasonSaveSchemaError,
     create_live_season_save,
     inspect_live_season_save,
+    migrate_live_season_save_payload,
     plan_fingerprint,
+    rechecksum_live_season_save_payload,
     read_live_season_save,
     restore_live_season_save,
     write_live_season_save,
+)
+from .save_migrations import (
+    DEFAULT_SAVE_MIGRATION_REGISTRY,
+    SaveMigrationError,
+    SaveMigrationRegistry,
+    SaveMigrationStep,
 )
 from .live_season_planner import (
     PLAN_ACCESS,
