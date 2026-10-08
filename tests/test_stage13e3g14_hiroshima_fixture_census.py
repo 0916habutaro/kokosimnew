@@ -43,7 +43,7 @@ class Stage13E3G14TwoSecondaryFixtureCensuses(unittest.TestCase):
     def test_two_secondary_result_pages_have_complete_recorded_fixtures(self):
         r=audit_2026_hiroshima_stage13e3g14(DATA)
         self.assertTrue(r["ok"],r["errors"])
-        self.assertEqual(108,r["historical_sample_fixture_count"])
+        self.assertEqual(223,r["historical_sample_fixture_count"])
         self.assertEqual(25,r["source_page_new_non_award_fixtures"])
         self.assertEqual({"spring_west":24,"autumn_east":30},
                          r["source_page_transcribed_fixture_counts"])
@@ -53,8 +53,8 @@ class Stage13E3G14TwoSecondaryFixtureCensuses(unittest.TestCase):
     def test_previous_63_qualification_events_are_unchanged(self):
         r=audit_2026_hiroshima_stage13e3g14(DATA)
         self.assertEqual(63,r["verified_berth_award_events"])
-        self.assertEqual(2,r["secondarily_fully_transcribed_district_seasons"])
-        self.assertEqual(6,r["district_seasons_without_complete_secondary_transcription"])
+        self.assertEqual(8,r["secondarily_fully_transcribed_district_seasons"])
+        self.assertEqual(0,r["district_seasons_without_complete_secondary_transcription"])
 
     def test_pdf_body_cannot_be_claimed_as_read_from_link_only(self):
         r=audit_2026_hiroshima_stage13e3g14(DATA)
@@ -84,10 +84,10 @@ class Stage13E3G14TwoSecondaryFixtureCensuses(unittest.TestCase):
             root=Path(td);prepare(root)
             mutate(root,CENSUS,lambda rows:next(r for r in rows if
                 r["season"]=="spring" and r["district_code"]=="south"
-            ).update(secondary_html_status="full_displayed_results_transcribed"))
+            ).update(secondary_html_status="pending_full_result_transcription"))
             r=audit_2026_hiroshima_stage13e3g14(root)
             self.assertFalse(r["ok"])
-            self.assertTrue(any("unsubstantiated secondary complete" in e for e in r["errors"]))
+            self.assertTrue(any("secondary HTML census mismatch" in e for e in r["errors"]))
 
     def test_early_results_remain_nonaward_not_ranking(self):
         with (DATA / ADDITIONS).open(encoding="utf-8",newline="") as f:
@@ -110,7 +110,7 @@ class Stage13E3G14TwoSecondaryFixtureCensuses(unittest.TestCase):
             mutate(root,TIMELINE_FILE,lambda rows:rows.pop())
             r=audit_2026_hiroshima_stage13e3g14(root)
             self.assertFalse(r["ok"])
-            self.assertTrue(any("expected 108" in e or "missing or duplicated" in e for e in r["errors"]))
+            self.assertTrue(any("expected 223" in e or "missing or duplicated" in e for e in r["errors"]))
 
     def test_pdf_link_change_detected(self):
         with tempfile.TemporaryDirectory() as td:
