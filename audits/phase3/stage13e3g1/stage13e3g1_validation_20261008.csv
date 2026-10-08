@@ -1,0 +1,10 @@
+check,status,detail
+fmt022_seed_cut_contract,implemented,徳島・沖縄の代表シード4校を固定
+fmt022_tokushima_block_finals,implemented,確定4校の2ブロック決勝（順位情報のみ）
+fmt022_okinawa_semifinal_final,implemented,2準決勝→決勝のlazy順位イベント
+fmt025_explicit_annual_pairs,implemented,静岡・広島の予選代表確定後に提示されたペアだけ生成
+qualifier_and_main_isolation,implemented,既存出場枠・進出校・MAINを変更しないsidecar API
+lazy_snapshot_resume,implemented,勝者入力・途中保存・再開の契約を追加
+schedule_live_runtime_integration,deferred,3G-2で既存日付scheduler・セーブ・read modelへの接続を検討
+fmt022_queue,deferred,RS2026025はdesign_pendingのまま
+fmt025_queue,deferred,RS2026026はdesign_pendingのまま
