@@ -1205,59 +1205,139 @@ class BrowseRepository:
         return [dict(row) for row in cursor.fetchall()]
 
     def save_ranking_sidecar(self, year: int, sidecar) -> dict:
-        """Atomically persist optional ranking, without updating MAIN views."""
+        """Atomically save one instance without deleting other days/groups.
+
+        Legacy empty-instance snapshots retain the old primary key and format.
+        Explicit instance IDs use a separate v2 snapshot table while sharing
+        unique match IDs in ranking_matches.
+        """
         from .post_qualification_schedule import ScheduledRankingSidecar
         if not isinstance(sidecar, ScheduledRankingSidecar):
             raise TypeError("ScheduledRankingSidecar required")
         snapshot = sidecar.snapshot()
         rows = snapshot["matches"]
-        if any(not row["match_date"].startswith(f"{year}-") for row in rows):
+        if year <= 0 or any(not row["match_date"].startswith(f"{year}-")
+                            for row in rows):
             raise ValueError("ranking year does not match the season")
         event = sidecar.event
+        event_id = event.event_id
         with self._connect() as conn:
             self._initialize_schema_conn(conn)
             with conn:
-                conn.execute(
-                    "DELETE FROM ranking_matches WHERE year=? AND competition_id=? AND group_id=?",
-                    (year, event.competition_id, event.group_id),
-                )
-                conn.execute("""
-                    INSERT INTO ranking_event_snapshots
-                    (year, competition_id, group_id, snapshot_json)
-                    VALUES (?,?,?,?)
-                    ON CONFLICT(year, competition_id, group_id)
-                    DO UPDATE SET snapshot_json=excluded.snapshot_json
-                """, (year, event.competition_id, event.group_id,
-                      json.dumps(snapshot, ensure_ascii=False, sort_keys=True)))
+                if event_id:
+                    previous = conn.execute("""
+                        SELECT snapshot_json FROM ranking_event_snapshots_v2
+                        WHERE year=? AND competition_id=? AND group_id=?
+                              AND ranking_instance_id=?
+                    """, (year, event.competition_id, event.group_id, event_id)).fetchone()
+                else:
+                    previous = conn.execute("""
+                        SELECT snapshot_json FROM ranking_event_snapshots
+                        WHERE year=? AND competition_id=? AND group_id=?
+                    """, (year, event.competition_id, event.group_id)).fetchone()
+                # Delete ONLY the prior version of this exact instance. The
+                # legacy group-wide DELETE would destroy the other instances.
+                if previous:
+                    previous_rows = json.loads(previous["snapshot_json"])["matches"]
+                    conn.executemany("""
+                        DELETE FROM ranking_matches
+                        WHERE year=? AND competition_id=? AND match_id=?
+                              AND ranking_instance_id=?
+                    """, [
+                        (year, event.competition_id, row["match_id"], event_id)
+                        for row in previous_rows
+                    ])
+                if event_id:
+                    conn.execute("""
+                        INSERT INTO ranking_event_snapshots_v2
+                            (year, competition_id, group_id,
+                             ranking_instance_id, snapshot_json)
+                        VALUES (?,?,?,?,?)
+                        ON CONFLICT(year,competition_id,group_id,ranking_instance_id)
+                        DO UPDATE SET snapshot_json=excluded.snapshot_json
+                    """, (
+                        year, event.competition_id, event.group_id, event_id,
+                        json.dumps(snapshot, ensure_ascii=False, sort_keys=True),
+                    ))
+                else:
+                    conn.execute("""
+                        INSERT INTO ranking_event_snapshots
+                            (year, competition_id, group_id, snapshot_json)
+                        VALUES (?,?,?,?)
+                        ON CONFLICT(year, competition_id, group_id)
+                        DO UPDATE SET snapshot_json=excluded.snapshot_json
+                    """, (
+                        year, event.competition_id, event.group_id,
+                        json.dumps(snapshot, ensure_ascii=False, sort_keys=True),
+                    ))
                 conn.executemany("""
                     INSERT INTO ranking_matches(
-                       year,competition_id,group_id,match_id,match_date,
-                       stage_code,phase_code,round_no,team1_id,team2_id,
-                       winner_id,loser_id,team1_score,team2_score,status,qualifier_effect
-                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                        year,competition_id,group_id,match_id,match_date,
+                        stage_code,phase_code,round_no,team1_id,team2_id,
+                        winner_id,loser_id,team1_score,team2_score,status,
+                        qualifier_effect,ranking_instance_id
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, [
-                    (year, row["competition_id"], row["group_id"],
-                     row["match_id"], row["match_date"], row["stage_code"],
-                     row["phase_code"], row["round_no"], row["team1_id"],
-                     row["team2_id"], row["winner_id"], row["loser_id"],
-                     row["team1_score"], row["team2_score"], row["status"],
-                     row["qualifier_effect"])
+                    (
+                        year, row["competition_id"], row["group_id"],
+                        row["match_id"], row["match_date"], row["stage_code"],
+                        row["phase_code"], row["round_no"], row["team1_id"],
+                        row["team2_id"], row["winner_id"], row["loser_id"],
+                        row["team1_score"], row["team2_score"], row["status"],
+                        row["qualifier_effect"], event_id,
+                    )
                     for row in rows
                 ])
-        return {"year": year, "competition_id": event.competition_id,
-                "group_id": event.group_id, "match_count": len(rows)}
+        return {
+            "year": year, "competition_id": event.competition_id,
+            "group_id": event.group_id,
+            "ranking_instance_id": event_id,
+            "match_count": len(rows),
+        }
 
-    def load_ranking_sidecar(self, year: int, competition_id: str, group_id: str):
+    def load_ranking_sidecar(
+        self, year: int, competition_id: str, group_id: str,
+        ranking_instance_id: str = "",
+    ):
+        """Empty instance ID selects old snapshots, preserving old call sites."""
         from .post_qualification_schedule import ScheduledRankingSidecar
         with self._connect() as conn:
             self._initialize_schema_conn(conn)
-            row = conn.execute(
-                "SELECT snapshot_json FROM ranking_event_snapshots "
-                "WHERE year=? AND competition_id=? AND group_id=?",
-                (year, competition_id, group_id),
-            ).fetchone()
+            if ranking_instance_id:
+                row = conn.execute("""
+                    SELECT snapshot_json FROM ranking_event_snapshots_v2
+                    WHERE year=? AND competition_id=? AND group_id=?
+                      AND ranking_instance_id=?
+                """, (year, competition_id, group_id, ranking_instance_id)).fetchone()
+            else:
+                row = conn.execute("""
+                    SELECT snapshot_json FROM ranking_event_snapshots
+                    WHERE year=? AND competition_id=? AND group_id=?
+                """, (year, competition_id, group_id)).fetchone()
         return (ScheduledRankingSidecar.from_snapshot(json.loads(row["snapshot_json"]))
                 if row else None)
+
+    def list_ranking_sidecars(
+        self, year: int, competition_id: str, group_id: str
+    ) -> list:
+        """Load legacy and explicit event instances for a region in date order."""
+        from .post_qualification_schedule import ScheduledRankingSidecar
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            legacy = conn.execute("""
+                SELECT snapshot_json FROM ranking_event_snapshots
+                WHERE year=? AND competition_id=? AND group_id=?
+            """, (year, competition_id, group_id)).fetchall()
+            multiple = conn.execute("""
+                SELECT snapshot_json FROM ranking_event_snapshots_v2
+                WHERE year=? AND competition_id=? AND group_id=?
+                ORDER BY ranking_instance_id
+            """, (year, competition_id, group_id)).fetchall()
+        states = [
+            ScheduledRankingSidecar.from_snapshot(json.loads(row["snapshot_json"]))
+            for row in [*legacy, *multiple]
+        ]
+        return sorted(states, key=lambda state: (state.match_dates[0], state.instance_key))
 
     def ranking_matches_on_date(
         self, year: int, match_date: str, *, competition_id: str = ""
