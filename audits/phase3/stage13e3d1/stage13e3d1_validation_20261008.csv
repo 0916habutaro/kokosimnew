@@ -1,0 +1,20 @@
+check,status,detail
+stage_calendar_master,PASS,2026 pre-MAIN 49 stages registered
+stage_calendar_coverage,PASS,49 of 49 pre-MAIN stages covered exactly once
+stage_calendar_verified_count,PASS,0 verified dates; no dates invented
+stage_calendar_pending_count,PASS,49 research_pending
+main_calendar_exclusion,PASS,26 stages explicitly marked excluded from MAIN calendar
+pending_dates_empty,PASS,research_pending stages map to empty date lists
+no_main_fallback,PASS,pending pre-MAIN stage stops as calendar_gap
+live_access_dependency,PASS,destination runtime is not materialized before source dependency release
+source_official_release_date,PASS,source access result releases at max official game_date_list
+miyagi_direct_access,PASS,CMP000029 winner activates CMP000077 via ACR000002
+miyagi_release_guard,PASS,CMP000077 remains absent through 2026-07-27 and activates on 2026-07-28
+miyagi_legacy_equivalence,PASS,live destination CompetitionRun exactly matches explicit-direct legacy run
+mie_seed_bypass,PASS,CMP000045 winner activates CMP000116 seed_event_bypass via ACR000014
+mie_not_direct_entry,PASS,Mie summer champion is not added to direct_main_entry
+mie_legacy_equivalence,PASS,live destination CompetitionRun exactly matches explicit-bypass legacy run
+date_dependency_guard,PASS,destination first date before source release blocks activation
+future_destination_hidden,PASS,public snapshot omits waiting destination runtime
+composite_blockforest_single_resolve,PASS,FMT003 nested BlockForest supports match-by-match resolution
+full_suite,PASS,Ran 533 tests in 21.850s; OK
