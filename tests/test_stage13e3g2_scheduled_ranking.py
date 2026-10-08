@@ -51,7 +51,8 @@ class Stage13E3G2ScheduledRankingTests(unittest.TestCase):
         )
         self.assertEqual(2, len(result))
         self.assertEqual({"A", "B"}, {
-            r["team1_id"] for r in event.matches_for_date("2026-08-14")
+            key for r in event.matches_for_date("2026-08-14")
+            for key in (r["team1_id"], r["team2_id"])
         })
         self.assertFalse(event.is_complete)
         final = event.matches_for_date("2026-08-14")[0]
