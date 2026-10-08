@@ -24,6 +24,7 @@ FILES = (
     MAPPING,
     "competitions/2026/post_qualification_rank_school_aliases.csv",
     "competitions/2026/post_qualification_rank_observations.csv",
+    "competitions/2026/post_qualification_cross_block_pairs.csv",
     "competitions/competition_stage_groups.csv",
     "competitions/post_qualification_ranking_profiles.csv",
     "master/schools.csv",

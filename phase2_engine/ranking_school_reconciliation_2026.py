@@ -27,6 +27,7 @@ from .ranking_reference_2026 import (
 BASE = Path("competitions/2026")
 MAP_FILE = BASE / "post_qualification_rank_school_mapping.csv"
 ALIAS_FILE = BASE / "post_qualification_rank_school_aliases.csv"
+CROSS_BLOCK_FILE = BASE / "post_qualification_cross_block_pairs.csv"
 PREFECTURES = {
     "CMP000111": "22", "CMP000112": "22",
     "CMP000135": "34", "CMP000136": "34",
@@ -37,7 +38,7 @@ STAGE_GROUP_SCHEMES = {
 }
 GROUP_MAPPED = "mapped_same_area_ranking_reference"
 SEED_MAPPED = "verified_ready_for_locked_cohort_check"
-CROSS_AREA = "review_cross_area_fixture"
+CROSS_AREA = "mapped_cross_block_ranking_reference"
 EXCLUDED = "excluded_qualification_decider"
 
 
@@ -58,6 +59,7 @@ def audit_ranking_school_mapping_2026(data_dir: str | Path) -> dict:
     observations = load_2026_ranking_observations(root)
     mappings = load_ranking_school_mapping_2026(root)
     aliases = _load(root / ALIAS_FILE)
+    cross_profiles = _load(root / CROSS_BLOCK_FILE)
     schools = _load(root / "master/schools.csv")
     programs = _load(root / "master/baseball_programs.csv")
     memberships = _load(root / "areas/school_area_memberships.csv")
@@ -101,6 +103,9 @@ def audit_ranking_school_mapping_2026(data_dir: str | Path) -> dict:
         errors.append("expected 11 reviewed 2026 school-name aliases")
 
     obs_by_id = {r["reference_id"]: r for r in observations}
+    cross_by_id = {p["reference_id"]: p for p in cross_profiles}
+    if len(cross_by_id) != len(cross_profiles) or set(cross_by_id) != {"RR20260023"}:
+        errors.append("cross-block ranking evidence must contain the approved RR20260023 only")
     seen: set[str] = set()
     observed_name_ids: dict[tuple[str, str], str] = {}
     mapping_counts: Counter[str] = Counter()
@@ -172,7 +177,22 @@ def audit_ranking_school_mapping_2026(data_dir: str | Path) -> dict:
                 errors.append(f"qualification match was treated as ranking {rid}")
         elif len(resolved_areas) == 2 and resolved_areas[0] != resolved_areas[1]:
             if status != CROSS_AREA or group_id:
-                errors.append(f"cross-area fixture must remain quarantined {rid}")
+                errors.append(f"cross-area ranking needs explicit paired-block evidence {rid}")
+            profile = cross_by_id.get(rid)
+            if not profile or any((
+                profile[field] != expected for field, expected in {
+                    "competition_id": cid,
+                    "stage_id": observation["stage_id"],
+                    "team1_school_id": mapping["team1_school_id"],
+                    "team2_school_id": mapping["team2_school_id"],
+                    "match_date": observation["match_date"],
+                    "source_block1": "I", "source_block2": "J",
+                    "scope_code": "paired_bracket_blocks",
+                    "game_scope": "post_qualification_ranking",
+                    "qualification_effect": "none",
+                }.items()
+            )) or not all(profile.get(k, "").startswith("https://") for k in ("source_url", "qualification_source_url")):
+                errors.append(f"cross-block verified pairing metadata invalid {rid}")
             area_gaps.append({
                 "reference_id": rid, "competition_id": cid,
                 "team1_area_id": resolved_areas[0],
@@ -215,6 +235,7 @@ def audit_ranking_school_mapping_2026(data_dir: str | Path) -> dict:
         "reviewed_alias_count": len(aliases),
         "classification_counts": dict(mapping_counts),
         "cross_area_review": area_gaps,
+        "verified_cross_block_reference_count": len(area_gaps),
     }
 
 
