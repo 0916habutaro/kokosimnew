@@ -63,45 +63,44 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             summary["competition_count"],
         )
         self.assertEqual(
-            160,
+            161,
             summary[
                 "completed_competition_count"
             ],
         )
         self.assertEqual(
-            2,
+            1,
             summary[
                 "blocked_competition_count"
             ],
         )
         self.assertEqual(
             {
-                BLOCKER_CALENDAR_GAP: 2,
-                BLOCKER_COMPLETE: 160,
+                BLOCKER_CALENDAR_GAP: 1,
+                BLOCKER_COMPLETE: 161,
             },
             summary["blocker_counts"],
         )
         self.assertEqual(
             {
                 ORIGIN_CALENDAR_WITHOUT_STAGE: 1,
-                ORIGIN_PENDING_STAGE_CALENDAR: 1,
             },
             summary["blocker_origin_counts"],
         )
         self.assertEqual(
-            1,
+            0,
             summary[
                 "pending_stage_row_count"
             ],
         )
         self.assertEqual(
-            1,
+            0,
             summary[
                 "pending_stage_competition_count"
             ],
         )
         self.assertEqual(
-            1,
+            0,
             summary[
                 "pending_stage_reached_row_count"
             ],
@@ -112,14 +111,9 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
                 "pending_stage_blocked_before_reach_row_count"
             ],
         )
+        self.assertEqual({}, summary["priority_counts"])
         self.assertEqual(
-            {
-                PRIORITY_LOCAL: 1,
-            },
-            summary["priority_counts"],
-        )
-        self.assertEqual(
-            2,
+            1,
             summary[
                 "direct_calendar_gap_competition_count"
             ],
@@ -161,19 +155,18 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             ],
         )
         self.assertEqual(
-            2,
+            1,
             summary["action_count"],
         )
         self.assertEqual(
             {
                 ACTION_REVIEW_STRUCTURE: 1,
-                ACTION_VERIFY_STAGE_DATES: 1,
             },
             summary["action_counts"],
         )
         self.assertEqual(
             {
-                PRIORITY_LOCAL: 2,
+                PRIORITY_LOCAL: 1,
             },
             summary[
                 "action_priority_counts"
@@ -248,7 +241,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             in self.audit.stage_priority_rows
         }
         self.assertEqual(
-            1,
+            0,
             len(pending_competitions),
         )
 
@@ -384,7 +377,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
 
         self.assertEqual(0, len(p0))
         self.assertEqual(0, len(p1))
-        self.assertEqual(1, len(p2))
+        self.assertEqual(0, len(p2))
 
         self.assertTrue(all(
             row.season_segment == "spring"
@@ -395,15 +388,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             == 1
             for row in p1
         ))
-        self.assertEqual(
-            "CMP000004",
-            p2[0].competition_id,
-        )
-        self.assertEqual(
-            0,
-            p2[0]
-            .downstream_blocked_competition_count,
-        )
+        self.assertEqual([], self.audit.stage_priority_rows)
 
         action_by_id = {
             row.action_id: row
@@ -490,23 +475,18 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
                 len(competition_rows),
             )
             self.assertEqual(
-                1,
+                0,
                 len(stage_rows),
             )
             self.assertEqual(
-                2,
+                1,
                 len(action_rows),
             )
             self.assertEqual(
                 self.audit.summary(),
                 summary,
             )
-            self.assertEqual(
-                PRIORITY_LOCAL,
-                stage_rows[0][
-                    "priority_tier"
-                ],
-            )
+            self.assertEqual([], stage_rows)
             self.assertIn(
                 "structure:CMP000003",
                 {
