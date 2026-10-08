@@ -227,12 +227,11 @@ def build_verified_fmt025_2026_daily_sidecar(
     locked_school_ids: Sequence[str],
     qualification_locked_on: str,
 ) -> ScheduledRankingSidecar:
-    """Create one explicit date's optional FMT025 matches, without winners.
+    """Create one distinct 2026 date-instance with immutable qualifier pool.
 
-    Some 2026 group ranking fixtures occurred on different dates. The current
-    ScheduledCompetitionRuntime permits only one sidecar per group; callers
-    must not attach overlapping batches for that group until a separate
-    multi-day ranking instance-key contract exists.
+    Each match day gets a stable event_id, so independent same-group dates
+    cannot overwrite each other in live schedules or saved SQLite results.
+    Cross-area and actual qualification-decider records stay excluded.
     """
     report = audit_ranking_school_mapping_2026(data_dir)
     if not report["ok"]:
@@ -273,6 +272,7 @@ def build_verified_fmt025_2026_daily_sidecar(
         mode=profile["ranking_event_mode"],
         locked_school_ids=locked_school_ids,
         pairings=pairings,
+        event_id="D" + match_date.replace("-", ""),
     )
     return ScheduledRankingSidecar.create(
         state,
