@@ -41,6 +41,7 @@
 - Stage 13E-3D-2: qualification_rules 59件・regional_feeder_rules 96件・近畿regional playoff 2件をLiveSeasonDependencyRuntimeStateへ接続。49地方大会→夏甲子園、四国4県→春季四国、近畿playoff、秋10代表→神宮entrant生成をlive化し、夏甲子園・春季四国ではlegacy CompetitionRun完全一致を検証
 - Stage 13E-3D-3: LiveSeasonGraphPlannerを追加し、2026全162大会・165 dependency edge・season calendar 162件・pre-MAIN stage calendar 49件からannual templateとtopological live graphを自動構築。131 root / 31 dependency待ちで起動し、49地方大会→夏甲子園・東西東京夏優勝→秋東京232校構造まで手動AnnualCompetitionInputなしで自動materializeする回帰を確認
 - Stage 13E-3E-1: full-season live runtimeのJSON save/load v1を実装。plan fingerprint＋processed date＋完了MatchResolutionからfresh runtimeをdeterministic replayし、current_date・dependency状態・activated_on・score/ability detailまで完全照合して再開。atomic write、checksum、resolver contract、plan変更・改ざん検出を追加
+- Stage 13E-3E-2: SaveSlotManager / LiveGameServiceを追加し、1スロット内でmanual/autosaveを独立管理。世代backup、latest判定、旧世代復旧、slot一覧・削除、new/load/save/autosave、日付進行後autosaveをservice化。実full-season new_gameで162 template / 131 active / 31 waitingを起動しinitial manual saveまで確認
 
 ## ディレクトリ
 - `data/master/` 学校・加盟校・出典の基礎マスター
@@ -123,4 +124,4 @@ python -m game_core.stage13c2_audit \
 展開済みの `data/`, `phase2_engine/`, `tests/` を正本とする。`archive/snapshots/` のZIPは復旧用で、日常編集には使用しない。
 
 ## 次工程
-正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13E-3E-1でfull-season live runtimeのsave/load contractを実装した。save v1はPython objectを直接保存せず、plan fingerprint・season clock・processed dates・完了試合結果・dependency状態・activated_on・resolver contractをJSONへ保存し、load時にfresh runtimeをdeterministic replayしてscore・ability detail・public snapshotまで完全照合する。7/28当日未処理状態の宮城夏→秋dependencyを保存・復元し、復元後play_todayで同じ秋大会がactivateすること、activate後のfile roundtripと将来進行が一致することを確認済み。checksum、plan変更、resolver変更、結果改ざんはいずれもload拒否する。次工程Stage 13E-3E-2ではsave slot manager・autosave・rolling backup・new/load/save game facadeを追加し、ゲーム起動と永続化の正式service contractを固定する。pre-MAIN 49 stageの正確日付research_pending→verified化は並行調査として継続する。Stage 13D-3 GUI実ウィンドウ確認と秋季実績Stage 12O dueキューは後追い可能。
+正式GUIの大規模作り込みはいったん保留し、ゲーム中核機能を優先する。Stage 13E-3E-2でSaveSlotManagerとLiveGameServiceを追加し、save/load v1をゲーム操作へ接続した。1 slot内にmanual.json / autosave.jsonと独立したrolling backup chainを持ち、latestはgame current_date→processed count→autosave priorityで決定する。LiveGameServiceはnew_game / load_game / save_game / autosave_game / play_today / next_day / advance_to / advance_through / list_games / delete_gameを提供し、日付操作後は既定でautosaveする。旧manual backupからの復旧、manual/autosave独立世代、slot traversal拒否、実full-season 162大会のnew_game＋initial saveまで回帰済み。次工程Stage 13E-3E-3ではgame service CLI、user-facing save metadata、recovery/migration contractを追加し、正式GUIから利用する起動・続きから・復旧UIの前提を固定する。pre-MAIN 49 stageの正確日付research_pending→verified化は並行調査として継続する。Stage 13D-3 GUI実ウィンドウ確認と秋季実績Stage 12O dueキューは後追い可能。

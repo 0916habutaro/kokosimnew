@@ -87,6 +87,17 @@ from .stage_calendar import (
     stage_date_lists_by_competition,
     validate_competition_stage_calendar,
 )
+from .live_game_service import (
+    LiveGameService,
+    LiveGameSession,
+)
+from .save_slots import (
+    SAVE_KIND_AUTOSAVE,
+    SAVE_KIND_MANUAL,
+    SaveSlotFile,
+    SaveSlotManager,
+    SaveSlotSummary,
+)
 from .live_season_save import (
     DEFAULT_RESOLVER_CONTRACT,
     SAVE_SCHEMA_VERSION,
@@ -95,6 +106,7 @@ from .live_season_save import (
     LiveSeasonSaveReplayError,
     LiveSeasonSaveSchemaError,
     create_live_season_save,
+    inspect_live_season_save,
     plan_fingerprint,
     read_live_season_save,
     restore_live_season_save,

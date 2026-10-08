@@ -545,6 +545,51 @@ def write_live_season_save(
     return payload
 
 
+def inspect_live_season_save(
+    path: str | Path,
+) -> dict:
+    source = Path(path)
+    try:
+        payload = json.loads(
+            source.read_text(
+                encoding="utf-8"
+            )
+        )
+    except (
+        OSError,
+        json.JSONDecodeError,
+    ) as exc:
+        raise LiveSeasonSaveSchemaError(
+            f"cannot read save file: {source}"
+        ) from exc
+    data = _validate_save_payload(payload)
+    return {
+        "schema_version": data["schema_version"],
+        "year": data["year"],
+        "rng_seed": data["rng_seed"],
+        "resolver_contract": (
+            data["resolver_contract"]
+        ),
+        "start_date": data["start_date"],
+        "current_date": data["current_date"],
+        "processed_date_count": len(
+            data["processed_dates"]
+        ),
+        "completed_match_count": len(
+            data["completed_match_results"]
+        ),
+        "plan_fingerprint": (
+            data["plan_fingerprint"]
+        ),
+        "payload_checksum": (
+            data["payload_checksum"]
+        ),
+        "runtime_summary": _json_copy(
+            data["runtime_summary"]
+        ),
+    }
+
+
 def read_live_season_save(
     path: str | Path,
     planner: LiveSeasonGraphPlanner,
