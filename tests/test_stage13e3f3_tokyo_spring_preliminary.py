@@ -53,10 +53,10 @@ class Stage13E3F3TokyoSpringPreliminaryTests(unittest.TestCase):
         self.assertEqual("verified", stages["SC2026018"]["date_status"])
         self.assertEqual("resolved", queue["RS2026021"]["status"])
         self.assertEqual("verified", stages["SC2026045"]["date_status"])
-        self.assertEqual("needs_research", queue["RS2026001"]["status"])
-        self.assertEqual("research_pending", stages["SC2026001"]["date_status"])
+        self.assertEqual("resolved", queue["RS2026001"]["status"])
+        self.assertEqual("verified", stages["SC2026001"]["date_status"])
         self.assertEqual(
-            1,
+            0,
             sum(r["date_status"] == "research_pending" for r in stages.values()),
         )
 
