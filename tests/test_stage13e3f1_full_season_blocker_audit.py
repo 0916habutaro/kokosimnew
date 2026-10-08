@@ -63,21 +63,21 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             summary["competition_count"],
         )
         self.assertEqual(
-            139,
+            140,
             summary[
                 "completed_competition_count"
             ],
         )
         self.assertEqual(
-            23,
+            22,
             summary[
                 "blocked_competition_count"
             ],
         )
         self.assertEqual(
             {
-                BLOCKER_CALENDAR_GAP: 17,
-                BLOCKER_COMPLETE: 139,
+                BLOCKER_CALENDAR_GAP: 16,
+                BLOCKER_COMPLETE: 140,
                 BLOCKER_WAITING_DEPENDENCY: 6,
             },
             summary["blocker_counts"],
@@ -122,7 +122,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             summary["priority_counts"],
         )
         self.assertEqual(
-            17,
+            16,
             summary[
                 "direct_calendar_gap_competition_count"
             ],
@@ -164,7 +164,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             ],
         )
         self.assertEqual(
-            17,
+            16,
             summary["action_count"],
         )
         self.assertEqual(
@@ -347,7 +347,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
         self.assertEqual((), kanagawa.resolution_failures)
         self.assertEqual((), aichi.resolution_failures)
         self.assertEqual(BLOCKER_CALENDAR_GAP, kanagawa.blocker_kind)
-        self.assertEqual(BLOCKER_CALENDAR_GAP, aichi.blocker_kind)
+        self.assertEqual(BLOCKER_COMPLETE, aichi.blocker_kind)
 
         action_by_id = {
             row.action_id: row
