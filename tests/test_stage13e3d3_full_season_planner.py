@@ -92,13 +92,13 @@ class Stage13E3D3FullSeasonPlannerTests(
             summary["season_segment_counts"],
         )
         self.assertEqual(
-            8,
+            7,
             summary[
                 "stage_calendar_pending_count"
             ],
         )
         self.assertEqual(
-            42,
+            43,
             summary[
                 "stage_calendar_verified_count"
             ],
