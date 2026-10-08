@@ -104,10 +104,10 @@ class Stage13E3G11HiroshimaAccessTests(unittest.TestCase):
             self.assertEqual(31, len(run.stage_executions[0].output_school_ids))
             self.assertEqual(6, len(run.stage_executions[0].metadata["group_outputs"]["SGR000140"]))
 
-    def test_22_unproven_qualification_games_are_not_fabricated(self):
+    def test_no_remaining_unproven_qualification_games_in_secondary_roster(self):
         queue = _read(MISSING)
-        self.assertEqual(22, len(queue))
-        self.assertEqual(22, len({(x["season"],x["district_code"],x["school_name"]) for x in queue}))
+        self.assertEqual(0, len(queue))
+        self.assertEqual(0, len({(x["season"],x["district_code"],x["school_name"]) for x in queue}))
         self.assertTrue(all(x["status"] == "award_match_not_yet_documented" for x in queue))
 
 

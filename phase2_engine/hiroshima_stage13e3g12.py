@@ -83,7 +83,7 @@ def audit_2026_hiroshima_stage13e3g12(data_dir: str | Path) -> dict:
 
     if len(evidence) != 24 or set(counts) != REGIONS or set(counts.values()) != {8}:
         errors.append(f"expected 8 new award games from each of 3 groups, found {dict(counts)}")
-    if len(matches) != 61 or len(historical_awards) != 41:
+    if len(matches) != 83 or len(historical_awards) != 63:
         errors.append("Stage 13E-3G-12 match total or unique qualification locks changed")
     expected_missing = {
         (r["season"], r["district_code"], r["school_name"])
@@ -95,7 +95,7 @@ def audit_2026_hiroshima_stage13e3g12(data_dir: str | Path) -> dict:
         (r["season"], r["district_code"], r["school_name"])
         for r in queue
     }
-    if actual_missing != expected_missing or len(queue) != 22:
+    if actual_missing != expected_missing or len(queue) != 0:
         errors.append(f"remaining gap queue and qualifying roster differ: {len(queue)}")
     if len(actual_missing) != len(queue):
         errors.append("remaining gap queue contains duplicate schools")

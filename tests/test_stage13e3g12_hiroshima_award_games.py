@@ -44,9 +44,9 @@ class Stage13E3G12BerthGameEvidenceTests(unittest.TestCase):
         r = audit_2026_hiroshima_stage13e3g12(ROOT)
         self.assertTrue(r["ok"], r["errors"])
         self.assertEqual(24, r["supplemental_qualifying_games"])
-        self.assertEqual(61, r["cumulative_dated_matches"])
-        self.assertEqual(41, r["cumulative_evidenced_qualification_events"])
-        self.assertEqual(22, r["remaining_unlinked_qualifying_schools"])
+        self.assertEqual(83, r["cumulative_dated_matches"])
+        self.assertEqual(63, r["cumulative_evidenced_qualification_events"])
+        self.assertEqual(0, r["remaining_unlinked_qualifying_schools"])
         self.assertTrue(r["historic_match_timeline_pass"])
         self.assertTrue(r["prefectural_roster_pass"])
 
@@ -105,7 +105,7 @@ class Stage13E3G12BerthGameEvidenceTests(unittest.TestCase):
     def test_queue_tampering_is_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td);_copy(root)
-            _modify(root, QUEUE_FILE, lambda rr: rr[0].update(school_name="近大福山"))
+            _modify(root, QUEUE_FILE, lambda rr: rr.append(dict(gap_id="HG20269999",season="spring",district_code="east",school_name="近大福山",roster_id="HB20260025",status="award_match_not_yet_documented",needed_evidence="dated_berth_decider_or_exemption_proof",source_url="https://example.org")))
             report = audit_2026_hiroshima_stage13e3g12(root)
             self.assertFalse(report["ok"])
             self.assertTrue(any("remaining gap queue" in e for e in report["errors"]))
