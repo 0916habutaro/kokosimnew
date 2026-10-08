@@ -66,7 +66,7 @@ class TournamentEngine:
 
         Stage 13E-3B-2 supports FMT001/FMT005/FMT006 and the composite
         qualifier models FMT002-004, FMT007-008, FMT010-017 and FMT025.
-        Seed-event graphs remain Stage 13E-3B-3 scope.
+        Seed-event graphs use prepare_seeded_competition_runtime().
         """
         from .premain_competition_runtime import QualifierMainRuntimeState
         from .premain_runtime_composite import COMPOSITE_QUALIFIER_MODELS
@@ -134,6 +134,129 @@ class TournamentEngine:
             warnings=warnings,
             pre_main_match_resolver=self.pre_main_match_resolver,
             main_match_resolver=self.main_match_resolver,
+        )
+
+    def prepare_seeded_competition_runtime(
+        self,
+        annual: AnnualCompetitionInput,
+    ):
+        """Prepare SEED_EVENT based competition graphs lazily.
+
+        Stage 13E-3B-3 covers:
+        - SEED_EVENT -> MAIN
+        - SEED_EVENT -> FIRST_TOURNAMENT(FMT026) -> MAIN
+        - SEED_EVENT -> qualifier -> MAIN
+        """
+        from .premain_graph_runtime import (
+            SeededCompetitionRuntimeState,
+        )
+
+        entrants = self._validate_entrants(annual)
+        direct = self._validate_direct_entries(
+            annual,
+            entrants,
+        )
+        stage_by_code = {
+            row["stage_code"]: row
+            for row in self.repo.stages(
+                annual.competition_id
+            )
+        }
+        if (
+            "SEED_EVENT" not in stage_by_code
+            or "MAIN" not in stage_by_code
+        ):
+            raise ValueError(
+                "prepare_seeded_competition_runtime requires "
+                "SEED_EVENT and MAIN"
+            )
+
+        allowed = {
+            "SEED_EVENT",
+            "MAIN",
+            "FIRST_TOURNAMENT",
+            "BRANCH_QUALIFIER",
+            "PRELIMINARY_QUALIFIER",
+        }
+        unexpected = set(stage_by_code) - allowed
+        if unexpected:
+            raise ValueError(
+                "unsupported seeded runtime stages: "
+                f"{sorted(unexpected)}"
+            )
+        qualifier_codes = [
+            code
+            for code in (
+                "BRANCH_QUALIFIER",
+                "PRELIMINARY_QUALIFIER",
+            )
+            if code in stage_by_code
+        ]
+        if len(qualifier_codes) > 1:
+            raise ValueError(
+                "seeded runtime supports at most one qualifier stage"
+            )
+        if (
+            "FIRST_TOURNAMENT" in stage_by_code
+            and qualifier_codes
+        ):
+            raise ValueError(
+                "seeded runtime cannot combine FIRST_TOURNAMENT "
+                "and qualifier stage"
+            )
+
+        qualifier_entrants = []
+        qualifier_warnings = []
+        if qualifier_codes:
+            qualifier_entrants, qualifier_warnings = (
+                self._qualifier_entrants_after_access_rules(
+                    annual,
+                    entrants,
+                    direct,
+                )
+            )
+
+        return SeededCompetitionRuntimeState.create(
+            repo=self.repo,
+            annual=annual,
+            entrants=entrants,
+            direct=direct,
+            stage_by_code=stage_by_code,
+            qualifier_entrants=qualifier_entrants,
+            qualifier_warnings=qualifier_warnings,
+            pre_main_match_resolver=(
+                self.pre_main_match_resolver
+            ),
+            main_match_resolver=self.main_match_resolver,
+        )
+
+    def prepare_competition_runtime(
+        self,
+        annual: AnnualCompetitionInput,
+    ):
+        """Dispatch the resumable runtime for the competition graph."""
+        stage_codes = {
+            row["stage_code"]
+            for row in self.repo.stages(
+                annual.competition_id
+            )
+        }
+        if stage_codes == {"MAIN"}:
+            return self.prepare_main_runtime(annual)
+        if "SEED_EVENT" in stage_codes:
+            return self.prepare_seeded_competition_runtime(
+                annual
+            )
+        if "MAIN" in stage_codes and (
+            "BRANCH_QUALIFIER" in stage_codes
+            or "PRELIMINARY_QUALIFIER" in stage_codes
+        ):
+            return self.prepare_qualifier_main_runtime(
+                annual
+            )
+        raise NotImplementedError(
+            "Stage 13E runtime does not support "
+            f"competition graph {sorted(stage_codes)}"
         )
 
     def _pre_main_resolution_kwargs(self, annual: AnnualCompetitionInput) -> dict:
