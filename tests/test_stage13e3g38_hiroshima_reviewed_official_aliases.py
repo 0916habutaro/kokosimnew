@@ -188,6 +188,7 @@ class Stage13E3G38ReviewedAliases(unittest.TestCase):
             "new_names":report["newly_resolved_names"],
             "still_unresolved":report["still_unresolved_names"],
             "total":report["total_verified_master_ids"],
+            "verified_map":report["verified_map"],
         })
 
     def test_real_pilot_master_details_obey_verified_status_and_fictional_block(self):
