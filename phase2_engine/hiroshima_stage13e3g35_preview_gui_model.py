@@ -24,8 +24,9 @@ from .hiroshima_match_level_2026 import _read
 from .hiroshima_stage13e3g25 import NODES_FILE, EDGES_FILE
 from .hiroshima_stage13e3g31 import replay_stage25_historical_observations
 from .hiroshima_stage13e3g32 import EXAMPLE_SANDBOX_FILE, EXAMPLE_OBSERVED_FILE
-from .hiroshima_stage13e3g37_school_master import (
-    SchoolMasterPreviewLink, load_2026_hiroshima_west_school_links,
+from .hiroshima_stage13e3g37_school_master import SchoolMasterPreviewLink
+from .hiroshima_stage13e3g38_reviewed_aliases import (
+    load_2026_hiroshima_west_school_links_stage38,
 )
 
 FICTIONAL = "fictional"
@@ -126,7 +127,7 @@ class HiroshimaPreviewGuiModel:
             payload, snapshot.checkpoint, data_dir=source_root
         )
         links = (
-            load_2026_hiroshima_west_school_links(self.data_dir)
+            load_2026_hiroshima_west_school_links_stage38(self.data_dir).links
             if scenario_id == OBSERVED_2026_WEST else {}
         )
         self.scenario_id, self.payload = scenario_id, payload
