@@ -26,6 +26,7 @@ from .hiroshima_stage13e3g38_reviewed_aliases import (
 )
 
 REVIEW_FILE = "research/2026/hiroshima_west_remaining11_official_name_candidates_stage13e3g39.csv"
+VERIFIED_IDS_FILE = "research/2026/hiroshima_west_verified_school_master_ids_stage13e3g39.csv"
 OUTCOME = "externally_reviewed_unique_official_name_2026_stage39"
 DECISION = "reviewed_official_name_candidate_only"
 PROOF_SCOPE = "not_2026_federation_draw_confirmation"
@@ -190,6 +191,26 @@ def audit_2026_hiroshima_stage13e3g39(data_dir: str | Path) -> dict:
     if any(x.official_2026_draw_verified or x.live_fmt025_runtime_enabled
            for x in links.values()):
         errors.append("school identity evidence cannot unblock production FMT025")
+    registered = _read(root, VERIFIED_IDS_FILE)
+    indexed = {row["observed_name"]: row for row in registered}
+    prior37 = {"山陽","広島城北"}
+    prior38 = {"修大協創","広島工大","宮島工","広島商","広島国泰寺"}
+    if len(registered) != 18 or len(indexed) != 18 or set(indexed) != set(links):
+        errors.append("all 18 distinct school identities must be recorded")
+    for name, sid in verified.items():
+        row = indexed.get(name,{})
+        expected_stage = (
+            "stage37" if name in prior37 else
+            "stage38" if name in prior38 else "stage39"
+        )
+        if (row.get("school_id") != sid
+                or row.get("verification_stage") != expected_stage
+                or row.get("reference_year") != REFERENCE_YEAR
+                or row.get("verification_basis") !=
+                    "ci_verified_unique_2026_active_hardball_master"):
+            errors.append(f"verified ID record changed for {name}")
+    if set(verified) != set(indexed):
+        errors.append("verified master list cannot omit or invent a school")
     return {
         "ok":not errors,"errors":errors,
         "2026_west_observed_names":len(links),
