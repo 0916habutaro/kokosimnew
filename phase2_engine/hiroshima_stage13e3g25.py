@@ -220,6 +220,9 @@ def audit_2026_hiroshima_stage13e3g25(data_dir: str | Path) -> dict:
         start_nodes += heads
     if start_nodes != 18 or sum(indegree.values()) != 32 or sum(outdegree.values()) != 32:
         errors.append("18 entrants and 32 chronological connected edges required")
+    if kinds != {"WIN_PRIMARY_TO_PRIMARY": 10, "LOSS_PRIMARY_TO_REPECHAGE": 14,
+                 "WIN_REPECHAGE_TO_REPECHAGE": 8}:
+        errors.append(f"expected 10 primary wins, 14 primary losses, 8 repechage advances: {kinds}")
     if set(edge["transition_id"] for edge in edges) != set(observation_by_id):
         errors.append("32 observed transition IDs do not match Stage18 ledger")
 
