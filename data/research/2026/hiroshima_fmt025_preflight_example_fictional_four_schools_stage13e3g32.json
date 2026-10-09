@@ -1,0 +1,59 @@
+{
+  "contract_version": "fmt025-explicit-input-v1",
+  "execution_intent": "read_only_preflight",
+  "format_model_id": "FMT025",
+  "direct_main_entry_ids": [],
+  "official_draw_verified": false,
+  "official_loser_selector_verified": false,
+  "release_approved": false,
+  "optional_ranking_requested": false,
+  "source_kind": "fictional_inline",
+  "year": null,
+  "season": null,
+  "district_code": null,
+  "stage_group_id": "SANDBOX",
+  "qualifier_slots": 3,
+  "entrant_ids": [
+    "A",
+    "B",
+    "C",
+    "D"
+  ],
+  "matches": [
+    {
+      "match_id": "P1",
+      "phase": "PRIMARY",
+      "left_source": "entrant:A",
+      "right_source": "entrant:B",
+      "winner_to_match": null,
+      "loser_to_match": "R1",
+      "winner_awards_berth": true,
+      "loser_retry_authorized": false
+    },
+    {
+      "match_id": "P2",
+      "phase": "PRIMARY",
+      "left_source": "entrant:C",
+      "right_source": "entrant:D",
+      "winner_to_match": null,
+      "loser_to_match": "R1",
+      "winner_awards_berth": true,
+      "loser_retry_authorized": false
+    },
+    {
+      "match_id": "R1",
+      "phase": "REPECHAGE_ZONE",
+      "left_source": "loser:P1",
+      "right_source": "loser:P2",
+      "winner_to_match": null,
+      "loser_to_match": null,
+      "winner_awards_berth": true,
+      "loser_retry_authorized": false
+    }
+  ],
+  "winners_by_match": {
+    "P1": "A",
+    "P2": "C",
+    "R1": "B"
+  }
+}
