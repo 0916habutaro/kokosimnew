@@ -1,0 +1,5 @@
+stage,completed,ready,waiting,visible_schools,confirmed_qualifiers,remaining_berths,replay_completed
+start,0,2,1,4,0,3,no
+after_P1,1,1,1,4,1,2,no
+after_P2,2,1,0,4,2,1,no
+after_R1,3,0,0,4,3,0,yes
