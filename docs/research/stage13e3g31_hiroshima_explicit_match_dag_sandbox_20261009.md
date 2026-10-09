@@ -19,12 +19,12 @@
 - 既に県大会枠を得た勝者の再出場、県大会定員の不足・重複・超過、一次勝者が敗者復活へ移動する矛盾を禁止。
 - これらはあくまでプログラム上の不正状態チェックであり、**広島県の年度固有の再挑戦条件がそう定まっているという証拠ではない**。
 
-## 仮想データ8試合での検証
+## 仮想データ9試合での検証
 
 `data/research/2026/hiroshima_explicit_match_sandbox_examples_stage13e3g31.csv`
 
 1. `simple_four_entrants`：架空A～Dの一次予選2試合→それぞれの敗者による敗者復活1試合の計3試合。県大会出場3枠の枠保存。
-2. `conditional_six_entrants`：架空A～Fの一次3試合、通常敗者復活1試合、**あらかじめ明示された**追加再挑戦1試合の計5試合。敗者復活戦での敗戦者が次の条件付きゲートへ進む場合をSandboxに限定して再生。
+2. `conditional_six_entrants`：架空A～Fの一次3試合、通常敗者復活2試合、**あらかじめ明示された**追加再挑戦1試合の計6試合。一次敗者は必ず通常敗者復活戦に入り、その敗戦者に対してのみ事前指定した再挑戦を許可する。敗者復活戦での敗戦者が次の条件付きゲートへ進む場合をSandboxに限定して再生。
 
 いずれも仮想IDであり、実際の2026広島の全校配置・年度共通の再抽選ポリシーではない。seedによる初期校仮配置はStage20・26の独立処理を使用可能だが、本モジュールは新たな乱数抽選を実行しない。
 
@@ -45,8 +45,8 @@ Stage28の公式番号25件・公式矢印32件の確認待ちを全件保留、
 ## 新規ファイル・テスト
 
 - `phase2_engine/hiroshima_explicit_match_dag_sandbox.py`：純粋な試合DAG再生
-- `phase2_engine/hiroshima_stage13e3g31.py`：仮想3試合・5試合の再生監査＋2026秋西二次結果25試合の機械的再生
-- `data/research/2026/hiroshima_explicit_match_sandbox_examples_stage13e3g31.csv`：仮想試作例8試合
+- `phase2_engine/hiroshima_stage13e3g31.py`：仮想3試合・6試合の再生監査＋2026秋西二次結果25試合の機械的再生
+- `data/research/2026/hiroshima_explicit_match_sandbox_examples_stage13e3g31.csv`：仮想試作例9試合
 - `tests/test_stage13e3g31_hiroshima_explicit_match_dag.py`：正常ケース、二重出場、勝敗誤指定、無断移動、未来参照、再挑戦の誤解禁、枠不足、原本未確認の誤認などを検出
 - `data/research/2026/research_pending_queue.csv`：進捗と公式規則の未確認事項を保存
 
