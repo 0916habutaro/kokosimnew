@@ -116,7 +116,16 @@ class Stage13D3BrowseApp(Stage12UBrowseApp):
         from .hiroshima_stage13e3g35_preview_gui import (
             open_hiroshima_preview_window,
         )
-        open_hiroshima_preview_window(self.root, self.model.data_dir)
+        try:
+            open_hiroshima_preview_window(self.root, self.model.data_dir)
+        except (OSError, ValueError, TypeError) as exc:
+            from tkinter import messagebox
+
+            messagebox.showerror(
+                "予選進行プレビューの読込エラー",
+                str(exc),
+                parent=self.root,
+            )
 
     def _build_school_tab(self) -> None:
         super()._build_school_tab()
