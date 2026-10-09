@@ -53,6 +53,11 @@ def audit_2026_hiroshima_stage13e3g33(data_dir: str | Path) -> dict:
         events = manifest["events"]
         if len(events) != 4:
             errors.append("initial and three result-confirmation snapshots required")
+        elif [(r.get("after_match_id"), r.get("recorded_winner_id"))
+              for r in events] != [
+                  (None, None), ("P1", "A"), ("P2", "C"), ("R1", "B")
+              ]:
+            errors.append("fictional input event ordering or oracle winners were altered")
         state = start_read_only_preview(payload)
         for idx, event in enumerate(events):
             if idx > 0:
