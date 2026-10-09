@@ -27,7 +27,7 @@ SCENARIOS = {
     "simple_four_entrants": ("primary_then_repechage", ("A","B","C","D"), 3, 0,
                             ("A","C","B")),
     "conditional_six_entrants": ("explicit_conditional_retry", ("A","B","C","D","E","F"),
-                                5, 1, ("A","C","E","B","D")),
+                                5, 2, ("A","C","E","B","D")),
 }
 KNOWN_AUTUMN_WEST_2026_QUALIFIERS = frozenset(
     ("広島商", "山陽", "広島国泰寺", "崇徳", "広島井口", "基町", "広島工大")
@@ -138,7 +138,7 @@ def audit_2026_hiroshima_stage13e3g31(data_dir: str | Path) -> dict:
         errors.append("official transfer formula cannot be inferred from sandbox")
 
     example_counts = Counter(x["scenario_id"] for x in examples)
-    if example_counts != {"simple_four_entrants": 3, "conditional_six_entrants": 5}:
+    if example_counts != {"simple_four_entrants": 3, "conditional_six_entrants": 6}:
         errors.append(f"two separate fictional DAG examples with 3/5 matches required: {example_counts}")
     sandbox_runs = {}
     for name, (kind, entrants, quota, retry_count, winners) in SCENARIOS.items():
