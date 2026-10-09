@@ -1,0 +1,81 @@
+{
+  "scenario": "fictional_stage32_4_schools",
+  "input_file": "research/2026/hiroshima_fmt025_preflight_example_fictional_four_schools_stage13e3g32.json",
+  "checkpoint_version": "fmt025-read-only-checkpoint-v1",
+  "type": "historical_outcome_reveal_not_new_game_simulation",
+  "events": [
+    {
+      "after_match_id": null,
+      "recorded_winner_id": null,
+      "ready_match_ids": [
+        "P1",
+        "P2"
+      ],
+      "waiting_match_ids": [
+        "R1"
+      ],
+      "played_match_ids": [],
+      "confirmed_qualifier_ids": [],
+      "remaining_qualifier_slots": 3,
+      "replay_completed": false
+    },
+    {
+      "after_match_id": "P1",
+      "recorded_winner_id": "A",
+      "ready_match_ids": [
+        "P2"
+      ],
+      "waiting_match_ids": [
+        "R1"
+      ],
+      "played_match_ids": [
+        "P1"
+      ],
+      "confirmed_qualifier_ids": [
+        "A"
+      ],
+      "remaining_qualifier_slots": 2,
+      "replay_completed": false
+    },
+    {
+      "after_match_id": "P2",
+      "recorded_winner_id": "C",
+      "ready_match_ids": [
+        "R1"
+      ],
+      "waiting_match_ids": [],
+      "played_match_ids": [
+        "P1",
+        "P2"
+      ],
+      "confirmed_qualifier_ids": [
+        "A",
+        "C"
+      ],
+      "remaining_qualifier_slots": 1,
+      "replay_completed": false
+    },
+    {
+      "after_match_id": "R1",
+      "recorded_winner_id": "B",
+      "ready_match_ids": [],
+      "waiting_match_ids": [],
+      "played_match_ids": [
+        "P1",
+        "P2",
+        "R1"
+      ],
+      "confirmed_qualifier_ids": [
+        "A",
+        "C",
+        "B"
+      ],
+      "remaining_qualifier_slots": 0,
+      "replay_completed": true
+    }
+  ],
+  "source_authority": "fictional_dry_run_only",
+  "official_annual_draw_verified": false,
+  "live_fmt025_runtime_enabled": false,
+  "optional_ranking_enabled": false
+}
