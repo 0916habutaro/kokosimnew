@@ -51,9 +51,12 @@ def retry_example():
         ExplicitMatch("P3","entrant:E","entrant:F","PRIMARY",
                       loser_to_match="R2", winner_awards_berth=True),
         ExplicitMatch("R1","loser:P1","loser:P2","REPECHAGE_ZONE",
-                      loser_to_match="R2", loser_retry_authorized=True,
+                      winner_to_match="R2", loser_to_match="R3",
+                      loser_retry_authorized=True),
+        ExplicitMatch("R2","winner:R1","loser:P3","REPECHAGE_ZONE",
+                      loser_to_match="R3", loser_retry_authorized=True,
                       winner_awards_berth=True),
-        ExplicitMatch("R2","loser:R1","loser:P3","CONDITIONAL_RETRY",
+        ExplicitMatch("R3","loser:R1","loser:R2","CONDITIONAL_RETRY",
                       winner_awards_berth=True),
     )
 
@@ -62,7 +65,7 @@ def retry_replay(**changes):
     kwargs = {
         "entrant_ids": ("A","B","C","D","E","F"),
         "matches": retry_example(),
-        "winners_by_match": {"P1":"A","P2":"C","P3":"E","R1":"B","R2":"D"},
+        "winners_by_match": {"P1":"A","P2":"C","P3":"E","R1":"B","R2":"B","R3":"D"},
         "qualifier_slots": 5,
     }
     kwargs.update(changes)
@@ -96,9 +99,9 @@ class Stage13E3G31ExplicitOutcomeDagTests(unittest.TestCase):
     def test_conditional_retry_is_possible_only_on_named_gate(self):
         replay = retry_replay()
         self.assertEqual(replay.qualifier_ids, ("A","C","E","B","D"))
-        self.assertEqual(replay.retried_loser_ids, ("D",))
-        self.assertEqual(replay.consumed_declared_outcome_transfers, 4)
-        self.assertEqual(len(replay.match_traces), 5)
+        self.assertEqual(replay.retried_loser_ids, ("D","F"))
+        self.assertEqual(replay.consumed_declared_outcome_transfers, 6)
+        self.assertEqual(len(replay.match_traces), 6)
         self.assertFalse(replay.official_draw_verified)
 
     def test_exempt_direct_main_entrant_kept_separate(self):
@@ -187,11 +190,11 @@ class Stage13E3G31ExplicitOutcomeDagTests(unittest.TestCase):
 
     def test_secondary_loser_cannot_go_to_primary_or_regular_repechage(self):
         altered = list(retry_example())
-        altered[4] = replace(altered[4], phase="REPECHAGE_ZONE")
+        altered[5] = replace(altered[5], phase="REPECHAGE_ZONE")
         with self.assertRaises(ExplicitMatchReplayError):
             retry_replay(matches=tuple(altered))
         altered = list(retry_example())
-        altered[4] = replace(altered[4], phase="PRIMARY")
+        altered[5] = replace(altered[5], phase="PRIMARY")
         with self.assertRaises(ExplicitMatchReplayError):
             retry_replay(matches=tuple(altered))
 
@@ -222,8 +225,8 @@ class Stage13E3G31ExplicitOutcomeDagTests(unittest.TestCase):
         self.assertEqual(report["fictional_sandbox_scenarios"], {
             "simple_four_entrants": {"matches": 3, "qualifiers": 3,
                                       "conditional_retries": 0},
-            "conditional_six_entrants": {"matches": 5, "qualifiers": 5,
-                                         "conditional_retries": 1},
+            "conditional_six_entrants": {"matches": 6, "qualifiers": 5,
+                                         "conditional_retries": 2},
         })
         self.assertEqual(report["observed_2026_west_replay_matches"], 25)
         self.assertEqual(report["observed_2026_west_replay_initial_entrants"], 18)
