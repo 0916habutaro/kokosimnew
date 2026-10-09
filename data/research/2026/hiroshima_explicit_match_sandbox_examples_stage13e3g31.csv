@@ -1,0 +1,9 @@
+scenario_id,scenario_kind,match_order,match_id,phase,left_source,right_source,winner_to_match,loser_to_match,winner_awards_berth,loser_retry_authorized,declared_winner,proof_scope,official_2026_bracket_verified,live_fmt025_enabled,optional_ranking_enabled
+simple_four_entrants,primary_then_repechage,1,P1,PRIMARY,entrant:A,entrant:B,,R1,yes,no,A,hypothetical_fictional_ids_no_federation_rule,no,no,no
+simple_four_entrants,primary_then_repechage,2,P2,PRIMARY,entrant:C,entrant:D,,R1,yes,no,C,hypothetical_fictional_ids_no_federation_rule,no,no,no
+simple_four_entrants,primary_then_repechage,3,R1,REPECHAGE_ZONE,loser:P1,loser:P2,,,yes,no,B,hypothetical_fictional_ids_no_federation_rule,no,no,no
+conditional_six_entrants,explicit_conditional_retry,1,P1,PRIMARY,entrant:A,entrant:B,,R1,yes,no,A,hypothetical_fictional_ids_no_federation_rule,no,no,no
+conditional_six_entrants,explicit_conditional_retry,2,P2,PRIMARY,entrant:C,entrant:D,,R1,yes,no,C,hypothetical_fictional_ids_no_federation_rule,no,no,no
+conditional_six_entrants,explicit_conditional_retry,3,P3,PRIMARY,entrant:E,entrant:F,,R2,yes,no,E,hypothetical_fictional_ids_no_federation_rule,no,no,no
+conditional_six_entrants,explicit_conditional_retry,4,R1,REPECHAGE_ZONE,loser:P1,loser:P2,,R2,yes,yes,B,hypothetical_fictional_ids_no_federation_rule,no,no,no
+conditional_six_entrants,explicit_conditional_retry,5,R2,CONDITIONAL_RETRY,loser:R1,loser:P3,,,yes,no,D,hypothetical_fictional_ids_no_federation_rule,no,no,no
