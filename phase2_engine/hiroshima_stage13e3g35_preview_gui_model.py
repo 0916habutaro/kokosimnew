@@ -124,12 +124,15 @@ class HiroshimaPreviewGuiModel:
         self.scenario_id, self.payload = scenario_id, payload
         self.snapshot, self._source_winners, self._view = snapshot, winners, view
 
-    def show_next_preapproved_result(self) -> str | None:
-        """Button action: reveal one pre-existing result; never compute games."""
+    def show_preapproved_result_for_match(self, match_id: str) -> str:
+        """Reveal a *specific ready* recorded result without simulating it.
+
+        The selected match need not be the first ready match: parallel
+        initial-stage fixtures may be inspected in either order.
+        """
         assert self.snapshot is not None
-        if not self.snapshot.ready_match_ids:
-            return None
-        match_id = self.snapshot.ready_match_ids[0]
+        if type(match_id) is not str or match_id not in self.snapshot.ready_match_ids:
+            raise PreviewGuiModelError("selected match is unready, completed or unknown")
         new_snapshot = record_preapproved_match_result(
             self.payload,
             self.snapshot.checkpoint,
@@ -142,6 +145,31 @@ class HiroshimaPreviewGuiModel:
         )
         self.snapshot, self._view = new_snapshot, view
         return match_id
+
+    def show_next_preapproved_result(self) -> str | None:
+        """Button action: reveal one pre-existing result; never compute games."""
+        assert self.snapshot is not None
+        if not self.snapshot.ready_match_ids:
+            return None
+        return self.show_preapproved_result_for_match(self.snapshot.ready_match_ids[0])
+
+    def search_visible_school_ids(self, query: str) -> tuple[str, ...]:
+        """Case-insensitive partial search, but only among currently visible schools.
+
+        A future `waiting` match cannot expose its participants via search.
+        This uses the same revalidated school read-model as normal rendering.
+        """
+        if type(query) is not str or len(query) > 100:
+            raise PreviewGuiModelError("school query must be a string of at most 100 characters")
+        assert self.snapshot is not None
+        view = build_fmt025_preview_browse_views(
+            self.payload, self.snapshot.checkpoint, data_dir=self._source_root()
+        )
+        needle = query.strip().casefold()
+        return tuple(
+            s.school_id for s in view.school_records
+            if needle in s.school_name.casefold() or needle in s.school_id.casefold()
+        )
 
     def reset_preview(self) -> None:
         self.set_scenario(self.scenario_id)
