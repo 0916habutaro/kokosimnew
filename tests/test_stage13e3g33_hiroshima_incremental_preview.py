@@ -230,10 +230,11 @@ class Stage13E3G33IncrementalStateTests(unittest.TestCase):
             shutil.copytree(DATA,root)
             target=root/EDGES_FILE
             raw=target.read_text(encoding="utf-8")
-            # Swapping record order does not change the observed historical
-            # transfer set, but does affect the topology fingerprint.
+            # Swap the two feeders of the same downstream match. The set
+            # of observations is unchanged but its ordered provenance
+            # topology differs and must invalidate the old checkpoint.
             rows=raw.splitlines()
-            rows[1],rows[2]=rows[2],rows[1]
+            rows[2],rows[24]=rows[24],rows[2]
             target.write_text("\n".join(rows)+"\n",encoding="utf-8")
             with self.assertRaises(IncrementalPreviewError):
                 inspect_read_only_preview(observed(),original.checkpoint,data_dir=root)
