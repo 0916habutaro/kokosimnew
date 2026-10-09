@@ -149,66 +149,6 @@ def _guard_checkpoint(checkpoint: PreviewCheckpoint, preflight, topology_hash: s
         raise IncrementalPreviewError("checkpoint event sequence is invalid")
 
 
-def _evaluate_checkpoint(checkpoint, preflight, full, dependencies):
-    _guard_checkpoint(checkpoint, preflight, _evaluate_checkpoint.topology_hash)
-    oracle = {t.match_id: t for t in full.match_traces}
-    completed: dict[str, str] = {}
-    for match_id, winner in checkpoint.applied_results:
-        if match_id not in oracle or match_id in completed:
-            raise IncrementalPreviewError("repeated or unknown recorded match event")
-        if not set(dependencies[match_id]).issubset(completed):
-            raise IncrementalPreviewError("cannot record match before its incoming results")
-        if winner != oracle[match_id].winner_id:
-            raise IncrementalPreviewError("winner differs from the Stage32 preapproved result")
-        completed[match_id] = winner
-    match_status = []
-    waiting = []
-    ready = []
-    played = []
-    qualifiers = []
-    for trace in full.match_traces:
-        match_id = trace.match_id
-        if match_id in completed:
-            status = MATCH_COMPLETED
-            played.append(match_id)
-            if trace.winner_awards_berth:
-                qualifiers.append(trace.winner_id)
-        elif set(dependencies[match_id]).issubset(completed):
-            status = MATCH_READY
-            ready.append(match_id)
-        else:
-            status = MATCH_WAITING
-            waiting.append(match_id)
-        # Never reveal a future contest's entrant IDs or winner until both
-        # upstream dependencies are recorded; oracle outcomes stay internal.
-        viewable = status != MATCH_WAITING
-        match_status.append(PreviewMatchStatus(
-            match_id=match_id,
-            phase=trace.phase,
-            status=status,
-            left_team_id=trace.left_entrant_id if viewable else None,
-            right_team_id=trace.right_entrant_id if viewable else None,
-            winner_team_id=trace.winner_id if status == MATCH_COMPLETED else None,
-            loser_team_id=trace.loser_id if status == MATCH_COMPLETED else None,
-        ))
-    if (len(qualifiers) > preflight.qualifier_count or
-            len(set(qualifiers)) != len(qualifiers)):
-        raise IncrementalPreviewError("qualifier count/uniqueness contract violated")
-    return PreviewSnapshot(
-        checkpoint=checkpoint,
-        match_statuses=tuple(match_status),
-        ready_match_ids=tuple(ready),
-        waiting_match_ids=tuple(waiting),
-        played_match_ids=tuple(played),
-        confirmed_qualifier_ids=tuple(qualifiers),
-        direct_main_entry_ids=full.direct_main_entry_ids,
-        replay_completed=len(played) == len(oracle),
-        remaining_qualifier_slots=preflight.qualifier_count - len(qualifiers),
-        evidence_grade=preflight.evidence_grade,
-        actual_source_kind=preflight.source_kind,
-    )
-
-
 def _inspect(payload, checkpoint, data_dir):
     try:
         preflight, full, dependencies, topology_hash = _resolve_reference(payload, data_dir)
