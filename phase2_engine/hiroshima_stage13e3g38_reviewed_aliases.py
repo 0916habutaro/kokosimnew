@@ -55,7 +55,7 @@ EXPECTED_SOURCES = {
     ),
     "広島国泰寺": (
         "https://www.sportsonline.jp/reportv2/PublisherFull/Rally.aspx?ParentID=RX%5DSZ",
-        "https://www.hiroshima-koup.org/member-school/",
+        "https://www.pref.hiroshima.lg.jp/site/04file/r8nyujyo1.html",
         "広島県立広島国泰寺高等学校",
     ),
 }
