@@ -13,7 +13,11 @@ import argparse
 import json
 import tkinter as tk
 from pathlib import Path
+from typing import Callable
 from tkinter import messagebox, ttk
+
+from .hiroshima_stage13e3g37_school_master import SchoolMasterPreviewLink
+from .hiroshima_stage13e3g40_school_browse_handoff import SchoolBrowseHandoff
 
 from .hiroshima_stage13e3g35_preview_gui_model import (
     FICTIONAL, OBSERVED_2026_WEST, SCENARIOS, STATUS_LABELS,
@@ -54,7 +58,11 @@ def _fill(tree: ttk.Treeview, values: tuple[tuple[str, ...], ...]) -> None:
 class HiroshimaPreviewWindow:
     """Toplevel pilot, never part of the scored SQLite BrowseRepository."""
 
-    def __init__(self, parent: tk.Misc, data_dir: str | Path):
+    def __init__(
+        self, parent: tk.Misc, data_dir: str | Path,
+        *, on_navigate_verified_school: Callable[[SchoolMasterPreviewLink], SchoolBrowseHandoff] | None = None,
+    ):
+        self.on_navigate_verified_school = on_navigate_verified_school
         # Verify the data before allocating any new window: a missing or
         # tampered fixture must not leave an orphan Tk Toplevel behind.
         self.model = HiroshimaPreviewGuiModel(data_dir)
@@ -149,10 +157,19 @@ class HiroshimaPreviewWindow:
             ("score","得点",65), ("b","学校2",150),
             ("winner","勝者",150), ("date","日付",100), ("source","日付根拠",115),
         ))
+        school_actions = ttk.Frame(schools_tab)
+        school_actions.pack(fill="x", pady=(0, 7))
         ttk.Button(
-            schools_tab, text="選択校の正式学校情報（照合済みのみ）",
+            school_actions, text="選択校の正式学校情報（照合済みのみ）",
             command=self._open_verified_school_detail,
-        ).pack(anchor="w", pady=(0, 7))
+        ).pack(side="left", padx=(0, 8))
+        self.browse_jump_button = ttk.Button(
+            school_actions,
+            text="既存SQLiteの学校戦績へ移動（2026年のみ）",
+            command=self._navigate_to_existing_school_browse,
+            state="normal" if self.on_navigate_verified_school else "disabled",
+        )
+        self.browse_jump_button.pack(side="left")
         self.school_tree = _make_tree(schools_tab, (
             ("school","学校",190), ("games","試合",65),
             ("wins","勝",65), ("losses","敗",65),
@@ -274,6 +291,34 @@ class HiroshimaPreviewWindow:
         self._render()
         self.notebook.select(1)
 
+    def _navigate_to_existing_school_browse(self) -> None:
+        # Never treat this pilot's observed 25 games as scored SQLite games.
+        if self.on_navigate_verified_school is None:
+            self.last_action_var.set("単独プレビューではSQLite学校戦績へ移動できません。")
+            return
+        selected = self.school_tree.selection()
+        if not selected:
+            self.last_action_var.set("移動する学校を学校別戦績から選択してください。")
+            return
+        values = self.school_tree.item(selected[0], "values")
+        if not values:
+            return
+        try:
+            detail = self.model.get_verified_school_master_detail(str(values[0]))
+            result = self.on_navigate_verified_school(detail)
+        except (ValueError, TypeError, OSError) as exc:
+            self.last_action_var.set("安全な学校戦績移動の検証に失敗しました。")
+            messagebox.showwarning("学校戦績への移動不可", str(exc), parent=self.window)
+            return
+        if not isinstance(result, SchoolBrowseHandoff) or not result.allowed:
+            reason = result.reason if isinstance(result, SchoolBrowseHandoff) else "学校ID検証結果が不正です。"
+            self.last_action_var.set(reason)
+            messagebox.showinfo("学校戦績への移動不可", reason, parent=self.window)
+            return
+        self.last_action_var.set(
+            f"既存SQLiteの学校戦績へ移動しました：{result.school_id}（史実とは別データ）"
+        )
+
     def _open_verified_school_detail(self) -> None:
         selected = self.school_tree.selection()
         if not selected:
@@ -332,8 +377,12 @@ class HiroshimaPreviewWindow:
 
 def open_hiroshima_preview_window(
     parent: tk.Misc, data_dir: str | Path,
+    *, on_navigate_verified_school: Callable[[SchoolMasterPreviewLink], SchoolBrowseHandoff] | None = None,
 ) -> HiroshimaPreviewWindow:
-    return HiroshimaPreviewWindow(parent,data_dir)
+    return HiroshimaPreviewWindow(
+        parent, data_dir,
+        on_navigate_verified_school=on_navigate_verified_school,
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
