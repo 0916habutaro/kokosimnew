@@ -13,7 +13,7 @@ from phase2_engine.hiroshima_stage13e3g37_school_master import (
     SchoolMasterPreviewLink, SchoolMasterPreviewError, UNRESOLVED, EXACT,
 )
 from phase2_engine.hiroshima_stage13e3g39_school_master import (
-    REVIEW_FILE, EXPECTED, OUTCOME,
+    REVIEW_FILE, VERIFIED_IDS_FILE, EXPECTED, OUTCOME,
     audit_2026_hiroshima_stage13e3g39,
     load_2026_hiroshima_west_school_links_stage39,
     resolve_stage39_reviewed_master_links,
@@ -238,6 +238,23 @@ class Stage13E3G39AllSchoolIdentityTests(unittest.TestCase):
         fictional=HiroshimaPreviewGuiModel(DATA,FICTIONAL)
         with self.assertRaises(PreviewGuiModelError):
             fictional.get_verified_school_master_detail("五日市")
+
+    def test_verified_school_ids_ledger_must_match_current_master(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base=Path(temp)/"data"
+            shutil.copytree(DATA,base)
+            file=base/VERIFIED_IDS_FILE
+            rows=_read(base,VERIFIED_IDS_FILE)
+            self.assertEqual(len(rows),18)
+            rows[0]["school_id"]="SCH000000"
+            with file.open("w",encoding="utf-8",newline="") as stream:
+                wr=csv.DictWriter(stream,fieldnames=list(rows[0]))
+                wr.writeheader()
+                wr.writerows(rows)
+            report=audit_2026_hiroshima_stage13e3g39(base)
+            self.assertFalse(report["ok"])
+            self.assertTrue(any("verified ID record changed" in error
+                                for error in report["errors"]),report["errors"])
 
     def test_modified_2026_source_review_is_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
