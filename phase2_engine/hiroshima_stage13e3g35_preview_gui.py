@@ -55,11 +55,13 @@ class HiroshimaPreviewWindow:
     """Toplevel pilot, never part of the scored SQLite BrowseRepository."""
 
     def __init__(self, parent: tk.Misc, data_dir: str | Path):
+        # Verify the data before allocating any new window: a missing or
+        # tampered fixture must not leave an orphan Tk Toplevel behind.
+        self.model = HiroshimaPreviewGuiModel(data_dir)
         self.window = tk.Toplevel(parent)
         self.window.title(APP_TITLE)
         self.window.geometry("1180x780")
         self.window.minsize(900, 600)
-        self.model = HiroshimaPreviewGuiModel(data_dir)
         self._scenario_by_label = {label: value for value,label in SCENARIOS}
         self._label_by_scenario = {value: label for value,label in SCENARIOS}
         self.scenario_var = tk.StringVar(master=self.window)
@@ -179,7 +181,10 @@ class HiroshimaPreviewWindow:
             self.school_var.set(SCHOOL_ALL)
             school=""
         # Rebuild through Stage32 + Stage33 validation for every UI refresh.
-        data=self.model.render(status_filter=status,school_filter=school)
+        data=self.model.render(
+            status_filter=status, school_filter=school,
+            school_query=self.school_search_var.get(),
+        )
         _fill(self.match_tree,data.match_rows)
         _fill(self.school_tree,data.school_rows)
         _fill(self.berth_tree,data.berth_rows)
