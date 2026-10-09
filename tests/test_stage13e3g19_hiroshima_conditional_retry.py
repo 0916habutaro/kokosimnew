@@ -14,7 +14,7 @@ from phase2_engine.hiroshima_stage13e3g19 import (
     audit_2026_hiroshima_stage13e3g19,
 )
 from phase2_engine.hiroshima_stage13e3g18 import (
-    SECOND_CHANCE_FILE, TRANSITION_FILE, BLOCK_SOURCES,
+    SECOND_CHANCE_FILE, TRANSITION_FILE, SUMMARY_FILE, BLOCK_SOURCES,
 )
 from phase2_engine.hiroshima_stage13e3g17 import (
     CROSSWALK_FILE, GROUP_CONTRACT_FILE,
@@ -25,7 +25,7 @@ from phase2_engine.hiroshima_qualification_timeline_2026 import TIMELINE_FILE
 DATA=Path(__file__).resolve().parents[1]/"data"
 INPUTS=(
     GATE_OBSERVATIONS_FILE,GATE_POLICY_FILE,
-    SECOND_CHANCE_FILE,TRANSITION_FILE,CROSSWALK_FILE,
+    SECOND_CHANCE_FILE,TRANSITION_FILE,SUMMARY_FILE,CROSSWALK_FILE,
     GROUP_CONTRACT_FILE,EVENT_FILE,TIMELINE_FILE,*BLOCK_SOURCES
 )
 
