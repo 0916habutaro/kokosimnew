@@ -307,6 +307,10 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Print the safe read-only presenter data without Tk display")
     parser.add_argument("--steps",type=int,default=0,
                         help="Reveal this many previously recorded results")
+    parser.add_argument("--school-query", default="",
+                        help="Case-insensitive substring of a currently known school (headless)")
+    parser.add_argument("--status", default="", choices=["", *STATUS_LABELS],
+                        help="Only waiting, ready, or completed matches (headless)")
     return parser
 
 
@@ -319,11 +323,13 @@ def main(argv: list[str] | None=None) -> int:
         for _ in range(args.steps):
             if model.show_next_preapproved_result() is None:
                 raise SystemExit("not that many previously recorded results")
-        data=model.render()
+        data=model.render(status_filter=args.status,school_query=args.school_query)
         print(json.dumps({
             "scenario":data.scenario_id,
             "summary":data.summary,
             "source_note":data.source_note,
+            "school_query":args.school_query,
+            "status_filter":args.status,
             "played":data.played_count, "ready":data.ready_count,
             "waiting":data.waiting_count,
             "qualifiers":data.qualifier_count,
