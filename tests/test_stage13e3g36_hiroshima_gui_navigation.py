@@ -29,23 +29,28 @@ class FakeVar:
 
 class FakeTree:
     def __init__(self):
-        self.rows=[]
+        self.items={}
         self.selected=()
+        self.next_id=0
+    @property
+    def rows(self):
+        return list(self.items.values())
     def get_children(self):
-        return tuple(str(i) for i in range(len(self.rows)))
-    def delete(self,idx):
-        # _fill iterates children forward; selection is reset on redraw.
-        self.rows[int(idx)]=None
+        return tuple(self.items)
+    def delete(self,iid):
+        self.items.pop(iid)
     def insert(self,parent,position,values):
-        self.rows.append(tuple(values))
+        iid=f"item-{self.next_id}"
+        self.next_id+=1
+        self.items[iid]=tuple(values)
     def selection(self):
         return self.selected
     def item(self,iid,field):
         if field=="values":
-            return self.rows[int(iid)]
+            return self.items[iid]
         raise ValueError(field)
     def choose(self,index):
-        self.selected=(str(index),)
+        self.selected=(list(self.items)[index],)
 
 
 class FakeCombo:
