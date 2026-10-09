@@ -55,16 +55,19 @@ class HiroshimaPreviewWindow:
     """Toplevel pilot, never part of the scored SQLite BrowseRepository."""
 
     def __init__(self, parent: tk.Misc, data_dir: str | Path):
+        # Verify the data before allocating any new window: a missing or
+        # tampered fixture must not leave an orphan Tk Toplevel behind.
+        self.model = HiroshimaPreviewGuiModel(data_dir)
         self.window = tk.Toplevel(parent)
         self.window.title(APP_TITLE)
         self.window.geometry("1180x780")
         self.window.minsize(900, 600)
-        self.model = HiroshimaPreviewGuiModel(data_dir)
         self._scenario_by_label = {label: value for value,label in SCENARIOS}
         self._label_by_scenario = {value: label for value,label in SCENARIOS}
         self.scenario_var = tk.StringVar(master=self.window)
         self.filter_var = tk.StringVar(master=self.window, value=STATUS_ALL)
         self.school_var = tk.StringVar(master=self.window, value=SCHOOL_ALL)
+        self.school_search_var = tk.StringVar(master=self.window, value="")
         self.summary_var = tk.StringVar(master=self.window)
         self.source_var = tk.StringVar(master=self.window)
         self.evidence_var = tk.StringVar(master=self.window)
@@ -95,6 +98,10 @@ class HiroshimaPreviewWindow:
             options, text="既登録の次の結果を表示", command=self._show_next_result,
         )
         self.next_button.pack(side="left", padx=3)
+        ttk.Button(
+            options, text="選択試合の結果を表示",
+            command=self._show_selected_result,
+        ).pack(side="left", padx=3)
 
         ttk.Label(top, textvariable=self.summary_var,
                   font=("TkDefaultFont", 11, "bold")).pack(anchor="w", pady=(10,2))
@@ -117,6 +124,16 @@ class HiroshimaPreviewWindow:
         )
         self.school_combo.pack(side="left", padx=(6, 14))
         self.school_combo.bind("<<ComboboxSelected>>", self._render)
+        ttk.Label(selectors, text="学校名検索").pack(side="left", padx=(5, 0))
+        school_entry = ttk.Entry(selectors, textvariable=self.school_search_var, width=18)
+        school_entry.pack(side="left", padx=(6, 4))
+        school_entry.bind("<Return>", self._search_schools)
+        ttk.Button(
+            selectors, text="検索", command=self._search_schools,
+        ).pack(side="left")
+        ttk.Button(
+            selectors, text="絞込解除", command=self._clear_filters,
+        ).pack(side="left", padx=(4, 0))
 
         self.notebook = ttk.Notebook(self.window)
         self.notebook.pack(fill="both", expand=True, padx=12, pady=(0,12))
@@ -143,6 +160,7 @@ class HiroshimaPreviewWindow:
         ))
         self.school_tree.bind("<Double-1>", self._choose_selected_school)
         self.berth_tree.bind("<Double-1>", self._choose_selected_berth)
+        self.match_tree.bind("<Double-1>", self._choose_match_first_school)
 
     def _filters(self) -> tuple[str,str]:
         selected_status=self.filter_var.get()
@@ -153,13 +171,20 @@ class HiroshimaPreviewWindow:
 
     def _render(self, _event=None) -> None:
         status, school=self._filters()
-        # Rebuild through Stage32 + Stage33 validation for every UI refresh.
-        data=self.model.render(status_filter=status,school_filter=school)
-        available=(SCHOOL_ALL,*data.school_choices)
+        # Validate the currently visible school choices BEFORE applying the
+        # saved selector: source changes or search may make it stale.
+        available=(SCHOOL_ALL,*self.model.search_visible_school_ids(
+            self.school_search_var.get()
+        ))
         self.school_combo["values"]=available
         if self.school_var.get() not in available:
             self.school_var.set(SCHOOL_ALL)
-            data=self.model.render(status_filter=status)
+            school=""
+        # Rebuild through Stage32 + Stage33 validation for every UI refresh.
+        data=self.model.render(
+            status_filter=status, school_filter=school,
+            school_query=self.school_search_var.get(),
+        )
         _fill(self.match_tree,data.match_rows)
         _fill(self.school_tree,data.school_rows)
         _fill(self.berth_tree,data.berth_rows)
@@ -180,6 +205,7 @@ class HiroshimaPreviewWindow:
             return
         self.filter_var.set(STATUS_ALL)
         self.school_var.set(SCHOOL_ALL)
+        self.school_search_var.set("")
         self.last_action_var.set("表示データを切り替えました。途中結果はリセットされます。")
         self._render()
 
@@ -199,12 +225,57 @@ class HiroshimaPreviewWindow:
         )
         self._render()
 
+    def _show_selected_result(self) -> None:
+        selection = self.match_tree.selection()
+        if not selection:
+            self.last_action_var.set("結果を表示する試合を一覧から選択してください。")
+            return
+        values = self.match_tree.item(selection[0], "values")
+        if not values:
+            return
+        try:
+            mid = self.model.show_preapproved_result_for_match(str(values[0]))
+        except (OSError, ValueError, TypeError) as exc:
+            self.last_action_var.set("試合を公開できません。対戦確定の未実施試合を選択してください。")
+            messagebox.showerror("結果表示エラー", str(exc), parent=self.window)
+            return
+        self.last_action_var.set(f"選択試合の既登録結果を公開しました: {mid}")
+        self._render()
+
+    def _search_schools(self, _event=None) -> None:
+        matches = self.model.search_visible_school_ids(self.school_search_var.get())
+        self.school_var.set(matches[0] if len(matches) == 1 else SCHOOL_ALL)
+        self.last_action_var.set(
+            f"検索結果: {len(matches)}校（未確定の対戦校は検索対象外）"
+        )
+        self._render()
+
+    def _clear_filters(self) -> None:
+        self.filter_var.set(STATUS_ALL)
+        self.school_var.set(SCHOOL_ALL)
+        self.school_search_var.set("")
+        self.last_action_var.set("試合状況・学校の絞り込みを解除しました。")
+        self._render()
+
+    def _choose_match_first_school(self, _event=None) -> None:
+        selection = self.match_tree.selection()
+        if not selection:
+            return
+        values = self.match_tree.item(selection[0], "values")
+        if not values or values[3] == "未確定":
+            return
+        self.school_search_var.set("")
+        self.school_var.set(values[3])
+        self._render()
+        self.notebook.select(1)
+
     def _choose_selected_school(self, _event=None) -> None:
         selection=self.school_tree.selection()
         if not selection:
             return
         values=self.school_tree.item(selection[0],"values")
         if values:
+            self.school_search_var.set("")
             self.school_var.set(values[0])
             self._render()
             self.notebook.select(0)
@@ -215,6 +286,7 @@ class HiroshimaPreviewWindow:
             return
         values=self.berth_tree.item(selection[0],"values")
         if values:
+            self.school_search_var.set("")
             self.school_var.set(values[0])
             self._render()
             self.notebook.select(0)
@@ -235,6 +307,10 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Print the safe read-only presenter data without Tk display")
     parser.add_argument("--steps",type=int,default=0,
                         help="Reveal this many previously recorded results")
+    parser.add_argument("--school-query", default="",
+                        help="Case-insensitive substring of a currently known school (headless)")
+    parser.add_argument("--status", default="", choices=["", *STATUS_LABELS],
+                        help="Only waiting, ready, or completed matches (headless)")
     return parser
 
 
@@ -247,11 +323,13 @@ def main(argv: list[str] | None=None) -> int:
         for _ in range(args.steps):
             if model.show_next_preapproved_result() is None:
                 raise SystemExit("not that many previously recorded results")
-        data=model.render()
+        data=model.render(status_filter=args.status,school_query=args.school_query)
         print(json.dumps({
             "scenario":data.scenario_id,
             "summary":data.summary,
             "source_note":data.source_note,
+            "school_query":args.school_query,
+            "status_filter":args.status,
             "played":data.played_count, "ready":data.ready_count,
             "waiting":data.waiting_count,
             "qualifiers":data.qualifier_count,
