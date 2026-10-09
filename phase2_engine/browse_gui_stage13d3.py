@@ -104,6 +104,19 @@ class Stage13D3BrowseApp(Stage12UBrowseApp):
             text="この大会の個人成績ランキング",
             command=self._open_current_competition_rankings,
         ).pack(side="right")
+        ttk.Button(
+            actions,
+            text="予選進行プレビュー（試験・別画面）",
+            command=self._open_hiroshima_preview_pilot,
+        ).pack(side="left")
+
+    def _open_hiroshima_preview_pilot(self) -> None:
+        # The preview consumes its own Stage32 contract/Stage34 read-model.
+        # No browse SQLite tables, ranking events or main scheduler mutate.
+        from .hiroshima_stage13e3g35_preview_gui import (
+            open_hiroshima_preview_window,
+        )
+        open_hiroshima_preview_window(self.root, self.model.data_dir)
 
     def _build_school_tab(self) -> None:
         super()._build_school_tab()
