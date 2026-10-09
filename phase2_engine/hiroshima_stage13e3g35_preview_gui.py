@@ -149,10 +149,15 @@ class HiroshimaPreviewWindow:
             ("score","得点",65), ("b","学校2",150),
             ("winner","勝者",150), ("date","日付",100), ("source","日付根拠",115),
         ))
+        ttk.Button(
+            schools_tab, text="選択校の正式学校情報（照合済みのみ）",
+            command=self._open_verified_school_detail,
+        ).pack(anchor="w", pady=(0, 7))
         self.school_tree = _make_tree(schools_tab, (
             ("school","学校",190), ("games","試合",65),
             ("wins","勝",65), ("losses","敗",65),
             ("ready","次戦確定数",100), ("status","進出・待機状態",190),
+            ("school_id","正式学校ID",120),
         ))
         self.berth_tree = _make_tree(berths_tab, (
             ("school","代表校",220), ("type","種別",200),
@@ -268,6 +273,39 @@ class HiroshimaPreviewWindow:
         self.school_var.set(values[3])
         self._render()
         self.notebook.select(1)
+
+    def _open_verified_school_detail(self) -> None:
+        selected = self.school_tree.selection()
+        if not selected:
+            self.last_action_var.set("正式学校情報を確認する学校を選択してください。")
+            return
+        values = self.school_tree.item(selected[0], "values")
+        if not values:
+            return
+        try:
+            detail = self.model.get_verified_school_master_detail(str(values[0]))
+        except (ValueError, TypeError) as exc:
+            self.last_action_var.set("この学校の正式マスターIDは未照合です。")
+            messagebox.showwarning(
+                "学校マスター未照合", str(exc), parent=self.window,
+            )
+            return
+        messagebox.showinfo(
+            "正式学校マスター（読み取り専用）",
+            (
+                f"観測名：{detail.observed_name}\\n"
+                f"正式校名：{detail.official_name}\\n"
+                f"学校ID：{detail.school_id}\\n"
+                f"硬式野球部ID：{detail.program_id}\\n"
+                f"都道府県コード：{detail.prefecture_code}\\n"
+                f"照合根拠：{detail.resolution_status}\\n"
+                "2026年の学校マスター情報です。公式組合せの根拠ではありません。"
+            ),
+            parent=self.window,
+        )
+        self.last_action_var.set(
+            f"確認済み学校情報を開きました：{detail.school_id}"
+        )
 
     def _choose_selected_school(self, _event=None) -> None:
         selection=self.school_tree.selection()
