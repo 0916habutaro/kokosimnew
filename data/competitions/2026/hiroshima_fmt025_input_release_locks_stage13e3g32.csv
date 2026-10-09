@@ -1,0 +1,9 @@
+lock_id,document_year,season,district_code,stage_group_id,format_model_id,unverified_required_draw_items,annual_primary_pairing_verified,annual_primary_loser_transfer_verified,annual_second_place_pairing_verified,annual_cross_gate_verified,independent_release_approved,stage25_secondary_read_only_replay_available,fmt025_live_scheduler_connected,optional_ranking_authorized,release_status
+HFPL2026001,2026,spring,west,SGR000140,FMT025,6,no,no,no,no,no,no,no,no,blocked_pending_verified_annual_draw_and_loser_destinations
+HFPL2026002,2026,spring,north,SGR000141,FMT025,6,no,no,no,no,no,no,no,no,blocked_pending_verified_annual_draw_and_loser_destinations
+HFPL2026003,2026,spring,south,SGR000142,FMT025,6,no,no,no,no,no,no,no,no,blocked_pending_verified_annual_draw_and_loser_destinations
+HFPL2026004,2026,spring,east,SGR000143,FMT025,6,no,no,no,no,no,no,no,no,blocked_pending_verified_annual_draw_and_loser_destinations
+HFPL2026005,2026,autumn,west,SGR000144,FMT025,6,no,no,no,no,no,yes,no,no,blocked_pending_verified_annual_draw_and_loser_destinations
+HFPL2026006,2026,autumn,north,SGR000145,FMT025,6,no,no,no,no,no,no,no,no,blocked_pending_verified_annual_draw_and_loser_destinations
+HFPL2026007,2026,autumn,south,SGR000146,FMT025,6,no,no,no,no,no,no,no,no,blocked_pending_verified_annual_draw_and_loser_destinations
+HFPL2026008,2026,autumn,east,SGR000147,FMT025,6,no,no,no,no,no,no,no,no,blocked_pending_verified_annual_draw_and_loser_destinations
