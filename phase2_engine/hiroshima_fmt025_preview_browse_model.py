@@ -17,7 +17,7 @@ from pathlib import Path
 from .hiroshima_fmt025_input_preflight import HISTORICAL, SANDBOX
 from .hiroshima_fmt025_incremental_preview import (
     MATCH_COMPLETED, MATCH_READY, MATCH_WAITING, PreviewCheckpoint,
-    inspect_read_only_preview,
+    inspect_read_only_preview, _resolve_reference,
 )
 from .hiroshima_match_level_2026 import _read
 from .hiroshima_stage13e3g25 import NODES_FILE
@@ -173,6 +173,10 @@ def build_fmt025_preview_browse_views(
 ) -> QualifierBrowseViews:
     """Return GUI-ready *supplementary* read views; do not write to SQLite."""
     snapshot = inspect_read_only_preview(payload, checkpoint, data_dir=data_dir)
+    # The separately validated full oracle stays internal: it is used only
+    # for the explicit berth-awarding match flag, never to reveal an unplayed
+    # result or a future entrant.
+    _, reference, _, _ = _resolve_reference(payload, data_dir)
     comp_id, comp_name, season, comp_type, year = _identity(payload)
     if (snapshot.live_fmt025_runtime_enabled or snapshot.official_draw_verified
             or snapshot.optional_ranking_enabled):
@@ -240,12 +244,12 @@ def build_fmt025_preview_browse_views(
     if sum(wins.values()) != len(snapshot.played_match_ids) or sum(losses.values()) != len(snapshot.played_match_ids):
         raise ValueError("school win/loss aggregates mismatch completed fixtures")
 
-    for item in snapshot.match_statuses:
-        if item.status == MATCH_COMPLETED and item.winner_team_id in snapshot.confirmed_qualifier_ids:
-            # A winner receives a berth only on its explicit qualifying gate.
-            # All confirmed entries must be accounted for exactly once.
-            if item.winner_team_id not in berth_source:
-                berth_source[item.winner_team_id] = item.match_id
+    completed_ids = set(snapshot.played_match_ids)
+    for trace in reference.match_traces:
+        if trace.winner_awards_berth and trace.match_id in completed_ids:
+            if trace.winner_id in berth_source:
+                raise ValueError("duplicate confirmed qualifying gate")
+            berth_source[trace.winner_id] = trace.match_id
     if set(berth_source) != set(snapshot.confirmed_qualifier_ids):
         raise ValueError("qualifier source consistency failed")
     if set(snapshot.direct_main_entry_ids) & known_school_ids:
