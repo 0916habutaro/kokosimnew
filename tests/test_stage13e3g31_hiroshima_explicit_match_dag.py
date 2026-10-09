@@ -181,6 +181,9 @@ class Stage13E3G31ExplicitOutcomeDagTests(unittest.TestCase):
         altered[2] = replace(altered[2], phase="REPECHAGE_CROSS_ZONE_GATE")
         with self.assertRaises(ExplicitMatchReplayError):
             simple_replay(matches=tuple(altered))
+        altered[2] = replace(altered[2], phase="CONDITIONAL_RETRY")
+        with self.assertRaises(ExplicitMatchReplayError):
+            simple_replay(matches=tuple(altered))
 
     def test_repeated_secondary_loser_is_forbidden_without_opt_in(self):
         altered = list(retry_example())
