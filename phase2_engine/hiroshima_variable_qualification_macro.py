@@ -145,9 +145,15 @@ def evaluate_declared_macro_awards(
             != sum(len(xs) for xs in buckets.values())
             or any(len(xs) < 2 for xs in buckets.values())):
         raise MacroDraftError("zone allocation must be unique and contain runnerups")
+    all_draft_entrants = {student for roster in buckets.values() for student in roster}
+    if (len(set(plan.direct_main_entry_ids)) != len(plan.direct_main_entry_ids)
+            or set(plan.direct_main_entry_ids).intersection(all_draft_entrants)):
+        raise MacroDraftError("direct main entries must remain disjoint from qualifier entrants")
     if (plan.qualifier_slots != quota or
             plan.total_main_entry_slots != quota + len(plan.direct_main_entry_ids) or
-            plan.allocation.annual_draw_verified or plan.allocation.runtime_enabled):
+            plan.allocation.annual_draw_verified or plan.allocation.runtime_enabled or
+            plan.allocation.proof_scope != "seeded_draft_not_official_bracket" or
+            plan.proof_scope != "year_independent_draft_mechanics_2026_macro_as_example"):
         raise MacroDraftError("unverified macro quota or official draw flag changed")
     zones = set(plan.template.zone_codes)
     pairs = set(plan.template.cross_second_place_pairs)
