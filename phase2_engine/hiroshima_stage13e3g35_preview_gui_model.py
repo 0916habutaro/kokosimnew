@@ -24,6 +24,9 @@ from .hiroshima_match_level_2026 import _read
 from .hiroshima_stage13e3g25 import NODES_FILE, EDGES_FILE
 from .hiroshima_stage13e3g31 import replay_stage25_historical_observations
 from .hiroshima_stage13e3g32 import EXAMPLE_SANDBOX_FILE, EXAMPLE_OBSERVED_FILE
+from .hiroshima_stage13e3g37_school_master import (
+    SchoolMasterPreviewLink, load_2026_hiroshima_west_school_links,
+)
 
 FICTIONAL = "fictional"
 OBSERVED_2026_WEST = "observed_2026_autumn_west"
@@ -86,6 +89,7 @@ class HiroshimaPreviewGuiModel:
         self.payload: dict = {}
         self.snapshot: PreviewSnapshot | None = None
         self._source_winners: dict[str, str] = {}
+        self._verified_master_links: dict[str, SchoolMasterPreviewLink] = {}
         self._view: QualifierBrowseViews | None = None
         self.set_scenario(scenario_id)
 
@@ -121,8 +125,13 @@ class HiroshimaPreviewGuiModel:
         view = build_fmt025_preview_browse_views(
             payload, snapshot.checkpoint, data_dir=source_root
         )
+        links = (
+            load_2026_hiroshima_west_school_links(self.data_dir)
+            if scenario_id == OBSERVED_2026_WEST else {}
+        )
         self.scenario_id, self.payload = scenario_id, payload
         self.snapshot, self._source_winners, self._view = snapshot, winners, view
+        self._verified_master_links = links
 
     def show_preapproved_result_for_match(self, match_id: str) -> str:
         """Reveal a *specific ready* recorded result without simulating it.
@@ -153,6 +162,23 @@ class HiroshimaPreviewGuiModel:
             return None
         return self.show_preapproved_result_for_match(self.snapshot.ready_match_ids[0])
 
+    def get_verified_school_master_detail(self, observed_name: str) -> SchoolMasterPreviewLink:
+        """Return only an exact/previously-reviewed linked master, for a visible school."""
+        if self.scenario_id != OBSERVED_2026_WEST:
+            raise PreviewGuiModelError("fictional teams have no real school master ID")
+        if type(observed_name) is not str or not observed_name:
+            raise PreviewGuiModelError("observed school name is required")
+        assert self.snapshot is not None
+        view = build_fmt025_preview_browse_views(
+            self.payload, self.snapshot.checkpoint, data_dir=self._source_root()
+        )
+        if observed_name not in {row.school_id for row in view.school_records}:
+            raise PreviewGuiModelError("school is not visible in the recorded preview")
+        link = self._verified_master_links.get(observed_name)
+        if link is None or not link.authorized_for_read_only_detail or not link.school_id:
+            raise PreviewGuiModelError("formal 2026 school identity is not safely verified")
+        return link
+
     def search_visible_school_ids(self, query: str) -> tuple[str, ...]:
         """Case-insensitive partial search, but only among currently visible schools.
 
@@ -168,7 +194,13 @@ class HiroshimaPreviewGuiModel:
         needle = query.strip().casefold()
         return tuple(
             s.school_id for s in view.school_records
-            if needle in s.school_name.casefold() or needle in s.school_id.casefold()
+            if (needle in s.school_name.casefold()
+                or needle in s.school_id.casefold()
+                or (
+                    (link := self._verified_master_links.get(s.school_id)) is not None
+                    and link.authorized_for_read_only_detail
+                    and needle in link.official_name.casefold()
+                ))
         )
 
     def reset_preview(self) -> None:
@@ -205,7 +237,14 @@ class HiroshimaPreviewGuiModel:
         query = school_query.strip().casefold()
         matched = {
             s.school_id for s in view.school_records
-            if not query or query in s.school_name.casefold() or query in s.school_id.casefold()
+            if (not query
+                or query in s.school_name.casefold()
+                or query in s.school_id.casefold()
+                or (
+                    (link := self._verified_master_links.get(s.school_id)) is not None
+                    and link.authorized_for_read_only_detail
+                    and query in link.official_name.casefold()
+                ))
         }
         if school_filter and school_filter not in matched:
             raise PreviewGuiModelError("chosen school does not match the current search")
@@ -234,6 +273,13 @@ class HiroshimaPreviewGuiModel:
         school_rows = tuple((
             s.school_name, str(s.games), str(s.wins), str(s.losses),
             str(s.ready_match_count), QUALIFICATION_LABELS[s.qualification_status],
+            (
+                self._verified_master_links[s.school_id].school_id
+                if s.school_id in self._verified_master_links
+                and self._verified_master_links[s.school_id].authorized_for_read_only_detail
+                else "未照合" if self.scenario_id == OBSERVED_2026_WEST
+                else "架空（対象外）"
+            ),
         ) for s in view.school_records
             if (s.school_id == school_filter if school_filter else s.school_id in matched))
         berth_rows = tuple((
