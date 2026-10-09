@@ -14,6 +14,10 @@ from phase2_engine.hiroshima_stage13e3g35_preview_gui_model import (
     FICTIONAL, OBSERVED_2026_WEST, SCENARIOS, HiroshimaPreviewGuiModel,
     PreviewGuiModelError,
 )
+from phase2_engine.hiroshima_stage13e3g36 import (
+    ACCEPTANCE_FILE, audit_2026_hiroshima_stage13e3g36,
+)
+from phase2_engine.hiroshima_match_level_2026 import _read
 
 DATA=Path(__file__).resolve().parents[1]/"data"
 
@@ -101,6 +105,27 @@ def fake_pilot(scenario=FICTIONAL):
 
 
 class Stage13E3G36PilotNavigationTests(unittest.TestCase):
+    def test_integrated_stage36_audit_and_manual_acceptance_separation(self):
+        report=audit_2026_hiroshima_stage13e3g36(DATA)
+        self.assertTrue(report["ok"],report["errors"])
+        self.assertEqual(report["automated_acceptance_items"],10)
+        self.assertEqual(report["manual_windows_acceptance_items"],6)
+        self.assertEqual(report["native_gui_visual_status_counts"],{"not_run":16})
+        self.assertFalse(report["native_gui_visual_inspection_completed"])
+        self.assertEqual(report["headless_navigation"]["fictional_qualifiers"],3)
+        self.assertEqual(report["headless_navigation"]["historical_matches"],25)
+        self.assertEqual(report["2026_unresolved_official_route_conditions"],48)
+        self.assertEqual(report["2026_official_individual_arrows_verified"],0)
+        self.assertFalse(report["browse_sqlite_modified"])
+        self.assertFalse(report["live_fmt025_runtime_enabled"])
+
+    def test_acceptance_manifest_does_not_claim_windows_verified(self):
+        items=_read(DATA,ACCEPTANCE_FILE)
+        self.assertEqual(len(items),16)
+        self.assertEqual(len([x for x in items if x["verification_category"]=="windows_gui_manual"]),6)
+        self.assertEqual(len([x for x in items if x["automation_status"]=="covered_by_unittest"]),10)
+        self.assertTrue(all(x["windows_visual_status"]=="not_run" for x in items))
+
     def test_initial_gui_callback_populates_three_independent_tabs(self):
         ui=fake_pilot()
         self.assertEqual(len(ui.match_tree.rows),3)
