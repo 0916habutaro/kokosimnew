@@ -262,7 +262,7 @@ def audit_2026_hiroshima_stage13e3g30(data_dir: str | Path) -> dict:
                 or row["normalized_claim_value"] != c["qualifier_berths"]):
             errors.append(f"official autumn quota does not match season ledger: {district}")
     if len(pending) != 48 or len({x["requirement_id"] for x in pending}) != 48:
-        errors.append("8 season-district groups x 6 unresolved route proof needs required")
+        errors.append("48 unresolved items (8 season-district groups x 6 route proof needs) required")
     seen_keys: set[tuple[str, str, str]] = set()
     for group_no, (season, district, stage) in enumerate(GROUPS):
         for rule_no, (key, category, evidence_type) in enumerate(RULE_REQUIREMENTS):
