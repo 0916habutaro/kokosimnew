@@ -139,7 +139,7 @@ def audit_2026_hiroshima_stage13e3g31(data_dir: str | Path) -> dict:
 
     example_counts = Counter(x["scenario_id"] for x in examples)
     if example_counts != {"simple_four_entrants": 3, "conditional_six_entrants": 6}:
-        errors.append(f"two separate fictional DAG examples with 3/5 matches required: {example_counts}")
+        errors.append(f"two separate fictional DAG examples with 3/6 matches required: {example_counts}")
     sandbox_runs = {}
     for name, (kind, entrants, quota, retry_count, winners) in SCENARIOS.items():
         rows = [x for x in examples if x["scenario_id"] == name]
