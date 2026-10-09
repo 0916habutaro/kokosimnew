@@ -126,13 +126,18 @@ def evaluate_written_rule_scope(record: dict) -> WrittenRuleScopeDecision:
     """
     required = {"claim_key", "evidence_grade", "applicability_scope",
                 "source_url", "document_year", "season", "district_code",
-                "normalized_claim_value", "source_body_reviewed"}
+                "normalized_claim_value", "source_body_reviewed",
+                "document_pinpoint", "official_source_for_claim",
+                "independently_verified_full_official_draw",
+                "annual_loser_selector_proven",
+                "runtime_use_as_2026_fmt025_selector",
+                "year_independent_policy_approved"}
     if not required <= record.keys():
         raise ValueError("missing provenance fields for written source claim")
     expected = next((e for e in WRITTEN_EVIDENCE if e[0] == record["claim_key"]), None)
     if expected is None:
         raise ValueError("unrecognized claim cannot acquire normative status")
-    _, season, district, scope, value, grade, _, url = expected
+    _, season, district, scope, value, grade, pinpoint, url = expected
     if (record["document_year"] != "2026"
             or record["season"] != season
             or record["district_code"] != district
@@ -140,9 +145,17 @@ def evaluate_written_rule_scope(record: dict) -> WrittenRuleScopeDecision:
             or record["normalized_claim_value"] != value
             or record["evidence_grade"] != grade
             or record["source_url"] != url
+            or record["document_pinpoint"] != pinpoint
+            or record["official_source_for_claim"] != (
+                "yes" if grade.startswith("federation_") else "no"
+            )
             or record["source_body_reviewed"] != (
                 "image_macro_only" if grade == "federation_image_visual_macro_only" else "yes"
-            )):
+            )
+            or record["independently_verified_full_official_draw"] != "no"
+            or record["annual_loser_selector_proven"] != "no"
+            or record["runtime_use_as_2026_fmt025_selector"] != "no"
+            or record["year_independent_policy_approved"] != "no"):
         raise ValueError("source scope or evidence level is inconsistent")
     if grade != "federation_page_explicit":
         return WrittenRuleScopeDecision()
