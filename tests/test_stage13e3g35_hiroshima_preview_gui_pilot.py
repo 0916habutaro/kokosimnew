@@ -172,7 +172,7 @@ class Stage13E3G35PilotGuiTests(unittest.TestCase):
         self.assertTrue(issubclass(Stage13D3BrowseApp,object))
         self.assertIn('text="予選進行プレビュー（試験・別画面）"',source)
         self.assertIn("def _open_hiroshima_preview_pilot(",source)
-        self.assertIn("open_hiroshima_preview_window(self.root, self.model.data_dir)",source)
+        self.assertIn("on_navigate_verified_school=self._navigate_from_hiroshima_preview,",source)
         self.assertIn('text="この大会の個人成績ランキング"',source)
         self.assertIn('text="個人成績ランキング"',source)
 

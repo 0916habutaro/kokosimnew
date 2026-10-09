@@ -5,6 +5,13 @@ from tkinter import ttk
 
 from .browse_gui_model import BrowseGuiModel
 from .browse_gui_stage12u import Stage12UBrowseApp
+from .hiroshima_stage13e3g37_school_master import SchoolMasterPreviewLink
+from .hiroshima_stage13e3g39_school_master import (
+    load_2026_hiroshima_west_school_links_stage39,
+)
+from .hiroshima_stage13e3g40_school_browse_handoff import (
+    SchoolBrowseHandoff, preflight_2026_west_school_browse_handoff,
+)
 
 
 BATTING_METRICS = (
@@ -117,7 +124,10 @@ class Stage13D3BrowseApp(Stage12UBrowseApp):
             open_hiroshima_preview_window,
         )
         try:
-            open_hiroshima_preview_window(self.root, self.model.data_dir)
+            open_hiroshima_preview_window(
+                self.root, self.model.data_dir,
+                on_navigate_verified_school=self._navigate_from_hiroshima_preview,
+            )
         except (OSError, ValueError, TypeError) as exc:
             from tkinter import messagebox
 
@@ -126,6 +136,58 @@ class Stage13D3BrowseApp(Stage12UBrowseApp):
                 str(exc),
                 parent=self.root,
             )
+
+    def _navigate_from_hiroshima_preview(
+        self, link: SchoolMasterPreviewLink,
+    ) -> SchoolBrowseHandoff:
+        """Read-only bridge into the *scored simulation* school tab.
+
+        The pilot's observed historical qualifier results must never be
+        inserted into browse SQLite or presented as generated game scores.
+        """
+        verified = load_2026_hiroshima_west_school_links_stage39(
+            self.model.data_dir
+        ).links.get(link.observed_name)
+        if verified is None or verified != link or not verified.authorized_for_read_only_detail:
+            return preflight_2026_west_school_browse_handoff(
+                self.model.db_path,
+                SchoolMasterPreviewLink(
+                    observed_name=link.observed_name,
+                    resolution_status="unverified",
+                    school_id="", official_name="", federation_name="",
+                    program_id="", prefecture_code="34", source="",
+                    authorized_for_read_only_detail=False,
+                ),
+                selected_browse_year=self._current_year(),
+            )
+        route = preflight_2026_west_school_browse_handoff(
+            self.model.db_path, verified,
+            selected_browse_year=self._current_year(),
+        )
+        if not route.allowed:
+            self.status_var.set(route.reason)
+            return route
+
+        # Match by verified master ID (not a possibly ambiguous school
+        # display name) and preserve the currently selected 2026 year.
+        self.school_search_var.set(route.school_id)
+        self.prefecture_var.set("34")
+        self._search_schools()
+        if route.school_id not in self.school_tree.get_children():
+            return SchoolBrowseHandoff(
+                allowed=False, reason="SQLite検索結果に学校IDが見つかりません。",
+                year=route.year, school_id=route.school_id,
+                observed_name=route.observed_name, official_name=route.official_name,
+            )
+        self.school_tree.selection_set(route.school_id)
+        self.school_tree.focus(route.school_id)
+        self._load_selected_school()
+        self.notebook.select(self.school_tab)
+        self.status_var.set(
+            f"2026 SQLite学校戦績：{route.school_id} / "
+            "二次史実25試合と合算しません"
+        )
+        return route
 
     def _build_school_tab(self) -> None:
         super()._build_school_tab()
