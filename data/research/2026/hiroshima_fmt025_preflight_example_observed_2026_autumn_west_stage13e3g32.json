@@ -1,0 +1,19 @@
+{
+  "contract_version": "fmt025-explicit-input-v1",
+  "execution_intent": "read_only_preflight",
+  "format_model_id": "FMT025",
+  "direct_main_entry_ids": [],
+  "official_draw_verified": false,
+  "official_loser_selector_verified": false,
+  "release_approved": false,
+  "optional_ranking_requested": false,
+  "source_kind": "stage25_2026_west_secondary",
+  "year": 2026,
+  "season": "autumn",
+  "district_code": "west",
+  "stage_group_id": "SGR000144",
+  "qualifier_slots": 7,
+  "entrant_ids": [],
+  "matches": [],
+  "winners_by_match": {}
+}
