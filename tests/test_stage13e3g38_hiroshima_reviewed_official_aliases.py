@@ -20,6 +20,9 @@ from phase2_engine.hiroshima_stage13e3g35_preview_gui_model import (
     PreviewGuiModelError,
 )
 from phase2_engine.hiroshima_match_level_2026 import _read
+from phase2_engine.hiroshima_stage13e3g39_school_master import (
+    load_2026_hiroshima_west_school_links_stage39,
+)
 
 DATA=Path(__file__).resolve().parents[1]/"data"
 
@@ -192,8 +195,11 @@ class Stage13E3G38ReviewedAliases(unittest.TestCase):
         })
 
     def test_real_pilot_master_details_obey_verified_status_and_fictional_block(self):
+        # The GUI deliberately follows the latest reviewed overlay (Stage39).
+        # Stage38's standalone 7/18 snapshot is still audited above, but its
+        # unresolved names must not be asserted unavailable in a newer GUI.
         pilot=HiroshimaPreviewGuiModel(DATA,OBSERVED_2026_WEST)
-        links=load_2026_hiroshima_west_school_links_stage38(DATA).links
+        links=load_2026_hiroshima_west_school_links_stage39(DATA).links
         for name,row in links.items():
             visible=name in pilot.search_visible_school_ids(name)
             if not visible:
