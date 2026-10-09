@@ -1,0 +1,9 @@
+comparison_id,reference_year,season,district_code,stage_group_id,zone_count,zone_codes,seasonal_group_berth_total,qualifier_berths,direct_main_exemption_berths,first_place_berths,other_qualifier_berths,publisher_second_place_event_count,publisher_cross_event_count,observed_conditional_retry_participants,official_2026_image_preview_available,official_preview_scope,official_complete_draw_edges_transcribed,annual_official_loser_selector_proven,annual_independent_generic_policy_proven,existing_fmt025_runtime_changed,optional_ranking_allowed,format_risk_class
+HMC2026001,2026,spring,west,SGR000140,4,A;B;C;D,7,6,1,4,2,4,1,0,yes,official_2026_macro_zones_and_award_totals_only,no,no,no,no,no,4_zone_district_year_sensitive_routing
+HMC2026002,2026,spring,north,SGR000141,4,A;B;C;D,7,7,0,4,3,4,2,1,yes,official_2026_macro_zones_and_award_totals_only,no,no,no,no,no,4_zone_district_year_sensitive_routing
+HMC2026003,2026,spring,south,SGR000142,6,A;B;C;D;E;F,9,9,0,6,3,6,3,0,yes,official_2026_macro_zones_and_award_totals_only,no,no,no,no,no,6_zone_district_year_sensitive_routing
+HMC2026004,2026,spring,east,SGR000143,5,A;B;C;D;E,9,9,0,5,4,4,0,1,yes,official_2026_macro_zones_and_award_totals_only,no,no,no,no,no,5_zone_district_year_sensitive_routing
+HMC2026005,2026,autumn,west,SGR000144,4,A;B;C;D,7,7,0,4,3,4,1,0,yes,official_2026_macro_zones_and_award_totals_only,no,no,no,no,no,4_zone_district_year_sensitive_routing
+HMC2026006,2026,autumn,north,SGR000145,4,A;B;C;D,6,6,0,4,2,4,2,0,yes,official_2026_macro_zones_and_award_totals_only,no,no,no,no,no,4_zone_district_year_sensitive_routing
+HMC2026007,2026,autumn,south,SGR000146,6,A;B;C;D;E;F,10,10,0,6,4,6,4,2,yes,official_2026_macro_zones_and_award_totals_only,no,no,no,no,no,6_zone_district_year_sensitive_routing
+HMC2026008,2026,autumn,east,SGR000147,5,A;B;C;D;E,9,9,0,5,4,3,1,2,yes,official_2026_macro_zones_and_award_totals_only,no,no,no,no,no,5_zone_district_year_sensitive_routing
