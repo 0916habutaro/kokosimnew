@@ -189,9 +189,12 @@ class HiroshimaPreviewGuiModel:
 
     def render(
         self, *, status_filter: str = "", school_filter: str = "",
+        school_query: str = "",
     ) -> PilotGuiRender:
         if status_filter not in ("", *STATUS_LABELS):
             raise PreviewGuiModelError("unknown fixture status filter")
+        if type(school_query) is not str or len(school_query) > 100:
+            raise PreviewGuiModelError("school query must be at most 100 characters")
         assert self.snapshot is not None and self._view is not None
         view = build_fmt025_preview_browse_views(
             self.payload, self.snapshot.checkpoint, data_dir=self._source_root()
@@ -199,12 +202,22 @@ class HiroshimaPreviewGuiModel:
         choices = tuple(s.school_id for s in view.school_records)
         if school_filter and school_filter not in choices:
             raise PreviewGuiModelError("unknown/hidden school filter")
+        query = school_query.strip().casefold()
+        matched = {
+            s.school_id for s in view.school_records
+            if not query or query in s.school_name.casefold() or query in s.school_id.casefold()
+        }
+        if school_filter and school_filter not in matched:
+            raise PreviewGuiModelError("chosen school does not match the current search")
 
         rows = []
         for m in view.matches_by_date:
             if status_filter and m.match_status != status_filter:
                 continue
-            if school_filter and school_filter not in (m.team1_id, m.team2_id):
+            if school_filter:
+                if school_filter not in (m.team1_id, m.team2_id):
+                    continue
+            elif query and not ({m.team1_id, m.team2_id} & matched):
                 continue
             # No fake dates/score. Waiting entrants are hidden upstream.
             rows.append((
@@ -222,14 +235,15 @@ class HiroshimaPreviewGuiModel:
             s.school_name, str(s.games), str(s.wins), str(s.losses),
             str(s.ready_match_count), QUALIFICATION_LABELS[s.qualification_status],
         ) for s in view.school_records
-            if not school_filter or s.school_id == school_filter)
+            if (s.school_id == school_filter if school_filter else s.school_id in matched))
         berth_rows = tuple((
             berth.school_name,
             "県大会直接出場" if berth.qualification_kind == "direct_exemption"
             else "県大会進出確定",
             berth.awarded_from_match_id or "予選免除",
         ) for berth in view.confirmed_berths
-            if not school_filter or berth.school_id == school_filter)
+            if (berth.school_id == school_filter if school_filter
+                else berth.school_id in matched))
         comp = view.competition_results[0]
         summary = (
             f"{comp.competition_name}  "
