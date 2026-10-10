@@ -25,7 +25,8 @@ from phase2_engine.hiroshima_stage13e3g40_school_browse_handoff import (
     preflight_2026_west_school_browse_handoff,
 )
 
-DATA=Path(__file__).resolve().parents[1]/"data"
+ROOT=Path(__file__).resolve().parents[1]
+DATA=ROOT/"data"
 
 
 class State:
