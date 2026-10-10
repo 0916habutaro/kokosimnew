@@ -23,6 +23,11 @@ from .career_history_scale_benchmark import file_sha256
 from .career_annual_growth_audit import (
     physical_year_snapshot, profile_annual_growth, school_query_plan_audit,
 )
+from .career_calendar_v2 import (
+    CareerCalendarV2Archive, explicit_sandbox_plan,
+    verify_sandbox_match_dates,
+)
+from .career_era_calendar_contract import next_year_preflight
 from .career_option_a_storage_profile import profile_option_a_storage
 from .career_longitudinal_read import CareerLongitudinalReadModel
 from .career_player_records import BATTER, PITCHER, CareerPlayerRecordView
@@ -116,8 +121,11 @@ def run_full_a_benchmark(
     data_root: str | Path, *, schools: int = 2, years: int = 3,
     games_per_school_year: int = 2, repeats: int = 2,
     allow_large: bool = False,
+    include_sandbox_calendar: bool = False,
 ) -> dict:
     validate_options(schools, years, games_per_school_year, repeats, allow_large)
+    if type(include_sandbox_calendar) is not bool:
+        raise ValueError("invalid optional sandbox calendar setting")
     repo = DataRepository(Path(data_root))
     selected = sorted(repo.school_to_program)[:schools]
     if len(selected) != schools:
@@ -128,6 +136,11 @@ def run_full_a_benchmark(
         match_file = path / "historical_matches.sqlite3"
         roster_file = path / "career_rosters.sqlite3"
         cache_file = path / "derived_player_stats.sqlite3"
+        calendar_file = path / "sandbox_calendar_v2.sqlite3"
+        calendar = (
+            CareerCalendarV2Archive(calendar_file)
+            if include_sandbox_calendar else None
+        )
         matches = HistoricalMatchArchive(match_file)
         rosters = CareerRosterArchive(roster_file)
         view = CareerPlayerRecordView(matches, rosters)
@@ -136,7 +149,33 @@ def run_full_a_benchmark(
         total_matches = 0
         physical_growth = []
         for year in range(START_YEAR, START_YEAR + years):
+            if calendar is not None:
+                game_days = {
+                    ("CMP000086" if i % 2 == 0 else "CMP000088"):
+                    [
+                        f"04-{j + 1:02d}"
+                        for j in range(
+                            i % 2, games_per_school_year, 2
+                        )
+                    ]
+                    for i in range(min(2, games_per_school_year))
+                }
+                calendar.record(explicit_sandbox_plan(
+                    year, game_days,
+                    approved_for_fictional_game=True,
+                    allowed_competitions=set(repo.competitions),
+                ))
             if year > START_YEAR:
+                if calendar is not None:
+                    preflight = next_year_preflight(
+                        match_file, requested_year=year,
+                    )
+                    if not preflight[
+                        "archive_year_registration_preflight_ok"
+                    ]:
+                        raise AssertionError(
+                            "synthetic adjacent-year rollover was not sealed"
+                        )
                 matches.register_next_year(
                     year=year, rng_seed=SEED,
                     resolver_contract="full_a_synthetic_v1",
@@ -197,6 +236,23 @@ def run_full_a_benchmark(
             ))
 
         build_ms = round((perf_counter() - start) * 1000, 3)
+        sandbox_calendar = None
+        if calendar is not None:
+            sandbox_calendar = verify_sandbox_match_dates(
+                calendar_file, match_file,
+            )
+            if sandbox_calendar["game_years"] != list(range(
+                START_YEAR, START_YEAR + years
+            )):
+                raise AssertionError("yearly sandbox calendar coverage differs")
+            if sandbox_calendar["checked_archived_matches"] != total_matches:
+                raise AssertionError("synthetic game dates not fully covered")
+            sandbox_calendar["calendar_database_bytes"] = (
+                calendar_file.stat().st_size
+            )
+            sandbox_calendar[
+                "all_fixture_calendar_plans_are_fictional"
+            ] = True
         file_sizes = {
             "matches": match_file.stat().st_size,
             "rosters": roster_file.stat().st_size,
@@ -215,9 +271,14 @@ def run_full_a_benchmark(
             raise AssertionError("annual growth audit year coverage differs")
         if physical_growth[-1]["allocated_file_bytes"] != file_sizes:
             raise AssertionError("annual physical end snapshot differs")
+        persisted_files = (
+            (match_file, roster_file, cache_file, calendar_file)
+            if calendar is not None
+            else (match_file, roster_file, cache_file)
+        )
         before = {
             file.name: file_sha256(file)
-            for file in (match_file, roster_file, cache_file)
+            for file in persisted_files
         }
         reader = CareerStatsReadOnlyAdapter(view, cache_file)
         index_plans = school_query_plan_audit(
@@ -288,7 +349,7 @@ def run_full_a_benchmark(
             })
         after = {
             file.name: file_sha256(file)
-            for file in (match_file, roster_file, cache_file)
+            for file in persisted_files
         }
         if before != after:
             raise AssertionError("read-only benchmark changed databases")
@@ -365,6 +426,7 @@ def run_full_a_benchmark(
         "reads": sampled,
         "all_db_hashes_unchanged_on_read": True,
         "temporary_fixture_deleted_after_run": True,
+        "sandbox_calendar_v2": sandbox_calendar,
         "genuine_roster_identity_attribution": True,
         "option_a_innings_teams_batters_pitchers_present": True,
         "real_game_tournament_progression_verified": False,
@@ -382,12 +444,14 @@ def main() -> None:
     parser.add_argument("--games-per-school-year", type=int, default=2)
     parser.add_argument("--repeats", type=int, default=2)
     parser.add_argument("--allow-large", action="store_true")
+    parser.add_argument("--include-sandbox-calendar", action="store_true")
     parser.add_argument("--output-json", type=Path)
     args = parser.parse_args()
     result = run_full_a_benchmark(
         args.data_root, schools=args.schools, years=args.years,
         games_per_school_year=args.games_per_school_year,
         repeats=args.repeats, allow_large=args.allow_large,
+        include_sandbox_calendar=args.include_sandbox_calendar,
     )
     rendered = json.dumps(result, ensure_ascii=False, indent=2)
     if args.output_json:

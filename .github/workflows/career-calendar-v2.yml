@@ -1,0 +1,47 @@
+name: Sandbox career calendar v2
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_calendar_v2.py"
+      - "phase2_engine/career_full_a_benchmark.py"
+      - "tests/test_stage43g25_calendar_v2.py"
+      - ".github/workflows/career-calendar-v2.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "phase2_engine/career_calendar_v2.py"
+      - "phase2_engine/career_full_a_benchmark.py"
+      - ".github/workflows/career-calendar-v2.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  two_to_five_year:
+    name: v2 calendar 2-to-5-year synthetic full-A integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Validate calendar slots and immutable plans
+        run: python -m unittest discover -s tests -p 'test_stage43g25_calendar_v2.py' -v
+      - name: Save measured five-year real-roster full-A test report
+        run: |
+          python -m phase2_engine.career_full_a_benchmark \
+            --data-root data --schools 2 --years 5 \
+            --games-per-school-year 3 --repeats 1 \
+            --include-sandbox-calendar \
+            --output-json benchmark-results/sandbox-calendar-v2-5years.json
+      - name: Retain synthetic v2 integration JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandbox-calendar-v2-${{ github.run_id }}
+          path: benchmark-results/*.json
+          if-no-files-found: warn
+          retention-days: 30
