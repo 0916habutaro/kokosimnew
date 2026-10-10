@@ -55,12 +55,21 @@ class Stage43G31CrossEraBrowseTests(unittest.TestCase):
 
     def setup_rosters(self):
         generator = PlayerRosterGenerator()
-        for year in (2026, 10000):
+        # Two intentionally disconnected synthetic calendar eras; DO NOT
+        # imply that the game advanced 7,974 years of roster transitions.
+        for school in (self.a, self.b):
+            self.rosters.save_initial_roster(
+                generator.generate_for_school_id(
+                    self.repo, school, 2026, SEED,
+                )
+            )
+        with self.rosters._connect() as conn:
             for school in (self.a, self.b):
-                self.rosters.save_initial_roster(
+                CareerRosterArchive._insert(
+                    conn,
                     generator.generate_for_school_id(
-                        self.repo, school, year, SEED,
-                    )
+                        self.repo, school, 10000, SEED,
+                    ),
                 )
 
     def sample(self, year, match_id):
