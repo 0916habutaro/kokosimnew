@@ -417,10 +417,10 @@ class Stage43G2MultiCompetitionCheckpointTests(unittest.TestCase):
             conn.execute(
                 "UPDATE historical_matches SET record_sha256='tampered' "
                 "WHERE year=2027 AND competition_id='CMP000084' "
-                "AND stage_code='MAIN' AND match_id = "
+                "AND match_id = "
                 "(SELECT match_id FROM historical_matches "
                 "WHERE year=2027 AND competition_id='CMP000084' "
-                "AND stage_code='MAIN' LIMIT 1)"
+                "ORDER BY match_date, match_id LIMIT 1)"
             )
         with self.assertRaisesRegex(
             RegionalFeederNotReady, "archived games",
