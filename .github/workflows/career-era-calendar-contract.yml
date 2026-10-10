@@ -1,0 +1,30 @@
+name: Career era calendar contract
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_era_calendar_contract.py"
+      - "tests/test_stage43g24_era_calendar_contract.py"
+      - ".github/workflows/career-era-calendar-contract.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "phase2_engine/career_era_calendar_contract.py"
+      - ".github/workflows/career-era-calendar-contract.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  year_boundary:
+    name: 2026/9999/10000 rollover boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Audit future calendar and sealed year contracts
+        run: python -m unittest discover -s tests -p 'test_stage43g24_era_calendar_contract.py' -v
