@@ -179,6 +179,14 @@ class Stage43F2FutureCompetitionBridgeTests(unittest.TestCase):
         with self.assertRaisesRegex(FutureCompetitionNotReady, "game days"):
             self.prepare(blueprint=modified)
 
+    def test_insufficient_game_days_for_all_main_rounds_is_rejected(self):
+        modified = deepcopy(self.blueprint)
+        modified["calendars"][0]["game_date_list"] = (
+            "2027-03-19;2027-03-20;2027-03-21;2027-03-22"
+        )
+        with self.assertRaisesRegex(FutureCompetitionNotReady, "not enough"):
+            self.prepare(blueprint=modified)
+
     def test_unqualified_premain_cannot_use_direct_main_bridge(self):
         # CMP000004 has BRANCH_QUALIFIER and MAIN; this explicit preview
         # cannot bypass its qualifying rules by presenting a list of schools.
