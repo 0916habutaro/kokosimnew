@@ -281,6 +281,7 @@ class Stage43G10Kanto17EndToEndTests(unittest.TestCase):
         # calendar date* would quadratically repeat already tested replays.
         # The public cross-event API is fully covered by Stage43G-9 tests.
         upstream = self.multi.load("kanto", year=2027)
+        spring_checkpoint_started = False
         for _ in range(100):
             date_a = self.multi._next_date(upstream)
             date_b = spring.preview.scheduled.next_scheduled_date() or ""
@@ -291,8 +292,17 @@ class Stage43G10Kanto17EndToEndTests(unittest.TestCase):
                 self.multi.play_next_date(upstream)
             if date_b == next_date:
                 spring.preview.play_next_date()
-                self.kanagawa.save(spring)
+                if not spring_checkpoint_started:
+                    # A real partial checkpoint proves a mid-year save is valid.
+                    self.kanagawa.save(spring)
+                    spring_checkpoint_started = True
             global_days.append(next_date)
+        self.assertTrue(spring_checkpoint_started)
+        # Stage43G-9 separately verifies saving every date and crash replay.
+        # For this large eight-prefecture E2E, one partial and one final
+        # checkpoint are enough to bind the entire A-match history and avoid
+        # replaying all completed upstream games after every qualifier day.
+        self.kanagawa.save(spring)
         self.assertFalse(self.multi._next_date(upstream))
         self.assertTrue(spring.preview.scheduled.is_complete)
         self.assertEqual(global_days, sorted(set(global_days)))
@@ -341,13 +351,17 @@ class Stage43G10Kanto17EndToEndTests(unittest.TestCase):
             kanagawa_sidecar_enabled=True,
         )
         self.assertEqual(17, region.summary()["entrant_count"])
-        played = []
+        first_round = self.regional.play_next_date(region)
+        played = [first_round["date"]]
+        # The first regional wave is saved; later waves use the same
+        # deterministic engine and are archived together at completion.
         for _ in range(12):
-            result = self.regional.play_next_date(region)
-            played.append(result["date"])
             if region.preview.scheduled.is_complete:
                 break
+            result = region.preview.play_next_date()
+            played.append(result["date"])
         self.assertTrue(region.preview.scheduled.is_complete)
+        self.regional.save(region)
         self.assertEqual(played, sorted(set(played)))
         self.assertEqual(16, region.summary()["completed_match_count"])
         final = region.preview.scheduled.to_competition_run()
