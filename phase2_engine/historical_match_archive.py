@@ -50,6 +50,12 @@ CREATE INDEX IF NOT EXISTS idx_history_team1
     ON historical_matches(year, team1_id, match_date, competition_id, match_id);
 CREATE INDEX IF NOT EXISTS idx_history_team2
     ON historical_matches(year, team2_id, match_date, competition_id, match_id);
+-- Multi-decade school history filters by school equality *before* the
+-- 50/100-year range. Existing year-first indexes remain for yearly views.
+CREATE INDEX IF NOT EXISTS idx_history_school1_year
+    ON historical_matches(team1_id, year, competition_id, match_id);
+CREATE INDEX IF NOT EXISTS idx_history_school2_year
+    ON historical_matches(team2_id, year, competition_id, match_id);
 """
 
 
