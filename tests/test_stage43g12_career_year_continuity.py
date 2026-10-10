@@ -237,6 +237,31 @@ class Stage43G12YearContinuityAndReadModelTests(unittest.TestCase):
         with self.assertRaises(CareerPreviewSaveError):
             self.continuity.load("testslot", year=2027)
 
+    def test_same_player_id_cannot_change_hidden_attributes_at_grade_rollover(self):
+        self.start()
+        self.continuity.register("testslot", year=2027)
+        school = self.schools["CMP000086"][0]
+        path = self.slot / "career_rosters.sqlite3"
+        with sqlite3.connect(path) as conn:
+            row = conn.execute(
+                "SELECT payload_json FROM career_school_rosters "
+                "WHERE year=2027 AND school_id=?", (school,),
+            ).fetchone()
+            original = json.loads(row[0])
+            returning = next(
+                p for p in original["players"] if p["academic_year"] == 2
+            )
+            returning["bats"] = "L" if returning["bats"] != "L" else "R"
+            raw = json.dumps(original, ensure_ascii=False, sort_keys=True,
+                             separators=(",", ":"), allow_nan=False)
+            conn.execute(
+                "UPDATE career_school_rosters SET payload_json=?, "
+                "content_sha256=? WHERE year=2027 AND school_id=?",
+                (raw, hashlib.sha256(raw.encode("utf-8")).hexdigest(), school),
+            )
+        with self.assertRaises(CareerYearContinuityBlocked):
+            self.continuity.load("testslot", year=2027)
+
     def test_school_results_across_year_and_player_history_uses_index(self):
         self.start()
         session = self.multi.load("testslot", year=2027)
