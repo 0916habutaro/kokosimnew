@@ -107,6 +107,59 @@ class CareerHistoryBrowseModel:
                     break
         return found
 
+    def _school_players_at_year(self, year: int, school_id: str, *,
+                                limit: int, offset: int) -> dict:
+        # Selection-year membership: never display an entrant from a later
+        # career year while the user views an older school season.
+        path = self.rosters.db_path
+        if not path.is_file():
+            return {
+                "school_id": school_id, "players": [], "total": 0,
+                "limit": limit, "offset": offset,
+                "status_is_graduation_proof": False,
+            }
+        with sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True) as conn:
+            conn.row_factory = sqlite3.Row
+            total = conn.execute(
+                "SELECT COUNT(*) FROM career_player_identities "
+                "WHERE school_id=? AND entry_year<=?",
+                (school_id, year),
+            ).fetchone()[0]
+            rows = conn.execute(
+                "SELECT player_id,entry_year,identity_json,identity_sha256 "
+                "FROM career_player_identities WHERE school_id=? "
+                "AND entry_year<=? ORDER BY entry_year,player_id "
+                "LIMIT ? OFFSET ?",
+                (school_id, year, limit, offset),
+            ).fetchall()
+        roster = self.rosters.roster(year, school_id)
+        roster_ids = {p.player_id for p in roster.players} if roster else set()
+        results = []
+        for row in rows:
+            raw = row["identity_json"]
+            if hashlib.sha256(raw.encode("utf-8")).hexdigest() != row["identity_sha256"]:
+                raise ValueError("archived career player identity checksum differs")
+            info = json.loads(raw)
+            if (info.get("player_id") != row["player_id"]
+                    or info.get("school_id") != school_id
+                    or info.get("entry_year") != row["entry_year"]):
+                raise ValueError("archived career player identity mismatched")
+            results.append({
+                "player_id": row["player_id"], "school_id": school_id,
+                "entry_year": row["entry_year"],
+                "display_name": info["display_name"],
+                "selected_roster_year": year,
+                "latest_roster_status": (
+                    "on_selected_year_roster" if row["player_id"] in roster_ids
+                    else "not_on_selected_year_roster"
+                ) if roster else "selected_year_roster_unavailable",
+            })
+        return {
+            "school_id": school_id, "players": results, "total": total,
+            "limit": limit, "offset": offset,
+            "status_is_graduation_proof": False,
+        }
+
     def school_page(self, year: int, school_id: str, *,
                     start_year: int | None = None, offset: int = 0,
                     limit: int = 30) -> Page:
@@ -119,8 +172,8 @@ class CareerHistoryBrowseModel:
         years = self.school.school_results(
             school_id, start_year=start, end_year=year, limit=limit, offset=offset
         )
-        members = self.school.school_player_index(
-            school_id, limit=limit, offset=offset
+        members = self._school_players_at_year(
+            year, school_id, limit=limit, offset=offset
         )
         return {
             "screen": "school", "year": year, "school_id": school_id,
