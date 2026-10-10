@@ -1,0 +1,50 @@
+name: Historical archive scale benchmark
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_history_scale_benchmark.py"
+      - "phase2_engine/career_longitudinal_read.py"
+      - "phase2_engine/historical_match_archive.py"
+      - "tests/test_stage43g20_history_synthetic_scale.py"
+      - ".github/workflows/history-scale-benchmark.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "phase2_engine/career_history_scale_benchmark.py"
+      - "phase2_engine/career_longitudinal_read.py"
+      - "phase2_engine/historical_match_archive.py"
+      - ".github/workflows/history-scale-benchmark.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic_baselines:
+    name: Synthetic 50y / 100y archive benchmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Measure 24 schools x 50 years
+        run: |
+          python -m phase2_engine.career_history_scale_benchmark \
+            --schools 24 --years 50 --games-per-school-year 4 --repeats 2 \
+            --output-json benchmark-results/synthetic-50y.json
+      - name: Measure 24 schools x 100 years
+        run: |
+          python -m phase2_engine.career_history_scale_benchmark \
+            --schools 24 --years 100 --games-per-school-year 4 --repeats 2 \
+            --output-json benchmark-results/synthetic-100y.json
+      - name: Retain actual measurement JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: historical-archive-scale-${{ github.run_id }}
+          path: benchmark-results/*.json
+          if-no-files-found: warn
+          retention-days: 30
