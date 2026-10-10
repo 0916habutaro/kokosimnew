@@ -9,7 +9,7 @@ import unittest
 from game_core.players import PlayerRosterGenerator
 from phase2_engine.career_history_scale_audit import synthetic_ability_record
 from phase2_engine.career_player_records import (
-    CareerHistoryViewConflict, CareerPlayerRecordView,
+    BATTER, PITCHER, CareerHistoryViewConflict, CareerPlayerRecordView,
 )
 from phase2_engine.career_roster_archive import CareerRosterArchive
 from phase2_engine.historical_match_archive import HistoricalMatchArchive
@@ -66,6 +66,12 @@ class Stage43G14PlayerRecordTests(unittest.TestCase):
                 ]
                 for item, pid in zip(source, selected):
                     item["player_id"] = pid
+                    # The G13 synthetic-size fixture intentionally stores
+                    # only 2 batting fields. Fill the actual v1 simulator
+                    # field contract for this player-record integrity test.
+                    for key in BATTER:
+                        item.setdefault(key, 0)
+                    item["plate_appearances"] = 4
                 arm = next(p.player_id for p in members
                            if p.primary_position == "P")
                 if school == self.a:
@@ -73,6 +79,9 @@ class Stage43G14PlayerRecordTests(unittest.TestCase):
                 for item in row["ability_detail"]["pitcher_stats"]:
                     if item["school_id"] == school:
                         item["player_id"] = arm
+                        for key in PITCHER:
+                            item.setdefault(key, 0)
+                        item["outs_recorded"] = 27
             self.history.sync(
                 year=year, rng_seed=SEED,
                 resolver_contract="synthetic_test_v1",
