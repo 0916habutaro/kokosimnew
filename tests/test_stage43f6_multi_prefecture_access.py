@@ -266,13 +266,15 @@ class Stage43F6MultiPrefectureAccessTests(unittest.TestCase):
             )
         self.assertEqual("FMT002", by_id["CMP000109"]["qualifier_model"])
         self.assertEqual(
-            "non_fmt001_adapter_required",
+            "sandbox_fmt002_supported",
             by_id["CMP000109"]["access_status"],
         )
         self.assertEqual(
-            "preliminary_qualifier_adapter_required",
+            "sandbox_preliminary_explicit_source_supported",
             by_id["CMP000094"]["access_status"],
         )
+        self.assertEqual(1, result["sandbox_fmt002_supported_count"])
+        self.assertEqual(1, result["sandbox_preliminary_explicit_source_count"])
         self.assertEqual(64, by_id["CMP000094"]["direct_main_entry_count"])
 
     def test_audit_does_not_repeat_2026_or_allow_invalid_year(self):
