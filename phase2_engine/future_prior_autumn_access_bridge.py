@@ -12,7 +12,10 @@ from typing import Mapping, Sequence
 
 from game_core.tournament_bridge import AbilityMatchResolver
 
-from .career_competition_outcomes import build_future_blueprint_from_archive
+from .career_competition_outcomes import (
+    CareerCompetitionOutcomes,
+    build_future_blueprint_from_archive,
+)
 from .career_roster_archive import CareerRosterArchive
 from .engine import TournamentEngine
 from .future_competition_bridge import (
@@ -93,6 +96,7 @@ def prepare_future_prior_autumn_bypass_preview(
     ability_config_dir: str | Path = "config/abilities",
     match_config_dir: str | Path = "config/match",
     entry_source: str = SANDBOX_ENTRANTS,
+    prior_source_competition_id: str | None = None,
 ) -> FutureCompetitionPreview:
     """Connect archived qualified schools to FMT001 qualifier + MAIN.
 
@@ -128,13 +132,42 @@ def prepare_future_prior_autumn_bypass_preview(
     if len(matched) != 1 or matched[0]["access_rule_id"] != rule["access_rule_id"]:
         raise FutureCompetitionNotReady("unexpected prior-autumn rule")
     result = matched[0]
-    if (result["status"] != "resolved"
-            or result["source_year"] != year - 1
-            or result["provenance"] != "previous_year_saved_game_result"):
-        raise FutureCompetitionNotReady(
-            "previous autumn qualification is not resolved from sealed games"
-        )
-    direct = result["school_ids"]
+    # The 2026 master has no Tokyo autumn-prefectural competition row.
+    # Do not pretend its 64 prior-year MAIN entrants exist in that master.
+    # An explicitly bound *sandbox* competition is permitted only when it
+    # has its own completed MAIN outcome in the sealed prior-year game DB.
+    if competition_id == "CMP000094":
+        if (not isinstance(prior_source_competition_id, str)
+                or not prior_source_competition_id.strip()
+                or prior_source_competition_id == competition_id):
+            raise FutureCompetitionNotReady(
+                "Tokyo requires explicitly bound previous-autumn game competition"
+            )
+        try:
+            verified = CareerCompetitionOutcomes(match_archive).previous_results(
+                year - 1
+            ).get(prior_source_competition_id)
+        except (ValueError, KeyError) as exc:
+            raise FutureCompetitionNotReady(
+                "previous year game outcomes not sealed and verified"
+            ) from exc
+        if not verified or len(verified["ranked_school_ids"]) < 64:
+            raise FutureCompetitionNotReady(
+                "Tokyo autumn source must contain at least 64 verified schools"
+            )
+        direct = list(verified["ranked_school_ids"][:64])
+    else:
+        if prior_source_competition_id is not None:
+            raise FutureCompetitionNotReady(
+                "explicit prior source override is only for Tokyo sandbox"
+            )
+        if (result["status"] != "resolved"
+                or result["source_year"] != year - 1
+                or result["provenance"] != "previous_year_saved_game_result"):
+            raise FutureCompetitionNotReady(
+                "previous autumn qualification is not resolved from sealed games"
+            )
+        direct = result["school_ids"]
     target = int(rule.get("quota") or rule.get("observed_2026_count") or 0)
     if (target < 1 or len(direct) != target
             or not isinstance(direct, list)
