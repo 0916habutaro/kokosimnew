@@ -7,6 +7,7 @@ only after the original game's MAIN outcome and SQLite match rows agree.
 from __future__ import annotations
 
 import csv
+import json
 from datetime import date
 from pathlib import Path
 import sqlite3
@@ -134,14 +135,15 @@ def project_same_year_regional_feeders(
     with sqlite3.connect(archive.db_path) as conn:
         conn.row_factory = sqlite3.Row
         identity = conn.execute(
-            "SELECT status, rng_seed, resolver_contract, plan_fingerprint "
+            "SELECT status, metadata_json "
             "FROM career_years WHERE year=?", (session.year,),
         ).fetchone()
+        metadata = json.loads(identity["metadata_json"]) if identity else {}
         if (identity is None or identity["status"] != "active"
-                or identity["rng_seed"] != session.inputs[0]["base_seed"]
-                or identity["resolver_contract"] !=
+                or metadata.get("rng_seed") != session.inputs[0]["base_seed"]
+                or metadata.get("resolver_contract") !=
                 "career_multi_preview_ability_v1"
-                or identity["plan_fingerprint"] != service._fingerprint(session)):
+                or metadata.get("plan_fingerprint") != service._fingerprint(session)):
             raise RegionalFeederNotReady("current year archive identity mismatch")
         for rule in rules:
             cid = rule["source_competition_id"]
