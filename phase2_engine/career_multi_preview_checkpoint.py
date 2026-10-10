@@ -149,6 +149,19 @@ class CareerMultiPreviewCheckpointService:
                     raise CareerPreviewSaveError(
                         "direct MAIN requires whitelisted competition and no feeder override"
                     )
+            if cid == "CMP000094":
+                if (mode != "prior_autumn_bypass_v1"
+                        or not isinstance(source, str)
+                        or not source.strip()
+                        or source == cid):
+                    raise CareerPreviewSaveError(
+                        "Tokyo requires explicit sealed prior-autumn game source ID"
+                    )
+            elif cid == "CMP000092":
+                if mode != "prior_autumn_bypass_v1" or source is not None:
+                    raise CareerPreviewSaveError(
+                        "Chiba requires verified prior-autumn access without source override"
+                    )
             row = {
                 "year": year, "competition_id": cid,
                 "entrant_school_ids": list(schools),
