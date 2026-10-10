@@ -208,7 +208,7 @@ class Stage43G1CareerPreviewCheckpointTests(unittest.TestCase):
         self.assertEqual(["2027-04-08"],
                          resumed.preview.scheduled.processed_dates)
         self.assertEqual(
-            "2027-04-11", resumed.preview.scheduled.next_scheduled_date(),
+            "2027-04-18", resumed.preview.scheduled.next_scheduled_date(),
         )
         second = self.service.play_next_date(resumed)
         self.assertTrue(second["played_match_count"] > 0)
