@@ -20,6 +20,7 @@ from phase2_engine.career_roster_archive import CareerRosterArchive
 from phase2_engine.career_year_continuity import (
     CareerYearContinuityBlocked, CareerYearContinuityService,
 )
+from phase2_engine.career_year_operation import CareerYearOperationService
 from phase2_engine.historical_match_archive import HistoricalMatchArchive
 from phase2_engine.live_season_save import (
     SAVE_SCHEMA_VERSION, rechecksum_live_season_save_payload,
@@ -163,6 +164,13 @@ class Stage43G12YearContinuityAndReadModelTests(unittest.TestCase):
         self.assertTrue(ready["roster_lineage_verified"])
         self.assertFalse(ready["automatic_next_year_start_ready"])
         self.assertFalse(ready["legacy_save_results_migrated"])
+        operational = CareerYearOperationService(self.multi).audit(
+            "testslot", year=2027,
+        )
+        self.assertTrue(operational["career_year_continuity_verified"])
+        self.assertTrue(operational["historical_school_player_index_ready"])
+        self.assertFalse(operational["full_year_gameplay_available"])
+        self.assertFalse(operational["original_2026_live_save_imported"])
 
     def test_2026_live_save_must_remain_read_only_not_mistaken_for_career_source(self):
         self.start()
