@@ -272,13 +272,8 @@ class CareerV2OptionAArchive:
         return {"already_sealed": False,
                 "match_count": count, "ledger_sha256": digest}
 
-    def year_matches(self, year: int, *, limit: int = 50,
-                     offset: int = 0) -> dict:
-        _year(year)
-        if (type(limit) is not int or not 1 <= limit <= 100
-                or type(offset) is not int or offset < 0):
-            raise ValueError("invalid v2 match page")
-        plan, plan_sha = _calendar_info(self.calendar, year)
+    def _verified_year(self, year: int, plan: dict,
+                       plan_sha: str) -> tuple[str, list[dict]]:
         if not self.path.is_file():
             raise FileNotFoundError("v2 Option-A archive missing")
         with closing(_read_only(self.path)) as con:
@@ -291,20 +286,30 @@ class CareerV2OptionAArchive:
             rows = con.execute(
                 "SELECT * FROM v2_option_a_matches WHERE year=? "
                 "ORDER BY game_day_token,competition_id,match_id", (year,),
-            ).fetchall()
-            # Verify the entire bounded test-year before returning any page.
-            all_data = [_verify_match(r, plan, plan_sha) for r in rows]
+            )
+            data = [_verify_match(row, plan, plan_sha) for row in rows]
             if status["status"] == "sealed":
                 count, digest = _ledger(con, year)
                 if (count, digest) != (
                     status["match_count"], status["ledger_sha256"]
                 ):
                     raise CareerV2MatchConflict("sealed v2 ledger changed")
+        return status["status"], data
+
+    def year_matches(self, year: int, *, limit: int = 50,
+                     offset: int = 0) -> dict:
+        _year(year)
+        if (type(limit) is not int or not 1 <= limit <= 100
+                or type(offset) is not int or offset < 0):
+            raise ValueError("invalid v2 match page")
+        plan, plan_sha = _calendar_info(self.calendar, year)
+        # Integrity-first read checks every source match before paging.
+        status, all_data = self._verified_year(year, plan, plan_sha)
         return {
             "source_kind": SOURCE,
             "game_year": year,
             "calendar_sha256": plan_sha,
-            "year_status": status["status"],
+            "year_status": status,
             "rows": all_data[offset:offset + limit],
             "total": len(all_data),
             "limit": limit,
@@ -327,17 +332,26 @@ class CareerV2OptionAArchive:
             competition_id is not None and competition_id not in scheduled
         ):
             raise CareerV2MatchConflict("v2 day not approved for competition")
-        page = self.year_matches(slot.year, limit=100, offset=0)
-        if page["total"] > 100:
-            raise CareerV2MatchConflict(
-                "v2 day view requires bounded year fixture; paging upgrade needed"
-            )
-        all_rows = [
-            row for row in page["rows"]
-            if row["game_day_token"] == token
+        if (type(limit) is not int or not 1 <= limit <= 100
+                or type(offset) is not int or offset < 0
+                or (competition_id is not None
+                    and (type(competition_id) is not str or not competition_id))):
+            raise ValueError("invalid v2 day page")
+        _, plan_sha = _calendar_info(self.calendar, slot.year)
+        status, verified = self._verified_year(slot.year, plan, plan_sha)
+        selected = [
+            row for row in verified if row["game_day_token"] == token
             and (competition_id is None
                  or row["competition_id"] == competition_id)
         ]
-        return {**page, "game_day_token": token,
-                "competition_id": competition_id, "rows": all_rows[offset:offset+limit],
-                "total": len(all_rows), "limit": limit, "offset": offset}
+        return {
+            "source_kind": SOURCE, "game_year": slot.year,
+            "game_day_token": token, "competition_id": competition_id,
+            "year_status": status,
+            "rows": selected[offset:offset + limit],
+            "total": len(selected), "limit": limit, "offset": offset,
+            "full_option_a_field_set": True,
+            "legacy_archive_modified": False,
+            "legacy_stats_cache_supports_v2": False,
+            "real_tournament_runtime_connected": False,
+        }
