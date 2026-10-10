@@ -177,6 +177,7 @@ class CareerV2RosterAttribution:
             "school_id": school_id,
             "team_match_count": team_game_count,
             "player_count": len(rows),
+            "verified_school_ids": sorted(membership),
             "rows": rows,
             "source_match_count": total_games,
             "source_calendar_sha256": first["calendar_sha256"],
