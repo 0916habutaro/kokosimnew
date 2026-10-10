@@ -14,7 +14,6 @@ from typing import Literal
 
 from .career_longitudinal_read import CareerLongitudinalReadModel
 from .career_player_records import CareerPlayerRecordView, RANKABLE
-from .career_player_stat_cache import CareerPlayerStatCache, CareerStatsCacheConflict
 from .historical_match_archive import HistoricalMatchArchive
 from .career_roster_archive import CareerRosterArchive
 from .repository import DataRepository
@@ -47,12 +46,10 @@ class CareerHistoryBrowseModel:
         self.rosters = CareerRosterArchive(slot / "career_rosters.sqlite3")
         self.school = CareerLongitudinalReadModel(self.history, self.rosters)
         self.stats = CareerPlayerRecordView(self.history, self.rosters)
-        self.cache = CareerPlayerStatCache(
-            self.stats, slot / "derived_player_stats.sqlite3"
-        )
-        # The GUI must never call cache.materialize on browsing: that writes.
-        # All screens work from authoritative A records or existing readonly
-        # caches only. An incomplete cache is not an error in a new save.
+        # Pure reads only: Stage43G-15's materializer is deliberately NOT
+        # called from screen rendering, since it writes derived SQLite rows.
+        # A later opt-in cache adapter must use URI mode=ro and must refuse
+        # missing or stale cache without changing authoritative archives.
         self.slot_root = slot
 
     def years(self) -> list[dict]:
