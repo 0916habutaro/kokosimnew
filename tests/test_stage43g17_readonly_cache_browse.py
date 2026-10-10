@@ -84,12 +84,16 @@ class Stage43G17ReadonlyCacheBrowseTests(unittest.TestCase):
         self.build(2026)
         # Active 2027: no source materialization, even if 2026 was cached.
         player = self.model.player_page(2027, self.hitter)
-        self.assertEqual("raw_archived_A_verified", player["source_validation"])
+        self.assertEqual("mixed_cache_ledger_and_raw_A_verified",
+                         player["source_validation"])
+        self.assertEqual((1, 1), (
+            player["cached_year_count"], player["raw_year_count"]
+        ))
         self.assertEqual(2, player["career_stats"]["batting"]["games"])
-        # Newly sealed 2027 still falls back until its derived cache exists.
+        # Newly sealed 2027 remains raw within mixed mode until cached.
         self.seed.fixture.history.seal_year(2027, expected_match_count=1)
         incomplete = self.model.player_page(2027, self.hitter)
-        self.assertEqual("raw_archived_A_verified",
+        self.assertEqual("mixed_cache_ledger_and_raw_A_verified",
                          incomplete["source_validation"])
         self.build(2027)
         complete = self.model.player_page(2027, self.hitter)
