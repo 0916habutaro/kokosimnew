@@ -159,6 +159,21 @@ class Stage43G15SealedPlayerCacheTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.cache.materialize(self.seed.a, year=2026)
 
+    def test_missing_other_player_cache_row_is_detected_on_fast_read(self):
+        self.cache.materialize(self.seed.a, year=2026)
+        with sqlite3.connect(self.cache.path) as conn:
+            conn.execute(
+                "DELETE FROM player_year_stat_cache WHERE school_id=? "
+                "AND year=2026 AND player_id != ? "
+                "AND player_id IN (SELECT player_id FROM player_year_stat_cache "
+                "WHERE school_id=? AND year=2026 AND player_id != ? LIMIT 1)",
+                (self.seed.a, self.seed.hitter, self.seed.a, self.seed.hitter),
+            )
+        with self.assertRaisesRegex(CareerStatsCacheConflict, "coverage"):
+            self.cache.player_seasons(
+                self.seed.hitter, start_year=2026, end_year=2026,
+            )
+
     def test_cache_row_checksum_and_wrong_database_target_rejected(self):
         self.cache.materialize(self.seed.a, year=2026)
         with sqlite3.connect(self.cache.path) as conn:
