@@ -6,6 +6,7 @@ rewrites, or claims that their generated scores are the same game history.
 """
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 import sqlite3
 
@@ -112,10 +113,7 @@ class CareerYearContinuityService:
             for pid in exp_survivors:
                 old = prior[pid]
                 new = now[pid]
-                if (new.academic_year != old.academic_year + 1
-                        or new.entry_year != old.entry_year
-                        or new.roster_no != old.roster_no
-                        or new.display_name != old.display_name):
+                if new != replace(old, academic_year=old.academic_year + 1):
                     raise CareerYearContinuityBlocked(
                         f"returning player identity/grade differs: {pid}"
                     )
