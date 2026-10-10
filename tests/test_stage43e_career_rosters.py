@@ -231,12 +231,15 @@ class Stage43ECareerRostersTests(unittest.TestCase):
     def test_cross_year_identity_fingerprint_conflict_is_atomic(self):
         self.archive.save_initial_roster(self.initial)
         original = self._step(self.initial, 2027).roster
-        corrupt = replace(
-            original.players[0], display_name="偽の名前"
+        prior_ids = {p.player_id for p in self.initial.players}
+        returning = next(
+            p for p in original.players if p.player_id in prior_ids
         )
+        corrupt = replace(returning, display_name="偽の名前")
         broken = replace(
             original,
-            players=[corrupt, *original.players[1:]],
+            players=[corrupt if p.player_id == returning.player_id else p
+                     for p in original.players],
         )
         with sqlite3.connect(self.archive.db_path) as conn:
             # Simulate a damaged pre-existing identity reference.
