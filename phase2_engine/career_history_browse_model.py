@@ -53,11 +53,22 @@ class CareerHistoryBrowseModel:
         self.slot_root = slot
 
     def years(self) -> list[dict]:
+        # HistoricalMatchArchive.list_years() replays schema DDL for normal
+        # game runtime. A history GUI must use a true SQLite READ-ONLY
+        # connection and must not create the database or any index.
+        if not self.history.db_path.is_file():
+            return []
+        with sqlite3.connect(
+            self.history.db_path.resolve().as_uri() + "?mode=ro", uri=True
+        ) as conn:
+            rows = conn.execute(
+                "SELECT year,status,match_count FROM career_years "
+                "ORDER BY year"
+            ).fetchall()
         return [
-            {"year": y["year"], "state": y["status"],
-             "archived_match_count": y["match_count"],
-             "source_kind": SOURCE}
-            for y in self.history.list_years()
+            {"year": year, "state": status,
+             "archived_match_count": match_count, "source_kind": SOURCE}
+            for year, status, match_count in rows
         ]
 
     def _school(self, sid: str) -> dict:
