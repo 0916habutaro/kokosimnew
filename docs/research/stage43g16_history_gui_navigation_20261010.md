@@ -30,7 +30,7 @@ HistoryRouteはscreen/year/school_id/player_id/competition_id/match_id/start_yea
 
 ## 3. 試験用Tk画面
 
-phase2_engine/career_history_gui_pilot.py を独立起動可能にした。年度選択、学校名／ID検索、学校別の年度戦績と歴代選手、選手通算成績、大会別試合、A方式試合詳細、学校歴代記録、ダブルクリックID遷移、戻るを実装。
+phase2_engine/career_history_gui_pilot.py を独立起動可能にした。年度選択、学校名／ID検索、学校別の年度戦績と歴代選手、選手通算成績、大会別試合、A方式試合詳細、学校歴代記録、ダブルクリックID遷移、戻る、学校／大会の前後ページ移動を実装。
 
 コマンド：
 
@@ -48,7 +48,7 @@ phase2_engine/career_history_gui_pilot.py を独立起動可能にした。年�
 
 ## 5. 自動テスト
 
-tests/test_stage43g16_history_gui_navigation.py（新規10件、ヘッドレス）：
+tests/test_stage43g16_history_gui_navigation.py（新規11件、ヘッドレス）：
 1. ゲーム内年度・封印状態・出典ラベル
 2. 学校検索と複数年度戦績・歴代選手
 3. 学校→選手→学校の戻り／年度保持
@@ -59,6 +59,7 @@ tests/test_stage43g16_history_gui_navigation.py（新規10件、ヘッドレス�
 8. 不正ID・ページ・試合SHA改変を拒否
 9. 学校・選手・試合・歴代記録の閲覧で元履歴SQLite・選手SQLiteバイト列が変わらず、キャッシュも生成されない
 10. Tk試験画面のPythonモジュールをウィンドウを作らずimportできること
+11. 学校・大会のoffsetページングが正しく読み取れ、戻る操作でも画面文脈を保持すること
 
 Python3.12の全ユニットテストと既存関東8都県E2Eの双方で回帰を確認する。Tkの実機表示はこのヘッドレステストだけでは保証しない。
 
