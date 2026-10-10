@@ -1,0 +1,35 @@
+name: V2 fictional player-stat cache
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_v2_player_stat_cache.py"
+      - "phase2_engine/career_v2_roster_attribution.py"
+      - "phase2_engine/career_v2_option_a_archive.py"
+      - "phase2_engine/career_roster_archive.py"
+      - "tests/test_stage43g29_v2_player_stat_cache.py"
+      - ".github/workflows/career-v2-player-stat-cache.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_v2_player_stat_cache.py"
+      - "phase2_engine/career_v2_roster_attribution.py"
+      - "phase2_engine/career_v2_option_a_archive.py"
+      - "phase2_engine/career_roster_archive.py"
+      - ".github/workflows/career-v2-player-stat-cache.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  sealed_player_cache:
+    name: Year 10000 separate stats cache immutability and source proofs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Verify separate v2 cache and legacy archive isolation
+        run: python -m unittest discover -s tests -p 'test_stage43g29_v2_player_stat_cache.py' -v
