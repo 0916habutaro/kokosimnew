@@ -271,6 +271,8 @@ class CareerHistoryGuiPilot:
                 "source_validation": page["source_validation"],
                 "source_payloads_rechecked_on_read":
                     page["source_payloads_rechecked_on_read"],
+                "cached_year_count": page["cached_year_count"],
+                "raw_year_count": page["raw_year_count"],
                 "source": SOURCE,
             })
         elif screen == "competition":
@@ -329,6 +331,8 @@ class CareerHistoryGuiPilot:
                 "source_validation": page["source_validation"],
                 "source_payloads_rechecked_on_read":
                     page["source_payloads_rechecked_on_read"],
+                "cached_year_count": page["cached_year_count"],
+                "raw_year_count": page["raw_year_count"],
                 "source": SOURCE,
             })
         self.status_var.set(
