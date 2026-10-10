@@ -7,6 +7,7 @@ import shutil
 import sqlite3
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from game_core.players import PlayerRosterGenerator
 from phase2_engine.career_competition_outcomes import CareerCompetitionOutcomes
@@ -16,6 +17,9 @@ from phase2_engine.career_multi_preview_checkpoint import (
     _checksum,
 )
 from phase2_engine.career_roster_archive import CareerRosterArchive
+from phase2_engine.career_regional_main_checkpoint import (
+    CareerRegionalMainCheckpointService,
+)
 from phase2_engine.historical_match_archive import HistoricalMatchArchive
 from phase2_engine.models import (
     CompetitionOutcome, CompetitionRun, Match, StageExecution,
@@ -460,6 +464,118 @@ class Stage43G2MultiCompetitionCheckpointTests(unittest.TestCase):
             self.service, a, "CMP000006",
         )
         self.assertEqual(0, valid["verified_entrant_count"])
+
+    def _stage43g4_finished_sources(self):
+        session = self.start()
+        for _ in range(45):
+            if all(p.scheduled.is_complete for p in session.previews.values()):
+                break
+            self.service.play_next_date(session)
+        self.assertTrue(all(p.scheduled.is_complete
+                            for p in session.previews.values()))
+        return session
+
+    def _stage43g4_mock_complete_region(self):
+        # Unit-only fixture: the real Stage43G-3 gate is never bypassed in
+        # production. The actual two-prefecture fixture contains only 4/17.
+        a = self.competitions[0]["entrant_school_ids"][:9]
+        b = self.competitions[1]["entrant_school_ids"][:8]
+        schools = a + b
+        assert len(schools) == len(set(schools)) == 17
+        return {
+            "year": 2027, "destination_competition_id": "CMP000006",
+            "all_feeder_results_verified": True,
+            "unresolved_feeder_rule_ids": [],
+            "verified_entrant_count": 17,
+            "verified_school_ids": schools,
+            "test_only_mock_feeder": True,
+        }
+
+    def test_stage43g4_regional_main_never_starts_with_partial_sources(self):
+        region = CareerRegionalMainCheckpointService(self.service)
+        self.start()
+        with self.assertRaisesRegex(
+            RegionalFeederNotReady, "all registered prefectural events",
+        ):
+            region.start("career_slot", year=2027)
+        self.assertFalse(region._path("career_slot", 2027).exists())
+        # Even completed Ibaraki/Saitama have only 4 of 17 verified schools.
+
+    def test_stage43g4_completed_sources_still_block_unresolved_13(self):
+        self._stage43g4_finished_sources()
+        region = CareerRegionalMainCheckpointService(self.service)
+        with self.assertRaisesRegex(
+            RegionalFeederNotReady, "unresolved prefectural feeders",
+        ):
+            region.start("career_slot", year=2027)
+        self.assertFalse(region._path("career_slot", 2027).exists())
+
+    def test_stage43g4_unit_region_draw_and_save_resume_share_same_archive(self):
+        self._stage43g4_finished_sources()
+        region = CareerRegionalMainCheckpointService(self.service)
+        fake = self._stage43g4_mock_complete_region()
+        history = HistoricalMatchArchive(self.slot / "historical_matches.sqlite3")
+        before = len(history.list_matches(2027))
+        # Only isolate the downstream, real regional match engine/loader.
+        # Fully verified 8-prefecture source integration is a later test.
+        with patch(
+            "phase2_engine.career_regional_main_checkpoint."
+            "project_same_year_regional_feeders", return_value=fake,
+        ):
+            session = region.start("career_slot", year=2027)
+            self.assertEqual(17, session.summary()["entrant_count"])
+            self.assertFalse(session.summary()["official_calendar"])
+            self.assertEqual([], session.preview.annual.main_seed_school_ids)
+            self.assertEqual("2027-05-16",
+                             session.preview.scheduled.next_scheduled_date())
+            self.assertEqual(before, len(history.list_matches(2027)))
+            day = region.play_next_date(session)
+            self.assertEqual("2027-05-16", day["date"])
+            self.assertGreater(day["played_match_count"], 0)
+            self.assertEqual(before + day["played_match_count"],
+                             len(history.list_matches(2027)))
+            self.assertTrue(all(
+                x["date_source"] == "game_projection_v1"
+                for x in history.list_matches(2027)
+            ))
+            resumed = region.load("career_slot", year=2027)
+            self.assertEqual(
+                session.preview.scheduled.public_snapshot(),
+                resumed.preview.scheduled.public_snapshot(),
+            )
+            self.assertEqual("sealed", history.list_years()[0]["status"])
+            with self.assertRaisesRegex(CareerPreviewSaveError, "already exists"):
+                region.start("career_slot", year=2027)
+
+    def test_stage43g4_unit_region_checkpoint_tamper_fails_closed(self):
+        self._stage43g4_finished_sources()
+        region = CareerRegionalMainCheckpointService(self.service)
+        fake = self._stage43g4_mock_complete_region()
+        with patch(
+            "phase2_engine.career_regional_main_checkpoint."
+            "project_same_year_regional_feeders", return_value=fake,
+        ):
+            session = region.start("career_slot", year=2027)
+            region.play_next_date(session)
+            checkpoint = region._path("career_slot", 2027)
+            data = json.loads(checkpoint.read_text(encoding="utf-8"))
+            data["completed_match_sha256"] = "tampered"
+            data["payload_checksum"] = _checksum(data)
+            checkpoint.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaisesRegex(
+                CareerPreviewSaveError, "replay match results",
+            ):
+                region.load("career_slot", year=2027)
+
+    def test_stage43g4_unrecognized_placement_proof_is_rejected(self):
+        session = self.start()
+        with self.assertRaisesRegex(
+            RegionalFeederNotReady, "unrecognized third-place",
+        ):
+            project_same_year_regional_feeders(
+                self.service, session, "CMP000006",
+                placement_decider_match_ids={"CMP000084": "FAKE-3RD"},
+            )
 
 
 if __name__ == "__main__":
