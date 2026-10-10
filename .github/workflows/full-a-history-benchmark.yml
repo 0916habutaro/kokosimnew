@@ -1,0 +1,52 @@
+name: Full Option-A career history benchmark
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_full_a_benchmark.py"
+      - "phase2_engine/career_history_scale_benchmark.py"
+      - "phase2_engine/career_player_records.py"
+      - "phase2_engine/career_player_stat_cache.py"
+      - "phase2_engine/career_roster_archive.py"
+      - "tests/test_stage43g21_full_a_storage_benchmark.py"
+      - ".github/workflows/full-a-history-benchmark.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "phase2_engine/career_full_a_benchmark.py"
+      - "phase2_engine/career_history_scale_benchmark.py"
+      - ".github/workflows/full-a-history-benchmark.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  full_a_baseline:
+    name: A-game + roster + cache multi-year benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Measure complete A + roster + cache (2 schools x 10 years)
+        run: |
+          python -m phase2_engine.career_full_a_benchmark \
+            --data-root data --schools 2 --years 10 \
+            --games-per-school-year 2 --repeats 2 \
+            --output-json benchmark-results/full-a-2schools-10years.json
+      - name: Measure score-only baseline (same 20 archived games)
+        run: |
+          python -m phase2_engine.career_history_scale_benchmark \
+            --schools 2 --years 10 --games-per-school-year 1 --repeats 2 \
+            --output-json benchmark-results/score-only-2schools-10years.json
+      - name: Save raw measured JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-a-career-history-${{ github.run_id }}
+          path: benchmark-results/*.json
+          if-no-files-found: warn
+          retention-days: 30
