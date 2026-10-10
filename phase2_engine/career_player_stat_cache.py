@@ -203,6 +203,23 @@ class CareerPlayerStatCache:
                     (start, end),
                 )
             }
+        # A page or player lookup must not silently accept deletion of
+        # *another* cached player row. Verify count, complete fact digest,
+        # and all cached row checksums for this school's requested years.
+        all_rows = defaultdict(list)
+        for rec in conn.execute(
+            "SELECT year,player_id,payload_json,payload_sha256 "
+            "FROM player_year_stat_cache "
+            "WHERE school_id=? AND year BETWEEN ? AND ? "
+            "ORDER BY year,player_id", (school, start, end),
+        ):
+            if _sha(rec["payload_json"]) != rec["payload_sha256"]:
+                raise CareerStatsCacheConflict(
+                    "school-year cache contains altered player data"
+                )
+            all_rows[rec["year"]].append((
+                rec["player_id"], rec["payload_json"], rec["payload_sha256"]
+            ))
         years = list(range(start, end + 1))
         for year in years:
             cache, source = cache_rows.get(year), source_rows.get(year)
@@ -211,6 +228,20 @@ class CareerPlayerStatCache:
                     or cache["source_match_count"] != source["match_count"]):
                 raise CareerStatsCacheConflict(
                     f"sealed school-year cache unavailable or stale: {year}"
+                )
+            expected = self._fingerprint(
+                {
+                    "ledger": cache["source_ledger_sha256"],
+                    "match_count": cache["source_match_count"],
+                    "year": year,
+                },
+                school, all_rows[year],
+                cache["school_missing_box_score_games"],
+            )
+            if (cache["player_count"] != len(all_rows[year])
+                    or cache["fact_sha256"] != expected):
+                raise CareerStatsCacheConflict(
+                    f"school-year player cache coverage changed: {year}"
                 )
             if verify_source:
                 self.materialize(school, year=year)
