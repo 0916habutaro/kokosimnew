@@ -8,12 +8,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import json
 
 from .career_multi_preview_checkpoint import (
     CareerMultiPreviewCheckpointService,
     CareerPreviewSaveError,
     _checkpoint,
-    _all_completed,
     _RESOLVER as MULTI_RESOLVER,
 )
 from .career_preview_checkpoint import (
@@ -59,6 +59,19 @@ class RegionalCareerSession:
             "official_calendar": False,
             "full_year_gameplay": False,
         }
+
+
+def _read_regional_checkpoint(path: Path) -> dict:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise CareerPreviewSaveError("regional checkpoint unreadable") from exc
+    if (not isinstance(payload, dict)
+            or payload.get("schema_version") != _SCHEMA_VERSION
+            or not isinstance(payload.get("payload_checksum"), str)
+            or payload["payload_checksum"] != _checksum(payload)):
+        raise CareerPreviewSaveError("regional checkpoint checksum invalid")
+    return payload
 
 
 class CareerRegionalMainCheckpointService:
@@ -193,7 +206,7 @@ class CareerRegionalMainCheckpointService:
         self._check_context(session)
         path = self._path(session.slot_id, session.year)
         if path.exists():
-            old = _checkpoint(path)
+            old = _read_regional_checkpoint(path)
             if old["payload_checksum"] != session.checkpoint_checksum:
                 raise CareerPreviewSaveError("stale regional checkpoint")
         elif session.checkpoint_checksum:
@@ -216,7 +229,7 @@ class CareerRegionalMainCheckpointService:
 
     def load(self, slot_id: str, *, year: int) -> RegionalCareerSession:
         slot = self.multi.solo.slots.validate_slot_id(slot_id)
-        payload = _checkpoint(self._path(slot, year))
+        payload = _read_regional_checkpoint(self._path(slot, year))
         if (payload.get("schema_version") != _SCHEMA_VERSION
                 or payload.get("slot_id") != slot
                 or payload.get("year") != year
