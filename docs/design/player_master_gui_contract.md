@@ -244,3 +244,15 @@ Stage 13D-2は「同一年のidentity固定」までを扱う。
 を行う仕組みはStage 13Fで実装する。
 
 現状のPlayerRosterGeneratorはreference_yearをplayer_idへ含むため、年度を跨ぐidentity継続はまだ行わない。
+
+## Stage 43E追記：年度を跨ぐ選手IDの継続基盤（2026-10-10）
+
+上記「Stage 13Fで実装する」「年度を跨ぐidentity継続はまだ行わない」は**Stage 13D-2策定当時の記述**である。その後、Stage 43Eで年度継続の**基礎モジュール**を実装した。
+
+- `game_core/career_rosters.py`：前年度の確定ロスターを入力として、在学選手のplayer_idを変えずに進級、3年生は卒業、新1年生は新規IDで登録。
+- `phase2_engine/career_roster_archive.py`：学校年度別ロスター・選手ID別の履歴を不変スナップショットとして永続保存。学校・年度・選手IDから履歴を参照可能。
+- `game_core/tournament_bridge.py`：任意の`roster_provider`指定で保存済み永続ロスターを能力試合に使用可能。既定の2026年生成経路は不変。
+- 初年度の学年数5/7/8を毎年強制せず、実際に残る在学選手を優先する。2027年は8/5/7、2028年は7/8/5となる。
+- **未実装**：実際のゲーム本編で2027年大会へ年度進行させる経路、セーブスロットの試合履歴と全校ロスター履歴の一体保存、選手成長・退部、正式GUIの歴代所属選手画面。
+
+詳細とテスト範囲は[Stage 43E 日本語報告書](../research/stage43e_player_career_continuity_20261010.md)を参照。
