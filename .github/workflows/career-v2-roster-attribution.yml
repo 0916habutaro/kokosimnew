@@ -1,0 +1,36 @@
+name: V2 Option-A permanent roster attribution
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_v2_roster_attribution.py"
+      - "phase2_engine/career_v2_option_a_archive.py"
+      - "phase2_engine/career_roster_archive.py"
+      - "phase2_engine/career_player_records.py"
+      - "tests/test_stage43g28_v2_roster_attribution.py"
+      - ".github/workflows/career-v2-roster-attribution.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "phase2_engine/career_v2_roster_attribution.py"
+      - "phase2_engine/career_v2_option_a_archive.py"
+      - "phase2_engine/career_roster_archive.py"
+      - "phase2_engine/career_player_records.py"
+      - ".github/workflows/career-v2-roster-attribution.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify_identity:
+    name: Sealed year 10000 immutable identity and stats read audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Verify roster year player IDs with independent v2 Option-A
+        run: python -m unittest discover -s tests -p 'test_stage43g28_v2_roster_attribution.py' -v
