@@ -77,6 +77,12 @@ class CareerHistoryBrowseModel:
         except KeyError as exc:
             raise ValueError("unknown school ID") from exc
 
+    def _competition(self, competition_id: str) -> dict:
+        try:
+            return self.repo.competition(competition_id)
+        except KeyError as exc:
+            raise ValueError("unknown competition ID") from exc
+
     def _year(self, year: int) -> None:
         if type(year) is not int or year not in {
             row["year"] for row in self.years()
@@ -223,10 +229,12 @@ class CareerHistoryBrowseModel:
         self._year(year)
         self._page(limit, offset)
         if competition_id:
-            self.repo.competition(competition_id)
+            self._competition(competition_id)
         if not self.history.db_path.is_file():
             return {"rows": [], "total": 0}
-        with sqlite3.connect(self.history.db_path) as conn:
+        with sqlite3.connect(
+            self.history.db_path.resolve().as_uri() + "?mode=ro", uri=True
+        ) as conn:
             conn.row_factory = sqlite3.Row
             where = "year=?"
             args: list = [year]
@@ -268,7 +276,7 @@ class CareerHistoryBrowseModel:
         games = self._matches(
             year, competition_id=competition_id, offset=offset, limit=limit
         )
-        master = self.repo.competition(competition_id)
+        master = self._competition(competition_id)
         return {
             "screen": "competition", "year": year,
             "competition_id": competition_id,
@@ -281,12 +289,14 @@ class CareerHistoryBrowseModel:
 
     def match_page(self, year: int, competition_id: str, match_id: str) -> Page:
         self._year(year)
-        self.repo.competition(competition_id)
+        self._competition(competition_id)
         if not match_id:
             raise ValueError("match ID required")
         if not self.history.db_path.is_file():
             raise ValueError("match archive missing")
-        with sqlite3.connect(self.history.db_path) as conn:
+        with sqlite3.connect(
+            self.history.db_path.resolve().as_uri() + "?mode=ro", uri=True
+        ) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT payload_json,record_sha256 FROM historical_matches "
