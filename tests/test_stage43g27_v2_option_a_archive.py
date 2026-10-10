@@ -10,6 +10,7 @@ from phase2_engine.career_calendar_v2 import (
     CareerCalendarV2Archive, explicit_sandbox_plan,
 )
 from phase2_engine.career_history_scale_audit import synthetic_ability_record
+from phase2_engine.career_history_browse_model import CareerHistoryBrowseModel
 from phase2_engine.career_history_scale_benchmark import file_sha256
 from phase2_engine.career_v2_option_a_archive import (
     CareerV2OptionAArchive, CareerV2MatchConflict,
@@ -143,11 +144,6 @@ class Stage43G27V2OptionASidecarTests(unittest.TestCase):
         self.assertEqual(before, file_sha256(self.v2_file))
         with sqlite3.connect(self.v2_file) as con:
             con.execute(
-                "UPDATE v2_option_a_matches SET record_sha256="
-                " (SELECT record_sha256 FROM v2_option_a_matches LIMIT 1)"
-                " WHERE 0"
-            )
-            con.execute(
                 "UPDATE v2_option_a_matches SET record_sha256='TAMPER2'"
                 " WHERE match_id='ONE'"
             )
@@ -204,6 +200,19 @@ class Stage43G27V2OptionASidecarTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "digest differs"):
             self.sidecar.year_matches(10000)
         self.assertEqual(before, file_sha256(self.v2_file))
+
+    def test_existing_browse_adapter_exposes_separate_10000_option_a(self):
+        self.sidecar.append(10000, full_a(10000, "NEXT-MATCH"))
+        self.sidecar.seal_year(10000, expected_match_count=1)
+        root = Path(__file__).resolve().parents[1] / "data"
+        gui = CareerHistoryBrowseModel(root, self.root)
+        future = gui.fictional_v2_option_a_year(10000)
+        day = gui.fictional_v2_option_a_day("G10000:04-01")
+        self.assertEqual("sealed", future["year_status"])
+        self.assertEqual("NEXT-MATCH", day["rows"][0]["match_id"])
+        self.assertTrue(future["full_option_a_field_set"])
+        self.assertFalse(future["real_tournament_runtime_connected"])
+        self.assertFalse(self.legacy_file.exists())
 
     def test_bad_pages_and_missing_sidecar_no_auto_creation_on_read(self):
         with self.assertRaises(FileNotFoundError):
