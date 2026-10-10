@@ -6,6 +6,7 @@ from this test: the full 3,000x50/100 profile must be opted into separately.
 from __future__ import annotations
 
 import sqlite3
+import json
 import tempfile
 from pathlib import Path
 import unittest
@@ -63,6 +64,23 @@ class Stage43G13CenturyHistoryScaleTests(unittest.TestCase):
             )
             self.assertEqual(800, result["synthetic_match_count"])
             self.assertEqual(400, result["synthetic_school_year_roster_count"])
+            print("STAGE43G13_100Y_MEASURED " + json.dumps({
+                "schools": result["schools"],
+                "years": result["years"],
+                "games": result["synthetic_match_count"],
+                "roster_years": result["synthetic_school_year_roster_count"],
+                "history_bytes": result["history_sqlite"]["file_bytes"],
+                "roster_bytes": result["roster_sqlite"]["file_bytes"],
+                "bytes_per_synthetic_match": result[
+                    "bytes_per_synthetic_match_including_indexes"
+                ],
+                "bytes_per_roster_year": result[
+                    "bytes_per_synthetic_school_year_roster_including_identity_index"
+                ],
+                "school_results": result["read_latency"]["school_results"],
+                "school_player_index": result["read_latency"]["school_player_index"],
+                "player_years": result["read_latency"]["player_years"],
+            }, ensure_ascii=False), flush=True)
             self.assertEqual([2026, 2125], result["year_range"])
             self.assertFalse(result["100_year_unbounded_simulation_verified"])
             repo = DataRepository(ROOT / "data")
