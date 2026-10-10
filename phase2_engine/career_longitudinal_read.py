@@ -14,6 +14,30 @@ from .career_roster_archive import CareerRosterArchive, CareerRosterConflictErro
 from .historical_match_archive import HistoricalMatchArchive
 
 
+def _iter_school_games(path: Path, school_id: str,
+                       start_year: int, end_year: int):
+    """Single-index school history generator: rows stay in SQLite until read."""
+    with sqlite3.connect(path) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute(
+            """
+            SELECT year, competition_id, match_id, team1_id, team2_id,
+                   team1_score, team2_score, record_sha256, payload_json
+              FROM historical_matches
+             WHERE team1_id=? AND year BETWEEN ? AND ?
+            UNION ALL
+            SELECT year, competition_id, match_id, team1_id, team2_id,
+                   team1_score, team2_score, record_sha256, payload_json
+              FROM historical_matches
+             WHERE team2_id=? AND year BETWEEN ? AND ?
+            ORDER BY year, competition_id, match_id
+            """,
+            (school_id, start_year, end_year,
+             school_id, start_year, end_year),
+        )
+        yield from cursor
+
+
 class CareerHistoryViewConflict(ValueError):
     """An archived A-record or immutable player identity changed."""
 
@@ -55,25 +79,26 @@ class CareerLongitudinalReadModel:
         if not self.matches.db_path.is_file():
             return {"school_id": school_id, "records": [],
                     "total_groups": 0, "limit": limit, "offset": offset}
-        with sqlite3.connect(self.matches.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            rows = conn.execute(
-                """
-                SELECT year, competition_id, match_id, team1_id, team2_id,
-                       team1_score, team2_score, record_sha256, payload_json
-                  FROM historical_matches
-                 WHERE team1_id=? AND year BETWEEN ? AND ?
-                UNION ALL
-                SELECT year, competition_id, match_id, team1_id, team2_id,
-                       team1_score, team2_score, record_sha256, payload_json
-                  FROM historical_matches
-                 WHERE team2_id=? AND year BETWEEN ? AND ?
-                ORDER BY year, competition_id, match_id
-                """,
-                (school_id, start_year, end_year,
-                 school_id, start_year, end_year),
-            ).fetchall()
-        grouped = {}
+        # Stream only this school's rows through the two team/year indexes.
+        # Never materialize all 50/100-year match payloads or all year-groups
+        # merely to return a requested page. Every visited game still passes
+        # its original content-hash and score-consistency verification.
+        rows = _iter_school_games(
+            self.matches.db_path, school_id, start_year, end_year,
+        )
+        page: list[dict] = []
+        total_groups = 0
+        current_key = None
+        group = None
+
+        def flush() -> None:
+            nonlocal total_groups
+            if group is None:
+                return
+            if offset <= total_groups < offset + limit:
+                page.append(group)
+            total_groups += 1
+
         for record in rows:
             raw = record["payload_json"]
             if hashlib.sha256(raw.encode("utf-8")).hexdigest() != record["record_sha256"]:
@@ -98,24 +123,27 @@ class CareerLongitudinalReadModel:
             if ((a > b) != (data["winner_id"] == school_id)):
                 raise CareerHistoryViewConflict("archived winner differs from score")
             key = (record["year"], record["competition_id"])
-            agg = grouped.setdefault(key, {
-                "year": record["year"],
-                "competition_id": record["competition_id"],
-                "games": 0, "wins": 0, "losses": 0,
-                "runs_for": 0, "runs_against": 0,
-                "historical_record_source": "archived_game_scores",
-            })
-            agg["games"] += 1
-            agg["wins"] += int(a > b)
-            agg["losses"] += int(a < b)
-            agg["runs_for"] += a
-            agg["runs_against"] += b
-        entries = [grouped[key] for key in sorted(grouped)]
+            if key != current_key:
+                flush()
+                current_key = key
+                group = {
+                    "year": record["year"],
+                    "competition_id": record["competition_id"],
+                    "games": 0, "wins": 0, "losses": 0,
+                    "runs_for": 0, "runs_against": 0,
+                    "historical_record_source": "archived_game_scores",
+                }
+            group["games"] += 1
+            group["wins"] += int(a > b)
+            group["losses"] += int(a < b)
+            group["runs_for"] += a
+            group["runs_against"] += b
+        flush()
         return {
             "school_id": school_id,
             "start_year": start_year, "end_year": end_year,
-            "records": entries[offset:offset + limit],
-            "total_groups": len(entries), "limit": limit, "offset": offset,
+            "records": page,
+            "total_groups": total_groups, "limit": limit, "offset": offset,
             "rankings_inferred": False,
         }
 
