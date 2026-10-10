@@ -79,6 +79,10 @@ class Stage13D3BrowseApp(Stage12UBrowseApp):
         self._roster_rows: dict[str, dict] = {}
         self._batting_ranking_rows: dict[str, dict] = {}
         self._pitching_ranking_rows: dict[str, dict] = {}
+        # Stage41 only remembers the pilot window; no checkpoint or result
+        # ever moves into the SQLite-backed scored browse model.
+        self._hiroshima_preview_window = None
+        self._hiroshima_preview_return_school_id = ""
         self._stats_competition_id_by_label: dict[str, str] = {}
         self._batting_metric_by_label = dict(BATTING_METRICS)
         self._pitching_metric_by_label = dict(PITCHING_METRICS)
@@ -116,6 +120,47 @@ class Stage13D3BrowseApp(Stage12UBrowseApp):
             text="予選進行プレビュー（試験・別画面）",
             command=self._open_hiroshima_preview_pilot,
         ).pack(side="left")
+        self.preview_return_button = ttk.Button(
+            actions, text="予選進行プレビューへ戻る",
+            command=self._return_to_hiroshima_preview,
+            state="disabled",
+        )
+        self.preview_return_button.pack(side="left", padx=(8, 0))
+
+    def _set_preview_return_enabled(self, enabled: bool) -> None:
+        state = "normal" if enabled else "disabled"
+        self.preview_return_button.configure(state=state)
+        self.school_preview_return_button.configure(state=state)
+
+    def _preview_window_is_open(self) -> bool:
+        pilot = getattr(self, "_hiroshima_preview_window", None)
+        if pilot is None:
+            return False
+        try:
+            return bool(pilot.window.winfo_exists())
+        except (AttributeError, RuntimeError):
+            return False
+
+    def _return_to_hiroshima_preview(self) -> bool:
+        if not self._preview_window_is_open():
+            self._hiroshima_preview_window = None
+            self._hiroshima_preview_return_school_id = ""
+            self._set_preview_return_enabled(False)
+            self.status_var.set("予選進行プレビューは閉じられています。大会結果から開き直してください。")
+            return False
+        pilot_window = self._hiroshima_preview_window.window
+        pilot_window.deiconify()
+        pilot_window.lift()
+        pilot_window.focus_set()
+        self.status_var.set(
+            "予選進行プレビューへ戻りました / 史実はSQLiteのゲーム戦績と別データです"
+        )
+        return True
+
+    def _on_year_changed(self, _event=None) -> None:
+        super()._on_year_changed(_event)
+        self._hiroshima_preview_return_school_id = ""
+        self._set_preview_return_enabled(False)
 
     def _open_hiroshima_preview_pilot(self) -> None:
         # The preview consumes its own Stage32 contract/Stage34 read-model.
@@ -124,10 +169,15 @@ class Stage13D3BrowseApp(Stage12UBrowseApp):
             open_hiroshima_preview_window,
         )
         try:
-            open_hiroshima_preview_window(
+            if self._preview_window_is_open():
+                self._return_to_hiroshima_preview()
+                return
+            self._hiroshima_preview_window = open_hiroshima_preview_window(
                 self.root, self.model.data_dir,
                 on_navigate_verified_school=self._navigate_from_hiroshima_preview,
             )
+            # Do not enable Return until a *successful* validated handoff.
+            self._set_preview_return_enabled(False)
         except (OSError, ValueError, TypeError) as exc:
             from tkinter import messagebox
 
@@ -168,21 +218,42 @@ class Stage13D3BrowseApp(Stage12UBrowseApp):
             self.status_var.set(route.reason)
             return route
 
-        # Match by verified master ID (not a possibly ambiguous school
-        # display name) and preserve the currently selected 2026 year.
-        self.school_search_var.set(route.school_id)
-        self.prefecture_var.set("34")
-        self._search_schools()
-        if route.school_id not in self.school_tree.get_children():
-            return SchoolBrowseHandoff(
-                allowed=False, reason="SQLite検索結果に学校IDが見つかりません。",
-                year=route.year, school_id=route.school_id,
-                observed_name=route.observed_name, official_name=route.official_name,
-            )
-        self.school_tree.selection_set(route.school_id)
-        self.school_tree.focus(route.school_id)
-        self._load_selected_school()
+        # A successful preflight alone is not enough: the GUI search must
+        # return the SAME ID before the visible navigation is committed.
+        # On a failed search, restore the user's former filters instead of
+        # silently leaving the browse GUI in a partial navigation state.
+        prior_search = self.school_search_var.get()
+        prior_prefecture = self.prefecture_var.get()
+        try:
+            self.school_search_var.set(route.school_id)
+            self.prefecture_var.set("34")
+            self._search_schools()
+            if route.school_id not in self.school_tree.get_children():
+                self.school_search_var.set(prior_search)
+                self.prefecture_var.set(prior_prefecture)
+                self._search_schools()
+                return SchoolBrowseHandoff(
+                    allowed=False, reason="SQLite検索結果に学校IDが見つかりません。",
+                    year=route.year, school_id=route.school_id,
+                    observed_name=route.observed_name, official_name=route.official_name,
+                )
+            self.school_tree.selection_set(route.school_id)
+            self.school_tree.focus(route.school_id)
+            self._load_selected_school()
+        except (OSError, ValueError, RuntimeError):
+            self.school_search_var.set(prior_search)
+            self.prefecture_var.set(prior_prefecture)
+            self._search_schools()
+            raise
         self.notebook.select(self.school_tab)
+        self._hiroshima_preview_return_school_id = route.school_id
+        if self._preview_window_is_open():
+            self._set_preview_return_enabled(True)
+            # On Tk/Windows a user should see the scored school records after
+            # the pilot button navigates back to the parent window.
+            self.root.deiconify()
+            self.root.lift()
+            self.root.focus_set()
         self.status_var.set(
             f"2026 SQLite学校戦績：{route.school_id} / "
             "二次史実25試合と合算しません"
@@ -198,6 +269,12 @@ class Stage13D3BrowseApp(Stage12UBrowseApp):
             text="選択校のロスター・個人成績",
             command=self._open_selected_school_roster,
         ).pack(side="right")
+        self.school_preview_return_button = ttk.Button(
+            actions, text="予選進行プレビューへ戻る",
+            command=self._return_to_hiroshima_preview,
+            state="disabled",
+        )
+        self.school_preview_return_button.pack(side="left")
 
     def _build_player_tab(self) -> None:
         self.player_notebook = ttk.Notebook(self.player_tab)
