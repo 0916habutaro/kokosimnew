@@ -16,7 +16,7 @@ from .repository import DataRepository
 from .season import SeasonExecution
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 _SCHEMA_SQL = """
@@ -182,6 +182,25 @@ CREATE TABLE IF NOT EXISTS ability_matches (
     PRIMARY KEY (year, competition_id, match_id),
     FOREIGN KEY (year) REFERENCES browse_seasons(year) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS match_inning_scores (
+    year INTEGER NOT NULL,
+    competition_id TEXT NOT NULL,
+    match_id TEXT NOT NULL,
+    inning INTEGER NOT NULL CHECK (inning >= 1),
+    half TEXT NOT NULL CHECK (half IN ('top', 'bottom')),
+    batting_team_id TEXT NOT NULL,
+    was_played INTEGER NOT NULL CHECK (was_played IN (0, 1)),
+    runs INTEGER CHECK (runs >= 0),
+    PRIMARY KEY (year, competition_id, match_id, inning, half),
+    CHECK ((was_played = 1 AND runs IS NOT NULL)
+           OR (was_played = 0 AND runs IS NULL)),
+    FOREIGN KEY (year, competition_id, match_id)
+      REFERENCES ability_matches(year, competition_id, match_id)
+      ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_inning_scores_match
+    ON match_inning_scores(year, competition_id, match_id, inning, half);
 
 CREATE TABLE IF NOT EXISTS batter_game_stats (
     year INTEGER NOT NULL,
@@ -542,6 +561,48 @@ class BrowseRepository:
             raise ValueError(
                 f"{competition_id}/{match_id}: invalid score"
             )
+        line = detail.get("inning_scores")
+        if line is not None:
+            if not isinstance(line, (list, tuple)) or not line:
+                raise ValueError(f"{match_id}: invalid inning_scores")
+            final_inning = int(detail.get("last_inning") or 0)
+            expected = [
+                (i, h)
+                for i in range(1, final_inning + 1)
+                for h in ("top", "bottom")
+            ]
+            if [(row.get("inning"), row.get("half")) for row in line] != expected:
+                raise ValueError(f"{match_id}: inning score order mismatch")
+            totals = {"top": 0, "bottom": 0}
+            skipped = []
+            for row in line:
+                half = row["half"]
+                batting = (
+                    detail["team1_school_id"] if half == "top"
+                    else detail["team2_school_id"]
+                )
+                if row.get("batting_team_id") != batting:
+                    raise ValueError(f"{match_id}: inning batting team mismatch")
+                played = row.get("was_played")
+                runs = row.get("runs")
+                if not isinstance(played, bool):
+                    raise ValueError(f"{match_id}: invalid inning was_played")
+                if played:
+                    if (not isinstance(runs, int) or isinstance(runs, bool)
+                            or runs < 0):
+                        raise ValueError(f"{match_id}: invalid inning runs")
+                    totals[half] += runs
+                else:
+                    if runs is not None:
+                        raise ValueError(f"{match_id}: unplayed inning has runs")
+                    skipped.append((row["inning"], half))
+            if skipped and (skipped != [(final_inning, "bottom")]
+                            or detail.get("ending_half") != "top"):
+                raise ValueError(f"{match_id}: invalid skipped inning")
+            if detail.get("ending_half") == "top" and not skipped:
+                raise ValueError(f"{match_id}: ending top must skip bottom")
+            if (totals["top"], totals["bottom"]) != (team1_score, team2_score):
+                raise ValueError(f"{match_id}: inning totals != final score")
 
     def _replace_match_results_conn(
         self,
@@ -554,6 +615,7 @@ class BrowseRepository:
         pitcher_count = 0
         team_count = 0
         event_count = 0
+        inning_count = 0
 
         for competition_id, run in sorted(season.competition_runs.items()):
             for match_id, detail in sorted(
@@ -693,6 +755,24 @@ class BrowseRepository:
                     )
                     team_count += 1
 
+                for row in detail.get("inning_scores") or []:
+                    conn.execute(
+                        """
+                        INSERT INTO match_inning_scores (
+                            year, competition_id, match_id, inning, half,
+                            batting_team_id, was_played, runs
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            year, competition_id, match_id,
+                            int(row["inning"]), str(row["half"]),
+                            str(row["batting_team_id"]),
+                            1 if row["was_played"] else 0,
+                            row["runs"],
+                        ),
+                    )
+                    inning_count += 1
+
                 for row in detail.get("events", []):
                     conn.execute(
                         """
@@ -738,6 +818,7 @@ class BrowseRepository:
             "pitcher_game_stat_count": pitcher_count,
             "team_game_stat_count": team_count,
             "match_event_count": event_count,
+            "inning_score_count": inning_count,
         }
 
     def replace_season_match_results(
@@ -755,6 +836,7 @@ class BrowseRepository:
                         "browse season must be stored before match results"
                     )
                 for table in (
+                    "match_inning_scores",
                     "match_events",
                     "team_game_stats",
                     "pitcher_game_stats",
@@ -814,6 +896,25 @@ class BrowseRepository:
                 ORDER BY competition_id, match_id
                 """,
                 (year, player_id),
+            ))
+
+    def inning_scores_for_match(
+        self,
+        year: int,
+        competition_id: str,
+        match_id: str,
+    ) -> list[dict]:
+        """Ordered half-inning results; [] means legacy/missing, not 0 runs."""
+        with self._connect() as conn:
+            self._initialize_schema_conn(conn)
+            return self._rows(conn.execute(
+                """
+                SELECT * FROM match_inning_scores
+                WHERE year = ? AND competition_id = ? AND match_id = ?
+                ORDER BY inning,
+                    CASE half WHEN 'top' THEN 0 ELSE 1 END
+                """,
+                (year, competition_id, match_id),
             ))
 
     def events_for_match(
