@@ -1,0 +1,35 @@
+name: Cross-era school and player archive browsing
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_cross_era_browse_model.py"
+      - "phase2_engine/career_cross_era_read_gate.py"
+      - "phase2_engine/career_v2_player_stat_cache.py"
+      - "phase2_engine/career_player_records.py"
+      - "tests/test_stage43g31_cross_era_browse_model.py"
+      - ".github/workflows/career-cross-era-browse.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_cross_era_browse_model.py"
+      - "phase2_engine/career_cross_era_read_gate.py"
+      - "phase2_engine/career_v2_player_stat_cache.py"
+      - "phase2_engine/career_player_records.py"
+      - ".github/workflows/career-cross-era-browse.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  school_and_player_pages:
+    name: Separate school and permanent-player v1/v2 history pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Verify opt-in read-only source-separated school and player histories
+        run: python -m unittest discover -s tests -p 'test_stage43g31_cross_era_browse_model.py' -v
