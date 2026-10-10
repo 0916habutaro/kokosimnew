@@ -46,6 +46,7 @@ class RegionalCareerSession:
     career_seed: int
     initial_draw_sha256: str
     checkpoint_checksum: str = ""
+    kanagawa_sidecar_enabled: bool = False
 
     def summary(self) -> dict:
         return {
@@ -87,7 +88,8 @@ class CareerRegionalMainCheckpointService:
         return (self.multi.solo.slots.slot_dir(slot)
                 / "career_regional_previews" / f"{year}_{_TARGET}.json")
 
-    def _context(self, slot: str, year: int, placements: dict[str, str]):
+    def _context(self, slot: str, year: int, placements: dict[str, str],
+                 kanagawa_sidecar_enabled: bool = False):
         upstream = self.multi.load(slot, year=year)
         if not all(p.scheduled.is_complete for p in upstream.previews.values()):
             raise RegionalFeederNotReady(
@@ -96,6 +98,7 @@ class CareerRegionalMainCheckpointService:
         gate = project_same_year_regional_feeders(
             self.multi, upstream, _TARGET,
             placement_decider_match_ids=placements,
+            kanagawa_sidecar_enabled=kanagawa_sidecar_enabled,
         )
         if (not gate["all_feeder_results_verified"]
                 or gate["unresolved_feeder_rule_ids"]
@@ -139,6 +142,8 @@ class CareerRegionalMainCheckpointService:
             "upstream_plan_fingerprint": session.upstream_plan_fingerprint,
             "feeder_sha256": session.feeder_sha256,
             "placement_decider_match_ids": session.placement_decider_match_ids,
+            **({"kanagawa_sidecar_enabled": True}
+               if session.kanagawa_sidecar_enabled else {}),
             "base_seed": session.base_seed,
             "career_seed": session.career_seed,
             "initial_draw_sha256": session.initial_draw_sha256,
@@ -172,6 +177,7 @@ class CareerRegionalMainCheckpointService:
     def _check_context(self, session: RegionalCareerSession) -> None:
         upstream, gate, checkpoint = self._context(
             session.slot_id, session.year, session.placement_decider_match_ids,
+            session.kanagawa_sidecar_enabled,
         )
         if (checkpoint["payload_checksum"] != session.upstream_checksum
                 or self.multi._fingerprint(upstream) != session.upstream_plan_fingerprint
@@ -184,13 +190,16 @@ class CareerRegionalMainCheckpointService:
         self, slot_id: str, *,
         year: int,
         placement_decider_match_ids: dict[str, str] | None = None,
+        kanagawa_sidecar_enabled: bool = False,
     ) -> RegionalCareerSession:
         slot = self.multi.solo.slots.validate_slot_id(slot_id)
         target = self._path(slot, year)
         if target.exists():
             raise CareerPreviewSaveError("regional preview already exists; use load()")
         placements = dict(placement_decider_match_ids or {})
-        upstream, gate, checkpoint = self._context(slot, year, placements)
+        upstream, gate, checkpoint = self._context(
+            slot, year, placements, kanagawa_sidecar_enabled,
+        )
         preview = self._preview(slot, year, upstream, gate)
         session = RegionalCareerSession(
             slot, year, _TARGET,
@@ -198,6 +207,7 @@ class CareerRegionalMainCheckpointService:
             _digest(gate), placements, preview,
             upstream.inputs[0]["base_seed"], upstream.inputs[0]["career_seed"],
             _digest(preview.scheduled.public_snapshot()),
+            kanagawa_sidecar_enabled=kanagawa_sidecar_enabled,
         )
         self.save(session)
         return session
@@ -240,7 +250,12 @@ class CareerRegionalMainCheckpointService:
                 or not isinstance(payload.get("placement_decider_match_ids"), dict)):
             raise CareerPreviewSaveError("regional preview metadata mismatched")
         placements = payload["placement_decider_match_ids"]
-        upstream, gate, checkpoint = self._context(slot, year, placements)
+        enabled = payload.get("kanagawa_sidecar_enabled", False)
+        if not isinstance(enabled, bool):
+            raise CareerPreviewSaveError("invalid Kanagawa sidecar flag")
+        upstream, gate, checkpoint = self._context(
+            slot, year, placements, enabled,
+        )
         preview = self._preview(slot, year, upstream, gate)
         session = RegionalCareerSession(
             slot, year, _TARGET,
@@ -249,6 +264,7 @@ class CareerRegionalMainCheckpointService:
             upstream.inputs[0]["base_seed"], upstream.inputs[0]["career_seed"],
             _digest(preview.scheduled.public_snapshot()),
             payload["payload_checksum"],
+            kanagawa_sidecar_enabled=enabled,
         )
         for k, v in self._initial(session).items():
             if payload.get(k) != v:
