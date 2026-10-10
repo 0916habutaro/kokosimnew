@@ -15,6 +15,7 @@ from .career_preview_checkpoint import (
     CareerPreviewSaveError, _atomic_write, _checksum, _digest,
 )
 from .career_multi_preview_checkpoint import CareerMultiPreviewCheckpointService
+from .career_year_continuity import CareerYearContinuityService
 from .career_kanagawa_spring_checkpoint import CareerKanagawaSpringCheckpointService
 from .career_regional_main_checkpoint import CareerRegionalMainCheckpointService
 from .chiba_third_place_checkpoint import ChibaThirdPlaceCheckpointService
@@ -76,6 +77,7 @@ class CareerYearOperationService:
         self.kanagawa = CareerKanagawaSpringCheckpointService(multi)
         self.chiba = ChibaThirdPlaceCheckpointService(multi)
         self.regional = CareerRegionalMainCheckpointService(multi)
+        self.continuity = CareerYearContinuityService(multi)
 
     def _path(self, slot_id: str, year: int) -> Path:
         slot = self.multi.solo.slots.validate_slot_id(slot_id)
@@ -229,6 +231,11 @@ class CareerYearOperationService:
                 blocking.append("same_year_kanagawa_qualification_not_registered")
         if not eligible and not blocking:
             blocking.append("17_verified_regional_sources_missing")
+        continuity_path = self.continuity._path(slot, year)
+        continuity = (
+            self.continuity.readiness(slot, year=year)
+            if continuity_path.is_file() else None
+        )
         state = YearOperationStatus(
             year=year,
             registered_competition_ids=tuple(sorted(session.previews)),
@@ -249,6 +256,11 @@ class CareerYearOperationService:
             ),
             "future_real_world_calendar_verified": False,
             "historical_storage": "sqlite_option_a_score_innings_players",
+            "career_year_continuity_verified": continuity is not None,
+            "historical_school_player_index_ready": bool(
+                continuity and continuity["school_player_history_view_ready"]
+            ),
+            "original_2026_live_save_imported": False,
             "unbounded_years_implemented": False,
             "year_limit_current_iso_calendar": 9999,
         }
@@ -297,5 +309,8 @@ class CareerYearOperationService:
             ],
             "registered_competition_count": len(status["registered_competition_ids"]),
             "region_projection_ready": status["regional_runtime_ready"],
+            "career_year_continuity_verified": (
+                status["career_year_continuity_verified"]
+            ),
             "unbounded_years_implemented": False,
         }
