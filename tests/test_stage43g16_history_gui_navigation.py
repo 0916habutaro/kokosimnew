@@ -30,6 +30,13 @@ class Stage43G16HistoryGuiNavigationTests(unittest.TestCase):
     def tearDown(self):
         self.fixture.tearDown()
 
+    def test_gui_pilot_module_imports_without_creating_a_window(self):
+        from phase2_engine.career_history_gui_pilot import (
+            APP_NAME, CareerHistoryGuiPilot,
+        )
+        self.assertIn("試験版", APP_NAME)
+        self.assertTrue(callable(CareerHistoryGuiPilot))
+
     def test_home_years_and_provenance_never_claim_official_results(self):
         years = self.model.years()
         self.assertEqual([2026, 2027], [y["year"] for y in years])
