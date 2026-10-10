@@ -86,10 +86,11 @@ class CareerHistoryGuiPilot:
             self.table.heading(col, text=label)
             self.table.column(col, width=width, minwidth=110)
         self.table.pack(side="left", fill="both", expand=True)
-        ttk.Scrollbar(
+        tree_scroll = ttk.Scrollbar(
             table_frame, orient="vertical", command=self.table.yview,
-        ).pack(side="right", fill="y")
-        self.table.configure(yscrollcommand=lambda _a, _b: None)
+        )
+        tree_scroll.pack(side="right", fill="y")
+        self.table.configure(yscrollcommand=tree_scroll.set)
         self.table.bind("<Double-1>", self._open_selection)
         bottom = ttk.Frame(body)
         body.add(bottom, weight=2)
