@@ -1,0 +1,342 @@
+from __future__ import annotations
+
+from collections import defaultdict
+import json
+from pathlib import Path
+import shutil
+import sqlite3
+import tempfile
+import unittest
+
+from game_core.players import PlayerRosterGenerator
+from phase2_engine.career_competition_outcomes import CareerCompetitionOutcomes
+from phase2_engine.career_multi_preview_checkpoint import (
+    CareerMultiPreviewCheckpointService,
+    CareerPreviewSaveError,
+    _checksum,
+)
+from phase2_engine.career_roster_archive import CareerRosterArchive
+from phase2_engine.historical_match_archive import HistoricalMatchArchive
+from phase2_engine.models import (
+    CompetitionOutcome, CompetitionRun, Match, StageExecution,
+)
+from phase2_engine.repository import DataRepository
+
+ROOT = Path(__file__).resolve().parents[1]
+SEED = 2026100701
+SPECS = (
+    ("CMP000084", "CMP000085", "08", 4),
+    ("CMP000090", "CMP000091", "11", 8),
+)
+
+
+def finished_autumn(competition_id, school_ids):
+    live = list(school_ids)
+    matches = []
+    eliminated = defaultdict(list)
+    round_no = 1
+    while len(live) > 1:
+        winners = []
+        for i in range(0, len(live), 2):
+            a, b = live[i], live[i + 1]
+            winners.append(a)
+            eliminated[round_no].append(b)
+            matches.append(Match(
+                match_id=f"{competition_id}-ST43G2-{len(matches) + 1}",
+                competition_id=competition_id,
+                stage_id="STG-ST43G2", stage_code="MAIN",
+                phase_code="MAIN_BRACKET", round_no=round_no,
+                team1=a, team2=b, winner=a, loser=b,
+            ))
+        live = winners
+        round_no += 1
+    ranked = live[:]
+    for number in sorted(eliminated, reverse=True):
+        ranked.extend(eliminated[number])
+    run = CompetitionRun(
+        competition_id=competition_id, year=2026, rng_seed=SEED,
+        entrant_school_ids=list(school_ids), seed_assignments=[],
+        stage_executions=[StageExecution(
+            stage_id="STG-ST43G2", stage_code="MAIN",
+            format_model_id="MAIN_SINGLE_ELIMINATION",
+            entrant_school_ids=list(school_ids),
+            output_school_ids=[ranked[0]], matches=matches,
+        )],
+        main_entrant_school_ids=list(school_ids),
+        outcome=CompetitionOutcome(
+            champion_school_id=ranked[0],
+            runner_up_school_id=ranked[1],
+            semifinalist_school_ids=ranked[2:4],
+            quarterfinalist_school_ids=ranked[4:8],
+            final_ranking_school_ids=ranked,
+            eliminated_by_round={
+                str(k): list(v) for k, v in eliminated.items()
+            },
+            match_count=len(matches),
+            bye_count=0,
+            bracket_size=len(school_ids),
+        ),
+    )
+    rows = [{
+        "competition_id": competition_id,
+        "competition_name": "2026ゲーム内秋県大会（試験用）",
+        "match_id": m.match_id,
+        "match_date": "2026-10-10", "completed_on": "2026-10-10",
+        "date_source": "game_projection_v1", "status": "completed",
+        "stage_code": "MAIN", "phase_code": "MAIN_BRACKET",
+        "round_no": m.round_no,
+        "team1_id": m.team1, "team2_id": m.team2,
+        "winner_id": m.winner, "loser_id": m.loser,
+        "team1_score": 4, "team2_score": 2,
+        "score_source": "generated_v1",
+    } for m in matches]
+    return run, rows
+
+
+class Stage43G2MultiCompetitionCheckpointTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.repo = DataRepository(ROOT / "data")
+        cls.fixture = tempfile.TemporaryDirectory()
+        base = Path(cls.fixture.name)
+        cls.history_file = base / "history.sqlite3"
+        cls.roster_file = base / "rosters.sqlite3"
+        hist = HistoricalMatchArchive(cls.history_file)
+        archive = CareerRosterArchive(cls.roster_file)
+        generator = PlayerRosterGenerator()
+        all_rows = []
+        outcome_runs = []
+        cls.competitions = []
+
+        for spring, autumn, pcode, count in SPECS:
+            schools = sorted(
+                sid for sid in cls.repo.school_to_program
+                if cls.repo.schools[sid]["prefecture_code"] == pcode
+            )
+            direct = schools[:count]
+            qualifier = next(s for s in cls.repo.stages(spring)
+                             if s["stage_code"] == "BRANCH_QUALIFIER")
+            groups = cls.repo.groups_by_stage[qualifier["stage_id"]]
+            group_input = {}
+            pos = count
+            for group in groups:
+                slots = cls.repo.param(
+                    qualifier["stage_id"], "output_slots",
+                    group["stage_group_id"],
+                    int(group["advance_slots_to_next"]),
+                )
+                group_input[group["stage_group_id"]] = schools[pos:pos + slots + 1]
+                pos += slots + 1
+            assert pos == (39 if spring == "CMP000084" else 52)
+            entrants = schools[:pos]
+            cls.competitions.append({
+                "competition_id": spring,
+                "entrant_school_ids": entrants,
+                "group_entrant_school_ids": group_input,
+            })
+            run, rows = finished_autumn(autumn, direct)
+            outcome_runs.append(run)
+            all_rows.extend(rows)
+            for sid in entrants:
+                initial = generator.generate_for_school_id(
+                    cls.repo, sid, 2026, SEED,
+                )
+                archive.save_initial_roster(initial)
+                archive.advance_and_save(
+                    cls.repo.team(sid), next_year=2027,
+                    career_seed=SEED,
+                )
+
+        hist.sync(
+            year=2026, rng_seed=42, resolver_contract="game_v1",
+            plan_fingerprint="stage43g2-two-autumn-sandbox",
+            completed=all_rows,
+        )
+        hist.seal_year(2026, expected_match_count=len(all_rows))
+        writer = CareerCompetitionOutcomes(hist)
+        for run in outcome_runs:
+            writer.record_completed(run)
+        cls.original_2026_count = len(all_rows)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.fixture.cleanup()
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.slot = self.root / "career_slot"
+        self.slot.mkdir()
+        shutil.copy2(self.history_file, self.slot / "historical_matches.sqlite3")
+        shutil.copy2(self.roster_file, self.slot / "career_rosters.sqlite3")
+        self.service = CareerMultiPreviewCheckpointService(
+            self.repo, ROOT / "data", save_root=self.root,
+            ability_config_dir=ROOT / "config" / "abilities",
+            match_config_dir=ROOT / "config" / "match",
+        )
+        self.checkpoint = self.slot / "career_multi_previews" / "2027.json"
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def start(self, **kwargs):
+        params = {
+            "year": 2027,
+            "competitions": self.competitions,
+            "base_seed": SEED, "career_seed": SEED,
+        }
+        params.update(kwargs)
+        return self.service.start("career_slot", **params)
+
+    def test_two_competitions_share_year_archive_and_2026_save_untouched(self):
+        original = self.slot / "manual.json"
+        original.write_bytes(b"immutable 2026 live save")
+        session = self.start()
+        self.assertEqual(2, session.summary()["competition_count"])
+        self.assertEqual(
+            ["CMP000084", "CMP000090"],
+            session.summary()["competition_ids"],
+        )
+        self.assertFalse(session.summary()["full_year_gameplay"])
+        self.assertFalse(session.summary()["competition_advancement_automatic"])
+        self.assertEqual(original.read_bytes(), b"immutable 2026 live save")
+        self.assertTrue(self.checkpoint.is_file())
+        history = HistoricalMatchArchive(self.slot / "historical_matches.sqlite3")
+        self.assertEqual(
+            [(2026, "sealed"), (2027, "active")],
+            [(r["year"], r["status"]) for r in history.list_years()],
+        )
+        self.assertEqual(self.original_2026_count,
+                         len(history.list_matches(2026)))
+        self.assertEqual([], history.list_matches(2027))
+
+    def test_dates_advance_across_competitions_in_global_order(self):
+        session = self.start()
+        first = self.service.play_next_date(session)
+        self.assertEqual("2027-04-08", first["date"])
+        self.assertEqual({"CMP000084": 4}, first["competition_match_counts"])
+        second = self.service.play_next_date(session)
+        # Saitama's first qualifier date is Apr 10; Ibaraki may also be
+        # scheduled on subsequent dates, so compare against its real queue.
+        self.assertGreater(second["date"], first["date"])
+        self.assertEqual(sorted(session.processed_dates),
+                         session.processed_dates)
+        self.assertEqual(len(set(session.processed_dates)),
+                         len(session.processed_dates))
+        total = len([
+            r for r in HistoricalMatchArchive(
+                self.slot / "historical_matches.sqlite3"
+            ).list_matches(2027)
+        ])
+        self.assertEqual(first["played_match_count"] +
+                         second["played_match_count"], total)
+        self.assertTrue(all(
+            x["date_source"] == "game_projection_v1"
+            for x in HistoricalMatchArchive(
+                self.slot / "historical_matches.sqlite3"
+            ).list_matches(2027)
+        ))
+
+    def test_restarting_replays_both_competitions_and_continues(self):
+        session = self.start()
+        self.service.play_next_date(session)
+        self.service.play_next_date(session)
+        before = {
+            cid: preview.scheduled.public_snapshot()
+            for cid, preview in session.previews.items()
+        }
+        restored = self.service.load("career_slot", year=2027)
+        self.assertEqual(
+            before,
+            {cid: preview.scheduled.public_snapshot()
+             for cid, preview in restored.previews.items()},
+        )
+        self.assertEqual(session.processed_dates, restored.processed_dates)
+        third = self.service.play_next_date(restored)
+        self.assertGreater(third["played_match_count"], 0)
+        total = len(HistoricalMatchArchive(
+            self.slot / "historical_matches.sqlite3"
+        ).list_matches(2027))
+        self.assertEqual(total, third["checkpoint"]["completed_match_count"])
+        again = self.service.load("career_slot", year=2027)
+        self.assertEqual(restored.processed_dates, again.processed_dates)
+
+    def test_checkpoint_replay_repairs_missing_2027_archive_only(self):
+        session = self.start()
+        first = self.service.play_next_date(session)
+        self.assertEqual(4, first["played_match_count"])
+        db = self.slot / "historical_matches.sqlite3"
+        with sqlite3.connect(db) as conn:
+            conn.execute("DELETE FROM historical_matches WHERE year=2027")
+        recovered = self.service.load("career_slot", year=2027)
+        self.assertEqual(4, recovered.summary()["completed_match_count"])
+        history = HistoricalMatchArchive(db)
+        self.assertEqual(4, len(history.list_matches(2027)))
+        self.assertEqual(self.original_2026_count,
+                         len(history.list_matches(2026)))
+        self.assertEqual("sealed", history.list_years()[0]["status"])
+
+    def test_stale_session_cannot_overwrite_shared_year_checkpoint(self):
+        self.start()
+        one = self.service.load("career_slot", year=2027)
+        stale = self.service.load("career_slot", year=2027)
+        self.service.play_next_date(one)
+        with self.assertRaisesRegex(CareerPreviewSaveError, "another"):
+            self.service.play_next_date(stale)
+        restored = self.service.load("career_slot", year=2027)
+        self.assertEqual(4, restored.summary()["completed_match_count"])
+
+    def test_deleted_or_forged_match_digest_rejected(self):
+        session = self.start()
+        self.service.play_next_date(session)
+        data = json.loads(self.checkpoint.read_text(encoding="utf-8"))
+        data["completed_match_sha256"] = "tampered"
+        data["payload_checksum"] = _checksum(data)
+        self.checkpoint.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaisesRegex(CareerPreviewSaveError, "replay results"):
+            self.service.load("career_slot", year=2027)
+
+    def test_seed_change_and_pristine_plan_replay_protection(self):
+        self.start()
+        data = json.loads(self.checkpoint.read_text(encoding="utf-8"))
+        data["inputs"][0]["base_seed"] += 1
+        data["payload_checksum"] = _checksum(data)
+        self.checkpoint.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaises(CareerPreviewSaveError):
+            self.service.load("career_slot", year=2027)
+
+    def test_no_duplicate_competition_or_single_event_collision(self):
+        with self.assertRaisesRegex(CareerPreviewSaveError, "duplicate"):
+            self.start(competitions=[
+                self.competitions[0], self.competitions[0],
+            ])
+        single = self.slot / "career_previews" / "2027_CMP000084.json"
+        single.parent.mkdir()
+        single.write_text("do not overwrite", encoding="utf-8")
+        with self.assertRaisesRegex(CareerPreviewSaveError, "single-event"):
+            self.start()
+        self.assertFalse(self.checkpoint.exists())
+
+    def test_previously_unsealed_year_must_not_start(self):
+        with sqlite3.connect(
+            self.slot / "historical_matches.sqlite3"
+        ) as conn:
+            conn.execute(
+                "UPDATE career_years SET status='active' WHERE year=2026"
+            )
+        with self.assertRaisesRegex(CareerPreviewSaveError, "not sealed"):
+            self.start()
+        self.assertFalse(self.checkpoint.exists())
+
+    def test_completed_event_outcomes_are_exposed_but_not_auto_qualified(self):
+        session = self.start()
+        self.assertEqual({}, session.completed_runs())
+        self.assertEqual([], session.summary()["completed_competition_ids"])
+        self.assertFalse(session.summary()["competition_advancement_automatic"])
+        self.assertFalse(json.loads(self.checkpoint.read_text(
+            encoding="utf-8"
+        ))["automatic_feeder_advancement"])
+
+
+if __name__ == "__main__":
+    unittest.main()
