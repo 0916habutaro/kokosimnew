@@ -15,6 +15,7 @@ from typing import Literal
 from .career_longitudinal_read import CareerLongitudinalReadModel
 from .career_player_records import CareerPlayerRecordView, RANKABLE
 from .career_stats_readonly_adapter import CareerStatsReadOnlyAdapter
+from .career_mixed_stats_reader import CareerMixedStatReader
 from .historical_match_archive import HistoricalMatchArchive
 from .career_roster_archive import CareerRosterArchive
 from .repository import DataRepository
@@ -54,12 +55,18 @@ class CareerHistoryBrowseModel:
         self.slot_root = slot
 
     def _stats_reader(self, school_id: str, start_year: int, end_year: int):
-        """Return a read path and its precise verification level."""
-        if self.stats_cache.ready(
+        """Choose the safest efficient route for each requested year."""
+        plan = self.stats_cache.coverage_plan(
             school_id, start_year=start_year, end_year=end_year
-        ):
-            return self.stats_cache, "sealed_cache_ledger_checked"
-        return self.stats, "raw_archived_A_verified"
+        )
+        if all(r["cached"] for r in plan):
+            return self.stats_cache, "sealed_cache_ledger_checked", plan
+        if any(r["cached"] for r in plan):
+            return (
+                CareerMixedStatReader(self.stats, self.stats_cache, plan),
+                "mixed_cache_ledger_and_raw_A_verified", plan,
+            )
+        return self.stats, "raw_archived_A_verified", plan
 
     def years(self) -> list[dict]:
         # HistoricalMatchArchive.list_years() replays schema DDL for normal
@@ -217,7 +224,7 @@ class CareerHistoryBrowseModel:
         if start > year:
             raise ValueError("start year after screen year")
         # The full raw read path validates every matched A box score.
-        reader, validation = self._stats_reader(
+        reader, validation, plan = self._stats_reader(
             selected[0]["school_id"], start, year
         )
         stat = reader.player_seasons(
@@ -236,6 +243,8 @@ class CareerHistoryBrowseModel:
             "source_payloads_rechecked_on_read": (
                 validation == "raw_archived_A_verified"
             ),
+            "cached_year_count": sum(r["cached"] for r in plan),
+            "raw_year_count": sum(not r["cached"] for r in plan),
             "pitcher_wins_losses_inferred": False,
         }
 
@@ -366,7 +375,7 @@ class CareerHistoryBrowseModel:
             raise ValueError("unknown leaderboard metric")
         start = (min(row["year"] for row in self.years())
                  if start_year is None else start_year)
-        reader, validation = self._stats_reader(school_id, start, year)
+        reader, validation, plan = self._stats_reader(school_id, start, year)
         records = reader.school_leaders(
             school_id, start_year=start, end_year=year,
             category=category, limit=limit,
@@ -376,6 +385,8 @@ class CareerHistoryBrowseModel:
             "category": category, "records": records,
             "source_kind": SOURCE,
             "ranking_qualification_inferred": False,
+            "cached_year_count": sum(r["cached"] for r in plan),
+            "raw_year_count": sum(not r["cached"] for r in plan),
             "source_validation": validation,
             "source_payloads_rechecked_on_read": (
                 validation == "raw_archived_A_verified"

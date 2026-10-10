@@ -40,34 +40,35 @@ class CareerStatsReadOnlyAdapter(CareerPlayerStatCache):
             conn, school, start, end, verify_source=False
         )
 
-    def ready(self, school_id: str, *, start_year: int, end_year: int) -> bool:
-        """Choose cache only for complete sealed years with matching ledger.
+    def coverage_plan(self, school_id: str, *, start_year: int,
+                      end_year: int) -> list[dict]:
+        """One metadata pass chooses each sealed cache year vs raw A year.
 
-        Return False when the cache is absent, incomplete, or any requested
-        year is active. If a cached sealed year's ledger is inconsistent,
-        reject rather than silently falling back to raw and hiding corruption.
-        The full row/checksum coverage is verified again by the read method.
+        The existence of a cache row for an unsealed/missing source year,
+        or differing sealed-ledger metadata, is a conflict even when other
+        requested years are not cached. Missing derived rows are optional.
         """
         self.view._years(start_year, end_year)
         if not isinstance(school_id, str) or not school_id:
             raise ValueError("invalid school ID")
         if not self.path.is_file() or not self.view.matches.db_path.is_file():
-            return False
+            return [
+                {"year": y, "cached": False}
+                for y in range(start_year, end_year + 1)
+            ]
         try:
             with closing(_read_only(self.path)) as cached, closing(_read_only(
                 self.view.matches.db_path
             )) as source:
                 source_rows = {
-                    row["year"]: row
-                    for row in source.execute(
+                    r["year"]: r for r in source.execute(
                         "SELECT year,status,ledger_sha256,match_count "
                         "FROM career_years WHERE year BETWEEN ? AND ?",
                         (start_year, end_year),
                     )
                 }
                 cache_rows = {
-                    row["year"]: row
-                    for row in cached.execute(
+                    r["year"]: r for r in cached.execute(
                         "SELECT year,source_ledger_sha256,source_match_count "
                         "FROM school_year_stat_cache WHERE school_id=? "
                         "AND year BETWEEN ? AND ?",
@@ -78,23 +79,51 @@ class CareerStatsReadOnlyAdapter(CareerPlayerStatCache):
             raise CareerStatsCacheConflict(
                 "derived cache or source metadata unreadable"
             ) from exc
-
-        complete = True
+        result = []
         for year in range(start_year, end_year + 1):
-            source = source_rows.get(year)
-            cache = cache_rows.get(year)
-            if source is None or source["status"] != "sealed":
-                complete = False
-                continue
-            if cache is None:
-                complete = False
-                continue
-            if (cache["source_ledger_sha256"] != source["ledger_sha256"]
-                    or cache["source_match_count"] != source["match_count"]):
-                raise CareerStatsCacheConflict(
-                    f"sealed school-year cache source changed: {year}"
-                )
-        return complete
+            source, cache = source_rows.get(year), cache_rows.get(year)
+            if cache is not None:
+                if source is None or source["status"] != "sealed":
+                    raise CareerStatsCacheConflict(
+                        f"unsealed source year has derived cache: {year}"
+                    )
+                if (cache["source_ledger_sha256"] != source["ledger_sha256"]
+                        or cache["source_match_count"] != source["match_count"]):
+                    raise CareerStatsCacheConflict(
+                        f"sealed school-year cache source changed: {year}"
+                    )
+            result.append({"year": year, "cached": cache is not None})
+        return result
+
+    def ready(self, school_id: str, *, start_year: int, end_year: int) -> bool:
+        return all(row["cached"] for row in self.coverage_plan(
+            school_id, start_year=start_year, end_year=end_year
+        ))
+
+    def verified_school_rows(self, school_id: str, *, start_year: int,
+                             end_year: int) -> dict:
+        """All candidate rows, not a top-N leaderboard (which loses ties).
+
+        Called only for contiguous cached years; Stage43G-15's entire
+        school-year cache coverage and row SHA checks remain mandatory.
+        """
+        with self._connection() as conn:
+            facts = self._coverage(
+                conn, school_id, start_year, end_year, verify_source=False
+            )
+            rows = conn.execute(
+                "SELECT player_id,year,payload_json,payload_sha256 "
+                "FROM player_year_stat_cache WHERE school_id=? "
+                "AND year BETWEEN ? AND ? ORDER BY year,player_id",
+                (school_id, start_year, end_year),
+            )
+            records = [self._verified_record(row) for row in rows]
+        return {
+            "rows": records,
+            "missing_box_score_games": sum(
+                f["school_missing_box_score_games"] for f in facts
+            ),
+        }
 
     def player_seasons(self, player_id: str, *, start_year: int,
                        end_year: int, verify_source: bool = False) -> dict:
