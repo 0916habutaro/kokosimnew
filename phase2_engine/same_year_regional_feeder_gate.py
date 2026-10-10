@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import csv
 import json
+import hashlib
+from typing import Mapping
 from datetime import date
 from pathlib import Path
 import sqlite3
@@ -42,6 +44,8 @@ def project_same_year_regional_feeders(
     service: CareerMultiPreviewCheckpointService,
     session: CareerMultiPreviewSession,
     destination_competition_id: str,
+    *,
+    placement_decider_match_ids: Mapping[str, str] | None = None,
 ) -> dict:
     """Project game-qualified schools without granting final entry or seeds.
 
@@ -51,6 +55,10 @@ def project_same_year_regional_feeders(
     """
     if session.year <= 2026 or not isinstance(session.year, int):
         raise RegionalFeederNotReady("future sandbox year required")
+    placement_ids = dict(placement_decider_match_ids or {})
+    if (set(placement_ids) - {"CMP000092"} or
+            any(not isinstance(x, str) or not x for x in placement_ids.values())):
+        raise RegionalFeederNotReady("unrecognized third-place decider reference")
     slot = service.solo.slots.validate_slot_id(session.slot_id)
     saved = _checkpoint(service._path(slot, session.year))
     if (saved["payload_checksum"] != session.checkpoint_checksum
@@ -160,9 +168,9 @@ def project_same_year_regional_feeders(
                 base["status"] = "source_not_in_preview"
             elif cid not in runs:
                 base["status"] = "source_not_completed"
-            elif quota > 2:
-                # Ranking of tied semifinal losers can be arbitrary without
-                # the game recording a valid third-place tie breaker.
+            elif quota > 2 and cid not in placement_ids:
+                # Semifinal losers have no unique third place without a
+                # separately played/archived placement match.
                 base["status"] = "ranking_cutoff_requires_tiebreak_rule"
             else:
                 try:
@@ -196,6 +204,51 @@ def project_same_year_regional_feeders(
                         "prefectural final must finish before regional event"
                     )
                 teams = outcome["ranked_school_ids"][:quota]
+                if quota > 2:
+                    if cid != "CMP000092" or quota != 3:
+                        raise RegionalFeederNotReady(
+                            "third-place decider only supported for Chiba"
+                        )
+                    played = matches
+                    rounds = sorted({m.round_no for m in played})
+                    semi = [
+                        m for m in played
+                        if len(rounds) >= 2 and m.round_no == rounds[-2]
+                    ]
+                    if len(semi) != 2:
+                        raise RegionalFeederNotReady(
+                            "exactly two archived semifinal games required"
+                        )
+                    semifinal_losers = {m.loser for m in semi}
+                    token = placement_ids[cid]
+                    extra = conn.execute(
+                        "SELECT payload_json, record_sha256, match_date "
+                        "FROM historical_matches "
+                        "WHERE year=? AND competition_id=? AND match_id=?",
+                        (session.year, cid, token),
+                    ).fetchone()
+                    if (extra is None or hashlib.sha256(
+                            extra["payload_json"].encode("utf-8")
+                        ).hexdigest() != extra["record_sha256"]):
+                        raise RegionalFeederNotReady(
+                            "missing or modified third-place game record"
+                        )
+                    evidence = json.loads(extra["payload_json"])
+                    if (evidence.get("stage_code") != "PLACEMENT"
+                            or evidence.get("phase_code") != "THIRD_PLACE"
+                            or evidence.get("score_source") != "ability_model_v1"
+                            or {evidence.get("team1_id"), evidence.get("team2_id")}
+                            != semifinal_losers
+                            or evidence.get("winner_id") not in semifinal_losers
+                            or date.fromisoformat(extra["match_date"]) < max(dates)
+                            or date.fromisoformat(extra["match_date"]) >= game_start):
+                        raise RegionalFeederNotReady(
+                            "third-place game does not prove valid placement"
+                        )
+                    teams = outcome["ranked_school_ids"][:2] + [
+                        evidence["winner_id"]
+                    ]
+                    manifest.append([token, extra["record_sha256"]])
                 if len(teams) != quota or any(
                     repo.schools.get(sid, {}).get("prefecture_code") !=
                     rule["source_prefecture_code"] for sid in teams
