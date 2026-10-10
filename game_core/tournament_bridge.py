@@ -28,7 +28,7 @@ class AbilityMatchResolver:
         ability_config_dir: str | Path = "config/abilities",
         match_config_dir: str | Path = "config/match",
         team_generation_seed: int | None = None,
-        roster_provider: Callable[[str, int], SchoolRoster | None] | None = None,
+        roster_provider: Callable[[int, str], SchoolRoster | None] | None = None,
     ):
         self.repo = repo
         self.roster_generator = PlayerRosterGenerator()
@@ -131,7 +131,7 @@ class AbilityMatchResolver:
                 self.repo, school_id, reference_year, team_seed,
             )
         else:
-            roster = self.roster_provider(school_id, reference_year)
+            roster = self.roster_provider(reference_year, school_id)
             if roster is None:
                 raise ValueError(
                     f"missing historical roster: {school_id}/{reference_year}"
