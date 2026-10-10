@@ -3,6 +3,8 @@ name: Option-A archive storage profile
 on:
   pull_request:
     paths:
+      - "phase2_engine/career_annual_growth_audit.py"
+      - "tests/test_stage43g23_annual_growth_audit.py"
       - "phase2_engine/career_full_a_benchmark.py"
       - "phase2_engine/career_option_a_storage_profile.py"
       - "tests/test_stage43g22_option_a_storage_profile.py"
@@ -11,6 +13,8 @@ on:
     branches:
       - main
     paths:
+      - "phase2_engine/career_annual_growth_audit.py"
+      - "tests/test_stage43g23_annual_growth_audit.py"
       - "phase2_engine/career_full_a_benchmark.py"
       - "phase2_engine/career_option_a_storage_profile.py"
       - ".github/workflows/option-a-storage-profile.yml"
