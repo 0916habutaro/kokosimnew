@@ -1,0 +1,33 @@
+name: Cross-era legacy and fictional v2 read gate
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_cross_era_read_gate.py"
+      - "phase2_engine/career_v2_option_a_archive.py"
+      - "phase2_engine/historical_match_archive.py"
+      - "tests/test_stage43g30_cross_era_read_gate.py"
+      - ".github/workflows/career-cross-era-read-gate.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_cross_era_read_gate.py"
+      - "phase2_engine/career_v2_option_a_archive.py"
+      - "phase2_engine/historical_match_archive.py"
+      - ".github/workflows/career-cross-era-read-gate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: Sealed legacy ISO and fictional v2 year read-only provenance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Verify no-write source routing, overlap and SHA contracts
+        run: python -m unittest discover -s tests -p 'test_stage43g30_cross_era_read_gate.py' -v
