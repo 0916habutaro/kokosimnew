@@ -184,3 +184,64 @@ def physical_year_snapshot(year: int, files: dict[str, Path],
         "allocated_total_delta_bytes": sum(changes.values()),
         "file_size_is_not_a_per_year_record_size": True,
     }
+
+
+def school_query_plan_audit(matches: str | Path, rosters: str | Path,
+                            cache: str | Path, school_id: str,
+                            player_id: str, start_year: int,
+                            end_year: int) -> dict:
+    """Read production's school-first match/identity/cached-player plan shape.
+
+    A query planner's *chosen* index matters more than mere CREATE INDEX
+    presence. Test fixture conditions can differ from 3000-school deployments.
+    """
+    if (not isinstance(school_id, str) or not school_id
+            or not isinstance(player_id, str) or not player_id
+            or type(start_year) is not int or type(end_year) is not int
+            or start_year < 1 or end_year < start_year):
+        raise ValueError("invalid index plan target")
+    targets = (
+        (
+            "home_matches", Path(matches),
+            "SELECT match_id FROM historical_matches "
+            "WHERE team1_id=? AND year BETWEEN ? AND ?",
+            (school_id, start_year, end_year), "idx_history_school1_year",
+        ),
+        (
+            "away_matches", Path(matches),
+            "SELECT match_id FROM historical_matches "
+            "WHERE team2_id=? AND year BETWEEN ? AND ?",
+            (school_id, start_year, end_year), "idx_history_school2_year",
+        ),
+        (
+            "school_alumni", Path(rosters),
+            "SELECT player_id FROM career_player_identities "
+            "WHERE school_id=? ORDER BY entry_year,player_id LIMIT ? OFFSET ?",
+            (school_id, 20, 0), "idx_career_players_school_entry",
+        ),
+        (
+            "cached_player", Path(cache),
+            "SELECT payload_json FROM player_year_stat_cache "
+            "WHERE player_id=? AND year BETWEEN ? AND ? ORDER BY year",
+            (player_id, start_year, end_year), "idx_cached_player_year",
+        ),
+    )
+    plans = {}
+    for label, path, query, args, expected in targets:
+        with closing(_read_only(path)) as con:
+            steps = [str(rec[3]) for rec in con.execute(
+                "EXPLAIN QUERY PLAN " + query, args
+            )]
+        plans[label] = {
+            "plan_steps": steps,
+            "expected_index": expected,
+            "index_selected": any(expected in step for step in steps),
+        }
+    return {
+        "plans": plans,
+        "all_expected_indexes_selected": all(
+            plan["index_selected"] for plan in plans.values()
+        ),
+        "planner_inspected_read_only": True,
+        "representative_fixture_not_nationwide_plan_guarantee": True,
+    }
