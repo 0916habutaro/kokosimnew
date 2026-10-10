@@ -13,7 +13,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from game_core.career_rosters import advance_school_roster
-from .players import Player, SchoolRoster, validate_school_roster
+from game_core.players import Player, SchoolRoster, validate_school_roster
 
 
 class CareerRosterConflictError(ValueError):
