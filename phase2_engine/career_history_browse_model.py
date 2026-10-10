@@ -17,6 +17,7 @@ from .career_player_records import CareerPlayerRecordView, RANKABLE
 from .career_stats_readonly_adapter import CareerStatsReadOnlyAdapter
 from .career_mixed_stats_reader import CareerMixedStatReader
 from .career_calendar_v2_read_model import CareerCalendarV2MatchReadModel
+from .career_v2_option_a_archive import CareerV2OptionAArchive
 from .historical_match_archive import HistoricalMatchArchive
 from .career_roster_archive import CareerRosterArchive
 from .repository import DataRepository
@@ -58,6 +59,12 @@ class CareerHistoryBrowseModel:
             slot / "sandbox_calendar_v2.sqlite3",
             self.history.db_path,
         )
+        # Stage43G-27: separate v2 sandbox facts; never merge with legacy A.
+        self.fictional_v2_matches = CareerV2OptionAArchive(
+            slot / "fictional_option_a_v2.sqlite3",
+            slot / "sandbox_calendar_v2.sqlite3",
+            legacy_archive_path=self.history.db_path,
+        )
 
     def fictional_calendar_year(self, game_year: int) -> Page:
         """Opt-in v2 sandbox date browser; does not infer official fixtures."""
@@ -68,6 +75,22 @@ class CareerHistoryBrowseModel:
                                limit: int = 50, offset: int = 0) -> Page:
         """Daily archived A results, verified against explicit v2 plans."""
         return self.fictional_dates.date_page(
+            day_token, competition_id=competition_id,
+            limit=limit, offset=offset,
+        )
+
+    def fictional_v2_option_a_year(self, game_year: int, *,
+                                  limit: int = 50, offset: int = 0) -> Page:
+        """Read synthetic typed-day A originals; never claim normal GUI support."""
+        return self.fictional_v2_matches.year_matches(
+            game_year, limit=limit, offset=offset,
+        )
+
+    def fictional_v2_option_a_day(self, day_token: str, *,
+                                 competition_id: str | None = None,
+                                 limit: int = 50, offset: int = 0) -> Page:
+        """Strict v2 synthetic A list without rewriting legacy match_date."""
+        return self.fictional_v2_matches.day_matches(
             day_token, competition_id=competition_id,
             limit=limit, offset=offset,
         )
