@@ -49,7 +49,12 @@ class Stage43G8SameYearSenbatsuManifestTests(unittest.TestCase):
             sid for sid in cls.repo.school_to_program
             if cls.repo.schools[sid]["prefecture_code"] == "09"
         )[:8]
+        gunma = sorted(
+            sid for sid in cls.repo.school_to_program
+            if cls.repo.schools[sid]["prefecture_code"] == "10"
+        )[:8]
         assert len(non_kanagawa) == 32 and len(kanagawa) == 2
+        assert len(gunma) == 8
         assert len(tochigi) == 8
         cls.kanagawa = kanagawa
         cls.source32 = non_kanagawa[:30] + kanagawa
@@ -66,9 +71,15 @@ class Stage43G8SameYearSenbatsuManifestTests(unittest.TestCase):
             "entrant_school_ids": tochigi,
             "group_entrant_school_ids": {},
         }
+        cls.gunma = {
+            "competition_id": "CMP000088",
+            "entry_mode": "kanto_direct_main_v1",
+            "entrant_school_ids": gunma,
+            "group_entrant_school_ids": {},
+        }
         generator = PlayerRosterGenerator()
         roster_db = CareerRosterArchive(cls.rosterfile)
-        for sid in sorted(set(non_kanagawa + kanagawa + tochigi)):
+        for sid in sorted(set(non_kanagawa + kanagawa + tochigi + gunma)):
             original = generator.generate_for_school_id(cls.repo, sid, 2026, SEED)
             roster_db.save_initial_roster(original)
             roster_db.advance_and_save(
@@ -224,8 +235,7 @@ class Stage43G8SameYearSenbatsuManifestTests(unittest.TestCase):
             self.manifests.audit_kanagawa("career_slot", year=2027)
 
     def test_other_competitions_without_senbatsu_do_not_establish_zero(self):
-        alternative = dict(self.tochigi, competition_id="CMP000088")
-        self.start([self.tochigi, alternative])
+        self.start([self.tochigi, self.gunma])
         pending = self.manifests.audit_kanagawa("career_slot", year=2027)
         self.assertEqual(
             "requires_same_year_verified_invitational_participants",
