@@ -266,3 +266,51 @@ def school_query_plan_audit(matches: str | Path, rosters: str | Path,
         "planner_inspected_read_only": True,
         "representative_fixture_not_nationwide_plan_guarantee": True,
     }
+
+
+def main() -> None:
+    """Inspect an existing slot's three SQLite files without writing to them."""
+    import argparse
+    import json
+
+    parser = argparse.ArgumentParser(
+        description="Read-only annual Option-A/roster/cache growth inspection"
+    )
+    parser.add_argument("--matches", type=Path, required=True)
+    parser.add_argument("--rosters", type=Path, required=True)
+    parser.add_argument("--cache", type=Path, required=True)
+    parser.add_argument("--school-id")
+    parser.add_argument("--player-id")
+    parser.add_argument("--start-year", type=int)
+    parser.add_argument("--end-year", type=int)
+    parser.add_argument("--output-json", type=Path)
+    args = parser.parse_args()
+
+    result = profile_annual_growth(
+        args.matches, args.rosters, args.cache
+    )
+    options = (
+        args.school_id, args.player_id,
+        args.start_year, args.end_year,
+    )
+    if any(v is not None for v in options):
+        if any(v is None for v in options):
+            parser.error(
+                "query-plan audit requires school/player IDs and both years"
+            )
+        result["query_plan_audit"] = school_query_plan_audit(
+            args.matches, args.rosters, args.cache,
+            args.school_id, args.player_id,
+            args.start_year, args.end_year,
+        )
+    rendered = json.dumps(result, ensure_ascii=False, indent=2)
+    if args.output_json is not None:
+        args.output_json.parent.mkdir(parents=True, exist_ok=True)
+        args.output_json.write_text(
+            rendered + "\n", encoding="utf-8"
+        )
+    print(rendered)
+
+
+if __name__ == "__main__":
+    main()
