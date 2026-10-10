@@ -122,7 +122,7 @@ class Stage43F2FutureCompetitionBridgeTests(unittest.TestCase):
             row["player_id"] for row in detail["pitcher_stats"]
         }
         self.assertTrue(actual.issubset(participating_ids))
-        self.assertEqual(32, len(self.archive.school_years(self.entrants[0])) * 16)
+        self.assertEqual([2026, 2027], self.archive.school_years(self.entrants[0]))
 
     def test_same_seed_bracket_and_dates_reproduce(self):
         first = self.prepare()
