@@ -68,6 +68,12 @@ def audit_future_autumn_access_capabilities(
                 state = "sandbox_fmt001_supported"
             elif linked_seed_rules:
                 state = "linked_seed_rule_requires_separate_validation"
+            elif (cid == "CMP000109" and stage_code == "BRANCH_QUALIFIER"
+                  and model == "FMT002"):
+                state = "sandbox_fmt002_supported"
+            elif (cid == "CMP000094" and stage_code == "PRELIMINARY_QUALIFIER"
+                  and model == "FMT001"):
+                state = "sandbox_preliminary_explicit_source_supported"
             elif stage_code == "PRELIMINARY_QUALIFIER":
                 state = "preliminary_qualifier_adapter_required"
             elif model != SUPPORTED_MODEL:
@@ -109,6 +115,13 @@ def audit_future_autumn_access_capabilities(
         "access_rule_count": len(entries),
         "sandbox_fmt001_supported_count": sum(
             x["access_status"] == "sandbox_fmt001_supported" for x in entries
+        ),
+        "sandbox_fmt002_supported_count": sum(
+            x["access_status"] == "sandbox_fmt002_supported" for x in entries
+        ),
+        "sandbox_preliminary_explicit_source_count": sum(
+            x["access_status"] == "sandbox_preliminary_explicit_source_supported"
+            for x in entries
         ),
         "main_seed_order_auto_assigned": False,
         "access_rules": entries,
