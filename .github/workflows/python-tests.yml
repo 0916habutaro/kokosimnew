@@ -29,4 +29,23 @@ jobs:
           python-version: "3.12"
 
       - name: Run full unittest suite
+        env:
+          KOKOSIM_SKIP_STAGE43G10_E2E: "1"
         run: python -m unittest discover -s tests -v
+
+  kanto17_e2e:
+    name: Kanto 8-prefecture 17-school E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Run complete Kanto qualifier-to-regional simulation
+        run: python -m unittest discover -s tests -p 'test_stage43g10_full_kanto17_e2e.py' -v
