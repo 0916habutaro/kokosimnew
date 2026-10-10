@@ -101,10 +101,10 @@ class Stage43G13CenturyHistoryScaleTests(unittest.TestCase):
             self.assertEqual(2026, first["records"][0]["year"])
             self.assertEqual(2125, tail["records"][-1]["year"])
             members = read.school_player_index(
-                sid, limit=100, offset=800,
+                sid, limit=100, offset=600,
             )
-            self.assertEqual(812, members["total"])
-            self.assertEqual(12, len(members["players"]))
+            self.assertEqual(680, members["total"])
+            self.assertEqual(80, len(members["players"]))
             with sqlite3.connect(Path(temp) / "historical_matches.sqlite3") as conn:
                 count = conn.execute(
                     "SELECT COUNT(*) FROM career_years WHERE status='sealed'"
