@@ -12,7 +12,10 @@ from typing import Mapping, Sequence
 
 from game_core.tournament_bridge import AbilityMatchResolver
 
-from .career_competition_outcomes import build_future_blueprint_from_archive
+from .career_competition_outcomes import (
+    CareerCompetitionOutcomes,
+    build_future_blueprint_from_archive,
+)
 from .career_roster_archive import CareerRosterArchive
 from .engine import TournamentEngine
 from .future_competition_bridge import (
@@ -37,7 +40,10 @@ def _check_rule(repo: DataRepository, competition_id: str, year: int) -> dict:
         rule.get("source_year_offset") != "-1"
         or rule.get("source_event_kind") != "autumn_prefectural"
         or rule.get("source_result_selector") != "top_n"
-        or rule.get("action_type") != "grant_main_entry_bypass_branch_qualifier"
+        or rule.get("action_type") not in {
+            "grant_main_entry_bypass_branch_qualifier",
+            "grant_main_entry_bypass_preliminary_qualifier",
+        }
         or rule.get("grants_main_entry") != "yes"
         or rule.get("bypassed_stage_participation_policy")
            != "excluded_from_bypassed_stage"
@@ -90,6 +96,7 @@ def prepare_future_prior_autumn_bypass_preview(
     ability_config_dir: str | Path = "config/abilities",
     match_config_dir: str | Path = "config/match",
     entry_source: str = SANDBOX_ENTRANTS,
+    prior_source_competition_id: str | None = None,
 ) -> FutureCompetitionPreview:
     """Connect archived qualified schools to FMT001 qualifier + MAIN.
 
@@ -125,13 +132,42 @@ def prepare_future_prior_autumn_bypass_preview(
     if len(matched) != 1 or matched[0]["access_rule_id"] != rule["access_rule_id"]:
         raise FutureCompetitionNotReady("unexpected prior-autumn rule")
     result = matched[0]
-    if (result["status"] != "resolved"
-            or result["source_year"] != year - 1
-            or result["provenance"] != "previous_year_saved_game_result"):
-        raise FutureCompetitionNotReady(
-            "previous autumn qualification is not resolved from sealed games"
-        )
-    direct = result["school_ids"]
+    # The 2026 master has no Tokyo autumn-prefectural competition row.
+    # Do not pretend its 64 prior-year MAIN entrants exist in that master.
+    # An explicitly bound *sandbox* competition is permitted only when it
+    # has its own completed MAIN outcome in the sealed prior-year game DB.
+    if competition_id == "CMP000094":
+        if (not isinstance(prior_source_competition_id, str)
+                or not prior_source_competition_id.strip()
+                or prior_source_competition_id == competition_id):
+            raise FutureCompetitionNotReady(
+                "Tokyo requires explicitly bound previous-autumn game competition"
+            )
+        try:
+            verified = CareerCompetitionOutcomes(match_archive).previous_results(
+                year - 1
+            ).get(prior_source_competition_id)
+        except (ValueError, KeyError) as exc:
+            raise FutureCompetitionNotReady(
+                "previous year game outcomes not sealed and verified"
+            ) from exc
+        if not verified or len(verified["ranked_school_ids"]) < 64:
+            raise FutureCompetitionNotReady(
+                "Tokyo autumn source must contain at least 64 verified schools"
+            )
+        direct = list(verified["ranked_school_ids"][:64])
+    else:
+        if prior_source_competition_id is not None:
+            raise FutureCompetitionNotReady(
+                "explicit prior source override is only for Tokyo sandbox"
+            )
+        if (result["status"] != "resolved"
+                or result["source_year"] != year - 1
+                or result["provenance"] != "previous_year_saved_game_result"):
+            raise FutureCompetitionNotReady(
+                "previous autumn qualification is not resolved from sealed games"
+            )
+        direct = result["school_ids"]
     target = int(rule.get("quota") or rule.get("observed_2026_count") or 0)
     if (target < 1 or len(direct) != target
             or not isinstance(direct, list)
@@ -160,17 +196,39 @@ def prepare_future_prior_autumn_bypass_preview(
         raise FutureCompetitionNotReady("future game date provenance invalid")
     main_days = _projected_days(cal["game_date_list"], year, "MAIN")
     stages = repo.stages(competition_id)
-    if len(stages) != 2 or {r["stage_code"] for r in stages} != {
-        "BRANCH_QUALIFIER", "MAIN",
-    }:
-        raise FutureCompetitionNotReady("only BRANCH_QUALIFIER -> MAIN supported")
-    qualifier = next(r for r in stages if r["stage_code"] == "BRANCH_QUALIFIER")
+    stage_kind = rule.get("bypass_stage_kind")
+    stage_map = {
+        "grant_main_entry_bypass_branch_qualifier": (
+            "branch_qualifier", "BRANCH_QUALIFIER", {"FMT001", "FMT002"}
+        ),
+        "grant_main_entry_bypass_preliminary_qualifier": (
+            "preliminary_qualifier", "PRELIMINARY_QUALIFIER", {"FMT001"}
+        ),
+    }
+    kind, qualifier_code, allowed_formats = stage_map[rule["action_type"]]
+    if stage_kind != kind or len(stages) != 2 or {
+        r["stage_code"] for r in stages
+    } != {qualifier_code, "MAIN"}:
+        raise FutureCompetitionNotReady(
+            "previous-autumn bypass stage mismatches qualifier -> MAIN graph"
+        )
+    qualifier = next(r for r in stages if r["stage_code"] == qualifier_code)
     assignment = repo.assignments_by_stage.get(qualifier["stage_id"], {})
-    if assignment.get("default_format_model_id") != "FMT001":
-        raise FutureCompetitionNotReady("only FMT001 branch groups supported")
+    model = assignment.get("default_format_model_id")
+    if model not in allowed_formats:
+        raise FutureCompetitionNotReady(
+            "unsupported future qualifier model for prior-autumn bypass"
+        )
+    if (model == "FMT002" and competition_id != "CMP000109") or (
+        qualifier_code == "PRELIMINARY_QUALIFIER"
+        and competition_id != "CMP000094"
+    ):
+        raise FutureCompetitionNotReady(
+            "future composite/preliminary bypass needs a verified adapter"
+        )
     stage = stage_dates[0]
     if (stage["stage_id"] != qualifier["stage_id"]
-            or stage["stage_code"] != "BRANCH_QUALIFIER"
+            or stage["stage_code"] != qualifier_code
             or stage["reference_year"] != year
             or stage["date_source"] != "game_projection_v1"
             or stage["date_status"] != "provisional_game_schedule"
@@ -210,8 +268,8 @@ def prepare_future_prior_autumn_bypass_preview(
     for gid, group in known.items():
         model = (repo.group_format.get(gid, {}).get("format_model_id")
                  or assignment["default_format_model_id"])
-        if model != "FMT001":
-            raise FutureCompetitionNotReady("unsupported group model")
+        if model != assignment["default_format_model_id"]:
+            raise FutureCompetitionNotReady("unsupported mixed qualifier group model")
         members = supplied[gid]
         if not isinstance(members, (list, tuple)) or not members:
             raise FutureCompetitionNotReady(
@@ -245,6 +303,20 @@ def prepare_future_prior_autumn_bypass_preview(
     main_count = total_qualifier_slots + len(direct)
     if len(main_days) < ceil(log2(main_count)):
         raise FutureCompetitionNotReady("insufficient MAIN dates")
+    if model == "FMT002" and len(qualifier_days) < 2:
+        raise FutureCompetitionNotReady(
+            "FMT002 primary/repechage needs at least two qualifier dates"
+        )
+    main_stage = next(r for r in stages if r["stage_code"] == "MAIN")
+    # Tokyo's 47 qualifier blocks + 64 direct entrants is an explicit
+    # 111-place structure. A partial or surplus draw must never be treated as
+    # a verified 2027 promotion rule.
+    if qualifier_code == "PRELIMINARY_QUALIFIER":
+        expected = int(main_stage.get("team_count") or 0)
+        if expected != 111 or main_count != expected or target != 64:
+            raise FutureCompetitionNotReady(
+                "Tokyo preliminary must supply 47 + 64 = 111 MAIN teams"
+            )
     # School membership from 2026 is not reused to fill missing 2027 places.
     missing = []
     for sid in entrants:
@@ -284,7 +356,7 @@ def prepare_future_prior_autumn_bypass_preview(
     )
     scheduled = engine.prepare_scheduled_competition_runtime(
         annual, cal,
-        stage_date_lists={"BRANCH_QUALIFIER": qualifier_days},
+        stage_date_lists={qualifier_code: qualifier_days},
     )
     if scheduled.calendar_gap_match_ids:
         raise FutureCompetitionNotReady("initial qualifier calendar has gaps")
