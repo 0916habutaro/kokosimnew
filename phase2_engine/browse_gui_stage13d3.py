@@ -127,6 +127,11 @@ class Stage13D3BrowseApp(Stage12UBrowseApp):
         )
         self.preview_return_button.pack(side="left", padx=(8, 0))
 
+    def _set_preview_return_enabled(self, enabled: bool) -> None:
+        state = "normal" if enabled else "disabled"
+        self.preview_return_button.configure(state=state)
+        self.school_preview_return_button.configure(state=state)
+
     def _preview_window_is_open(self) -> bool:
         pilot = getattr(self, "_hiroshima_preview_window", None)
         if pilot is None:
@@ -140,7 +145,7 @@ class Stage13D3BrowseApp(Stage12UBrowseApp):
         if not self._preview_window_is_open():
             self._hiroshima_preview_window = None
             self._hiroshima_preview_return_school_id = ""
-            self.preview_return_button.configure(state="disabled")
+            self._set_preview_return_enabled(False)
             self.status_var.set("予選進行プレビューは閉じられています。大会結果から開き直してください。")
             return False
         pilot_window = self._hiroshima_preview_window.window
@@ -155,7 +160,7 @@ class Stage13D3BrowseApp(Stage12UBrowseApp):
     def _on_year_changed(self, _event=None) -> None:
         super()._on_year_changed(_event)
         self._hiroshima_preview_return_school_id = ""
-        self.preview_return_button.configure(state="disabled")
+        self._set_preview_return_enabled(False)
 
     def _open_hiroshima_preview_pilot(self) -> None:
         # The preview consumes its own Stage32 contract/Stage34 read-model.
@@ -172,7 +177,7 @@ class Stage13D3BrowseApp(Stage12UBrowseApp):
                 on_navigate_verified_school=self._navigate_from_hiroshima_preview,
             )
             # Do not enable Return until a *successful* validated handoff.
-            self.preview_return_button.configure(state="disabled")
+            self._set_preview_return_enabled(False)
         except (OSError, ValueError, TypeError) as exc:
             from tkinter import messagebox
 
@@ -243,7 +248,7 @@ class Stage13D3BrowseApp(Stage12UBrowseApp):
         self.notebook.select(self.school_tab)
         self._hiroshima_preview_return_school_id = route.school_id
         if self._preview_window_is_open():
-            self.preview_return_button.configure(state="normal")
+            self._set_preview_return_enabled(True)
             # On Tk/Windows a user should see the scored school records after
             # the pilot button navigates back to the parent window.
             self.root.deiconify()
@@ -264,6 +269,12 @@ class Stage13D3BrowseApp(Stage12UBrowseApp):
             text="選択校のロスター・個人成績",
             command=self._open_selected_school_roster,
         ).pack(side="right")
+        self.school_preview_return_button = ttk.Button(
+            actions, text="予選進行プレビューへ戻る",
+            command=self._return_to_hiroshima_preview,
+            state="disabled",
+        )
+        self.school_preview_return_button.pack(side="left")
 
     def _build_player_tab(self) -> None:
         self.player_notebook = ttk.Notebook(self.player_tab)
