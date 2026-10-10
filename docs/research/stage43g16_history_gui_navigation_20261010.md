@@ -48,7 +48,7 @@ phase2_engine/career_history_gui_pilot.py を独立起動可能にした。年�
 
 ## 5. 自動テスト
 
-tests/test_stage43g16_history_gui_navigation.py（新規9件、ヘッドレス）：
+tests/test_stage43g16_history_gui_navigation.py（新規10件、ヘッドレス）：
 1. ゲーム内年度・封印状態・出典ラベル
 2. 学校検索と複数年度戦績・歴代選手
 3. 学校→選手→学校の戻り／年度保持
@@ -58,6 +58,7 @@ tests/test_stage43g16_history_gui_navigation.py（新規9件、ヘッドレス�
 7. 保存済みA方式の学校歴代ランキング
 8. 不正ID・ページ・試合SHA改変を拒否
 9. 学校・選手・試合・歴代記録の閲覧で元履歴SQLite・選手SQLiteバイト列が変わらず、キャッシュも生成されない
+10. Tk試験画面のPythonモジュールをウィンドウを作らずimportできること
 
 Python3.12の全ユニットテストと既存関東8都県E2Eの双方で回帰を確認する。Tkの実機表示はこのヘッドレステストだけでは保証しない。
 
