@@ -276,9 +276,17 @@ class Stage43F7GifuTokyoFutureAccessTests(unittest.TestCase):
     def test_gifu_cannot_override_source_and_tokyo_cannot_override_qualifier(self):
         with self.assertRaisesRegex(FutureCompetitionNotReady, "only for Tokyo"):
             self.prepare("CMP000109", prior_source_competition_id=TOKYO_PRIOR)
+        group_id = next(iter(
+            self.cases["CMP000094"]["group_entrant_school_ids"]
+        ))
+        with self.assertRaisesRegex(FutureCompetitionNotReady, "explicit non-direct"):
+            self.prepare("CMP000094", group_entrant_school_ids={
+                group_id: [],
+            })
+        original = self.cases["CMP000094"]["group_entrant_school_ids"][group_id]
         with self.assertRaisesRegex(FutureCompetitionNotReady, "partition"):
             self.prepare("CMP000094", group_entrant_school_ids={
-                next(iter(self.cases["CMP000094"]["group_entrant_school_ids"])): []
+                group_id: original[:-1],
             })
 
     def test_repeatable_initial_draw_from_same_seed(self):
