@@ -5,6 +5,7 @@ Uses real Stage43G-14 A history fixture; no Tk display required in CI.
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
 import sqlite3
 import tempfile
 import unittest
@@ -13,6 +14,9 @@ import test_stage43g14_player_records as fixture
 from phase2_engine.career_history_browse_model import (
     CareerHistoryBrowseModel, CareerHistoryNavigator, HistoryRoute, SOURCE,
 )
+from phase2_engine.historical_match_archive import HistoricalMatchArchive
+from phase2_engine.career_roster_archive import CareerRosterArchive
+from phase2_engine.career_player_records import CareerPlayerRecordView
 
 
 class Stage43G16HistoryGuiNavigationTests(unittest.TestCase):
@@ -21,7 +25,22 @@ class Stage43G16HistoryGuiNavigationTests(unittest.TestCase):
             "test_annual_and_career_stats_and_defined_ratios"
         )
         self.fixture.setUp()
-        self.root = Path(self.fixture.temp.name)
+        # The Stage43G-14 fixture names its SQLite files matches.sqlite3
+        # and rosters.sqlite3. A real career slot uses canonical filenames.
+        # Copy the populated fixture into the *actual* save layout and bind
+        # subsequent tamper/score-only tests to this same canonical slot.
+        work = Path(self.fixture.temp.name)
+        self.root = work / "career_slot"
+        self.root.mkdir()
+        match_path = self.root / "historical_matches.sqlite3"
+        roster_path = self.root / "career_rosters.sqlite3"
+        shutil.copy2(self.fixture.history.db_path, match_path)
+        shutil.copy2(self.fixture.rosters.db_path, roster_path)
+        self.fixture.history = HistoricalMatchArchive(match_path)
+        self.fixture.rosters = CareerRosterArchive(roster_path)
+        self.fixture.view = CareerPlayerRecordView(
+            self.fixture.history, self.fixture.rosters
+        )
         self.model = CareerHistoryBrowseModel(
             fixture.ROOT / "data", self.root
         )
