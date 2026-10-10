@@ -207,7 +207,13 @@ class Stage43G9KanagawaSameYearTests(unittest.TestCase):
         ))
         self.assertTrue(set(self.recommended).issubset(run.main_entrant_school_ids))
         history = HistoricalMatchArchive(self.slot / "historical_matches.sqlite3")
-        saved = history.list_matches(2027)
+        # list_matches defaults to 200 rows; historical A data is NOT capped
+        # at 200 matches. Exercise pagination across the 200-record boundary.
+        first_page = history.list_matches(2027, limit=200, offset=0)
+        second_page = history.list_matches(2027, limit=200, offset=200)
+        saved = first_page + second_page
+        self.assertEqual(200, len(first_page))
+        self.assertGreater(len(second_page), 0)
         self.assertEqual(sum(counts.values()), len(saved))
         spring = [row for row in saved if row["competition_id"] == "CMP000095"]
         self.assertTrue(spring)
