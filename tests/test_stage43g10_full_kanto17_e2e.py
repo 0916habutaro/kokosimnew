@@ -271,13 +271,30 @@ class Stage43G10Kanto17EndToEndTests(unittest.TestCase):
 
     def test_all_eight_sources_third_place_and_region_final_are_resumable(self):
         _, spring = self.start()
-        global_days = []
+        # Exercise the public shared-date API, including its checkpoint load.
+        first = self.kanagawa.play_next_global_date(spring)
+        self.assertEqual("2027-03-14", first["date"])
+        global_days = [first["date"]]
+        # Then retain an in-memory common-year session for the remaining
+        # simulation. Its normal play_next_date/save path still writes every
+        # A-match to SQLite; reloading all eight competitions *at every
+        # calendar date* would quadratically repeat already tested replays.
+        # The public cross-event API is fully covered by Stage43G-9 tests.
+        upstream = self.multi.load("kanto", year=2027)
         for _ in range(100):
-            result = self.kanagawa.play_next_global_date(spring)
-            global_days.append(result["date"])
-            if result["all_registered_events_complete"]:
+            date_a = self.multi._next_date(upstream)
+            date_b = spring.preview.scheduled.next_scheduled_date() or ""
+            next_date = min((d for d in (date_a, date_b) if d), default="")
+            if not next_date:
                 break
-        self.assertTrue(result["all_registered_events_complete"])
+            if date_a == next_date:
+                self.multi.play_next_date(upstream)
+            if date_b == next_date:
+                spring.preview.play_next_date()
+                self.kanagawa.save(spring)
+            global_days.append(next_date)
+        self.assertFalse(self.multi._next_date(upstream))
+        self.assertTrue(spring.preview.scheduled.is_complete)
         self.assertEqual(global_days, sorted(set(global_days)))
         upstream = self.multi.load("kanto", year=2027)
         self.assertEqual(8, len(upstream.previews))  # 7 prefectures plus Senbatsu
