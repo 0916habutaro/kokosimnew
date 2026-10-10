@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 import tkinter as tk
 from tkinter import messagebox, ttk
 from pathlib import Path
@@ -18,6 +19,7 @@ from .career_history_browse_model import (
     CareerHistoryBrowseModel, CareerHistoryNavigator, HistoryRoute, RANKABLE,
     SOURCE,
 )
+from .career_history_cache_diagnostics import CareerHistoryCacheDiagnostics
 
 APP_NAME = "ココシミュNew｜歴代記録ビュー（試験版・閲覧専用）"
 METRICS = {
@@ -32,6 +34,7 @@ class CareerHistoryGuiPilot:
     def __init__(self, root: tk.Tk, model: CareerHistoryBrowseModel):
         self.root = root
         self.model = model
+        self.cache_diagnostics = CareerHistoryCacheDiagnostics(model)
         years = model.years()
         if not years:
             raise ValueError("キャリア年度のA方式履歴がありません")
@@ -72,6 +75,8 @@ class CareerHistoryGuiPilot:
         ).pack(side="left", padx=6)
         ttk.Button(bar, text="この学校の歴代記録",
                    command=self._leaders).pack(side="left")
+        ttk.Button(bar, text="キャッシュ診断",
+                   command=self._diagnose).pack(side="left", padx=6)
         body = ttk.Panedwindow(self.root, orient=tk.VERTICAL)
         body.pack(fill="both", expand=True, padx=10, pady=(0, 8))
         table_frame = ttk.Frame(body)
@@ -172,6 +177,30 @@ class CareerHistoryGuiPilot:
             "leaders", self._year(),
             school_id=current.school_id, metric=metric,
         ))
+
+    def _diagnose(self) -> None:
+        route = self.navigator.current
+        if not route.school_id:
+            messagebox.showinfo(
+                "学校未選択", "学校ページで学校を選んでください"
+            )
+            return
+        try:
+            years = self.model.years()
+            result = self.cache_diagnostics.report(
+                route.school_id,
+                start_year=min(r["year"] for r in years),
+                end_year=self._year(),
+            )
+        except (ValueError, OSError, sqlite3.DatabaseError) as exc:
+            messagebox.showwarning("診断できません", str(exc))
+            return
+        # Diagnostics does not push navigation history or mutate the slot.
+        self._detail(result)
+        self.status_var.set(
+            f"キャッシュ診断 / {route.school_id} / "
+            f"{result['total_years']}年度 / 閲覧専用"
+        )
 
     def _change_page(self, delta: int) -> None:
         route = self.navigator.current
