@@ -14,6 +14,12 @@ from phase2_engine.career_multi_preview_checkpoint import (
     CareerMultiPreviewCheckpointService, CareerPreviewSaveError,
 )
 from phase2_engine.career_roster_archive import CareerRosterArchive
+from phase2_engine.chiba_third_place_checkpoint import (
+    ChibaThirdPlaceCheckpointService, ChibaThirdPlaceNotReady,
+)
+from phase2_engine.same_year_regional_feeder_gate import (
+    project_same_year_regional_feeders, RegionalFeederNotReady,
+)
 from phase2_engine.future_kanagawa_invitational_access import (
     audit_kanagawa_spring_access,
 )
@@ -318,6 +324,85 @@ class Stage43G6ChibaTokyoMultiSaveTests(unittest.TestCase):
         for year in (2026, 10000, True):
             with self.subTest(year=year), self.assertRaises(ValueError):
                 audit_kanagawa_spring_access(self.repo, year=year)
+
+
+    def test_stage43g7_third_place_refused_until_chiba_main_completed(self):
+        self.start()
+        placement = ChibaThirdPlaceCheckpointService(self.service)
+        with self.assertRaisesRegex(
+            ChibaThirdPlaceNotReady, "MAIN must be completed",
+        ):
+            placement.start("career_slot", year=2027)
+        self.assertFalse(placement._path("career_slot", 2027).exists())
+
+    def _finish_chiba_for_stage43g7(self):
+        session = self.start()
+        for _ in range(85):
+            if session.previews["CMP000092"].scheduled.is_complete:
+                break
+            self.service.play_next_date(session)
+        self.assertTrue(session.previews["CMP000092"].scheduled.is_complete)
+        return session
+
+    def test_stage43g7_real_third_decider_archive_and_feeder_verification(self):
+        session = self._finish_chiba_for_stage43g7()
+        before = project_same_year_regional_feeders(
+            self.service, session, "CMP000006",
+        )
+        by_rule = {r["feeder_rule_id"]: r for r in before["feeder_rules"]}
+        self.assertEqual(
+            "ranking_cutoff_requires_tiebreak_rule",
+            by_rule["RFR000011"]["status"],
+        )
+        placement = ChibaThirdPlaceCheckpointService(self.service)
+        finished = placement.start("career_slot", year=2027)
+        self.assertFalse(finished["official_future_rule_verified"])
+        self.assertEqual("2027-05-03", finished["match_date"])
+        self.assertEqual(2, len(finished["semifinal_loser_school_ids"]))
+        self.assertIn(
+            finished["third_place_school_id"],
+            finished["semifinal_loser_school_ids"],
+        )
+        history = HistoricalMatchArchive(self.slot / "historical_matches.sqlite3")
+        saved = [x for x in history.list_matches(2027)
+                 if x["match_id"] == finished["match_id"]]
+        self.assertEqual(1, len(saved))
+        self.assertEqual("PLACEMENT", saved[0]["stage_code"])
+        self.assertEqual("THIRD_PLACE", saved[0]["phase_code"])
+        self.assertEqual("ability_model_v1", saved[0]["score_source"])
+        self.assertTrue(saved[0]["inning_scores"])
+        self.assertTrue(saved[0]["batter_stats"])
+        self.assertTrue(saved[0]["pitcher_stats"])
+        self.assertEqual(
+            self.original_2026_count, len(history.list_matches(2026)),
+        )
+        view = project_same_year_regional_feeders(
+            self.service, session, "CMP000006",
+            placement_decider_match_ids={"CMP000092": finished["match_id"]},
+        )
+        third = next(x for x in view["feeder_rules"]
+                     if x["feeder_rule_id"] == "RFR000011")
+        self.assertEqual("verified_game_qualification", third["status"])
+        self.assertEqual(3, len(third["school_ids"]))
+        self.assertEqual(finished["third_place_school_id"], third["school_ids"][2])
+        self.assertFalse(view["all_feeder_results_verified"])
+        self.assertEqual(finished, placement.load("career_slot", year=2027))
+        with self.assertRaisesRegex(ChibaThirdPlaceNotReady, "already started"):
+            placement.start("career_slot", year=2027)
+
+    def test_stage43g7_modified_decider_is_not_accepted(self):
+        self._finish_chiba_for_stage43g7()
+        placement = ChibaThirdPlaceCheckpointService(self.service)
+        finished = placement.start("career_slot", year=2027)
+        with sqlite3.connect(self.slot / "historical_matches.sqlite3") as conn:
+            conn.execute(
+                "UPDATE historical_matches SET record_sha256=? "
+                "WHERE year=2027 AND competition_id=? AND match_id=?",
+                ("tampered", "CMP000092", finished["match_id"]),
+            )
+        with self.assertRaises(ValueError):
+            placement.load("career_slot", year=2027)
+
 
 
 if __name__ == "__main__":
