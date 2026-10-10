@@ -884,6 +884,12 @@ class MatchSimulator:
                     and inning >= regulation
                     and team_runs[team2_id] > team_runs[team1_id]
                 ):
+                    # Home team is already ahead: final bottom was never played.
+                    inning_scores.append(InningScore(
+                        inning=inning, half="bottom",
+                        batting_team_id=team2_id,
+                        was_played=False, runs=None,
+                    ))
                     game_over = True
                     break
                 if (
