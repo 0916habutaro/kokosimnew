@@ -20,6 +20,10 @@ from .career_preview_checkpoint import (
     _completed,
 )
 from .future_competition_bridge import FutureCompetitionPreview
+from .future_kanto_direct_main_bridge import (
+    DIRECT_MAIN_PREFECTURES,
+    prepare_future_kanto_direct_main_preview,
+)
 from .historical_match_archive import HistoricalMatchArchive
 
 _SCHEMA = 2
@@ -137,7 +141,15 @@ class CareerMultiPreviewCheckpointService:
             source = comp.get("prior_source_competition_id")
             if source is not None and not isinstance(source, str):
                 raise CareerPreviewSaveError("invalid prior game source")
-            rows.append({
+            mode = comp.get("entry_mode", "prior_autumn_bypass_v1")
+            if mode not in ("prior_autumn_bypass_v1", "kanto_direct_main_v1"):
+                raise CareerPreviewSaveError("unsupported future entrant mode")
+            if mode == "kanto_direct_main_v1":
+                if cid not in DIRECT_MAIN_PREFECTURES or groups or source is not None:
+                    raise CareerPreviewSaveError(
+                        "direct MAIN requires whitelisted competition and no feeder override"
+                    )
+            row = {
                 "year": year, "competition_id": cid,
                 "entrant_school_ids": list(schools),
                 "group_entrant_school_ids": {
@@ -145,7 +157,13 @@ class CareerMultiPreviewCheckpointService:
                 },
                 "base_seed": base_seed, "career_seed": career_seed,
                 "prior_source_competition_id": source,
-            })
+            }
+            # Preserve old Stage43G-2/3/4 save identities when no new mode
+            # was requested; retroactive schema normalization would break
+            # the immutable yearly SHA256 fingerprint.
+            if "entry_mode" in comp:
+                row["entry_mode"] = mode
+            rows.append(row)
         rows.sort(key=lambda row: row["competition_id"])
         ids = [x["competition_id"] for x in rows]
         if len(ids) != len(set(ids)):
@@ -181,10 +199,24 @@ class CareerMultiPreviewCheckpointService:
         )
 
     def _prepare_all(self, slot: str, inputs: list[dict]) -> dict:
-        return {
-            row["competition_id"]: self.solo._preview(slot, row)
-            for row in inputs
-        }
+        previews = {}
+        for row in inputs:
+            if row.get("entry_mode") == "kanto_direct_main_v1":
+                preview = prepare_future_kanto_direct_main_preview(
+                    data_root=self.solo.data_root, year=row["year"],
+                    competition_id=row["competition_id"],
+                    entrant_school_ids=row["entrant_school_ids"],
+                    roster_archive=self.solo._rosters(slot),
+                    repo=self.solo.repo,
+                    base_seed=row["base_seed"],
+                    career_seed=row["career_seed"],
+                    ability_config_dir=self.solo.ability_config_dir,
+                    match_config_dir=self.solo.match_config_dir,
+                )
+            else:
+                preview = self.solo._preview(slot, row)
+            previews[row["competition_id"]] = preview
+        return previews
 
     @staticmethod
     def _initial_digests(previews: Mapping[str, FutureCompetitionPreview]) -> dict:
