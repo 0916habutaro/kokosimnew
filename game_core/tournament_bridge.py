@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Callable
 
 from phase2_engine.models import MatchResolution
 from phase2_engine.repository import DataRepository
 
 from .match_contract import MatchSimulationInput, TeamMatchInput
 from .match_simulator import MatchSimulator
-from .players import PlayerRosterGenerator, SchoolRoster
+from .players import PlayerRosterGenerator, SchoolRoster, validate_school_roster
 from .school_intake import SchoolAwarePlayerAbilityGenerator
 from .team_strength import TeamStrengthGenerator
 
@@ -27,9 +28,13 @@ class AbilityMatchResolver:
         ability_config_dir: str | Path = "config/abilities",
         match_config_dir: str | Path = "config/match",
         team_generation_seed: int | None = None,
+        roster_provider: Callable[[int, str], SchoolRoster | None] | None = None,
     ):
         self.repo = repo
         self.roster_generator = PlayerRosterGenerator()
+        # Explicit opt-in. Prevent future-year seasons from silently
+        # creating entirely new identities for existing school members.
+        self.roster_provider = roster_provider
         self.ability_generator = SchoolAwarePlayerAbilityGenerator(
             ability_config_dir
         )
@@ -121,12 +126,20 @@ class AbilityMatchResolver:
         if cached is not None:
             return cached
 
-        roster = self.roster_generator.generate_for_school_id(
-            self.repo,
-            school_id,
-            reference_year,
-            team_seed,
-        )
+        if self.roster_provider is None:
+            roster = self.roster_generator.generate_for_school_id(
+                self.repo, school_id, reference_year, team_seed,
+            )
+        else:
+            roster = self.roster_provider(reference_year, school_id)
+            if roster is None:
+                raise ValueError(
+                    f"missing historical roster: {school_id}/{reference_year}"
+                )
+            validate_school_roster(roster)
+            if (roster.school_id != school_id
+                    or roster.reference_year != reference_year):
+                raise ValueError("historical roster year/school mismatch")
         self._roster_cache[key] = roster
         abilities = tuple(
             self.ability_generator.iter_roster(

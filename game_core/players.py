@@ -56,6 +56,9 @@ class SchoolRoster:
     school_name: str
     rng_seed: int
     players: list[Player] = field(default_factory=list)
+    # Initial fixed grade quotas only apply to the 2026 bootstrap cohort.
+    # Returning players keep their identity in later years.
+    cohort_policy: str = "initial_v1"
 
     def to_dict(self) -> dict:
         return {
@@ -66,6 +69,8 @@ class SchoolRoster:
             "rng_seed": self.rng_seed,
             "player_count": len(self.players),
             "players": [player.to_dict() for player in self.players],
+            **({"cohort_policy": self.cohort_policy}
+               if self.cohort_policy != "initial_v1" else {}),
         }
 
 
@@ -296,10 +301,19 @@ def validate_school_roster(roster: SchoolRoster) -> None:
         grade: sum(player.academic_year == grade for player in roster.players)
         for grade in (1, 2, 3)
     }
-    if actual_grades != GRADE_COUNTS:
-        raise ValueError(
-            f"{roster.school_id}: grade distribution mismatch {actual_grades}"
-        )
+    if roster.cohort_policy == "initial_v1":
+        if actual_grades != GRADE_COUNTS:
+            raise ValueError(
+                f"{roster.school_id}: grade distribution mismatch {actual_grades}"
+            )
+    elif roster.cohort_policy == "career_v1":
+        if (sum(actual_grades.values()) != CORE_ROSTER_SIZE
+                or any(count <= 0 for count in actual_grades.values())):
+            raise ValueError(
+                f"{roster.school_id}: career cohort must retain all grades"
+            )
+    else:
+        raise ValueError(f"{roster.school_id}: unknown cohort policy")
 
     actual_positions = sorted(
         player.primary_position for player in roster.players
