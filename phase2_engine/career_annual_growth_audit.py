@@ -63,6 +63,8 @@ def profile_annual_growth(matches: str | Path, rosters: str | Path,
                 _size_and_check(raw, digest, "match")
             )
             by_year[year]["record_counts"]["matches"] += 1
+    initial_year = min(years) if years else None
+    bootstrap_player_identities = 0
     with closing(_read_only(paths["rosters"])) as con:
         for year, raw, digest in con.execute(
             "SELECT year,payload_json,content_sha256 "
@@ -76,10 +78,20 @@ def profile_annual_growth(matches: str | Path, rosters: str | Path,
             "SELECT entry_year,identity_json,identity_sha256 "
             "FROM career_player_identities ORDER BY entry_year,player_id"
         ):
-            by_year[year]["logical_bytes"]["new_player_identity_payload"] += (
-                _size_and_check(raw, digest, "player identity")
-            )
-            by_year[year]["record_counts"]["new_player_identities"] += 1
+            # At initial 2026 bootstrap, grades 2-3 already have entry_year
+            # 2024/2025, but their identity rows are physically inserted in
+            # the 2026 save. Never fabricate 2024/2025 career-year ledgers.
+            if initial_year is None:
+                raise ValueError("player identity without any career year")
+            inserted_in_year = max(year, initial_year)
+            if year < initial_year:
+                bootstrap_player_identities += 1
+            by_year[inserted_in_year]["logical_bytes"][
+                "new_player_identity_payload"
+            ] += _size_and_check(raw, digest, "player identity")
+            by_year[inserted_in_year]["record_counts"][
+                "new_player_identities"
+            ] += 1
     with closing(_read_only(paths["derived_cache"])) as con:
         for year, raw, digest in con.execute(
             "SELECT year,payload_json,payload_sha256 "
@@ -139,6 +151,8 @@ def profile_annual_growth(matches: str | Path, rosters: str | Path,
         "first_year": ordered[0] if ordered else None,
         "last_year": ordered[-1] if ordered else None,
         "sealed_year_count": len(rows),
+        "bootstrap_prior_entry_year_identities": bootstrap_player_identities,
+        "prior_entry_cohorts_attributed_to_first_saved_year": True,
         "rows": rows,
         "final_logical_payload_bytes": totals,
         "final_logical_payload_total_bytes": sum(totals.values()),
