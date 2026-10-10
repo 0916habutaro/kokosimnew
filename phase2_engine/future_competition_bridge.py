@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from math import ceil, log2
 from typing import Mapping, Sequence
 
 from game_core.tournament_bridge import AbilityMatchResolver
@@ -138,10 +139,11 @@ def prepare_future_direct_main_preview(
     if not days or days != sorted(set(days)):
         raise FutureCompetitionNotReady("future MAIN needs ordered distinct game days")
     try:
-        if any(date.fromisoformat(d).year != year for d in days):
-            raise FutureCompetitionNotReady("future game days belong to wrong year")
+        parsed_days = [date.fromisoformat(d) for d in days]
     except ValueError as exc:
         raise FutureCompetitionNotReady("future calendar has malformed day") from exc
+    if any(day.year != year for day in parsed_days):
+        raise FutureCompetitionNotReady("future game days belong to wrong year")
 
     stages = repo.stages(competition_id)
     if len(stages) != 1 or stages[0]["stage_code"] != "MAIN":
@@ -154,6 +156,11 @@ def prepare_future_direct_main_preview(
     if expected < 2 or len(entrants) != expected:
         raise FutureCompetitionNotReady(
             f"requires exactly {expected} explicitly entered schools"
+        )
+    # Lazy scheduling requires a *later* calendar date for each MAIN wave.
+    if len(days) < ceil(log2(expected)):
+        raise FutureCompetitionNotReady(
+            "not enough future game days for every MAIN round"
         )
     if len(set(entrants)) != len(entrants):
         raise FutureCompetitionNotReady("duplicate future entrants")
