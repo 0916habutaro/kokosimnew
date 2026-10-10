@@ -214,8 +214,16 @@ class Stage43G16HistoryGuiNavigationTests(unittest.TestCase):
             self.model.school_page(2027, "BOGUS")
         with self.assertRaises(ValueError):
             self.model.school_page(2027, self.fixture.a, limit=0)
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "unknown competition ID"):
             self.model.competition_page(2027, "NONEXISTENT")
+        with self.assertRaisesRegex(ValueError, "unknown competition ID"):
+            self.model.match_page(2027, "NONEXISTENT", "ARCHIVE-2027")
+        previous_route = self.nav.current
+        with self.assertRaisesRegex(ValueError, "unknown competition ID"):
+            self.nav.open(HistoryRoute(
+                "competition", 2027, competition_id="NONEXISTENT"
+            ))
+        self.assertEqual(previous_route, self.nav.current)
         with self.assertRaises(ValueError):
             self.model.match_page(2027, "CMP000086", "OTHER-YEAR")
         with sqlite3.connect(self.fixture.history.db_path) as conn:
