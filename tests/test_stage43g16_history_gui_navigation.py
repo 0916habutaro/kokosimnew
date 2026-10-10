@@ -74,6 +74,24 @@ class Stage43G16HistoryGuiNavigationTests(unittest.TestCase):
         self.assertEqual(2027, self.nav.current.year)
         self.assertEqual("years", self.nav.back()["screen"])
 
+    def test_school_and_competition_pages_remain_offset_addressable(self):
+        school = self.model.school_page(
+            2027, self.fixture.a, offset=1, limit=1,
+        )
+        self.assertEqual(2, school["year_results"]["total_groups"])
+        self.assertEqual(2027, school["year_results"]["records"][0]["year"])
+        games = self.model.competition_page(
+            2027, "CMP000086", offset=1, limit=1,
+        )
+        self.assertEqual(1, games["matches"]["total"])
+        self.assertEqual([], games["matches"]["rows"])
+        self.nav.open(HistoryRoute(
+            "school", 2027, school_id=self.fixture.a, offset=1,
+        ))
+        self.assertEqual(1, self.nav.current.offset)
+        self.nav.back()
+        self.assertEqual("years", self.nav.current.screen)
+
     def test_competition_and_exact_composite_match_navigation(self):
         comp = self.nav.open(HistoryRoute(
             "competition", 2027, competition_id="CMP000086"
