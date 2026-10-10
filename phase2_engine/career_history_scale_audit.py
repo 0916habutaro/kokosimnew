@@ -274,9 +274,9 @@ def run_scale_audit(
             "LIMIT ? OFFSET ?",
             (schools[0], 100, 0),
         )
-        if not any("idx_history_team1" in row for row in hplan):
+        if not any("idx_history_school1_year" in row for row in hplan):
             raise AssertionError("school home-match index not selected")
-        if not any("idx_history_team2" in row for row in aplan):
+        if not any("idx_history_school2_year" in row for row in aplan):
             raise AssertionError("school away-match index not selected")
         if not any("idx_career_players_school_entry" in row for row in playerplan):
             raise AssertionError("historic player-identity index not selected")
@@ -293,6 +293,12 @@ def run_scale_audit(
             "history_sqlite": _sql_size(match_file),
             "roster_sqlite": _sql_size(roster_file),
             "total_sqlite_bytes": match_file.stat().st_size + roster_file.stat().st_size,
+            "bytes_per_synthetic_match_including_indexes": round(
+                match_file.stat().st_size / archive_count, 2
+            ),
+            "bytes_per_synthetic_school_year_roster_including_identity_index": round(
+                roster_file.stat().st_size / previous_year_roster_count, 2
+            ),
             "read_latency": checks,
             "query_plans": {
                 "home_game": hplan, "away_game": aplan,
