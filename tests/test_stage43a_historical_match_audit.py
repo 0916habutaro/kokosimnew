@@ -130,7 +130,7 @@ class Stage43AHistoricalMatchAuditTests(unittest.TestCase):
         before = other.read_bytes()
         payload = audit_historical_matches(other)
         self.assertEqual([], payload["years"])
-        self.assertEqual("absent", payload["inning_score_schema"])
+        self.assertEqual("recognized", payload["inning_score_schema"])
         self.assertTrue(payload["stats_tables_present"])
         self.assertEqual(before, other.read_bytes())
 
