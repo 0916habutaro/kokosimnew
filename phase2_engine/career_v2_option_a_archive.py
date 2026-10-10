@@ -355,3 +355,41 @@ class CareerV2OptionAArchive:
             "legacy_stats_cache_supports_v2": False,
             "real_tournament_runtime_connected": False,
         }
+
+
+def main() -> None:
+    """Inspect pre-existing v2 sidecar without ever writing source DBs."""
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Read fictional Option-A sidecar results incl. year 10000+"
+    )
+    parser.add_argument("--slot-root", type=Path, required=True)
+    parser.add_argument("--year", type=int)
+    parser.add_argument("--day-token")
+    parser.add_argument("--competition-id")
+    parser.add_argument("--limit", type=int, default=50)
+    parser.add_argument("--offset", type=int, default=0)
+    args = parser.parse_args()
+    if (args.year is None) == (args.day_token is None):
+        parser.error("provide exactly one of --year or --day-token")
+    if args.year is not None and args.competition_id is not None:
+        parser.error("--competition-id requires --day-token")
+    archive = CareerV2OptionAArchive(
+        args.slot_root / "fictional_option_a_v2.sqlite3",
+        args.slot_root / "sandbox_calendar_v2.sqlite3",
+        legacy_archive_path=args.slot_root / "historical_matches.sqlite3",
+    )
+    result = (
+        archive.year_matches(
+            args.year, limit=args.limit, offset=args.offset,
+        ) if args.year is not None else archive.day_matches(
+            args.day_token, competition_id=args.competition_id,
+            limit=args.limit, offset=args.offset,
+        )
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()
