@@ -288,7 +288,28 @@ def run_full_a_benchmark(
                 ),
             )[0],
         }
+        # Count the *actual stored* complete A shape, not merely metadata
+        # claiming a box score was generated.
+        option_a_count = 0
+        with closing(sqlite3.connect(
+            match_file.resolve().as_uri() + "?mode=ro", uri=True
+        )) as conn:
+            for (raw,) in conn.execute(
+                "SELECT payload_json FROM historical_matches"
+            ):
+                event = json.loads(raw)
+                if all(
+                    isinstance(event.get(field), list) and event[field]
+                    for field in (
+                        "inning_scores", "team_stats",
+                        "batter_stats", "pitcher_stats",
+                    )
+                ):
+                    option_a_count += 1
+        counts["full_option_a_matches"] = option_a_count
         expected_matches = schools * years * games_per_school_year // 2
+        if option_a_count != expected_matches:
+            raise AssertionError("full Option-A game records absent")
         if counts["matches"] != expected_matches or total_matches != expected_matches:
             raise AssertionError("synthetic full-A match count mismatch")
         if counts["school_year_rosters"] != schools * years:
