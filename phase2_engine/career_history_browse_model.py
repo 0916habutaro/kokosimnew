@@ -79,7 +79,7 @@ class CareerHistoryBrowseModel:
 
     def _year(self, year: int) -> None:
         if type(year) is not int or year not in {
-            row["year"] for row in self.history.list_years()
+            row["year"] for row in self.years()
         }:
             raise ValueError("year not in career archive")
 
@@ -114,7 +114,7 @@ class CareerHistoryBrowseModel:
         self._page(limit, offset)
         s = self._school(school_id)
         start = start_year if start_year is not None else min(
-            row["year"] for row in self.history.list_years()
+            row["year"] for row in self.years()
         )
         years = self.school.school_results(
             school_id, start_year=start, end_year=year, limit=limit, offset=offset
@@ -286,7 +286,7 @@ class CareerHistoryBrowseModel:
         self._school(school_id)
         if category not in RANKABLE:
             raise ValueError("unknown leaderboard metric")
-        start = (min(row["year"] for row in self.history.list_years())
+        start = (min(row["year"] for row in self.years())
                  if start_year is None else start_year)
         records = self.stats.school_leaders(
             school_id, start_year=start, end_year=year,
