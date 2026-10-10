@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 from game_core.career_rosters import advance_school_roster, advance_rosters
+from game_core.tournament_bridge import AbilityMatchResolver
 from game_core.players import (
     GRADE_COUNTS, PlayerRosterGenerator, validate_school_roster, write_players_csv
 )
@@ -255,6 +256,48 @@ class Stage43ECareerRostersTests(unittest.TestCase):
                 with conn:
                     self.archive._insert(conn, broken)
         self.assertIsNone(self.archive.roster(2027, self.school))
+
+    def test_ability_resolver_uses_stable_id_roster_provider(self):
+        self.archive.save_initial_roster(self.initial)
+        self.archive.advance_and_save(
+            self.team, next_year=2027, career_seed=self.seed,
+        )
+        resolver = AbilityMatchResolver(
+            self.repo,
+            ability_config_dir=ROOT / "config" / "abilities",
+            match_config_dir=ROOT / "config" / "match",
+            roster_provider=self.archive.roster,
+        )
+        old_ids = {
+            p.player_id for p in self.initial.players
+            if p.academic_year in (1, 2)
+        }
+        ability_team = resolver.team_input(
+            school_id=self.school,
+            reference_year=2027,
+            generation_seed=self.seed,
+        )
+        current_ids = {p.player_id for p in ability_team.player_abilities}
+        self.assertTrue(old_ids <= current_ids)
+        self.assertEqual(20, len(current_ids))
+        self.assertEqual(
+            old_ids, {
+                p.player_id for p in self.archive.roster(2027, self.school).players
+                if p.academic_year in (2, 3)
+            }
+        )
+
+    def test_ability_resolver_does_not_regenerate_missing_year(self):
+        self.archive.save_initial_roster(self.initial)
+        resolver = AbilityMatchResolver(
+            self.repo, roster_provider=self.archive.roster,
+        )
+        with self.assertRaisesRegex(ValueError, "missing historical roster"):
+            resolver.team_input(
+                school_id=self.school,
+                reference_year=2027,
+                generation_seed=self.seed,
+            )
 
     def test_unavailable_db_queries_do_not_create_file(self):
         self.assertIsNone(self.archive.roster(2026, self.school))
