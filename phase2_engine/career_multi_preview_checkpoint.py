@@ -258,11 +258,6 @@ class CareerMultiPreviewCheckpointService:
     def save(self, session: CareerMultiPreviewSession) -> dict:
         target = self._path(session.slot_id, session.year)
         self._assert_prior(session)
-        if self._initial_digests({
-            # Initial snapshots must be checked *before* execution in start
-            # and load; ongoing sessions retain their immutable digest.
-        }):
-            raise AssertionError("unreachable")
         self._register(session)
         if target.is_file():
             current = _checkpoint(target)
