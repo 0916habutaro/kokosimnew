@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import os
 from pathlib import Path
 import shutil
 import sqlite3
@@ -99,6 +100,10 @@ def previous_autumn_game(cid, school_ids):
     return run, rows
 
 
+@unittest.skipIf(
+    os.environ.get("KOKOSIM_SKIP_STAGE43G10_E2E") == "1",
+    "Run in the dedicated Kanto 17-school E2E CI job",
+)
 class Stage43G10Kanto17EndToEndTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
