@@ -4,11 +4,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from .historical_match_archive import HistoricalMatchArchive
 from .live_season_planner import (
     LiveSeasonGraphPlanner,
 )
 from .live_season_save import (
     DEFAULT_RESOLVER_CONTRACT,
+    plan_fingerprint,
 )
 from .repository import DataRepository
 from .save_slots import (
@@ -185,7 +187,7 @@ class LiveGameService:
                 self.resolver_contract
             ),
         )
-        return LiveGameSession(
+        session = LiveGameSession(
             slot_id=(
                 self.slots.validate_slot_id(
                     slot_id
@@ -197,6 +199,30 @@ class LiveGameService:
                 self.resolver_contract
             ),
         )
+        # Repair a crash between the JSON save and archive commit.
+        # Older backup loads never delete matches written by newer saves.
+        self._sync_history(session)
+        return session
+
+    def _history_archive(self, slot_id: str) -> HistoricalMatchArchive:
+        return HistoricalMatchArchive(
+            self.slots.slot_dir(slot_id) / "historical_matches.sqlite3"
+        )
+
+    def _sync_history(self, session: LiveGameSession) -> dict:
+        completed = (
+            match.__dict__
+            for scheduled in session.state.competitions.values()
+            for match in scheduled.matches.values()
+            if match.status == "completed"
+        )
+        return self._history_archive(session.slot_id).sync(
+            year=session.state.year,
+            rng_seed=session.state.rng_seed,
+            resolver_contract=session.resolver_contract,
+            plan_fingerprint=plan_fingerprint(session.plan),
+            completed=completed,
+        )
 
     def save_game(
         self,
@@ -204,27 +230,33 @@ class LiveGameService:
         *,
         kind: str = SAVE_KIND_MANUAL,
     ) -> dict:
-        return self.slots.save(
+        # JSON first: if the archive operation fails or the process exits,
+        # a later load deterministically replays and retries the archive.
+        saved = self.slots.save(
             session.slot_id,
             session.plan,
             session.state,
             kind=kind,
-            resolver_contract=(
-                session.resolver_contract
-            ),
+            resolver_contract=session.resolver_contract,
+        )
+        return {**saved, "historical_archive": self._sync_history(session)}
+
+    def autosave_game(self, session: LiveGameSession) -> dict:
+        return self.save_game(session, kind=SAVE_KIND_AUTOSAVE)
+
+    def historical_match(
+        self, slot_id: str, year: int, competition_id: str, match_id: str
+    ) -> dict | None:
+        return self._history_archive(slot_id).get_match(
+            year, competition_id, match_id
         )
 
-    def autosave_game(
-        self,
-        session: LiveGameSession,
-    ) -> dict:
-        return self.slots.autosave(
-            session.slot_id,
-            session.plan,
-            session.state,
-            resolver_contract=(
-                session.resolver_contract
-            ),
+    def historical_matches(
+        self, slot_id: str, year: int, *, school_id: str = "",
+        limit: int = 200, offset: int = 0,
+    ) -> list[dict]:
+        return self._history_archive(slot_id).list_matches(
+            year, school_id=school_id, limit=limit, offset=offset,
         )
 
     def _maybe_autosave(
