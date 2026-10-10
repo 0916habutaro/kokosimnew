@@ -97,6 +97,8 @@ class ScheduledCompetitionRuntime:
     calendar_dates: List[str]
     stage_date_lists: Dict[str, List[str]]
     calendar_status: str
+    # Preserve game-projected dates as such when feeding the ordinary scheduler.
+    date_source_override: str = ""
     matches: Dict[str, ScheduledRuntimeMatch] = field(default_factory=dict)
     processed_dates: List[str] = field(default_factory=list)
     last_scheduled_date: str = ""
@@ -155,6 +157,15 @@ class ScheduledCompetitionRuntime:
             calendar_status=calendar_row.get(
                 "calendar_status",
                 "",
+            ),
+            date_source_override=(
+                "game_projection_v1"
+                if (
+                    calendar_row.get("date_source") == "game_projection_v1"
+                    and calendar_row.get("calendar_status")
+                    == "provisional_game_schedule"
+                )
+                else ""
             ),
         )
         state.ensure_next_wave_scheduled()
@@ -333,9 +344,12 @@ class ScheduledCompetitionRuntime:
                 continue
             target = dates[0]
             source = (
-                "stage_date_list"
-                if stage_code in self.stage_date_lists
-                else "runtime_wave_v1"
+                self.date_source_override
+                or (
+                    "stage_date_list"
+                    if stage_code in self.stage_date_lists
+                    else "runtime_wave_v1"
+                )
             )
             for row in stage_rows:
                 match_id = str(row["match_id"])
