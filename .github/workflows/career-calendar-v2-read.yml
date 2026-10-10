@@ -1,0 +1,49 @@
+name: V2 fictional date browse compatibility
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_calendar_v2_read_model.py"
+      - "phase2_engine/career_history_browse_model.py"
+      - "phase2_engine/career_full_a_benchmark.py"
+      - "tests/test_stage43g26_calendar_v2_read_model.py"
+      - ".github/workflows/career-calendar-v2-read.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "phase2_engine/career_calendar_v2_read_model.py"
+      - "phase2_engine/career_history_browse_model.py"
+      - "phase2_engine/career_full_a_benchmark.py"
+      - ".github/workflows/career-calendar-v2-read.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  readonly_v2:
+    name: Strict v2 day/year browser 5-year A test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Verify legacy source and fictional schedule compatibility
+        run: python -m unittest discover -s tests -p 'test_stage43g26_calendar_v2_read_model.py' -v
+      - name: Store five-year v2 date browsing measurements
+        run: |
+          python -m phase2_engine.career_full_a_benchmark \
+            --data-root data --schools 2 --years 5 \
+            --games-per-school-year 3 --repeats 1 \
+            --include-sandbox-calendar \
+            --output-json benchmark-results/calendar-v2-read-5years.json
+      - name: Save verified JSON artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: calendar-v2-read-${{ github.run_id }}
+          path: benchmark-results/*.json
+          if-no-files-found: warn
+          retention-days: 30
