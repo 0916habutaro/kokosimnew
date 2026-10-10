@@ -19,7 +19,10 @@ from .career_preview_checkpoint import (
     _digest,
     _completed,
 )
-from .future_competition_bridge import FutureCompetitionPreview
+from .future_competition_bridge import (
+    FutureCompetitionPreview, prepare_future_direct_main_preview,
+)
+from .future_season_blueprint import build_future_season_blueprint
 from .future_kanto_direct_main_bridge import (
     DIRECT_MAIN_PREFECTURES,
     prepare_future_kanto_direct_main_preview,
@@ -142,13 +145,24 @@ class CareerMultiPreviewCheckpointService:
             if source is not None and not isinstance(source, str):
                 raise CareerPreviewSaveError("invalid prior game source")
             mode = comp.get("entry_mode", "prior_autumn_bypass_v1")
-            if mode not in ("prior_autumn_bypass_v1", "kanto_direct_main_v1"):
+            if mode not in ("prior_autumn_bypass_v1", "kanto_direct_main_v1",
+                            "national_invitational_main_v1"):
                 raise CareerPreviewSaveError("unsupported future entrant mode")
             if mode == "kanto_direct_main_v1":
                 if cid not in DIRECT_MAIN_PREFECTURES or groups or source is not None:
                     raise CareerPreviewSaveError(
                         "direct MAIN requires whitelisted competition and no feeder override"
                     )
+            if mode == "national_invitational_main_v1":
+                if (cid != "CMP000001" or groups or source is not None
+                        or len(schools) != 32 or len(set(schools)) != 32):
+                    raise CareerPreviewSaveError(
+                        "national invitational needs explicit complete 32-school game manifest"
+                    )
+            if cid == "CMP000001" and mode != "national_invitational_main_v1":
+                raise CareerPreviewSaveError(
+                    "Senbatsu may not be inferred from a prior autumn or prefectural result"
+                )
             if cid == "CMP000094":
                 if (mode != "prior_autumn_bypass_v1"
                         or not isinstance(source, str)
@@ -222,6 +236,18 @@ class CareerMultiPreviewCheckpointService:
                     roster_archive=self.solo._rosters(slot),
                     repo=self.solo.repo,
                     base_seed=row["base_seed"],
+                    career_seed=row["career_seed"],
+                    ability_config_dir=self.solo.ability_config_dir,
+                    match_config_dir=self.solo.match_config_dir,
+                )
+            elif row.get("entry_mode") == "national_invitational_main_v1":
+                blueprint = build_future_season_blueprint(
+                    self.solo.data_root, year=row["year"], base_seed=row["base_seed"],
+                )
+                preview = prepare_future_direct_main_preview(
+                    blueprint=blueprint, competition_id=row["competition_id"],
+                    entrant_school_ids=row["entrant_school_ids"],
+                    roster_archive=self.solo._rosters(slot), repo=self.solo.repo,
                     career_seed=row["career_seed"],
                     ability_config_dir=self.solo.ability_config_dir,
                     match_config_dir=self.solo.match_config_dir,
