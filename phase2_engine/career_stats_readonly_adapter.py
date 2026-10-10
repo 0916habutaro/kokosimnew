@@ -6,6 +6,7 @@ A present but inconsistent cache must never be accepted as valid history.
 """
 from __future__ import annotations
 
+from contextlib import closing
 import sqlite3
 
 from .career_player_stat_cache import (
@@ -27,7 +28,7 @@ class CareerStatsReadOnlyAdapter(CareerPlayerStatCache):
     def _connection(self):
         if not self.path.is_file():
             raise CareerStatsCacheConflict("derived cache not available")
-        return _read_only(self.path)
+        return closing(_read_only(self.path))
 
     def materialize(self, *args, **kwargs):
         raise PermissionError("history GUI cannot materialize derived stats")
@@ -53,9 +54,9 @@ class CareerStatsReadOnlyAdapter(CareerPlayerStatCache):
         if not self.path.is_file() or not self.view.matches.db_path.is_file():
             return False
         try:
-            with _read_only(self.path) as cached, _read_only(
+            with closing(_read_only(self.path)) as cached, closing(_read_only(
                 self.view.matches.db_path
-            ) as source:
+            )) as source:
                 source_rows = {
                     row["year"]: row
                     for row in source.execute(
