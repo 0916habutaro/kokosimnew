@@ -126,6 +126,34 @@ class Stage43G23AnnualGrowthAuditTests(unittest.TestCase):
         finally:
             fixture.tearDown()
 
+    def test_active_year_kept_as_active_without_fabricated_seal(self):
+        fixture = Stage43G14PlayerRecordTests(
+            "test_annual_and_career_stats_and_defined_ratios"
+        )
+        fixture.setUp()
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                cache = Path(d) / "derived.sqlite3"
+                CareerPlayerStatCache(fixture.view, cache).materialize(
+                    fixture.a, year=2026
+                )
+                report = profile_annual_growth(
+                    fixture.history.db_path,
+                    fixture.rosters.db_path, cache,
+                )
+                self.assertEqual(2, report["year_count"])
+                self.assertEqual(1, report["sealed_year_count"])
+                self.assertEqual(1, report["active_year_count"])
+                self.assertEqual(["sealed", "active"], [
+                    row["source_year_status"] for row in report["rows"]
+                ])
+                self.assertEqual(
+                    0, report["rows"][1][
+                        "record_counts"]["cache_school_year_facts"]
+                )
+        finally:
+            fixture.tearDown()
+
     def test_tampered_row_and_cache_ledger_rejected(self):
         fixture = self._sealed_two_year_fixture()
         try:
