@@ -46,6 +46,7 @@ def project_same_year_regional_feeders(
     destination_competition_id: str,
     *,
     placement_decider_match_ids: Mapping[str, str] | None = None,
+    kanagawa_sidecar_enabled: bool = False,
 ) -> dict:
     """Project game-qualified schools without granting final entry or seeds.
 
@@ -55,6 +56,8 @@ def project_same_year_regional_feeders(
     """
     if session.year <= 2026 or not isinstance(session.year, int):
         raise RegionalFeederNotReady("future sandbox year required")
+    if not isinstance(kanagawa_sidecar_enabled, bool):
+        raise RegionalFeederNotReady("invalid Kanagawa sidecar selection")
     placement_ids = dict(placement_decider_match_ids or {})
     if (set(placement_ids) - {"CMP000092"} or
             any(not isinstance(x, str) or not x for x in placement_ids.values())):
@@ -137,6 +140,25 @@ def project_same_year_regional_feeders(
     if not archive.db_path.is_file():
         raise RegionalFeederNotReady("current year archive missing")
     runs = session.completed_runs()
+    # Stage43G-9 stores Kanagawa's FMT006 competition beside the immutable
+    # multi-preview. Only the checkpoint service may authenticate this result:
+    # a caller-supplied school list or raw ranking is never sufficient.
+    if kanagawa_sidecar_enabled:
+        if "CMP000095" in session.previews:
+            raise RegionalFeederNotReady("duplicate Kanagawa source competition")
+        from .career_kanagawa_spring_checkpoint import (
+            CareerKanagawaSpringCheckpointService,
+        )
+        kanagawa = CareerKanagawaSpringCheckpointService(service).load(
+            slot, year=session.year,
+        )
+        if not kanagawa.preview.scheduled.is_complete:
+            raise RegionalFeederNotReady("Kanagawa FMT006 MAIN is not completed")
+        if (kanagawa.upstream_plan_fingerprint != service._fingerprint(session)
+                or kanagawa.year != session.year
+                or kanagawa.slot_id != slot):
+            raise RegionalFeederNotReady("Kanagawa sidecar yearly identity mismatch")
+        runs["CMP000095"] = kanagawa.preview.scheduled.to_competition_run()
     verified = []
     statuses = []
     all_selected = set()
@@ -164,7 +186,9 @@ def project_same_year_regional_feeders(
                 "school_ids": [],
                 "evidence_sha256": "",
             }
-            if cid not in session.previews:
+            if cid not in session.previews and not (
+                cid == "CMP000095" and kanagawa_sidecar_enabled
+            ):
                 base["status"] = "source_not_in_preview"
             elif cid not in runs:
                 base["status"] = "source_not_completed"
