@@ -420,6 +420,7 @@ class Stage43G2MultiCompetitionCheckpointTests(unittest.TestCase):
                 "AND match_id = "
                 "(SELECT match_id FROM historical_matches "
                 "WHERE year=2027 AND competition_id='CMP000084' "
+                "AND match_date >= '2027-04-18' "
                 "ORDER BY match_date, match_id LIMIT 1)"
             )
         with self.assertRaisesRegex(
