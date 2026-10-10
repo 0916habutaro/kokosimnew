@@ -16,6 +16,7 @@ from .career_longitudinal_read import CareerLongitudinalReadModel
 from .career_player_records import CareerPlayerRecordView, RANKABLE
 from .career_stats_readonly_adapter import CareerStatsReadOnlyAdapter
 from .career_mixed_stats_reader import CareerMixedStatReader
+from .career_calendar_v2_read_model import CareerCalendarV2MatchReadModel
 from .historical_match_archive import HistoricalMatchArchive
 from .career_roster_archive import CareerRosterArchive
 from .repository import DataRepository
@@ -53,6 +54,23 @@ class CareerHistoryBrowseModel:
         )
         # Stage43G-17 adapter never materializes; missing caches use raw A.
         self.slot_root = slot
+        self.fictional_dates = CareerCalendarV2MatchReadModel(
+            slot / "sandbox_calendar_v2.sqlite3",
+            self.history.db_path,
+        )
+
+    def fictional_calendar_year(self, game_year: int) -> Page:
+        """Opt-in v2 sandbox date browser; does not infer official fixtures."""
+        return self.fictional_dates.year_dates(game_year)
+
+    def fictional_calendar_day(self, day_token: str, *,
+                               competition_id: str | None = None,
+                               limit: int = 50, offset: int = 0) -> Page:
+        """Daily archived A results, verified against explicit v2 plans."""
+        return self.fictional_dates.date_page(
+            day_token, competition_id=competition_id,
+            limit=limit, offset=offset,
+        )
 
     def _stats_reader(self, school_id: str, start_year: int, end_year: int):
         """Choose the safest efficient route for each requested year."""
