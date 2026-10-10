@@ -1,0 +1,32 @@
+name: V2 Option-A 10000-year sidecar
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_v2_option_a_archive.py"
+      - "phase2_engine/career_history_browse_model.py"
+      - "tests/test_stage43g27_v2_option_a_archive.py"
+      - ".github/workflows/career-v2-option-a-sidecar.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "phase2_engine/career_v2_option_a_archive.py"
+      - "phase2_engine/career_history_browse_model.py"
+      - ".github/workflows/career-v2-option-a-sidecar.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  boundary_10000:
+    name: A-record year 10000 separate sidecar and legacy isolation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Verify append-only 10000 year A record and old match archive
+        run: python -m unittest discover -s tests -p 'test_stage43g27_v2_option_a_archive.py' -v
