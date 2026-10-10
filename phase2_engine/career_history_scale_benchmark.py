@@ -55,6 +55,15 @@ def school_id(n: int) -> str:
     return f"BENCH-SCH-{n:04d}"
 
 
+def file_sha256(path: Path) -> str:
+    """Stream checksums without loading a large historical DB into RAM."""
+    digest = sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def build_synthetic_archive(
     path: Path, *, schools: int, years: int,
     games_per_school_year: int,
@@ -149,7 +158,7 @@ def measure_indexed_history(
     )
     sample_numbers = sorted({1, (schools + 1) // 2, schools})
     samples = []
-    db_hash_before = sha256(path.read_bytes()).hexdigest()
+    db_hash_before = file_sha256(path)
     for number in sample_numbers:
         sid = school_id(number)
         measurements = []
@@ -188,7 +197,7 @@ def measure_indexed_history(
             "repeat_elapsed_ms": measurements,
             "max_traced_python_bytes": max(peaks),
         })
-    if sha256(path.read_bytes()).hexdigest() != db_hash_before:
+    if file_sha256(path) != db_hash_before:
         raise AssertionError("read benchmark modified SQLite source bytes")
 
     with closing(sqlite3.connect(
@@ -247,7 +256,7 @@ def run_benchmark(*, schools: int = 24, years: int = 50,
         "build_elapsed_ms": generated["build_elapsed_ms"],
         "read_measurements": reads,
         "temporary_data_deleted_after_run": True,
-        "population_3000_schools_100_years_verified": (
+        "synthetic_3000_schools_100_years_exercised": (
             schools == 3000 and years == 100
         ),
         "production_gameplay_or_full_option_A_verified": False,
