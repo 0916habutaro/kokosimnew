@@ -14,6 +14,7 @@ from typing import Literal
 
 from .career_longitudinal_read import CareerLongitudinalReadModel
 from .career_player_records import CareerPlayerRecordView, RANKABLE
+from .career_stats_readonly_adapter import CareerStatsReadOnlyAdapter
 from .historical_match_archive import HistoricalMatchArchive
 from .career_roster_archive import CareerRosterArchive
 from .repository import DataRepository
@@ -46,11 +47,19 @@ class CareerHistoryBrowseModel:
         self.rosters = CareerRosterArchive(slot / "career_rosters.sqlite3")
         self.school = CareerLongitudinalReadModel(self.history, self.rosters)
         self.stats = CareerPlayerRecordView(self.history, self.rosters)
-        # Pure reads only: Stage43G-15's materializer is deliberately NOT
-        # called from screen rendering, since it writes derived SQLite rows.
-        # A later opt-in cache adapter must use URI mode=ro and must refuse
-        # missing or stale cache without changing authoritative archives.
+        self.stats_cache = CareerStatsReadOnlyAdapter(
+            self.stats, slot / "derived_player_stats.sqlite3"
+        )
+        # Stage43G-17 adapter never materializes; missing caches use raw A.
         self.slot_root = slot
+
+    def _stats_reader(self, school_id: str, start_year: int, end_year: int):
+        """Return a read path and its precise verification level."""
+        if self.stats_cache.ready(
+            school_id, start_year=start_year, end_year=end_year
+        ):
+            return self.stats_cache, "sealed_cache_ledger_checked"
+        return self.stats, "raw_archived_A_verified"
 
     def years(self) -> list[dict]:
         # HistoricalMatchArchive.list_years() replays schema DDL for normal
@@ -208,7 +217,10 @@ class CareerHistoryBrowseModel:
         if start > year:
             raise ValueError("start year after screen year")
         # The full raw read path validates every matched A box score.
-        stat = self.stats.player_seasons(
+        reader, validation = self._stats_reader(
+            selected[0]["school_id"], start, year
+        )
+        stat = reader.player_seasons(
             player_id, start_year=start, end_year=year,
         )
         return {
@@ -220,7 +232,10 @@ class CareerHistoryBrowseModel:
             "career_stats": stat["totals"],
             "missing_box_score_games": stat["games_without_box_scores"],
             "source_kind": SOURCE,
-            "source_validation": "raw_archived_A_verified",
+            "source_validation": validation,
+            "source_payloads_rechecked_on_read": (
+                validation == "raw_archived_A_verified"
+            ),
             "pitcher_wins_losses_inferred": False,
         }
 
@@ -351,7 +366,8 @@ class CareerHistoryBrowseModel:
             raise ValueError("unknown leaderboard metric")
         start = (min(row["year"] for row in self.years())
                  if start_year is None else start_year)
-        records = self.stats.school_leaders(
+        reader, validation = self._stats_reader(school_id, start, year)
+        records = reader.school_leaders(
             school_id, start_year=start, end_year=year,
             category=category, limit=limit,
         )
@@ -360,6 +376,10 @@ class CareerHistoryBrowseModel:
             "category": category, "records": records,
             "source_kind": SOURCE,
             "ranking_qualification_inferred": False,
+            "source_validation": validation,
+            "source_payloads_rechecked_on_read": (
+                validation == "raw_archived_A_verified"
+            ),
         }
 
 
