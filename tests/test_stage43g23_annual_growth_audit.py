@@ -144,15 +144,11 @@ class Stage43G23AnnualGrowthAuditTests(unittest.TestCase):
                     )
                 with self.assertRaisesRegex(ValueError, "source ledger mismatch"):
                     profile_annual_growth(*args)
-                with sqlite3.connect(cache) as conn:
-                    conn.execute(
-                        "UPDATE school_year_stat_cache SET "
-                        "source_ledger_sha256=(SELECT ledger_sha256 "
-                        "FROM backup.career_years) WHERE 0"
-                    ) if False else None
-                    actual = sqlite3.connect(fixture.history.db_path).execute(
+                with sqlite3.connect(fixture.history.db_path) as source:
+                    actual = source.execute(
                         "SELECT ledger_sha256 FROM career_years WHERE year=2026"
                     ).fetchone()[0]
+                with sqlite3.connect(cache) as conn:
                     conn.execute(
                         "UPDATE school_year_stat_cache SET "
                         "source_ledger_sha256=? WHERE year=2026",
