@@ -60,6 +60,24 @@ class Stage43G16HistoryGuiNavigationTests(unittest.TestCase):
                          )["players"]])
         self.assertFalse(school["historical_players"]["status_is_graduation_proof"])
 
+    def test_school_history_as_of_year_excludes_future_newcomers(self):
+        older = self.model.school_page(2026, self.fixture.a)
+        newer = self.model.school_page(2027, self.fixture.a)
+        self.assertEqual(20, older["historical_players"]["total"])
+        self.assertEqual(28, newer["historical_players"]["total"])
+        self.assertTrue(all(
+            item["entry_year"] <= 2026
+            for item in older["historical_players"]["players"]
+        ))
+        self.assertTrue(any(
+            item["entry_year"] == 2027
+            for item in newer["historical_players"]["players"]
+        ))
+        self.assertTrue(all(
+            item["selected_roster_year"] == 2026
+            for item in older["historical_players"]["players"]
+        ))
+
     def test_school_to_player_to_school_backstack_preserves_year(self):
         self.nav.open(HistoryRoute("school", 2027, school_id=self.fixture.a))
         result = self.nav.open(HistoryRoute(
