@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import sqlite3
 import tempfile
 import unittest
@@ -16,7 +17,7 @@ from phase2_engine.career_calendar_v2_read_model import (
 from phase2_engine.career_full_a_benchmark import run_full_a_benchmark
 from phase2_engine.career_history_browse_model import CareerHistoryBrowseModel
 from phase2_engine.career_history_scale_benchmark import file_sha256
-from phase2_engine.historical_match_archive import HistoricalMatchArchive
+from phase2_engine.historical_match_archive import HistoricalMatchArchive, _canonical, _digest
 
 DATA = Path(__file__).resolve().parents[1] / "data"
 COMP = "CMP000086"
@@ -185,9 +186,19 @@ class Stage43G26CalendarReadCompatibilityTests(unittest.TestCase):
         )
         self.assertFalse(view["post_9999_gameplay_supported"])
         with sqlite3.connect(self.match_path) as con:
-            con.execute(
-                "UPDATE historical_matches SET year=10000 "
+            original = con.execute(
+                "SELECT payload_json FROM historical_matches "
                 "WHERE match_id='MATCH-A'"
+            ).fetchone()[0]
+            payload = json.loads(original)
+            payload["year"] = 10000
+            payload["match_date"] = "10000-04-01"
+            raw = _canonical(payload)
+            con.execute(
+                "UPDATE historical_matches SET year=10000, "
+                "match_date=?,payload_json=?,record_sha256=? "
+                "WHERE match_id='MATCH-A'",
+                ("10000-04-01", raw, _digest(raw)),
             )
         with self.assertRaisesRegex(
             SandboxCalendarConflict, "unsupported"
@@ -203,7 +214,7 @@ class Stage43G26CalendarReadCompatibilityTests(unittest.TestCase):
         result = stats["sandbox_calendar_v2"]
         self.assertTrue(result["strict_v2_read_model_verified"])
         self.assertEqual(15, result["v2_archived_matches_read"])
-        self.assertEqual(10, result["v2_day_pages_checked"])
+        self.assertEqual(15, result["v2_day_pages_checked"])
         self.assertTrue(stats["all_db_hashes_unchanged_on_read"])
         self.assertEqual(10, stats["counts"]["cached_school_years"])
         self.assertEqual(15, stats["counts"]["full_option_a_matches"])
