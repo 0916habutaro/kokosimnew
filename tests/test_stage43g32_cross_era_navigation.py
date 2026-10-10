@@ -10,14 +10,14 @@ from phase2_engine.career_cross_era_navigation import (
     MAX_SELECTED_YEARS,
 )
 from phase2_engine.career_history_scale_benchmark import file_sha256
-from test_stage43g31_cross_era_browse_model import Stage43G31CrossEraBrowseTests
+import test_stage43g31_cross_era_browse_model as stage43g31_tests
 
 
 class Stage43G32CrossEraNavigationTests(unittest.TestCase):
     def setUp(self):
         # Reuse the proven 2026 legacy + 10000 fictional v2 integration
         # fixture from Stage43G-31 without subclassing its test cases.
-        self.fixture = Stage43G31CrossEraBrowseTests(
+        self.fixture = stage43g31_tests.Stage43G31CrossEraBrowseTests(
             "test_school_years_provenance_and_score_only_per_year"
         )
         self.fixture.setUp()
