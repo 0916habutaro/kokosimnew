@@ -17,6 +17,10 @@ from phase2_engine.hiroshima_stage13e3g35_preview_gui import (
 from phase2_engine.hiroshima_stage13e3g39_school_master import (
     load_2026_hiroshima_west_school_links_stage39,
 )
+from phase2_engine.hiroshima_stage13e3g41 import (
+    audit_2026_hiroshima_stage13e3g41, ACCEPTANCE_FILE,
+)
+from phase2_engine.hiroshima_match_level_2026 import _read
 from phase2_engine.hiroshima_stage13e3g40_school_browse_handoff import (
     preflight_2026_west_school_browse_handoff,
 )
@@ -88,6 +92,24 @@ def fake_parent(db, year="2026", window=None):
 
 
 class Stage13E3G41NavigationPolishTests(unittest.TestCase):
+    def test_stage41_acceptance_audit_headless_vs_windows_is_separate(self):
+        audit=audit_2026_hiroshima_stage13e3g41(DATA)
+        self.assertTrue(audit["ok"],audit["errors"])
+        self.assertEqual(audit["stage40_verified_school_count"],18)
+        self.assertEqual(audit["automated_headless_navigation_checks"],13)
+        self.assertEqual(audit["manual_windows_checks_pending"],10)
+        self.assertEqual(audit["visual_status_counts"],{"not_run":23})
+        self.assertFalse(audit["native_gui_visual_accepted"])
+        self.assertFalse(audit["production_fmt025_enabled"])
+        self.assertEqual(audit["official_2026_8_group_route_requirements_unresolved"],48)
+
+    def test_stage41_acceptance_source_keeps_native_checks_pending(self):
+        rows=_read(DATA,ACCEPTANCE_FILE)
+        self.assertEqual(len(rows),23)
+        self.assertEqual(len([r for r in rows if r["verification_category"]=="windows_gui_manual"]),10)
+        self.assertEqual(len([r for r in rows if r["automation_status"]=="covered_by_unittest"]),13)
+        self.assertTrue(all(x["windows_visual_status"]=="not_run" for x in rows))
+
     def test_successful_handoff_activates_return_in_both_parent_tabs(self):
         with tempfile.TemporaryDirectory() as root:
             db=Path(root)/"browse.sqlite3"
