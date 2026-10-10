@@ -268,6 +268,9 @@ class CareerHistoryGuiPilot:
                 "career_stats": page["career_stats"],
                 "season_stats": page["season_stats"],
                 "missing_box_score_games": page["missing_box_score_games"],
+                "source_validation": page["source_validation"],
+                "source_payloads_rechecked_on_read":
+                    page["source_payloads_rechecked_on_read"],
                 "source": SOURCE,
             })
         elif screen == "competition":
@@ -323,6 +326,9 @@ class CareerHistoryGuiPilot:
                 "category": page["category"],
                 "candidate_count": page["records"]["candidate_count"],
                 "missing_box_score_games": page["records"]["missing_box_score_games"],
+                "source_validation": page["source_validation"],
+                "source_payloads_rechecked_on_read":
+                    page["source_payloads_rechecked_on_read"],
                 "source": SOURCE,
             })
         self.status_var.set(
