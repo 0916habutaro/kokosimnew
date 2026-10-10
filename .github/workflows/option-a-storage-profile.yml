@@ -1,0 +1,50 @@
+name: Option-A archive storage profile
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_full_a_benchmark.py"
+      - "phase2_engine/career_option_a_storage_profile.py"
+      - "tests/test_stage43g22_option_a_storage_profile.py"
+      - ".github/workflows/option-a-storage-profile.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "phase2_engine/career_full_a_benchmark.py"
+      - "phase2_engine/career_option_a_storage_profile.py"
+      - ".github/workflows/option-a-storage-profile.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  full_a_storage:
+    name: Full A 20y and 50y storage profile
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: 2 schools x 20 years full A plus rosters/cache
+        run: |
+          python -m phase2_engine.career_full_a_benchmark \
+            --data-root data --schools 2 --years 20 \
+            --games-per-school-year 2 --repeats 2 \
+            --output-json benchmark-results/full-a-storage-20y.json
+      - name: 2 schools x 50 years full A plus rosters/cache
+        run: |
+          python -m phase2_engine.career_full_a_benchmark \
+            --data-root data --schools 2 --years 50 \
+            --games-per-school-year 2 --repeats 2 \
+            --output-json benchmark-results/full-a-storage-50y.json
+      - name: Retain actual 20y/50y measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-a-storage-profile-${{ github.run_id }}
+          path: benchmark-results/*.json
+          if-no-files-found: warn
+          retention-days: 30
