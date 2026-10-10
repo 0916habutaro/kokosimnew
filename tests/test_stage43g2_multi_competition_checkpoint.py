@@ -436,10 +436,14 @@ class Stage43G2MultiCompetitionCheckpointTests(unittest.TestCase):
             project_same_year_regional_feeders(
                 self.service, session, "CMP000084",
             )
-        with self.assertRaises(RegionalFeederNotReady):
-            project_same_year_regional_feeders(
-                self.service, session, "CMP000007",
-            )
+        # Another valid regional competition returns unresolved sources,
+        # never schools borrowed from the Kanto prefectural games.
+        other = project_same_year_regional_feeders(
+            self.service, session, "CMP000007",
+        )
+        self.assertEqual(0, other["verified_entrant_count"])
+        self.assertFalse(other["regional_runtime_ready"])
+        self.assertFalse(other["all_feeder_results_verified"])
 
     def test_stage43g3_stale_session_cannot_claim_same_year_qualifications(self):
         self.start()
