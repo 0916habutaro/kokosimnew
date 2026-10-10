@@ -128,7 +128,7 @@ class Stage13D3BrowseApp(Stage12UBrowseApp):
         self.preview_return_button.pack(side="left", padx=(8, 0))
 
     def _preview_window_is_open(self) -> bool:
-        pilot = self._hiroshima_preview_window
+        pilot = getattr(self, "_hiroshima_preview_window", None)
         if pilot is None:
             return False
         try:
