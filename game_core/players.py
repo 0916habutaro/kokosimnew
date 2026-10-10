@@ -307,7 +307,8 @@ def validate_school_roster(roster: SchoolRoster) -> None:
                 f"{roster.school_id}: grade distribution mismatch {actual_grades}"
             )
     elif roster.cohort_policy == "career_v1":
-        if any(count <= 0 for count in actual_grades.values()):
+        if (sum(actual_grades.values()) != CORE_ROSTER_SIZE
+                or any(count <= 0 for count in actual_grades.values())):
             raise ValueError(
                 f"{roster.school_id}: career cohort must retain all grades"
             )
