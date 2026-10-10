@@ -208,8 +208,18 @@ class Stage43F3FutureQualifierBridgeTests(unittest.TestCase):
             sid for sid in self.repo.school_to_program
             if self.repo.schools[sid]["prefecture_code"] != "01"
         )
+        # Keep explicit group memberships consistent so this reaches the
+        # geographical validation instead of failing the partition gate.
+        changed_groups = deepcopy(self.groups_explicit)
+        last = self.entrants[-1]
+        for members in changed_groups.values():
+            if last in members:
+                members[members.index(last)] = other
+                break
         with self.assertRaisesRegex(FutureCompetitionNotReady, "prefecture"):
-            self.prepare(entrants=self.entrants[:-1] + [other])
+            self.prepare(
+                entrants=self.entrants[:-1] + [other], groups=changed_groups,
+            )
 
     def test_insufficient_group_members_rejected(self):
         bad = deepcopy(self.groups_explicit)
