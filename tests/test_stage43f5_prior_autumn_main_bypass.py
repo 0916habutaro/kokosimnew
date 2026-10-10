@@ -265,7 +265,7 @@ class Stage43F5PriorAutumnAccessTests(unittest.TestCase):
         self.assertEqual([], preview.annual.seed_event_bypass_school_ids)
 
     def test_another_2027_competition_cannot_use_autumn_ibaraki_result(self):
-        with self.assertRaisesRegex(FutureCompetitionNotReady, "rule"):
+        with self.assertRaisesRegex(FutureCompetitionNotReady, "not resolved"):
             self.prepare(competition_id="CMP000090")
 
     def test_missing_roster_archive_rejected(self):
