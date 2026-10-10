@@ -194,7 +194,9 @@ class CareerPlayerStatCache:
                 (school, start, end),
             )
         }
-        with sqlite3.connect(self.view.matches.db_path) as src:
+        with sqlite3.connect(
+            self.view.matches.db_path.resolve().as_uri() + "?mode=ro", uri=True
+        ) as src:
             src.row_factory = sqlite3.Row
             source_rows = {
                 r["year"]: r for r in src.execute(
