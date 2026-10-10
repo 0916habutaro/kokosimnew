@@ -6,7 +6,6 @@ rewrites, or claims that their generated scores are the same game history.
 """
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 import sqlite3
 
@@ -198,6 +197,12 @@ class CareerYearContinuityService:
                  legacy_source: str | None = None) -> dict:
         slot = self.multi.solo.slots.validate_slot_id(slot_id)
         path = self._path(slot, year)
+        if path.exists():
+            stored = self._read(path)
+            if stored.get("original_2026_save", {}).get("source") != legacy_source:
+                raise CareerYearContinuityBlocked(
+                    "year continuity contract is already locked differently"
+                )
         body = self._evidence(slot, year, legacy_source)
         body["payload_checksum"] = _checksum(body)
         if path.exists():
