@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from contextlib import closing
 from datetime import date
-from hashlib import sha256
-import json
 from pathlib import Path
 import sqlite3
 
@@ -183,3 +181,44 @@ def next_year_preflight(
             else "archive_only_requires_validated_new_season_plan"
         ),
     }
+
+
+def main() -> None:
+    """Read an existing archive boundary without changing the save."""
+    import argparse
+    import json
+
+    parser = argparse.ArgumentParser(
+        description="Dry-run career rollover and calendar year preflight"
+    )
+    parser.add_argument("--archive", type=Path, required=True)
+    parser.add_argument("--requested-year", type=int, required=True)
+    parser.add_argument(
+        "--initial-year", type=int, default=CAREER_START_YEAR
+    )
+    parser.add_argument("--month", type=int)
+    parser.add_argument("--day", type=int)
+    parser.add_argument(
+        "--template-year", type=int, default=CALENDAR_TEMPLATE_YEAR
+    )
+    args = parser.parse_args()
+    if (args.month is None) != (args.day is None):
+        parser.error("--month and --day must be used together")
+    result = {
+        "career_coordinate": career_coordinate(
+            args.requested_year, initial_year=args.initial_year
+        ),
+        "rollover": next_year_preflight(
+            args.archive, requested_year=args.requested_year,
+        ),
+    }
+    if args.month is not None:
+        result["day_mapping"] = calendar_day_preflight(
+            args.requested_year, args.month, args.day,
+            template_year=args.template_year,
+        )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()
