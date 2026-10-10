@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 from contextlib import nullcontext
 import json
+from math import ceil
 from pathlib import Path
 from statistics import median
 import sqlite3
@@ -97,7 +98,7 @@ def _quantile_ms(samples: list[float], numerator: int, denominator: int) -> floa
     if not samples:
         return 0.0
     values = sorted(samples)
-    at = ((len(values) - 1) * numerator) // denominator
+    at = max(0, ceil(len(values) * numerator / denominator) - 1)
     return round(values[at] * 1000, 3)
 
 
