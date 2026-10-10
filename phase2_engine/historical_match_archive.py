@@ -21,6 +21,14 @@ CREATE TABLE IF NOT EXISTS archive_identity (
     id INTEGER PRIMARY KEY CHECK(id = 1),
     metadata_json TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS career_years (
+    year INTEGER PRIMARY KEY CHECK (year > 0),
+    metadata_json TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active'
+        CHECK (status IN ('active', 'sealed')),
+    match_count INTEGER,
+    ledger_sha256 TEXT
+);
 CREATE TABLE IF NOT EXISTS historical_matches (
     year INTEGER NOT NULL,
     competition_id TEXT NOT NULL,
@@ -246,6 +254,138 @@ class HistoricalMatchArchive:
             "plan_fingerprint": plan_fingerprint,
         })
 
+    @staticmethod
+    def _year_metadata(
+        year: int, rng_seed: int, resolver_contract: str, plan_fingerprint: str,
+    ) -> str:
+        if not isinstance(year, int) or isinstance(year, bool) or year < 1:
+            raise ValueError("invalid career year")
+        if not isinstance(rng_seed, int) or isinstance(rng_seed, bool):
+            raise ValueError("invalid career rng_seed")
+        if not resolver_contract or not plan_fingerprint:
+            raise ValueError("missing annual game identity")
+        return _canonical({
+            "year": year, "rng_seed": rng_seed,
+            "resolver_contract": resolver_contract,
+            "plan_fingerprint": plan_fingerprint,
+        })
+
+    @staticmethod
+    def _ledger(conn: sqlite3.Connection, year: int) -> tuple[int, str]:
+        """Digest ordered immutable records, including their full A snapshots."""
+        rows = conn.execute(
+            """SELECT competition_id, match_id, record_sha256
+               FROM historical_matches WHERE year = ?
+               ORDER BY competition_id, match_id""",
+            (year,),
+        ).fetchall()
+        content = _canonical([
+            (row[0], row[1], row[2]) for row in rows
+        ])
+        return len(rows), _digest(content)
+
+    def seal_year(self, year: int, *, expected_match_count: int) -> dict:
+        """Seal a completed year; callers must verify runtime readiness first.
+
+        A sealed year accepts an idempotent re-sync of existing records only.
+        """
+        if (not isinstance(expected_match_count, int)
+                or isinstance(expected_match_count, bool)
+                or expected_match_count < 0):
+            raise ValueError("expected_match_count must be non-negative")
+        if not self.db_path.is_file():
+            raise ValueError("archive does not exist")
+        with self._connect() as conn:
+            conn.executescript(_SCHEMA)
+            with conn:
+                entry = conn.execute(
+                    "SELECT status, match_count, ledger_sha256 "
+                    "FROM career_years WHERE year = ?", (year,),
+                ).fetchone()
+                if entry is None:
+                    raise HistoricalMatchConflictError("career year not registered")
+                count, ledger = self._ledger(conn, year)
+                if count != expected_match_count:
+                    raise HistoricalMatchConflictError(
+                        f"year {year} has {count} archived matches, "
+                        f"expected {expected_match_count}"
+                    )
+                if entry["status"] == "sealed":
+                    if (entry["match_count"], entry["ledger_sha256"]) != (
+                        count, ledger
+                    ):
+                        raise HistoricalMatchConflictError(
+                            "sealed year ledger was modified"
+                        )
+                    return {"year": year, "match_count": count,
+                            "ledger_sha256": ledger, "already_sealed": True}
+                conn.execute(
+                    """UPDATE career_years SET
+                       status='sealed', match_count=?, ledger_sha256=?
+                       WHERE year=? AND status='active'""",
+                    (count, ledger, year),
+                )
+                return {"year": year, "match_count": count,
+                        "ledger_sha256": ledger, "already_sealed": False}
+
+    def register_next_year(
+        self, *, year: int, rng_seed: int,
+        resolver_contract: str, plan_fingerprint: str,
+    ) -> dict:
+        """Register only an adjacent year after the preceding one is sealed.
+
+        This is an archive-contract operation, not a 2027 competition or
+        roster generator and not a full gameplay year rollover.
+        """
+        metadata = self._year_metadata(
+            year, rng_seed, resolver_contract, plan_fingerprint
+        )
+        if not self.db_path.is_file():
+            raise HistoricalMatchConflictError("archive does not exist")
+        with self._connect() as conn:
+            conn.executescript(_SCHEMA)
+            with conn:
+                known = conn.execute(
+                    "SELECT metadata_json, status FROM career_years WHERE year=?",
+                    (year,),
+                ).fetchone()
+                if known is not None:
+                    if known["metadata_json"] != metadata:
+                        raise HistoricalMatchConflictError(
+                            "existing career year identity differs"
+                        )
+                    return {"year": year, "registered": False}
+                prev = conn.execute(
+                    "SELECT year, status FROM career_years "
+                    "ORDER BY year DESC LIMIT 1"
+                ).fetchone()
+                if (prev is None or prev["year"] != year - 1
+                        or prev["status"] != "sealed"):
+                    raise HistoricalMatchConflictError(
+                        "adjacent previous year must be sealed"
+                    )
+                conn.execute(
+                    "INSERT INTO career_years(year, metadata_json, status) "
+                    "VALUES (?, ?, 'active')",
+                    (year, metadata),
+                )
+                return {"year": year, "registered": True}
+
+    def list_years(self) -> list[dict]:
+        """Return registered career years, including sealed state."""
+        if not self.db_path.is_file():
+            return []
+        with self._connect() as conn:
+            conn.executescript(_SCHEMA)
+            return [
+                {"year": int(row["year"]), "status": row["status"],
+                 "match_count": row["match_count"]}
+                for row in conn.execute(
+                    "SELECT year, status, match_count "
+                    "FROM career_years ORDER BY year"
+                )
+            ]
+
     def sync(
         self,
         *,
@@ -256,6 +396,9 @@ class HistoricalMatchArchive:
         completed: Iterable[Mapping[str, object]],
     ) -> dict:
         identity = self._identity(
+            year, rng_seed, resolver_contract, plan_fingerprint
+        )
+        year_metadata = self._year_metadata(
             year, rng_seed, resolver_contract, plan_fingerprint
         )
         # Validate all rows *before* writing, including duplicate keys
@@ -284,10 +427,43 @@ class HistoricalMatchArchive:
                         "INSERT INTO archive_identity(id, metadata_json) VALUES (1, ?)",
                         (identity,),
                     )
-                elif existing_identity[0] != identity:
-                    raise HistoricalMatchConflictError(
-                        "archive identity differs from the saved game"
+                is_initial_year = existing_identity is None or (
+                    existing_identity[0] == identity
+                )
+                if existing_identity is not None and not is_initial_year:
+                    # A new year's identity is allowed only after an explicit
+                    # adjacent rollover registration in the same career.
+                    known = conn.execute(
+                        "SELECT metadata_json FROM career_years WHERE year=?",
+                        (year,),
+                    ).fetchone()
+                    if known is None or known[0] != year_metadata:
+                        raise HistoricalMatchConflictError(
+                            "archive identity differs from the saved game"
+                        )
+                known_year = conn.execute(
+                    "SELECT metadata_json, status FROM career_years "
+                    "WHERE year=?", (year,),
+                ).fetchone()
+                if known_year is None:
+                    if not is_initial_year:
+                        raise HistoricalMatchConflictError(
+                            "new career year requires explicit registration"
+                        )
+                    # Backfill Stage43C archives on first sync; never rewrite
+                    # the original archive_identity metadata.
+                    conn.execute(
+                        "INSERT INTO career_years(year, metadata_json, status) "
+                        "VALUES (?, ?, 'active')",
+                        (year, year_metadata),
                     )
+                    year_status = "active"
+                else:
+                    if known_year["metadata_json"] != year_metadata:
+                        raise HistoricalMatchConflictError(
+                            "career year plan/seed differs"
+                        )
+                    year_status = known_year["status"]
                 added = 0
                 same = 0
                 for key, payload, raw, fingerprint in normalized:
@@ -303,6 +479,10 @@ class HistoricalMatchArchive:
                             )
                         same += 1
                         continue
+                    if year_status == "sealed":
+                        raise HistoricalMatchConflictError(
+                            f"sealed year {year} cannot accept new matches"
+                        )
                     conn.execute(
                         """INSERT INTO historical_matches (
                             year, competition_id, match_id, match_date,

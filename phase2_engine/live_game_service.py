@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Callable
 
 from .historical_match_archive import HistoricalMatchArchive
+from .year_transition import require_year_end, year_end_readiness
 from .live_season_planner import (
     LiveSeasonGraphPlanner,
 )
@@ -243,6 +244,38 @@ class LiveGameService:
 
     def autosave_game(self, session: LiveGameSession) -> dict:
         return self.save_game(session, kind=SAVE_KIND_AUTOSAVE)
+
+    def year_end_status(self, session: LiveGameSession) -> dict:
+        """Report blockers to sealing the finished year's match history."""
+        return year_end_readiness(session.state)
+
+    def finalize_season(self, session: LiveGameSession) -> dict:
+        """Commit current-year history and seal it against later additions.
+
+        Does not build or start the next season. The underlying live runtime
+        is still restricted to its existing annual competition graph.
+        """
+        readiness = require_year_end(session.state)
+        # The JSON save is the replayable checkpoint. Then the archive syncs
+        # and checks an exact completed-match count before sealing.
+        saved = self.save_game(session, kind=SAVE_KIND_MANUAL)
+        sealed = self._history_archive(session.slot_id).seal_year(
+            session.state.year,
+            expected_match_count=readiness["completed_match_count"],
+        )
+        return {
+            "action": "finalize_season",
+            "year": session.state.year,
+            "next_year": session.state.year + 1,
+            "archive_sealed": True,
+            "year_end_readiness": readiness,
+            "save": saved,
+            "archive": sealed,
+            "next_year_gameplay_started": False,
+        }
+
+    def career_history_years(self, slot_id: str) -> list[dict]:
+        return self._history_archive(slot_id).list_years()
 
     def historical_match(
         self, slot_id: str, year: int, competition_id: str, match_id: str
