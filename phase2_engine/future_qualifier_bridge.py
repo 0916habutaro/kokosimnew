@@ -155,7 +155,16 @@ def prepare_future_fmt001_qualifier_preview(
     if any(sid not in repo.school_to_program for sid in entrants):
         raise FutureCompetitionNotReady("unknown/non-hardball school in entrants")
     pcode = base.get("prefecture_code")
-    if pcode and any(
+    if not pcode and base.get("region_id") == "REG01":
+        # The 2026 Hokkaido region (REG01) is one prefecture in the
+        # source master, but regional tournaments leave prefecture_code
+        # blank. It must not silently admit a school from another region.
+        pcode = "01"
+    if not pcode:
+        raise FutureCompetitionNotReady(
+            "regional entrant eligibility is not verified for this competition"
+        )
+    if any(
         repo.schools[sid].get("prefecture_code") != pcode for sid in entrants
     ):
         raise FutureCompetitionNotReady("entrant outside competition prefecture")
