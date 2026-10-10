@@ -13,7 +13,7 @@ from phase2_engine import (
     TournamentEngine,
 )
 from phase2_engine.browse_gui_model import BrowseGuiModel
-from phase2_engine.browse_repository import BrowseRepository
+from phase2_engine.browse_repository import BrowseRepository, SCHEMA_VERSION
 from phase2_engine.season import SeasonExecution
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -231,7 +231,7 @@ class Stage13D2PlayerMasterGuiContractTests(unittest.TestCase):
                 "SELECT COUNT(*) FROM player_master WHERE year = ?",
                 (self.year,),
             ).fetchone()[0]
-        self.assertEqual(3, version)
+        self.assertEqual(SCHEMA_VERSION, version)
         self.assertEqual(80, count)
 
         roster = repository.school_roster(

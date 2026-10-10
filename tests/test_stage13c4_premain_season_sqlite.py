@@ -15,7 +15,7 @@ from phase2_engine.brackets import (
     run_single_elimination_ranking,
     run_single_round_gate,
 )
-from phase2_engine.browse_repository import BrowseRepository
+from phase2_engine.browse_repository import BrowseRepository, SCHEMA_VERSION
 from phase2_engine.models import MatchResolution
 from phase2_engine.season import SeasonExecution, SeasonOrchestrator
 
@@ -307,7 +307,7 @@ class Stage13C4PreMainSeasonSQLiteTests(unittest.TestCase):
                         "SELECT name FROM sqlite_master WHERE type='table'"
                     )
                 }
-            self.assertEqual(3, version)
+            self.assertEqual(SCHEMA_VERSION, version)
             self.assertTrue({
                 "player_master",
                 "ability_matches",

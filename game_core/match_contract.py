@@ -139,6 +139,20 @@ class TeamGameStats:
 
 
 @dataclass(frozen=True)
+class InningScore:
+    """An explicitly played or skipped half-inning in a completed game."""
+
+    inning: int
+    half: str
+    batting_team_id: str
+    was_played: bool
+    runs: int | None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class MatchSimulationResult:
     match_id: str
     competition_id: str
@@ -168,6 +182,8 @@ class MatchSimulationResult:
     events: tuple[MatchEvent, ...]
     batter_stats: tuple[BatterGameStats, ...]
     pitcher_stats: tuple[PitcherGameStats, ...]
+    # None is a legacy result with no line-score data; an empty tuple is invalid.
+    inning_scores: tuple[InningScore, ...] | None = None
 
     def to_dict(self) -> dict:
         out = asdict(self)
@@ -183,6 +199,11 @@ class MatchSimulationResult:
         out["pitcher_stats"] = [
             item.to_dict() for item in self.pitcher_stats
         ]
+        out["inning_scores"] = (
+            None if self.inning_scores is None else [
+                item.to_dict() for item in self.inning_scores
+            ]
+        )
         return out
 
 
@@ -600,6 +621,44 @@ def validate_match_simulation_result(
     if result.ending_half not in HALVES:
         raise ValueError("match result: ending_half must be top/bottom")
 
+    if result.inning_scores is not None:
+        # Every played half is explicit. The last bottom may be skipped when
+        # the home team is already ahead; this is not the same as zero runs.
+        line = list(result.inning_scores)
+        expected = [
+            (inning, half)
+            for inning in range(1, result.last_inning + 1)
+            for half in HALVES
+        ]
+        if [(row.inning, row.half) for row in line] != expected:
+            raise ValueError("match result: inning score order/coverage mismatch")
+        totals = {"top": 0, "bottom": 0}
+        skipped = []
+        for row in line:
+            expected_batting = team1_id if row.half == "top" else team2_id
+            if row.batting_team_id != expected_batting:
+                raise ValueError("match result: inning score batting team mismatch")
+            if not isinstance(row.was_played, bool):
+                raise ValueError("match result: inning score was_played invalid")
+            if row.was_played:
+                if (not isinstance(row.runs, int) or isinstance(row.runs, bool)
+                        or row.runs < 0):
+                    raise ValueError("match result: played inning runs invalid")
+                totals[row.half] += row.runs
+            else:
+                if row.runs is not None:
+                    raise ValueError("match result: unplayed inning must have null runs")
+                skipped.append((row.inning, row.half))
+        if skipped and (skipped != [(result.last_inning, "bottom")]
+                        or result.ending_half != "top"):
+            raise ValueError("match result: invalid skipped half-inning")
+        if result.ending_half == "top" and not skipped:
+            raise ValueError("match result: top ending requires skipped bottom")
+        if (totals["top"], totals["bottom"]) != (
+            result.team1_score, result.team2_score
+        ):
+            raise ValueError("match result: inning score totals mismatch")
+
     provenance = match_contract_provenance(config_dir)
     actual_provenance = MatchContractProvenance(
         match_config_id=result.match_config_id,
@@ -648,6 +707,16 @@ def validate_match_simulation_result(
             match_input,
             config_dir=config_dir,
         )
+    if result.inning_scores is not None:
+        actual_by_half: dict[tuple[int, str], int] = {}
+        for event in events:
+            key = (event.inning, event.half)
+            actual_by_half[key] = (
+                actual_by_half.get(key, 0) + event.runs_scored
+            )
+        for row in result.inning_scores:
+            if row.was_played and actual_by_half.get((row.inning, row.half), 0) != row.runs:
+                raise ValueError("match result: inning score differs from events")
 
     event_runs = {team1_id: 0, team2_id: 0}
     for event in events:

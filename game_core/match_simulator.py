@@ -10,6 +10,7 @@ from .abilities import PlayerAbilitySnapshot
 from .match_config import load_and_validate_match_configs
 from .match_contract import (
     BatterGameStats,
+    InningScore,
     MatchEvent,
     MatchSimulationInput,
     MatchSimulationResult,
@@ -631,6 +632,7 @@ class MatchSimulator:
         team_errors = {team1_id: 0, team2_id: 0}
 
         events: list[MatchEvent] = []
+        inning_scores: list[InningScore] = []
         pa_no = 0
         event_no = 0
         last_inning = 1
@@ -648,10 +650,16 @@ class MatchSimulator:
                     and inning >= regulation
                     and team_runs[team2_id] > team_runs[team1_id]
                 ):
+                    inning_scores.append(InningScore(
+                        inning=inning, half=half,
+                        batting_team_id=offense_id,
+                        was_played=False, runs=None,
+                    ))
                     ending_half = "top"
                     game_over = True
                     break
 
+                runs_before_half = team_runs[offense_id]
                 outs = 0
                 bases: list[str | None] = [None, None, None]
 
@@ -861,6 +869,12 @@ class MatchSimulator:
                         game_over = True
                         break
 
+                inning_scores.append(InningScore(
+                    inning=inning, half=half,
+                    batting_team_id=offense_id,
+                    was_played=True,
+                    runs=team_runs[offense_id] - runs_before_half,
+                ))
                 if game_over:
                     break
 
@@ -870,6 +884,12 @@ class MatchSimulator:
                     and inning >= regulation
                     and team_runs[team2_id] > team_runs[team1_id]
                 ):
+                    # Home team is already ahead: final bottom was never played.
+                    inning_scores.append(InningScore(
+                        inning=inning, half="bottom",
+                        batting_team_id=team2_id,
+                        was_played=False, runs=None,
+                    ))
                     game_over = True
                     break
                 if (
@@ -932,6 +952,7 @@ class MatchSimulator:
                 ),
             ),
             events=tuple(events),
+            inning_scores=tuple(inning_scores),
             batter_stats=tuple(
                 BatterGameStats(**row)
                 for school_id in (team1_id, team2_id)
