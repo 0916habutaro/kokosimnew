@@ -20,6 +20,9 @@ import tracemalloc
 from game_core.players import PlayerRosterGenerator
 from .career_history_scale_audit import synthetic_ability_record
 from .career_history_scale_benchmark import file_sha256
+from .career_annual_growth_audit import (
+    physical_year_snapshot, profile_annual_growth, school_query_plan_audit,
+)
 from .career_option_a_storage_profile import profile_option_a_storage
 from .career_longitudinal_read import CareerLongitudinalReadModel
 from .career_player_records import BATTER, PITCHER, CareerPlayerRecordView
@@ -131,6 +134,7 @@ def run_full_a_benchmark(
         builder = CareerPlayerStatCache(view, cache_file)
         start = perf_counter()
         total_matches = 0
+        physical_growth = []
         for year in range(START_YEAR, START_YEAR + years):
             if year > START_YEAR:
                 matches.register_next_year(
@@ -185,6 +189,12 @@ def run_full_a_benchmark(
             # actual source-SHA and roster-ID attribution checks.
             for school_id in selected:
                 builder.materialize(school_id, year=year)
+            physical_growth.append(physical_year_snapshot(
+                year,
+                {"matches": match_file, "rosters": roster_file,
+                 "derived_cache": cache_file},
+                previous=physical_growth[-1] if physical_growth else None,
+            ))
 
         build_ms = round((perf_counter() - start) * 1000, 3)
         file_sizes = {
@@ -198,11 +208,25 @@ def run_full_a_benchmark(
             match_file, roster_file, cache_file,
             gzip_sample_limit=100,
         )
+        annual_growth = profile_annual_growth(
+            match_file, roster_file, cache_file,
+        )
+        if annual_growth["sealed_year_count"] != years:
+            raise AssertionError("annual growth audit year coverage differs")
+        if physical_growth[-1]["allocated_file_bytes"] != file_sizes:
+            raise AssertionError("annual physical end snapshot differs")
         before = {
             file.name: file_sha256(file)
             for file in (match_file, roster_file, cache_file)
         }
         reader = CareerStatsReadOnlyAdapter(view, cache_file)
+        index_plans = school_query_plan_audit(
+            match_file, roster_file, cache_file,
+            selected[0], rosters.roster(START_YEAR, selected[0]).players[0].player_id,
+            START_YEAR, START_YEAR + years - 1,
+        )
+        if not index_plans["all_expected_indexes_selected"]:
+            raise AssertionError("career school/player index query plan regressed")
         history = CareerLongitudinalReadModel(matches, rosters)
         sampled = []
         for school_id in sorted({
@@ -334,6 +358,9 @@ def run_full_a_benchmark(
         "database_bytes": file_sizes,
         "total_database_bytes": sum(file_sizes.values()),
         "storage_profile": storage_profile,
+        "annual_growth": annual_growth,
+        "annual_physical_snapshots": physical_growth,
+        "school_index_plans": index_plans,
         "fixture_build_and_cache_elapsed_ms": build_ms,
         "reads": sampled,
         "all_db_hashes_unchanged_on_read": True,
