@@ -55,6 +55,23 @@ def _check_rule(repo: DataRepository, competition_id: str, year: int) -> dict:
         raise FutureCompetitionNotReady(
             "source rank does not establish an automatic seed assignment"
         )
+    # A linked MAIN seeding contract must have a separate, verified adapter.
+    # Silently discarding such a rule would turn a protected seed into an
+    # ordinary draw; guessing its rank from the previous autumn is no better.
+    linked_seed_rules = [
+        sr["seed_rule_id"] for sr in repo.seed_rules(competition_id)
+        if sr.get("linked_access_rule_id") == rule["access_rule_id"]
+        and int(sr.get("effective_from_year") or 2026) <= year
+        and (
+            not sr.get("effective_to_year")
+            or year <= int(sr["effective_to_year"])
+        )
+    ]
+    if linked_seed_rules:
+        raise FutureCompetitionNotReady(
+            "linked MAIN seed contract requires separate validation: "
+            + ", ".join(sorted(linked_seed_rules))
+        )
     return rule
 
 
