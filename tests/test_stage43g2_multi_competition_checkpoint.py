@@ -21,6 +21,10 @@ from phase2_engine.models import (
     CompetitionOutcome, CompetitionRun, Match, StageExecution,
 )
 from phase2_engine.repository import DataRepository
+from phase2_engine.same_year_regional_feeder_gate import (
+    RegionalFeederNotReady,
+    project_same_year_regional_feeders,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 SEED = 2026100701
@@ -336,6 +340,126 @@ class Stage43G2MultiCompetitionCheckpointTests(unittest.TestCase):
         self.assertFalse(json.loads(self.checkpoint.read_text(
             encoding="utf-8"
         ))["automatic_feeder_advancement"])
+
+    def test_stage43g3_regional_feeder_pending_before_source_finals(self):
+        session = self.start()
+        view = project_same_year_regional_feeders(
+            self.service, session, "CMP000006",
+        )
+        self.assertEqual(2027, view["year"])
+        self.assertEqual(8, view["feeder_rule_count"])
+        self.assertEqual(17, view["expected_entrant_count"])
+        self.assertEqual(0, view["verified_entrant_count"])
+        self.assertEqual(8, len(view["unresolved_feeder_rule_ids"]))
+        self.assertFalse(view["regional_runtime_ready"])
+        self.assertFalse(view["official_future_rule_verified"])
+        self.assertFalse(view["automatic_qualification_committed"])
+        by_rule = {r["feeder_rule_id"]: r for r in view["feeder_rules"]}
+        self.assertEqual("source_not_completed", by_rule["RFR000007"]["status"])
+        self.assertEqual("source_not_completed", by_rule["RFR000010"]["status"])
+        self.assertEqual(
+            "source_not_in_preview", by_rule["RFR000011"]["status"],
+        )
+
+    def test_stage43g3_regional_feeder_only_completed_saved_sources(self):
+        session = self.start()
+        for _ in range(40):
+            if session.previews["CMP000084"].scheduled.is_complete:
+                break
+            self.service.play_next_date(session)
+        self.assertTrue(session.previews["CMP000084"].scheduled.is_complete)
+        view = project_same_year_regional_feeders(
+            self.service, session, "CMP000006",
+        )
+        by_id = {x["feeder_rule_id"]: x for x in view["feeder_rules"]}
+        self.assertEqual("verified_game_qualification",
+                         by_id["RFR000007"]["status"])
+        self.assertEqual(2, len(by_id["RFR000007"]["school_ids"]))
+        self.assertTrue(by_id["RFR000007"]["evidence_sha256"])
+        self.assertEqual(2, view["verified_entrant_count"])
+        self.assertEqual("source_not_completed",
+                         by_id["RFR000010"]["status"])
+        self.assertFalse(view["all_feeder_results_verified"])
+        self.assertFalse(view["regional_runtime_ready"])
+
+    def test_stage43g3_both_sources_from_archived_games_not_unplayed_schools(self):
+        session = self.start()
+        for _ in range(45):
+            if all(p.scheduled.is_complete for p in session.previews.values()):
+                break
+            self.service.play_next_date(session)
+        self.assertTrue(all(p.scheduled.is_complete
+                            for p in session.previews.values()))
+        view = project_same_year_regional_feeders(
+            self.service, session, "CMP000006",
+        )
+        by_id = {x["feeder_rule_id"]: x for x in view["feeder_rules"]}
+        self.assertEqual(4, view["verified_entrant_count"])
+        self.assertEqual(6, len(view["unresolved_feeder_rule_ids"]))
+        self.assertEqual(
+            ["RFR000007", "RFR000010"],
+            [r["feeder_rule_id"] for r in view["feeder_rules"]
+             if r["status"] == "verified_game_qualification"],
+        )
+        for rule_id, comp_id in (
+            ("RFR000007", "CMP000084"), ("RFR000010", "CMP000090"),
+        ):
+            expected = session.completed_runs()[comp_id].outcome.final_ranking_school_ids[:2]
+            self.assertEqual(expected, by_id[rule_id]["school_ids"])
+            self.assertTrue(by_id[rule_id]["evidence_sha256"])
+        self.assertEqual(4, len(set(view["verified_school_ids"])))
+        self.assertFalse(view["all_feeder_results_verified"])
+        self.assertFalse(view["regional_runtime_ready"])
+        self.assertFalse(view["automatic_qualification_committed"])
+        db = self.slot / "historical_matches.sqlite3"
+        # An already-archived game's tampering must invalidate source proof.
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                "UPDATE historical_matches SET record_sha256='tampered' "
+                "WHERE year=2027 AND competition_id='CMP000084' "
+                "AND match_id = "
+                "(SELECT match_id FROM historical_matches "
+                "WHERE year=2027 AND competition_id='CMP000084' "
+                "AND match_date >= '2027-04-18' "
+                "ORDER BY match_date, match_id LIMIT 1)"
+            )
+        with self.assertRaisesRegex(
+            RegionalFeederNotReady, "archived games",
+        ):
+            project_same_year_regional_feeders(
+                self.service, session, "CMP000006",
+            )
+
+    def test_stage43g3_invalid_destination_does_not_generate_qualifiers(self):
+        session = self.start()
+        with self.assertRaises(RegionalFeederNotReady):
+            project_same_year_regional_feeders(
+                self.service, session, "CMP000084",
+            )
+        # Another valid regional competition returns unresolved sources,
+        # never schools borrowed from the Kanto prefectural games.
+        other = project_same_year_regional_feeders(
+            self.service, session, "CMP000007",
+        )
+        self.assertEqual(0, other["verified_entrant_count"])
+        self.assertFalse(other["regional_runtime_ready"])
+        self.assertFalse(other["all_feeder_results_verified"])
+
+    def test_stage43g3_stale_session_cannot_claim_same_year_qualifications(self):
+        self.start()
+        a = self.service.load("career_slot", year=2027)
+        stale = self.service.load("career_slot", year=2027)
+        self.service.play_next_date(a)
+        with self.assertRaisesRegex(
+            RegionalFeederNotReady, "stale",
+        ):
+            project_same_year_regional_feeders(
+                self.service, stale, "CMP000006",
+            )
+        valid = project_same_year_regional_feeders(
+            self.service, a, "CMP000006",
+        )
+        self.assertEqual(0, valid["verified_entrant_count"])
 
 
 if __name__ == "__main__":
