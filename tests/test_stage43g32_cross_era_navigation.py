@@ -107,13 +107,16 @@ class Stage43G32CrossEraNavigationTests(unittest.TestCase):
         future = self.nav.school_page(
             self.years, self.school, selected_year=10000,
         )
-        target = future["player_targets"][0]["target"]
+        expected_id = self.fixture.rosters.roster(
+            10000, self.school,
+        ).players[0].player_id
+        target = next(
+            r["target"] for r in future["player_targets"]
+            if r["player_id"] == expected_id
+        )
         value = self.nav.follow(target)
         self.assertEqual("verified_box_score", value["selected_status"])
-        self.assertEqual(
-            self.fixture.rosters.roster(10000, self.school).players[0].player_id,
-            value["player_id"],
-        )
+        self.assertEqual(expected_id, value["player_id"])
         self.assertIsNotNone(value["selected_statistics"])
 
     def test_page_limit_offset_only_applies_to_selected_year(self):
@@ -167,12 +170,14 @@ class Stage43G32CrossEraNavigationTests(unittest.TestCase):
                     )
 
     def test_tampered_roster_identity_blocks_player_links(self):
+        affected = self.fixture.rosters.roster(
+            2026, self.school,
+        ).players[0].player_id
         with sqlite3.connect(self.fixture.rosters.db_path) as conn:
             conn.execute(
                 "UPDATE career_player_identities SET identity_sha256='BAD' "
-                "WHERE player_id=(SELECT MIN(player_id) "
-                "FROM career_player_identities WHERE school_id=?)",
-                (self.school,),
+                "WHERE player_id=?",
+                (affected,),
             )
         with self.assertRaises(ValueError):
             self.nav.school_page(
