@@ -51,6 +51,8 @@ class CareerHistoryGuiPilot:
         bar = ttk.Frame(self.root, padding=8)
         bar.pack(fill="x")
         ttk.Button(bar, text="戻る", command=self._back).pack(side="left")
+        ttk.Button(bar, text="前ページ", command=lambda: self._change_page(-1)).pack(side="left", padx=(8, 0))
+        ttk.Button(bar, text="次ページ", command=lambda: self._change_page(1)).pack(side="left")
         ttk.Label(bar, text="年度").pack(side="left", padx=(16, 4))
         box = ttk.Combobox(
             bar, textvariable=self.year_var, state="readonly", width=9,
@@ -169,6 +171,24 @@ class CareerHistoryGuiPilot:
         self._open(HistoryRoute(
             "leaders", self._year(),
             school_id=current.school_id, metric=metric,
+        ))
+
+    def _change_page(self, delta: int) -> None:
+        route = self.navigator.current
+        if route.screen not in ("school", "competition"):
+            return
+        size = 30 if route.screen == "school" else 50
+        next_offset = max(0, route.offset + delta * size)
+        if next_offset == route.offset:
+            return
+        self._open(HistoryRoute(
+            route.screen, route.year,
+            school_id=route.school_id,
+            player_id=route.player_id,
+            competition_id=route.competition_id,
+            match_id=route.match_id,
+            start_year=route.start_year,
+            offset=next_offset, metric=route.metric,
         ))
 
     def _open_selection(self, _event=None) -> None:
