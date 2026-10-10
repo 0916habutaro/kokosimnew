@@ -20,6 +20,7 @@ import tracemalloc
 from game_core.players import PlayerRosterGenerator
 from .career_history_scale_audit import synthetic_ability_record
 from .career_history_scale_benchmark import file_sha256
+from .career_option_a_storage_profile import profile_option_a_storage
 from .career_longitudinal_read import CareerLongitudinalReadModel
 from .career_player_records import BATTER, PITCHER, CareerPlayerRecordView
 from .career_player_stat_cache import CareerPlayerStatCache
@@ -191,6 +192,12 @@ def run_full_a_benchmark(
             "rosters": roster_file.stat().st_size,
             "derived_cache": cache_file.stat().st_size,
         }
+        # Stage43G-22: count actual bytes in every saved A record; sample
+        # hypothetical per-match gzip without changing any archival files.
+        storage_profile = profile_option_a_storage(
+            match_file, roster_file, cache_file,
+            gzip_sample_limit=100,
+        )
         before = {
             file.name: file_sha256(file)
             for file in (match_file, roster_file, cache_file)
@@ -326,6 +333,7 @@ def run_full_a_benchmark(
         "counts": counts,
         "database_bytes": file_sizes,
         "total_database_bytes": sum(file_sizes.values()),
+        "storage_profile": storage_profile,
         "fixture_build_and_cache_elapsed_ms": build_ms,
         "reads": sampled,
         "all_db_hashes_unchanged_on_read": True,
