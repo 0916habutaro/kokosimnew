@@ -119,9 +119,12 @@ class ChibaThirdPlaceCheckpointService:
                 raise ChibaThirdPlaceNotReady("placement must precede regional start")
             # Do not allow an untracked or second placement decider to coexist.
             for row in conn.execute(
-                "SELECT match_id, payload_json FROM historical_matches "
+                "SELECT match_id, payload_json, record_sha256 FROM historical_matches "
                 "WHERE year=? AND competition_id=?", (year, CHIBA),
             ):
+                if (hashlib.sha256(row["payload_json"].encode("utf-8")).hexdigest()
+                        != row["record_sha256"]):
+                    raise ChibaThirdPlaceNotReady("modified Chiba archive record")
                 if row["match_id"] == f"{CHIBA}-ST43G7-{year}-THIRD":
                     continue
                 try:
