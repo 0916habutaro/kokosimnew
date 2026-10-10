@@ -27,6 +27,7 @@ from .career_calendar_v2 import (
     CareerCalendarV2Archive, explicit_sandbox_plan,
     verify_sandbox_match_dates,
 )
+from .career_calendar_v2_read_model import CareerCalendarV2MatchReadModel
 from .career_era_calendar_contract import next_year_preflight
 from .career_option_a_storage_profile import profile_option_a_storage
 from .career_longitudinal_read import CareerLongitudinalReadModel
@@ -253,6 +254,32 @@ def run_full_a_benchmark(
             sandbox_calendar[
                 "all_fixture_calendar_plans_are_fictional"
             ] = True
+            browse = CareerCalendarV2MatchReadModel(
+                calendar_file, match_file,
+            )
+            browsed_matches = 0
+            browsed_days = 0
+            for check_year in range(START_YEAR, START_YEAR + years):
+                y_page = browse.year_dates(check_year)
+                if y_page["game_year"] != check_year:
+                    raise AssertionError("calendar v2 year view mismatch")
+                for day in y_page["days"]:
+                    d_page = browse.date_page(
+                        day["game_day_token"], limit=50, offset=0,
+                    )
+                    if d_page["total"] != day["archived_match_count"]:
+                        raise AssertionError("calendar v2 day count differs")
+                    if len(d_page["rows"]) != d_page["total"]:
+                        raise AssertionError(
+                            "synthetic v2 day page was unexpectedly truncated"
+                        )
+                    browsed_matches += d_page["total"]
+                    browsed_days += 1
+            if browsed_matches != total_matches:
+                raise AssertionError("v2 browser did not cover every A match")
+            sandbox_calendar["strict_v2_read_model_verified"] = True
+            sandbox_calendar["v2_day_pages_checked"] = browsed_days
+            sandbox_calendar["v2_archived_matches_read"] = browsed_matches
         file_sizes = {
             "matches": match_file.stat().st_size,
             "rosters": roster_file.stat().st_size,
