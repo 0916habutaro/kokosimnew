@@ -31,8 +31,9 @@ def profile_annual_growth(matches: str | Path, rosters: str | Path,
     """Measure exact retained JSON values per year and coverage of sealed cache.
 
     Every recorded JSON digest is checked, as is sealed-year cache ledger
-    provenance. This does *not* prove source match ledger recomputation or
-    school-year cache fact digest; those remain separate audits.
+    provenance. A current active year can be inspected, but it must not have
+    derived sealed-year facts. This does *not* prove source match ledger
+    recomputation or school-year cache fact digest; those are separate audits.
     """
     paths = {
         "matches": Path(matches), "rosters": Path(rosters),
@@ -126,10 +127,10 @@ def profile_annual_growth(matches: str | Path, rosters: str | Path,
         if year not in years:
             raise ValueError("a stored record has no registered career year")
         status, expected, _digest = years[year]
-        if status != "sealed":
-            raise ValueError("growth benchmark requires sealed source years")
+        if status not in ("sealed", "active"):
+            raise ValueError("unrecognized source year status")
         row = by_year[year]
-        if expected != row["record_counts"]["matches"]:
+        if status == "sealed" and expected != row["record_counts"]["matches"]:
             raise ValueError("sealed annual match count changed")
         annual_bytes = sum(row["logical_bytes"].values())
         for key in _COMPONENTS:
@@ -150,7 +151,13 @@ def profile_annual_growth(matches: str | Path, rosters: str | Path,
         "source_kind": "archived_a_plus_rosters_plus_disposable_cache",
         "first_year": ordered[0] if ordered else None,
         "last_year": ordered[-1] if ordered else None,
-        "sealed_year_count": len(rows),
+        "year_count": len(rows),
+        "sealed_year_count": sum(
+            r["source_year_status"] == "sealed" for r in rows
+        ),
+        "active_year_count": sum(
+            r["source_year_status"] == "active" for r in rows
+        ),
         "bootstrap_prior_entry_year_identities": bootstrap_player_identities,
         "prior_entry_cohorts_attributed_to_first_saved_year": True,
         "rows": rows,
