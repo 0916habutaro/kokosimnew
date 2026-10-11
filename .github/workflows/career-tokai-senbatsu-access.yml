@@ -1,0 +1,35 @@
+name: Stage43G-50 Tokai Senbatsu saved-A access proof
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_tokai_senbatsu_access_gate.py"
+      - "tests/test_stage43g50_tokai_senbatsu_access_gate.py"
+      - ".github/workflows/career-tokai-senbatsu-access.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_tokai_senbatsu_access_gate.py"
+      - "tests/test_stage43g50_tokai_senbatsu_access_gate.py"
+
+permissions:
+  contents: read
+
+jobs:
+  tokai_saved_senbatsu:
+    name: Saved 31-game Senbatsu certifies Aichi Mie byes and blocks schedule collisions
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Stage43G-50 complete Senbatsu two-prefecture audit
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g50_tokai_senbatsu_access_gate.py' -v
+      - name: Same-year Hokkaido Senbatsu and prior Tokai feeder regressions
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g42_hokkaido_senbatsu_same_year_gate.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g49_gifu_sealed_autumn_bypass.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g48_shizuoka_tokai_partial_feeder.py' -v
