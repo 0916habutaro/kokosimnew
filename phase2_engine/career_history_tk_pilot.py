@@ -15,6 +15,8 @@ from tkinter import ttk
 from pathlib import Path
 
 from .career_history_gui_bridge import CareerHistoryGuiBridge
+from .career_history_slot_session import CareerHistorySlotSession
+from .career_saved_year_display_labels import CareerSavedYearDisplayLabels
 from .career_history_view_projection import project_history_screen
 
 APP_NAME = "ココシミュNew｜保存履歴ビューア（試験版・閲覧専用）"
@@ -24,9 +26,19 @@ class CareerHistoryTkPilot:
     """Minimal Tk wiring; all source verification is owned by the bridge."""
 
     def __init__(self, root: tk.Misc, bridge: CareerHistoryGuiBridge,
-                 *, school_id: str = ""):
+                 *, school_id: str = "", slot_session=None,
+                 data_root: str | Path | None = None):
+        if slot_session is not None and slot_session.bridge is not bridge:
+            raise ValueError("selected slot bridge differs")
         self.root = root
         self.bridge = bridge
+        self.slot_session = slot_session
+        self.data_root = data_root
+        self.labels = CareerSavedYearDisplayLabels(bridge, data_root)
+        self.slot_var = tk.StringVar(
+            master=root,
+            value=slot_session.slot_id if slot_session is not None else "",
+        )
         self.school_var = tk.StringVar(master=root, value=school_id)
         self.status_var = tk.StringVar(master=root, value="")
         self.heading_var = tk.StringVar(master=root, value="")
@@ -50,6 +62,17 @@ class CareerHistoryTkPilot:
             bar, text="古い年度候補", command=self._older,
         )
         self.older_button.pack(side="left", padx=(6, 0))
+        if self.slot_session is not None:
+            ttk.Label(bar, text="セーブ").pack(
+                side="left", padx=(10, 3),
+            )
+            self.slot_box = ttk.Combobox(
+                bar, textvariable=self.slot_var,
+                state="readonly", width=18,
+                values=self.slot_session.available_slots(),
+            )
+            self.slot_box.pack(side="left")
+            self.slot_box.bind("<<ComboboxSelected>>", self._change_slot)
         ttk.Label(bar, text="学校ID").pack(side="left", padx=(16, 4))
         self.school_entry = ttk.Entry(
             bar, textvariable=self.school_var, width=19,
@@ -125,7 +148,7 @@ class CareerHistoryTkPilot:
         self._detail(item["payload"] if item else self.view.get("summary", ""))
 
     def _render(self) -> None:
-        view = project_history_screen(self.bridge.page)
+        view = project_history_screen(self.bridge.page, labels=self.labels)
         self.tree.delete(*self.tree.get_children())
         self.rows_by_widget_id.clear()
         for item in view["rows"]:
@@ -162,6 +185,30 @@ class CareerHistoryTkPilot:
             self.last_error = str(exc)
             self.status_var.set(f"閲覧できません：{exc} / 保存データは変更しません")
 
+    def _change_slot(self, _event=None) -> None:
+        if self.slot_session is None:
+            return
+        requested = self.slot_var.get()
+        original = self.slot_session.slot_id
+        if requested == original:
+            return
+        try:
+            # No current row, school selection or back stack is transferred.
+            proposed = self.slot_session.select(requested)
+            labels = CareerSavedYearDisplayLabels(
+                proposed, self.data_root,
+            )
+            project_history_screen(proposed.page, labels=labels)
+            self.bridge = proposed
+            self.labels = labels
+            self._render()
+        except (ValueError, OSError) as exc:
+            self.slot_var.set(original)
+            self.last_error = str(exc)
+            self.status_var.set(
+                f"セーブを変更できません：{exc} / 元の画面を維持"
+            )
+
     def _open_selected(self, _event=None) -> None:
         item = self._selected_row()
         if item is None:
@@ -189,8 +236,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Stage43G-63 standalone read-only saved-history pilot",
     )
-    parser.add_argument("--slot", required=True, type=Path)
+    sources = parser.add_mutually_exclusive_group(required=True)
+    sources.add_argument("--slot", type=Path)
+    sources.add_argument("--saves-root", type=Path)
+    parser.add_argument(
+        "--slot-id", help="required with --saves-root; direct slot folder name",
+    )
     parser.add_argument("--school-id", required=True)
+    parser.add_argument(
+        "--data-root", type=Path,
+        help="optional current school master for clearly labeled fallback",
+    )
     parser.add_argument(
         "--year-page-size", type=int, default=24,
         help="maximum saved-year candidate entries per page (1 to 24)",
@@ -198,12 +254,27 @@ def main() -> None:
     args = parser.parse_args()
     # The GUI must NOT construct the first root until the bridge has
     # validated the read-only year catalog.
-    bridge = CareerHistoryGuiBridge(
-        args.slot, year_page_size=args.year_page_size,
-    )
+    if args.saves_root is not None:
+        if not args.slot_id:
+            parser.error("--saves-root requires --slot-id")
+        session = CareerHistorySlotSession(
+            args.saves_root, args.slot_id,
+            year_page_size=args.year_page_size,
+        )
+        bridge = session.bridge
+    else:
+        if args.slot_id:
+            parser.error("--slot-id requires --saves-root")
+        session = None
+        bridge = CareerHistoryGuiBridge(
+            args.slot, year_page_size=args.year_page_size,
+        )
     root = tk.Tk()
     try:
-        CareerHistoryTkPilot(root, bridge, school_id=args.school_id)
+        CareerHistoryTkPilot(
+            root, bridge, school_id=args.school_id,
+            slot_session=session, data_root=args.data_root,
+        )
     except Exception:
         root.destroy()
         raise
