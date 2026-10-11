@@ -59,7 +59,7 @@ def project_same_year_regional_feeders(
     if not isinstance(kanagawa_sidecar_enabled, bool):
         raise RegionalFeederNotReady("invalid Kanagawa sidecar selection")
     placement_ids = dict(placement_decider_match_ids or {})
-    if (set(placement_ids) - {"CMP000092", "CMP000078"} or
+    if (set(placement_ids) - {"CMP000092", "CMP000078", "CMP000072"} or
             any(not isinstance(x, str) or not x for x in placement_ids.values())):
         raise RegionalFeederNotReady("unrecognized third-place decider reference")
     slot = service.solo.slots.validate_slot_id(session.slot_id)
@@ -233,7 +233,7 @@ def project_same_year_regional_feeders(
                     )
                 teams = outcome["ranked_school_ids"][:quota]
                 if quota > 2:
-                    if cid not in {"CMP000092", "CMP000078"} or quota != 3:
+                    if cid not in {"CMP000092", "CMP000078", "CMP000072"} or quota != 3:
                         raise RegionalFeederNotReady(
                             "third-place decider requires a verified source fixture"
                         )
