@@ -1,0 +1,34 @@
+name: Stage43G-43 late Hokkaido spring saved checkpoint
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_multi_preview_checkpoint.py"
+      - "tests/test_stage43g43_hokkaido_spring_late_checkpoint.py"
+      - ".github/workflows/career-hokkaido-spring-late.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_multi_preview_checkpoint.py"
+      - "tests/test_stage43g43_hokkaido_spring_late_checkpoint.py"
+
+permissions:
+  contents: read
+
+jobs:
+  late_spring_checkpoint:
+    name: Same-year Senbatsu to dynamically appended Hokkaido spring replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Stage43G-43 same-year late spring append and exact replay
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g43_hokkaido_spring_late_checkpoint.py' -v
+      - name: Stage43G-42 saved Senbatsu source and Hokkaido autumn regression
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g42_hokkaido_senbatsu_same_year_gate.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g41_hokkaido_autumn_qualifier_career_e2e.py' -v
