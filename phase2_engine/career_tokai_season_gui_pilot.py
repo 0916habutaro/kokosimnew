@@ -57,6 +57,14 @@ class TokaiSeasonScreenController:
         if not isinstance(target, dict):
             raise TokaiSeasonBrowseConflict("invalid navigation link")
         requested = dict(target)
+        # An old Treeview row must never jump back into a different year.
+        # Year changes are explicit switch_year() operations.
+        if requested.get("year") != self.target["year"] or (
+            type(requested.get("year")) is not int
+        ):
+            raise TokaiSeasonBrowseConflict(
+                "navigation link belongs to another saved year"
+            )
         page = self._read(requested, 0)
         if requested != self.target:
             self.history.append((dict(self.target), self.offset))
