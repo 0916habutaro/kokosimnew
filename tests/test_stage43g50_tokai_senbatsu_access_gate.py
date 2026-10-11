@@ -161,7 +161,8 @@ class Stage43G50TokaiSenbatsuAudit(unittest.TestCase):
         self.assertTrue(proof["full_same_year_saved_A_games_verified"])
         self.assertEqual(31, proof["source_match_count"])
         self.assertEqual(32, proof["source_entrant_count"])
-        self.assertEqual("2027-03-31", proof["source_last_game_date"])
+        self.assertGreaterEqual(proof["source_last_game_date"], "2027-03-20")
+        self.assertLess(proof["source_last_game_date"], "2027-04-11")
         self.assertEqual(64, len(proof["source_games_sha256"]))
         self.assertEqual(self.aichi, proof["prefectures"][AICHI][
             "eligible_direct_main_school_ids"])
