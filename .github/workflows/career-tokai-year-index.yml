@@ -1,0 +1,32 @@
+name: Stage43G-57 Tokai history year index and GUI contract
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_tokai_season_browse_model.py"
+      - "tests/test_stage43g57_tokai_year_index.py"
+      - ".github/workflows/career-tokai-year-index.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_tokai_season_browse_model.py"
+      - "tests/test_stage43g57_tokai_year_index.py"
+
+permissions:
+  contents: read
+
+jobs:
+  tokai_year_index:
+    name: Tokai year PRIMARY KEY and tournament summary without source writes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Stage43G-57 indexed year and Stage43G-54/56 regression
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g57_tokai_year_index.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g54_tokai_season_history_browse.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g56_tokai_history_scale_probe.py' -v
