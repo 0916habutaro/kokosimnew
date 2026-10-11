@@ -164,7 +164,7 @@ class CareerHistoryGuiPilot:
             try:
                 child._career_cross_era_gui = CareerCrossEraGuiPilot(
                     child, nav, school_id=school, years=years,
-                    selected_year=selected,
+                    selected_year=selected, data_root=self.model.repo.data_dir,
                 )
             except Exception:
                 child.destroy()
