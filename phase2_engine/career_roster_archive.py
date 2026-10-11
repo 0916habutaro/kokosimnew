@@ -9,11 +9,15 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+from contextlib import closing
 from dataclasses import asdict
 from pathlib import Path
 
 from game_core.career_rosters import advance_school_roster
-from game_core.players import Player, SchoolRoster, validate_school_roster
+from game_core.players import (
+    GRADE_COUNTS, Player, SchoolRoster, validate_school_roster,
+)
+from .career_option_a_storage_profile import _read_only
 
 
 class CareerRosterConflictError(ValueError):
@@ -200,26 +204,65 @@ class CareerRosterArchive:
             return self._get(conn, year, school_id)
 
     def player_history(self, player_id: str) -> list[dict]:
-        """Read the annual membership snapshots for one permanent player ID."""
+        """Read only this player's possible grade 1–3 school-year snapshots.
+
+        School rosters are indexed by (year, school_id). Previous versions
+        decoded *every* year of a school's history for every player lookup.
+        A verified permanent entry_year and the 3-year academic-grade
+        contract bound this query to at most three annual roster snapshots.
+        """
+        if type(player_id) is not str or not player_id:
+            raise ValueError("permanent player ID required")
         if not self.db_path.is_file():
             return []
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(_read_only(self.db_path)) as conn:
             conn.row_factory = sqlite3.Row
             identity = conn.execute(
-                "SELECT school_id FROM career_player_identities WHERE player_id=?",
+                "SELECT school_id,entry_year,identity_sha256,identity_json "
+                "FROM career_player_identities WHERE player_id=?",
                 (player_id,),
             ).fetchone()
             if identity is None:
                 return []
+            raw = identity["identity_json"]
+            if (type(raw) is not str
+                    or type(identity["identity_sha256"]) is not str
+                    or _digest(raw) != identity["identity_sha256"]):
+                raise CareerRosterConflictError(
+                    "permanent player identity digest mismatch"
+                )
+            try:
+                decoded = json.loads(raw)
+            except (ValueError, TypeError) as exc:
+                raise CareerRosterConflictError(
+                    "permanent player identity unreadable"
+                ) from exc
+            entry_year = identity["entry_year"]
+            school_id = identity["school_id"]
+            if (type(decoded) is not dict
+                    or type(entry_year) is not int or entry_year < 1
+                    or type(school_id) is not str or not school_id
+                    or decoded.get("player_id") != player_id
+                    or decoded.get("entry_year") != entry_year
+                    or decoded.get("school_id") != school_id):
+                raise CareerRosterConflictError(
+                    "permanent player identity fields changed"
+                )
+            max_year = entry_year + max(GRADE_COUNTS) - 1
             years = conn.execute(
-                "SELECT year FROM career_school_rosters WHERE school_id=? "
-                "ORDER BY year", (identity["school_id"],),
-            ).fetchall()
+                "SELECT year FROM career_school_rosters "
+                "WHERE school_id=? AND year BETWEEN ? AND ? ORDER BY year",
+                (school_id, entry_year, max_year),
+            )
             found = []
-            for row in years:
-                roster = self._get(conn, row["year"], identity["school_id"])
+            for (year,) in years:
+                roster = self._get(conn, year, school_id)
                 for player in roster.players:
                     if player.player_id == player_id:
+                        if player.entry_year != entry_year:
+                            raise CareerRosterConflictError(
+                                "player roster and permanent entry year differ"
+                            )
                         found.append({
                             "year": roster.reference_year,
                             "school_id": roster.school_id,
