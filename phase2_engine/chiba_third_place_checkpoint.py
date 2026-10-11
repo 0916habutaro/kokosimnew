@@ -28,6 +28,7 @@ from .historical_match_archive import (
 CHIBA = "CMP000092"
 KANTO = "CMP000006"
 AKITA = "CMP000078"
+AOMORI = "CMP000072"
 TOHOKU = "CMP000005"
 SCHEMA = 1
 GAME_DATE = (5, 3)
@@ -59,9 +60,9 @@ class ChibaThirdPlaceCheckpointService:
 
     def __init__(self, multi: CareerMultiPreviewCheckpointService, *,
                  source_competition_id: str = CHIBA):
-        if source_competition_id not in {CHIBA, AKITA}:
+        if source_competition_id not in {CHIBA, AKITA, AOMORI}:
             raise ChibaThirdPlaceNotReady(
-                "only verified Chiba or Akita placement is supported"
+                "only verified Chiba, Akita or Aomori placement supported"
             )
         self.multi = multi
         self.source_competition_id = source_competition_id
@@ -75,7 +76,9 @@ class ChibaThirdPlaceCheckpointService:
             REGIONAL_START if source_competition_id == CHIBA else (6, 9)
         )
         self.match_prefix = (
-            "ST43G7" if source_competition_id == CHIBA else "ST43G45"
+            "ST43G7" if source_competition_id == CHIBA
+            else "ST43G45" if source_competition_id == AKITA
+            else "ST43G46"
         )
 
     def _path(self, slot: str, year: int) -> Path:
@@ -196,6 +199,8 @@ class ChibaThirdPlaceCheckpointService:
                 "春季千葉県大会 関東出場校決定戦（ゲーム内仮日程）"
                 if self.source_competition_id == CHIBA else
                 "春季秋田県大会 東北出場校3位決定戦（ゲーム内仮日程）"
+                if self.source_competition_id == AKITA else
+                "春季青森県大会 東北出場校3位決定戦（ゲーム内仮日程）"
             ),
             "match_id": match_id,
             "match_date": source["placement_day"],
@@ -280,3 +285,15 @@ class AkitaThirdPlaceCheckpointService(ChibaThirdPlaceCheckpointService):
 
     def __init__(self, multi: CareerMultiPreviewCheckpointService):
         super().__init__(multi, source_competition_id=AKITA)
+
+
+class AomoriThirdPlaceCheckpointService(ChibaThirdPlaceCheckpointService):
+    """2027 sandbox Aomori third place after all seeded MAIN results.
+
+    The source four-group FMT018-021 seed event must have played and
+    completed its saved MAIN; the semifinal losers are the only candidates.
+    This service is not a 2027 official fixture registration.
+    """
+
+    def __init__(self, multi: CareerMultiPreviewCheckpointService):
+        super().__init__(multi, source_competition_id=AOMORI)
