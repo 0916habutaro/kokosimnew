@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 import json
-from itertools import islice
 from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, ttk
@@ -20,6 +19,7 @@ from .career_cross_era_navigation import (
     CareerCrossEraNavigator, MAX_SELECTED_YEARS,
 )
 from .career_cross_era_display_labels import CareerCrossEraDisplayLabels
+from .career_match_table_projection import match_stat_projection
 
 APP_NAME = "ココシミュNew｜新旧年度履歴（試験版・閲覧専用）"
 PAGE_SIZE = 30
@@ -32,6 +32,15 @@ MATCH_HEADINGS = (
     "区分・選手", "学校", "打数／投球回", "得点／失点",
     "安打／被安打", "打点／自責", "四球", "三振", "本塁打／被本塁打",
 )
+SECTION_LABELS = {
+    "すべて": "all", "回別得点": "inning_scores", "チーム": "team_stats",
+    "打撃": "batter_stats", "投手": "pitcher_stats",
+}
+SORT_LABELS = {
+    "保存順": "saved", "選手ID順": "player_id",
+    "安打・被安打の多い順": "hits_desc",
+    "三振の多い順": "strikeouts_desc",
+}
 
 
 def available_sealed_years(slot_root: str | Path) -> list[int]:
@@ -148,6 +157,11 @@ class CareerCrossEraGuiPilot:
         self.match_offset = 0
         self._rendered_page = None
         self._summary_meta: dict = {}
+        self._visible_match_total = 0
+        self.match_section_var = tk.StringVar(master=root, value="すべて")
+        self.match_school_var = tk.StringVar(master=root, value="両校")
+        self.match_sort_var = tk.StringVar(master=root, value="保存順")
+        self._school_choices: dict[str, str | None] = {"両校": None}
         self.root.title(APP_NAME)
         self.root.geometry("1100x730")
         self.root.minsize(860, 520)
@@ -174,7 +188,27 @@ class CareerCrossEraGuiPilot:
         ttk.Label(bar, text="別年度は当該原本から再検証").pack(
             side="left", padx=(12, 0),
         )
+        self.match_controls = ttk.Frame(self.root, padding=(10, 0, 10, 6))
+        self.match_controls.pack(fill="x")
+        for label, var, values, width in (
+            ("記録区分", self.match_section_var, list(SECTION_LABELS), 12),
+            ("学校", self.match_school_var, ["両校"], 30),
+            ("並び替え", self.match_sort_var, list(SORT_LABELS), 24),
+        ):
+            ttk.Label(self.match_controls, text=label).pack(
+                side="left", padx=(6, 4),
+            )
+            box = ttk.Combobox(
+                self.match_controls, textvariable=var, state="readonly",
+                values=values, width=width,
+            )
+            box.pack(side="left", padx=(0, 10))
+            box.bind("<<ComboboxSelected>>", self._change_match_filter)
+            if label == "学校":
+                self.match_school_box = box
+        self.match_controls.pack_forget()
         panel = ttk.Frame(self.root, padding=(10, 0, 10, 8))
+        self.panel = panel
         panel.pack(fill="both", expand=True)
         self.table = ttk.Treeview(
             panel, columns=MATCH_COLUMNS, displaycolumns=MATCH_COLUMNS[:3],
@@ -241,13 +275,41 @@ class CareerCrossEraGuiPilot:
 
     def _page(self, delta: int):
         if self.controller.page["screen"] == "cross_era_match":
-            total = self._match_count(self.controller.page)
+            total = self._visible_match_total
             offset = self.match_offset + delta * MATCH_PAGE_SIZE
             if 0 <= offset < total:
                 self.match_offset = offset
                 self._render(self.controller.page)
             return
         self._apply(lambda: self.controller.change_page(delta))
+
+    def _change_match_filter(self, _event=None):
+        """Filter only verified local rows; never follow an inferred ID."""
+        if self.controller.page["screen"] != "cross_era_match":
+            return
+        if (self.match_section_var.get() not in SECTION_LABELS
+                or self.match_sort_var.get() not in SORT_LABELS
+                or self.match_school_var.get() not in self._school_choices):
+            raise ValueError("invalid match filter choice")
+        self.match_offset = 0
+        self._render(self.controller.page)
+
+    def _configure_match_filter(self, page: dict, new_page: bool):
+        if new_page:
+            self.match_section_var.set("すべて")
+            self.match_sort_var.set("保存順")
+            self.match_school_var.set("両校")
+        match = page["match"]
+        self._school_choices = {
+            "両校": None,
+            self.labels.school(match["team1_id"]): match["team1_id"],
+            self.labels.school(match["team2_id"]): match["team2_id"],
+        }
+        self.match_school_box.configure(values=list(self._school_choices))
+        if self.match_school_var.get() not in self._school_choices:
+            self.match_school_var.set("両校")
+        if not self.match_controls.winfo_manager():
+            self.match_controls.pack(fill="x", before=self.panel)
 
     def _change_year(self, _event=None):
         try:
@@ -285,59 +347,50 @@ class CareerCrossEraGuiPilot:
         return (f"{outs // 3}.{outs % 3}"
                 if type(outs) is int and outs >= 0 else "未収録")
 
-    @staticmethod
-    def _match_count(page: dict) -> int:
-        return sum(len(page["details"][kind] or []) for kind in (
-            "inning_scores", "team_stats", "batter_stats", "pitcher_stats",
-        ))
-
-    def _match_rows(self, page: dict, names: dict):
-        """Stream formatted, source-backed rows; do not render JSON per cell."""
-        detail = page["details"]
-        for item in detail["inning_scores"] or []:
-            label = f"{item['inning']}回" + (
+    def _format_match_row(self, page: dict, names: dict, entry: dict):
+        """Format a single filtered original row; never infer missing stats."""
+        item = entry["saved"]
+        kind = entry["section"]
+        if kind == "inning_scores":
+            title = f"{item['inning']}回" + (
                 "表" if item["half"] == "top" else "裏"
             )
             runs = str(item["runs"]) if item["was_played"] else "未実施"
-            yield (label, self.labels.school(item["batting_team_id"]),
-                   "回別得点", (runs, "", "", "", "", ""),
-                   {"section": "inning_scores", "saved": item})
-        for item in detail["team_stats"] or []:
-            yield (
+            return (
+                title, self.labels.school(item["batting_team_id"]),
+                "回別得点", (runs, "", "", "", "", ""),
+                {"section": kind, "saved": item},
+            )
+        if kind == "team_stats":
+            return (
                 "チーム成績", self.labels.school(item["school_id"]), "総得点",
                 (self._saved(item, "runs"), self._saved(item, "hits"),
                  "", "", "", ""),
-                {"section": "team_stats", "saved": item},
+                {"section": kind, "saved": item},
             )
-        for item in detail["batter_stats"] or []:
-            school = item.get("school_id", "未登録校ID")
-            label = self.labels.player(
-                item.get("player_id", "未登録選手ID"),
-                names if school == page["school_id"] else {},
-            )
-            yield (
-                "打撃 / " + label, self.labels.school(school),
+        school = item.get("school_id", "未登録校ID")
+        title = self.labels.player(
+            item.get("player_id", "未登録選手ID"),
+            names if school == page["school_id"] else {},
+        )
+        if kind == "batter_stats":
+            return (
+                "打撃 / " + title, self.labels.school(school),
                 self._saved(item, "at_bats"),
                 tuple(self._saved(item, key) for key in (
                     "runs", "hits", "rbi", "walks", "strikeouts", "home_runs",
                 )),
-                {"section": "batter_stats", "saved": item},
+                {"section": kind, "saved": item},
             )
-        for item in detail["pitcher_stats"] or []:
-            school = item.get("school_id", "未登録校ID")
-            label = self.labels.player(
-                item.get("player_id", "未登録選手ID"),
-                names if school == page["school_id"] else {},
-            )
-            yield (
-                "投手 / " + label, self.labels.school(school),
-                self._innings_pitched(item),
-                tuple(self._saved(item, key) for key in (
-                    "runs_allowed", "hits_allowed", "earned_runs",
-                    "walks", "strikeouts", "home_runs_allowed",
-                )),
-                {"section": "pitcher_stats", "saved": item},
-            )
+        return (
+            "投手 / " + title, self.labels.school(school),
+            self._innings_pitched(item),
+            tuple(self._saved(item, key) for key in (
+                "runs_allowed", "hits_allowed", "earned_runs",
+                "walks", "strikeouts", "home_runs_allowed",
+            )),
+            {"section": kind, "saved": item},
+        )
 
     def _show_row_detail(self, _event=None):
         selection = self.table.selection()
@@ -353,14 +406,19 @@ class CareerCrossEraGuiPilot:
         self.details.configure(state="disabled")
 
     def _render(self, page: dict):
-        if page is not self._rendered_page:
+        new_page = page is not self._rendered_page
+        if new_page:
             self.match_offset = 0
         self._rendered_page = page
+        is_match = page["screen"] == "cross_era_match"
+        if is_match:
+            self._configure_match_filter(page, new_page)
+        elif self.match_controls.winfo_manager():
+            self.match_controls.pack_forget()
         for iid in self.table.get_children():
             self.table.delete(iid)
         self.links.clear()
         self.row_details.clear()
-        is_match = page["screen"] == "cross_era_match"
         self.table.configure(
             displaycolumns=MATCH_COLUMNS if is_match else MATCH_COLUMNS[:3],
         )
@@ -446,12 +504,20 @@ class CareerCrossEraGuiPilot:
                 ), "対戦校の保存済み年度履歴",
                 page["opponent_school_target"],
             )
-            for title, school, number, extra, source in islice(
-                self._match_rows(page, current_names),
-                self.match_offset, self.match_offset + MATCH_PAGE_SIZE,
-            ):
+            visible = match_stat_projection(
+                page,
+                section=SECTION_LABELS[self.match_section_var.get()],
+                school_id=self._school_choices[self.match_school_var.get()],
+                sort=SORT_LABELS[self.match_sort_var.get()],
+                offset=self.match_offset, limit=MATCH_PAGE_SIZE,
+            )
+            self._visible_match_total = visible["total"]
+            for entry in visible["rows"]:
+                title, school, number, extra, source = self._format_match_row(
+                    page, current_names, entry,
+                )
                 self._add(title, school, number, numbers=extra, original=source)
-            if self._match_count(page) == 0:
+            if self._visible_match_total == 0:
                 self._add(
                     "個人成績未収録", "保存済み原本に記録なし",
                     "不足項目は下の出典情報を参照",
@@ -471,6 +537,12 @@ class CareerCrossEraGuiPilot:
                 "team2_score": match["team2_score"],
                 "detail_status": page["detail_status"],
                 "missing_detail_fields": page["missing_detail_fields"],
+                "view_filter": {
+                    "section": visible["section"],
+                    "school_id": visible["school_id"],
+                    "sort": visible["sort"],
+                    "visible_count": visible["total"],
+                },
                 "saved_option_a_details": {
                     "record_counts": {
                         kind: len(items) if items is not None else None
@@ -517,9 +589,9 @@ class CareerCrossEraGuiPilot:
             if page["screen"] == "cross_era_school"
             else (
                 f"試合詳細・成績表 "
-                f"{self.match_offset + 1 if self._match_count(page) else 0}"
-                f"～{min(self.match_offset + MATCH_PAGE_SIZE, self._match_count(page))}"
-                f" / {self._match_count(page)}件（前／次ページで移動）"
+                f"{self.match_offset + 1 if self._visible_match_total else 0}"
+                f"～{min(self.match_offset + MATCH_PAGE_SIZE, self._visible_match_total)}"
+                f" / {self._visible_match_total}件（絞り込み・前／次ページ）"
             )
             if page["screen"] == "cross_era_match"
             else "年度ごとの選手所属・個人成績"
