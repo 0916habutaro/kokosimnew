@@ -1,0 +1,33 @@
+name: Cross-era school player navigation
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_cross_era_navigation.py"
+      - "phase2_engine/career_cross_era_browse_model.py"
+      - "phase2_engine/career_cross_era_read_gate.py"
+      - "tests/test_stage43g32_cross_era_navigation.py"
+      - ".github/workflows/career-cross-era-navigation.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_cross_era_navigation.py"
+      - "phase2_engine/career_cross_era_browse_model.py"
+      - "phase2_engine/career_cross_era_read_gate.py"
+      - ".github/workflows/career-cross-era-navigation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  stable_school_player_links:
+    name: Immutable source-separated year school player route validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Verify headless navigation with preserved archives and stable IDs
+        run: python -m unittest discover -s tests -p 'test_stage43g32_cross_era_navigation.py' -v
