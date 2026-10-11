@@ -1,0 +1,38 @@
+name: Stage43G-48 Shizuoka FMT025 feeder to Tokai
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/future_shizuoka_fmt025_bridge.py"
+      - "phase2_engine/career_multi_preview_checkpoint.py"
+      - "phase2_engine/career_regional_main_checkpoint.py"
+      - "tests/test_stage43g48_shizuoka_tokai_partial_feeder.py"
+      - ".github/workflows/career-shizuoka-tokai-feeder.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/future_shizuoka_fmt025_bridge.py"
+      - "phase2_engine/career_multi_preview_checkpoint.py"
+      - "phase2_engine/career_regional_main_checkpoint.py"
+      - "tests/test_stage43g48_shizuoka_tokai_partial_feeder.py"
+
+permissions:
+  contents: read
+
+jobs:
+  shizuoka_fmt025:
+    name: Shizuoka three FMT025 districts verify two Tokai entrants only
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Stage43G-48 Shizuoka feeder and Tokai fail-closed readiness
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g48_shizuoka_tokai_partial_feeder.py' -v
+      - name: Stage43G-47 and Stage43G-44 prior regional feeder regression
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g47_tohoku_four_prefecture_feeders.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g44_shikoku_prefecture_to_regional_e2e.py' -v

@@ -82,9 +82,9 @@ class CareerRegionalMainCheckpointService:
         self, multi: CareerMultiPreviewCheckpointService,
         *, target_competition_id: str = _TARGET,
     ):
-        if target_competition_id not in {_TARGET, "CMP000011", "CMP000005"}:
+        if target_competition_id not in {_TARGET, "CMP000011", "CMP000005", "CMP000008"}:
             raise CareerPreviewSaveError(
-                "only Kanto, Shikoku and Tohoku regional MAIN are supported"
+                "only Kanto, Shikoku, Tohoku and Tokai regional MAIN are supported"
             )
         self.multi = multi
         self.target = target_competition_id
@@ -113,7 +113,7 @@ class CareerRegionalMainCheckpointService:
                 )
         elif self.target != _TARGET and (placements or kanagawa_sidecar_enabled):
             raise RegionalFeederNotReady(
-                "Shikoku does not support placement or Kanagawa overrides"
+                "Shikoku/Tokai do not support placement or Kanagawa overrides"
             )
         upstream = self.multi.load(slot, year=year)
         if not all(p.scheduled.is_complete for p in upstream.previews.values()):
