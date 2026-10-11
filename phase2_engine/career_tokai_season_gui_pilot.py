@@ -36,11 +36,15 @@ class TokaiSeasonScreenController:
     def _read(self, target: dict, offset: int) -> dict:
         screen = target.get("screen")
         if screen == "competition":
+            if set(target) != {"screen", "year", "competition_id"}:
+                raise TokaiSeasonBrowseConflict("invalid competition link")
             return self.model.competition(
                 target["year"], target["competition_id"],
                 offset=offset, limit=PAGE_SIZE,
             )
         if screen == "school":
+            if set(target) != {"screen", "year", "school_id"}:
+                raise TokaiSeasonBrowseConflict("invalid school link")
             return self.model.school(
                 target["year"], target["school_id"],
                 offset=offset, limit=PAGE_SIZE,
