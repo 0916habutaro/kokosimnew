@@ -187,12 +187,20 @@ class CareerCrossEraGuiPilot:
         ):
             self.table.heading(name, text=label)
             self.table.column(name, width=size, minwidth=110)
-        self.table.pack(side="left", fill="both", expand=True)
+        self.table.grid(row=0, column=0, sticky="nsew")
         scroller = ttk.Scrollbar(
             panel, orient="vertical", command=self.table.yview,
         )
-        scroller.pack(side="right", fill="y")
-        self.table.configure(yscrollcommand=scroller.set)
+        scroller.grid(row=0, column=1, sticky="ns")
+        xscroll = ttk.Scrollbar(
+            panel, orient="horizontal", command=self.table.xview,
+        )
+        xscroll.grid(row=1, column=0, sticky="ew")
+        panel.grid_rowconfigure(0, weight=1)
+        panel.grid_columnconfigure(0, weight=1)
+        self.table.configure(
+            yscrollcommand=scroller.set, xscrollcommand=xscroll.set,
+        )
         self.table.bind("<Double-1>", self._open_selection)
         self.table.bind("<Return>", self._open_selection)
         self.table.bind("<<TreeviewSelect>>", self._show_row_detail)
