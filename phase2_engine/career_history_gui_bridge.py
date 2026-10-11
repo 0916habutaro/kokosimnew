@@ -56,9 +56,15 @@ class CareerHistoryGuiBridge:
                 data = self.catalog.navigator.follow(
                     target, verify_source=True,
                 )
+            if (data["screen"] == "cross_era_school"
+                    and data["match_total"] == 0
+                    and data["annual_roster_state"] == "missing_annual_roster"):
+                raise CareerHistoryGuiBridgeConflict(
+                    "no saved school-year roster or game for school ID"
+                )
             screen = _SCREEN_NAMES[data["screen"]]
             checked = data["source_payloads_rechecked"]
-            actions = ["open_saved_link", "back"]
+            actions = ["open_saved_link"]
         else:
             raise CareerHistoryGuiBridgeConflict("unknown history screen route")
         return {
@@ -79,6 +85,8 @@ class CareerHistoryGuiBridge:
         self.history.append(deepcopy(self.route))
         if len(self.history) > MAX_BACK_STACK:
             self.history.pop(0)
+        if "back" not in page["actions"]:
+            page["actions"].append("back")
         self.route = deepcopy(next_route)
         self.page = page
         return page
