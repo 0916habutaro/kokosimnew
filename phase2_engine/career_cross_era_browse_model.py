@@ -16,7 +16,9 @@ from .career_cross_era_read_gate import CareerCrossEraReadGate
 from .career_option_a_storage_profile import _read_only
 from .career_player_records import CareerPlayerRecordView
 from .career_roster_archive import CareerRosterArchive
-from .career_v2_option_a_archive import CareerV2OptionAArchive
+from .career_v2_option_a_archive import (
+    CareerV2OptionAArchive, _calendar_info, _verify_match,
+)
 from .career_v2_roster_attribution import CareerV2RosterAttribution
 from .career_v2_player_stat_cache import CareerV2PlayerStatCache
 
@@ -211,30 +213,24 @@ class CareerCrossEraBrowseModel:
                         row["year"], row["competition_id"], row["match_id"]):
                     raise CareerCrossEraBrowseConflict("legacy match key changed")
         else:
-            first = self.v2.year_matches(selected_year, limit=100)
-            if first["year_status"] != "sealed":
-                raise CareerCrossEraBrowseConflict("v2 match year not sealed")
-            found = [
-                game for game in first["rows"]
-                if (game["competition_id"], game["match_id"])
-                == (competition_id, match_id)
-            ]
-            for offset in range(100, first["total"], 100):
-                page = self.v2.year_matches(
-                    selected_year, limit=100, offset=offset,
-                )
-                if (page["year_status"] != "sealed"
-                        or page["calendar_sha256"] != first["calendar_sha256"]
-                        or page["total"] != first["total"]):
-                    raise CareerCrossEraBrowseConflict("v2 source changed")
-                found.extend(
-                    game for game in page["rows"]
-                    if (game["competition_id"], game["match_id"])
-                    == (competition_id, match_id)
-                )
-            if len(found) != 1:
-                raise CareerCrossEraBrowseConflict("saved v2 match not unique")
-            game = found[0]
+            # The gate already verifies the sealed year ledger and, with
+            # verify_source=True, every payload. Fetch only the requested
+            # composite primary key rather than rescanning the annual archive
+            # once per pagination offset. Reverify this row even in shallow
+            # mode; a tampered or wrong-calendar match must never be shown.
+            plan, plan_sha = _calendar_info(self.v2.calendar, selected_year)
+            if route["calendar_sha256"] != plan_sha:
+                raise CareerCrossEraBrowseConflict("v2 calendar changed")
+            with closing(_read_only(self.gate.v2_path)) as conn:
+                conn.row_factory = sqlite3.Row
+                row = conn.execute(
+                    "SELECT * FROM v2_option_a_matches "
+                    "WHERE year=? AND competition_id=? AND match_id=?",
+                    (selected_year, competition_id, match_id),
+                ).fetchone()
+                if row is None:
+                    raise CareerCrossEraBrowseConflict("saved v2 match not found")
+                game = _verify_match(row, plan, plan_sha)
         summary = self._checked_game(game, selected_year, school_id, source)
         fields = ("inning_scores", "team_stats", "batter_stats", "pitcher_stats")
         details = {}
