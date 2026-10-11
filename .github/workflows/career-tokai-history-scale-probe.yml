@@ -1,0 +1,31 @@
+name: Stage43G-56 Tokai saved browse scale probe
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_tokai_history_scale_probe.py"
+      - "tests/test_stage43g56_tokai_history_scale_probe.py"
+      - ".github/workflows/career-tokai-history-scale-probe.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_tokai_history_scale_probe.py"
+      - "tests/test_stage43g56_tokai_history_scale_probe.py"
+
+permissions:
+  contents: read
+
+jobs:
+  tokai_history_scale_probe:
+    name: Tokai archived season bounded read performance and no-write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Stage43G-56 read-only probe and Stage43G-54 source regression
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g56_tokai_history_scale_probe.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g54_tokai_season_history_browse.py' -v
