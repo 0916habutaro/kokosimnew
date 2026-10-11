@@ -1,0 +1,33 @@
+name: Stage43G-54 Tokai saved history browser
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_tokai_season_browse_model.py"
+      - "tests/test_stage43g54_tokai_season_history_browse.py"
+      - ".github/workflows/career-tokai-season-history-browse.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_tokai_season_browse_model.py"
+      - "tests/test_stage43g54_tokai_season_history_browse.py"
+
+permissions:
+  contents: read
+
+jobs:
+  tokai_history_browse:
+    name: Tokai future game season school match player read-only SHA navigation
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Stage43G-54 read-only Tokai ID-addressed history
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g54_tokai_season_history_browse.py' -v
+      - name: Stage43G-16 existing career history navigation regression
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g16_history_gui_navigation.py' -v
