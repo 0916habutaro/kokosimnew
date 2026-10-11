@@ -18,6 +18,9 @@ from .career_history_gui_bridge import CareerHistoryGuiBridge
 from .career_history_slot_session import CareerHistorySlotSession
 from .career_saved_year_display_labels import CareerSavedYearDisplayLabels
 from .career_history_view_projection import project_history_screen
+from .career_legacy_school_game_tk import (
+    LEGACY_SOURCE, CareerLegacySchoolGamePager, CareerLegacySchoolGamesTkPilot,
+)
 
 APP_NAME = "ココシミュNew｜保存履歴ビューア（試験版・閲覧専用）"
 
@@ -45,6 +48,7 @@ class CareerHistoryTkPilot:
         self.rows_by_widget_id: dict[str, dict] = {}
         self.view: dict = {}
         self.last_error: str | None = None
+        self.legacy_window: CareerLegacySchoolGamesTkPilot | None = None
         root.title(APP_NAME)
         root.geometry("1120x760")
         root.minsize(780, 540)
@@ -92,6 +96,13 @@ class CareerHistoryTkPilot:
         )
         self.refresh_button.pack(side="left", padx=(6, 0))
 
+        legacy_bar = ttk.Frame(self.root, padding=(8, 0))
+        legacy_bar.pack(fill="x")
+        self.legacy_games_button = ttk.Button(
+            legacy_bar, text="旧A方式：学校の過去試合を検索",
+            command=self._open_legacy_games,
+        )
+        self.legacy_games_button.pack(side="left")
         ttk.Label(
             self.root, textvariable=self.heading_var, padding=(12, 8),
         ).pack(fill="x")
@@ -188,10 +199,18 @@ class CareerHistoryTkPilot:
         self.back_button.configure(
             state="normal" if self.bridge.history else "disabled",
         )
+        self.legacy_games_button.configure(
+            state="normal" if (
+                self.bridge.page["screen"] == "history_school"
+                and self.bridge.page["source_verified"] is True
+                and self.bridge.page["data"].get("source") == LEGACY_SOURCE
+            ) else "disabled",
+        )
 
     def _action(self, operation) -> None:
         try:
             operation()
+            self._close_legacy_games()
             # Reformat only after the verified bridge transition succeeds.
             self._render()
         except (ValueError, OSError) as exc:
@@ -212,6 +231,7 @@ class CareerHistoryTkPilot:
                 proposed, self.data_root,
             )
             project_history_screen(proposed.page, labels=labels)
+            self._close_legacy_games()
             self.bridge = proposed
             self.labels = labels
             self._render()
@@ -220,6 +240,37 @@ class CareerHistoryTkPilot:
             self.last_error = str(exc)
             self.status_var.set(
                 f"セーブを変更できません：{exc} / 元の画面を維持"
+            )
+
+    def _close_legacy_games(self) -> None:
+        if self.legacy_window is not None:
+            if self.legacy_window.root.winfo_exists():
+                self.legacy_window.root.destroy()
+            self.legacy_window = None
+
+    def _open_legacy_games(self) -> None:
+        try:
+            page = self.bridge.page
+            if (page["screen"] != "history_school"
+                    or page["source_verified"] is not True
+                    or page["data"].get("source") != LEGACY_SOURCE):
+                raise ValueError("verified legacy school-year screen required")
+            year = page["data"]["selected_year"]
+            school_id = page["data"]["school_id"]
+            pager = CareerLegacySchoolGamePager(
+                self.bridge.catalog.slot_root / "historical_matches.sqlite3",
+                school_id, year,
+            )
+            # Create the child only after its first source page is verified.
+            self._close_legacy_games()
+            self.legacy_window = CareerLegacySchoolGamesTkPilot(
+                self.root, pager,
+            )
+            self.last_error = None
+        except (ValueError, OSError) as exc:
+            self.last_error = str(exc)
+            self.status_var.set(
+                f"旧A方式の試合検索を開けません：{exc}／元画面を維持"
             )
 
     def _open_selected(self, _event=None) -> None:
