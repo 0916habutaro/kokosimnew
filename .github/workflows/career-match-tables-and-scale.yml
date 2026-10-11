@@ -1,0 +1,42 @@
+name: Stage43G-36 match tables and efficient verified reads
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_cross_era_browse_model.py"
+      - "phase2_engine/career_cross_era_read_gate.py"
+      - "phase2_engine/career_cross_era_gui_pilot.py"
+      - "tests/test_stage43g36_match_tables_and_scale.py"
+      - ".github/workflows/career-match-tables-and-scale.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_cross_era_browse_model.py"
+      - "phase2_engine/career_cross_era_read_gate.py"
+      - "phase2_engine/career_cross_era_gui_pilot.py"
+
+permissions:
+  contents: read
+
+jobs:
+  verified_tables_tk:
+    name: Indexed v2 match read, table columns and real Tk pagination
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Ensure virtual Tk display available
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+      - name: Stage43G-36 exact source and real Tk
+        run: |
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g36_match_tables_and_scale.py' -v
+      - name: Match detail and GUI regression
+        run: |
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g3[345]*.py' -v
