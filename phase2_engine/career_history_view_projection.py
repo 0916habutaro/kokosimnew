@@ -218,7 +218,7 @@ def project_history_screen(page: dict, *, labels=None) -> dict:
                     player = labels.player(
                         year, school_id, target["player_id"],
                     )
-                    row["title"] = player["label"]
+                    row["title"] = f"選手 {player['label']}"
                 elif target["view"] == "school":
                     other = labels.school(year, target["school_id"])
                     row["title"] = f"対戦校 {other['label']}"
