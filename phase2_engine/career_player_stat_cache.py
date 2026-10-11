@@ -43,8 +43,11 @@ CREATE TABLE IF NOT EXISTS player_year_stat_cache (
 );
 CREATE INDEX IF NOT EXISTS idx_cached_player_year
     ON player_year_stat_cache(player_id, year);
-CREATE INDEX IF NOT EXISTS idx_cached_school_year
-    ON player_year_stat_cache(school_id, year, player_id);
+-- The PRIMARY KEY (school_id,year,player_id) already maintains the
+-- identical unique B-tree. Do not allocate a second B-tree when creating
+-- NEW legacy A-derived cache DBs. The distinct player-first seek
+-- idx_cached_player_year remains available for player career lookup.
+-- Existing saved cache DBs keep the old index; never DROP or VACUUM here.
 """
 
 
