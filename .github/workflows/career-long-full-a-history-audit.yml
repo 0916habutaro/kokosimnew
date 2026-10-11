@@ -1,0 +1,37 @@
+name: Stage43G-67 Complete Option-A long-year storage and history read audit
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_long_full_a_audit.py"
+      - "tests/test_stage43g67_long_full_a_audit.py"
+      - ".github/workflows/career-long-full-a-history-audit.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_long_full_a_audit.py"
+      - "tests/test_stage43g67_long_full_a_audit.py"
+
+permissions:
+  contents: read
+
+jobs:
+  complete_a_long_years:
+    name: 12-year complete A box-score roster cache storage and read-only scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Stage43G-67 real complete A persistence and storage checks
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g67_long_full_a_audit.py' -v
+      - name: Stage43G-21 full A benchmark and Stage43G-23 actual growth regression
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g21_full_a_storage_benchmark.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g23_annual_growth_audit.py' -v
+      - name: Stage43G-66 bounded archived player history regression
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g66_long_roster_player_history.py' -v
