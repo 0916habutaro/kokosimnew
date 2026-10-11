@@ -43,6 +43,7 @@ class Stage43G76V2SchoolPageTests(unittest.TestCase):
         self.v2.append(10001, stage27.full_a(10001, "B-ONE", "04-01"))
         other = stage27.full_a(10001, "B-ALT", "04-02")
         other["competition_id"] = ALT
+        other["ability_detail"]["competition_id"] = ALT
         self.v2.append(10001, other)
         if seal_second:
             self.v2.seal_year(10001, expected_match_count=2)
