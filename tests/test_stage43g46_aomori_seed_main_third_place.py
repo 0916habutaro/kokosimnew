@@ -281,7 +281,7 @@ class Stage43G46AomoriSeedMainThirdPlaceTests(unittest.TestCase):
             row = db.execute(
                 "SELECT match_id FROM historical_matches "
                 "WHERE year=2027 AND competition_id=? "
-                "AND stage_code='MAIN' LIMIT 1",
+                "AND json_extract(payload_json, '$.stage_code')='MAIN' LIMIT 1",
                 (AOMORI_SPRING,),
             ).fetchone()
             db.execute(
