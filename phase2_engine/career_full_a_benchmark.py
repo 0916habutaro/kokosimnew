@@ -12,6 +12,7 @@ from contextlib import closing
 import json
 from pathlib import Path
 from statistics import median
+from typing import Callable
 import sqlite3
 import tempfile
 from time import perf_counter
@@ -123,15 +124,19 @@ def run_full_a_benchmark(
     games_per_school_year: int = 2, repeats: int = 2,
     allow_large: bool = False,
     include_sandbox_calendar: bool = False,
+    read_only_observer: Callable[[dict[str, Path]], dict] | None = None,
 ) -> dict:
     validate_options(schools, years, games_per_school_year, repeats, allow_large)
     if type(include_sandbox_calendar) is not bool:
         raise ValueError("invalid optional sandbox calendar setting")
+    if read_only_observer is not None and not callable(read_only_observer):
+        raise ValueError("read-only observer must be callable")
     repo = DataRepository(Path(data_root))
     selected = sorted(repo.school_to_program)[:schools]
     if len(selected) != schools:
         raise ValueError("not enough real school IDs in master")
     generator = PlayerRosterGenerator()
+    observer_result = None
     with tempfile.TemporaryDirectory(prefix="kokosim-full-a-") as temp:
         path = Path(temp)
         match_file = path / "historical_matches.sqlite3"
@@ -435,7 +440,23 @@ def run_full_a_benchmark(
             raise AssertionError("school-year roster count differs")
         if counts["cached_school_years"] != schools * years:
             raise AssertionError("cache coverage incomplete")
-    return {
+        if read_only_observer is not None:
+            observed_paths = {
+                "matches": match_file, "rosters": roster_file,
+                "derived_cache": cache_file,
+            }
+            # The observer is ONLY invoked after all archive/roster/cache
+            # verification and before the temporary files are removed.
+            # Reject any accidental source mutations explicitly.
+            before_observer = {k: file_sha256(p) for k, p in observed_paths.items()}
+            observer_result = read_only_observer(observed_paths)
+            if type(observer_result) is not dict:
+                raise ValueError("read-only observer must return a report dict")
+            if before_observer != {
+                k: file_sha256(p) for k, p in observed_paths.items()
+            }:
+                raise AssertionError("read-only observer modified a saved database")
+    result = {
         "stage": "43G-21",
         "source_kind": SOURCE,
         "schools": schools, "years": years,
@@ -459,6 +480,9 @@ def run_full_a_benchmark(
         "real_game_tournament_progression_verified": False,
         "nationwide_3000_school_100_year_verified": False,
     }
+    if read_only_observer is not None:
+        result["read_only_observer_result"] = observer_result
+    return result
 
 
 def main() -> None:
