@@ -57,7 +57,7 @@ class CareerCrossEraScreenController:
                 limit=PAGE_SIZE, offset=offset,
                 verify_source=self.verify_source,
             )
-        if target.get("view") == "player":
+        if target.get("view") in ("player", "match"):
             return self.navigator.follow(
                 target, verify_source=self.verify_source,
             )
@@ -79,6 +79,11 @@ class CareerCrossEraScreenController:
         if type(year) is not int:
             raise ValueError("invalid year")
         target = {**self.target, "selected_year": year}
+        if target["view"] == "match":
+            # Match IDs do not denote the same game in another year.
+            target = self.navigator._school_target(
+                target["years"], year, target["school_id"],
+            )
         return self.open(target)
 
     def back(self) -> dict:
@@ -243,8 +248,9 @@ class CareerCrossEraGuiPilot:
             page["selected_year"], page["school_id"],
         )
         if page["screen"] == "cross_era_school":
-            for game, link in zip(
+            for game, link, detail_link in zip(
                 page["match_page"], page["opponent_school_targets"],
+                page["match_detail_targets"],
             ):
                 score = (
                     f"{self.labels.school(game['team1_id'])} "
@@ -258,6 +264,12 @@ class CareerCrossEraGuiPilot:
                     f"{game['date']} / {game['result_for_school']}",
                     f"{score} / {game['competition_id']}/{game['match_id']}",
                     link["target"],
+                )
+                self._add(
+                    "試合詳細へ / " + game["match_id"],
+                    f"{game['date']} / {game['team1_score']} - {game['team2_score']}",
+                    f"{game['competition_id']} / 保存済み試合IDで参照",
+                    detail_link["target"],
                 )
             for item in page["player_targets"]:
                 self._add(
@@ -282,6 +294,63 @@ class CareerCrossEraGuiPilot:
                 "annual_roster_state": page["annual_roster_state"],
                 "unverified_intervening_year_intervals":
                     page["unverified_intervening_year_intervals"],
+                "combined_career_stats_authorized": False,
+            }
+        elif page["screen"] == "cross_era_match":
+            match = page["match"]
+            detail = page["details"]
+            self._add(
+                "学校へ戻る", self.labels.school(page["school_id"]),
+                "この年度の学校試合一覧",
+                page["back_to_school_target"],
+            )
+            self._add(
+                "対戦校へ", self.labels.school(
+                    page["opponent_school_target"]["school_id"],
+                ), "対戦校の保存済み年度履歴",
+                page["opponent_school_target"],
+            )
+            for item in detail["inning_scores"] or []:
+                self._add(
+                    f"{item['inning']}回" + (
+                        "表" if item["half"] == "top" else "裏"
+                    ),
+                    self.labels.school(item["batting_team_id"]),
+                    str(item["runs"]) if item["was_played"] else "未実施",
+                )
+            for item in detail["team_stats"] or []:
+                self._add(
+                    "チーム成績 / " + self.labels.school(item["school_id"]),
+                    f"得点 {item.get('runs', '未収録')}",
+                    "その他項目は詳細ペインの保存済み値を参照",
+                )
+            for kind, title in (("batter_stats", "打撃"), ("pitcher_stats", "投手")):
+                for item in detail[kind] or []:
+                    self._add(
+                        title + " / " + self.labels.player(
+                            item.get("player_id", "未登録選手ID"),
+                            current_names if item.get("school_id") ==
+                            page["school_id"] else {},
+                        ),
+                        self.labels.school(item.get("school_id", "未登録校ID")),
+                        json.dumps(item, ensure_ascii=False, sort_keys=True),
+                    )
+            meta = {
+                "school_id": page["school_id"],
+                "school_name": self.labels.school(page["school_id"]),
+                "year": page["selected_year"],
+                "source": page["source"],
+                "competition_id": match["competition_id"],
+                "match_id": match["match_id"],
+                "date": match["date"],
+                "date_kind": match["date_kind"],
+                "team1": self.labels.school(match["team1_id"]),
+                "team2": self.labels.school(match["team2_id"]),
+                "team1_score": match["team1_score"],
+                "team2_score": match["team2_score"],
+                "detail_status": page["detail_status"],
+                "missing_detail_fields": page["missing_detail_fields"],
+                "saved_option_a_details": detail,
                 "combined_career_stats_authorized": False,
             }
         else:
@@ -323,6 +392,8 @@ class CareerCrossEraGuiPilot:
             f"～{page['match_page_offset']+len(page['match_page'])}"
             f" / {page['match_total']}件"
             if page["screen"] == "cross_era_school"
+            else "試合詳細／保存済みの回別・打撃・投手記録"
+            if page["screen"] == "cross_era_match"
             else "年度ごとの選手所属・個人成績"
         )
         self.status_var.set(

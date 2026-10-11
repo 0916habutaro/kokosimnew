@@ -56,6 +56,39 @@ class CareerCrossEraNavigator:
             "view": "player", "player_id": player_id,
         }
 
+    @staticmethod
+    def _match_target(years: list[int], year: int, school_id: str,
+                      competition_id: str, match_id: str) -> dict:
+        return {
+            **CareerCrossEraNavigator._school_target(years, year, school_id),
+            "view": "match", "competition_id": competition_id,
+            "match_id": match_id,
+        }
+
+    def match_page(self, years: list[int], school_id: str, *,
+                   selected_year: int, competition_id: str, match_id: str,
+                   verify_source: bool = True) -> dict:
+        selection = self._selection(years, selected_year)
+        result = self.browse.match_detail(
+            selection, school_id, selected_year=selected_year,
+            competition_id=competition_id, match_id=match_id,
+            verify_source=verify_source,
+        )
+        return {
+            **result,
+            "back_to_school_target": self._school_target(
+                selection, selected_year, school_id,
+            ),
+            "opponent_school_target": self._school_target(
+                selection, selected_year,
+                result["match"]["team2_id"]
+                if school_id == result["match"]["team1_id"]
+                else result["match"]["team1_id"],
+            ),
+            "navigation_wrote_to_save": False,
+            "official_gui_connected": False,
+        }
+
     def _roster_links(self, years: list[int], year: int, school_id: str) -> dict:
         path = self.browse.rosters.db_path
         if not path.is_file():
@@ -123,6 +156,17 @@ class CareerCrossEraNavigator:
             "year_targets": [
                 self._school_target(selection, year, school_id)
                 for year in selection
+            ],
+            "match_detail_targets": [
+                {
+                    "competition_id": match["competition_id"],
+                    "match_id": match["match_id"],
+                    "target": self._match_target(
+                        selection, selected_year, school_id,
+                        match["competition_id"], match["match_id"],
+                    ),
+                }
+                for match in visible
             ],
             "opponent_school_targets": [
                 {
@@ -201,7 +245,10 @@ class CareerCrossEraNavigator:
             {"view", "years", "selected_year", "school_id"}
             if view == "school" else
             {"view", "years", "selected_year", "school_id", "player_id"}
-            if view == "player" else None
+            if view == "player" else
+            {"view", "years", "selected_year", "school_id",
+             "competition_id", "match_id"}
+            if view == "match" else None
         )
         if expected is None or set(target) != expected:
             raise CareerCrossEraNavigationConflict("unknown or malformed route")
@@ -209,6 +256,14 @@ class CareerCrossEraNavigator:
             return self.school_page(
                 target["years"], target["school_id"],
                 selected_year=target["selected_year"],
+                verify_source=verify_source,
+            )
+        if view == "match":
+            return self.match_page(
+                target["years"], target["school_id"],
+                selected_year=target["selected_year"],
+                competition_id=target["competition_id"],
+                match_id=target["match_id"],
                 verify_source=verify_source,
             )
         return self.player_page(

@@ -169,6 +169,144 @@ class CareerCrossEraBrowseModel:
             "source_records_not_modified": True,
         }
 
+    def match_detail(self, years: list[int], school_id: str, *,
+                     selected_year: int, competition_id: str, match_id: str,
+                     verify_source: bool = True) -> dict:
+        """Read one immutable match from exactly one verified saved year.
+
+        Do not manufacture inning scores or player box scores for older games
+        that only saved a final score. The selected source is never migrated.
+        """
+        if (type(school_id) is not str or not school_id
+                or type(competition_id) is not str or not competition_id
+                or type(match_id) is not str or not match_id
+                or type(selected_year) is not int
+                or type(verify_source) is not bool):
+            raise ValueError("saved year, school and match IDs are required")
+        manifest = self.gate.inspect(years, verify_source=verify_source)
+        route = next(
+            (item for item in manifest["routes"]
+             if item["year"] == selected_year), None,
+        )
+        if route is None:
+            raise CareerCrossEraBrowseConflict("match year not in selection")
+        source = route["source"]
+        if source == "historical_matches_legacy_iso":
+            with closing(_read_only(self.gate.legacy_path)) as conn:
+                conn.row_factory = sqlite3.Row
+                row = conn.execute(
+                    "SELECT year,competition_id,match_id,record_sha256,payload_json "
+                    "FROM historical_matches WHERE year=? AND competition_id=? "
+                    "AND match_id=?",
+                    (selected_year, competition_id, match_id),
+                ).fetchone()
+                if row is None:
+                    raise CareerCrossEraBrowseConflict("saved match not found")
+                raw = row["payload_json"]
+                if sha256(raw.encode("utf-8")).hexdigest() != row["record_sha256"]:
+                    raise CareerCrossEraBrowseConflict("legacy match SHA changed")
+                game = json.loads(raw)
+                if (game.get("year"), game.get("competition_id"),
+                        game.get("match_id")) != (
+                        row["year"], row["competition_id"], row["match_id"]):
+                    raise CareerCrossEraBrowseConflict("legacy match key changed")
+        else:
+            first = self.v2.year_matches(selected_year, limit=100)
+            if first["year_status"] != "sealed":
+                raise CareerCrossEraBrowseConflict("v2 match year not sealed")
+            found = [
+                game for game in first["rows"]
+                if (game["competition_id"], game["match_id"])
+                == (competition_id, match_id)
+            ]
+            for offset in range(100, first["total"], 100):
+                page = self.v2.year_matches(
+                    selected_year, limit=100, offset=offset,
+                )
+                if (page["year_status"] != "sealed"
+                        or page["calendar_sha256"] != first["calendar_sha256"]
+                        or page["total"] != first["total"]):
+                    raise CareerCrossEraBrowseConflict("v2 source changed")
+                found.extend(
+                    game for game in page["rows"]
+                    if (game["competition_id"], game["match_id"])
+                    == (competition_id, match_id)
+                )
+            if len(found) != 1:
+                raise CareerCrossEraBrowseConflict("saved v2 match not unique")
+            game = found[0]
+        summary = self._checked_game(game, selected_year, school_id, source)
+        fields = ("inning_scores", "team_stats", "batter_stats", "pitcher_stats")
+        details = {}
+        for field in fields:
+            value = game.get(field)
+            if value is not None and not isinstance(value, list):
+                raise CareerCrossEraBrowseConflict("invalid saved match detail type")
+            details[field] = value
+        innings = details["inning_scores"]
+        if innings is not None:
+            totals = {"top": 0, "bottom": 0}
+            seen = []
+            for item in innings:
+                if (type(item) is not dict
+                        or type(item.get("inning")) is not int
+                        or item["inning"] <= 0
+                        or item.get("half") not in ("top", "bottom")
+                        or type(item.get("was_played")) is not bool):
+                    raise CareerCrossEraBrowseConflict("invalid inning line")
+                half = item["half"]
+                expected_team = (
+                    game["team1_id"] if half == "top" else game["team2_id"]
+                )
+                if item.get("batting_team_id") != expected_team:
+                    raise CareerCrossEraBrowseConflict("inning team changed")
+                runs = item.get("runs")
+                if item["was_played"]:
+                    if type(runs) is not int or runs < 0:
+                        raise CareerCrossEraBrowseConflict("invalid inning runs")
+                    totals[half] += runs
+                elif runs is not None:
+                    raise CareerCrossEraBrowseConflict("unplayed inning has runs")
+                seen.append((item["inning"], half))
+            if seen != [
+                (inning, half)
+                for inning in range(1, len(seen) // 2 + 1)
+                for half in ("top", "bottom")
+            ] or (totals["top"], totals["bottom"]) != (
+                summary["team1_score"], summary["team2_score"]
+            ):
+                raise CareerCrossEraBrowseConflict("line score disagrees with final")
+        teams = details["team_stats"]
+        if teams is not None and (
+                len(teams) != 2
+                or {item.get("school_id") for item in teams}
+                != {game["team1_id"], game["team2_id"]}
+                or any(item.get("runs") != game[
+                    "team1_score" if item["school_id"] == game["team1_id"]
+                    else "team2_score"
+                ] for item in teams)):
+            raise CareerCrossEraBrowseConflict("team stats disagree with final")
+        return {
+            "screen": "cross_era_match",
+            "school_id": school_id,
+            "selected_year": selected_year,
+            "years": list(years),
+            "source": source,
+            "match": summary,
+            "details": details,
+            "detail_status": (
+                "full_option_a_saved"
+                if all(isinstance(details[field], list) for field in fields)
+                else "partial_or_score_only_legacy"
+            ),
+            "missing_detail_fields": [
+                field for field in fields if details[field] is None
+            ],
+            "source_payloads_rechecked": verify_source,
+            "source_records_not_modified": True,
+            "combined_career_stats_authorized": False,
+        }
+
     def player_years(self, years: list[int], school_id: str,
                      player_id: str, *, verify_source: bool = True) -> dict:
         """Source-separated player-year A records; never combine identity eras."""
