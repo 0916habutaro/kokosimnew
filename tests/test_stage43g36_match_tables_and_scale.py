@@ -126,7 +126,10 @@ class Stage43G36MatchTableTests(unittest.TestCase):
         )
         gui._open(game_link)
         self.assertEqual("cross_era_match", gui.controller.page["screen"])
-        self.assertEqual(len(MATCH_HEADINGS), len(gui.table["displaycolumns"]))
+        self.assertEqual(
+            len(MATCH_HEADINGS),
+            len(root.tk.splitlist(gui.table["displaycolumns"])),
+        )
         self.assertEqual("安打／被安打", gui.table.heading("hits", "text"))
         rows = [
             gui.table.item(iid, "values") for iid in gui.table.get_children()
