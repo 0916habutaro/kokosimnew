@@ -262,7 +262,7 @@ class Stage43G46AomoriSeedMainThirdPlaceTests(unittest.TestCase):
             ).fetchone()[0])
         self.assertEqual(b"2026 original is read-only", manual.read_bytes())
 
-    def test_bad_seed_membership_and_unarchived_game_rejected(self):
+    def test_bad_seed_membership_and_tampered_game_rejected(self):
         bad = [{
             **x,
             "group_entrant_school_ids": {
@@ -285,9 +285,9 @@ class Stage43G46AomoriSeedMainThirdPlaceTests(unittest.TestCase):
                 (AOMORI_SPRING,),
             ).fetchone()
             db.execute(
-                "DELETE FROM historical_matches WHERE year=2027 "
+                "UPDATE historical_matches SET payload_json=? WHERE year=2027 "
                 "AND competition_id=? AND match_id=?",
-                (AOMORI_SPRING, row[0]),
+                ('{"tampered":true}', AOMORI_SPRING, row[0]),
             )
         with self.assertRaises(ChibaThirdPlaceNotReady):
             self.third.start("aomori", year=2027)
