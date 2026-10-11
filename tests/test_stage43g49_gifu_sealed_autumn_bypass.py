@@ -165,12 +165,12 @@ class Stage43G49GifuPriorAutumnCareerE2E(unittest.TestCase):
         self.assertEqual(4, len(gifu.scheduled.runtime.qualifier_groups))
         self.assertEqual(
             {id: len(schools) for id, schools in self.qualifier_group_manifest.items()},
-            {group.stage_group_id: len(group.entrant_school_ids)
+            {group.gid: len(group.eligible_school_ids)
              for group in gifu.scheduled.runtime.qualifier_groups},
         )
         self.assertEqual(
             set(self.qualifier_group_manifest).issubset(
-                {group.stage_group_id for group
+                {group.gid for group
                  in gifu.scheduled.runtime.qualifier_groups}
             ), True,
         )
@@ -280,8 +280,10 @@ class Stage43G49GifuPriorAutumnCareerE2E(unittest.TestCase):
         with sqlite3.connect(self.history.db_path) as conn:
             conn.execute(
                 "DELETE FROM historical_matches WHERE year=2026 "
-                "AND competition_id=? LIMIT 1",
-                (GIFU_AUTUMN,),
+                "AND competition_id=? AND match_id=("
+                "SELECT MIN(match_id) FROM historical_matches "
+                "WHERE year=2026 AND competition_id=?)",
+                (GIFU_AUTUMN, GIFU_AUTUMN),
             )
         with self.assertRaises(CareerPreviewSaveError):
             self._start()
