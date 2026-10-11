@@ -56,6 +56,9 @@ from .future_shizuoka_fmt025_bridge import (
     SHIZUOKA_FMT025_PREFECTURES,
     prepare_future_shizuoka_fmt025_preview,
 )
+from .future_gifu_sealed_autumn_bridge import (
+    GIFU_SPRING, prepare_future_gifu_sealed_autumn_preview,
+)
 from .career_hokkaido_senbatsu_gate import (
     HokkaidoRecommendationNotReady,
     SENBATSU_ID,
@@ -190,12 +193,19 @@ class CareerMultiPreviewCheckpointService:
                             "aomori_seed_main_v1",
                             "tohoku_composite_qualifier_v1",
                             "yamagata_direct_main_v1",
-                            "shizuoka_fmt025_qualifier_v1"):
+                            "shizuoka_fmt025_qualifier_v1",
+                            "gifu_sealed_autumn_fmt002_v1"):
                 raise CareerPreviewSaveError("unsupported future entrant mode")
             if mode == "kanto_direct_main_v1":
                 if cid not in DIRECT_MAIN_PREFECTURES or groups or source is not None:
                     raise CareerPreviewSaveError(
                         "direct MAIN requires whitelisted competition and no feeder override"
+                    )
+            if mode == "gifu_sealed_autumn_fmt002_v1":
+                if (cid != GIFU_SPRING or not groups or source is not None):
+                    raise CareerPreviewSaveError(
+                        "Gifu sealed autumn bypass requires explicit groups "
+                        "without a caller-selected prior source"
                     )
             if mode == "shizuoka_fmt025_qualifier_v1":
                 if (cid not in SHIZUOKA_FMT025_PREFECTURES
@@ -334,6 +344,18 @@ class CareerMultiPreviewCheckpointService:
                     repo=self.solo.repo,
                     base_seed=row["base_seed"],
                     career_seed=row["career_seed"],
+                    ability_config_dir=self.solo.ability_config_dir,
+                    match_config_dir=self.solo.match_config_dir,
+                )
+            elif row.get("entry_mode") == "gifu_sealed_autumn_fmt002_v1":
+                preview = prepare_future_gifu_sealed_autumn_preview(
+                    data_root=self.solo.data_root, year=row["year"],
+                    entrant_school_ids=row["entrant_school_ids"],
+                    group_entrant_school_ids=row["group_entrant_school_ids"],
+                    match_archive=self.solo._archive(slot),
+                    roster_archive=self.solo._rosters(slot),
+                    repo=self.solo.repo,
+                    base_seed=row["base_seed"], career_seed=row["career_seed"],
                     ability_config_dir=self.solo.ability_config_dir,
                     match_config_dir=self.solo.match_config_dir,
                 )
