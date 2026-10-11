@@ -104,7 +104,11 @@ class Stage43G76V2SchoolPageTests(unittest.TestCase):
             )
         hashes = (file_sha256(self.v2_path), file_sha256(self.calendar_path))
         shallow = self._get(limit=2)
-        self.assertEqual(5, shallow["total"])
+        # v2 membership is stored inside the JSON; an offpage tamper can
+        # remove a match from shallow COUNT. Never advertise complete
+        # school membership or complete-year SHA integrity in page mode.
+        self.assertEqual(4, shallow["total"])
+        self.assertFalse(shallow["school_membership_integrity_for_years_verified"])
         self.assertFalse(shallow["all_selected_year_payloads_verified"])
         with self.assertRaisesRegex(ValueError, "checksum"):
             self._get(limit=2, verify_scope="selected_years")
