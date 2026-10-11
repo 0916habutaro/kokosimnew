@@ -44,6 +44,14 @@ from .future_akita_direct_main_bridge import (
 from .future_aomori_seed_main_bridge import (
     AOMORI_SPRING, prepare_future_aomori_seed_main_preview,
 )
+from .future_yamagata_direct_main_bridge import (
+    YAMAGATA_DIRECT_MAIN_PREFECTURES,
+    prepare_future_yamagata_direct_main_preview,
+)
+from .future_tohoku_composite_bridge import (
+    TOHOKU_COMPOSITE_PREFECTURES,
+    prepare_future_tohoku_composite_preview,
+)
 from .career_hokkaido_senbatsu_gate import (
     HokkaidoRecommendationNotReady,
     SENBATSU_ID,
@@ -175,12 +183,27 @@ class CareerMultiPreviewCheckpointService:
                             "hokkaido_autumn_fmt001_sandbox_v1",
                             "shikoku_direct_main_v1",
                             "akita_direct_main_v1",
-                            "aomori_seed_main_v1"):
+                            "aomori_seed_main_v1",
+                            "tohoku_composite_qualifier_v1",
+                            "yamagata_direct_main_v1"):
                 raise CareerPreviewSaveError("unsupported future entrant mode")
             if mode == "kanto_direct_main_v1":
                 if cid not in DIRECT_MAIN_PREFECTURES or groups or source is not None:
                     raise CareerPreviewSaveError(
                         "direct MAIN requires whitelisted competition and no feeder override"
+                    )
+            if mode == "tohoku_composite_qualifier_v1":
+                if (cid not in TOHOKU_COMPOSITE_PREFECTURES
+                        or not groups or source is not None):
+                    raise CareerPreviewSaveError(
+                        "Tohoku composite qualifier requires explicit "
+                        "groups and no feeder override"
+                    )
+            if mode == "yamagata_direct_main_v1":
+                if (cid not in YAMAGATA_DIRECT_MAIN_PREFECTURES
+                        or groups or source is not None):
+                    raise CareerPreviewSaveError(
+                        "Yamagata MAIN requires explicit schools, no groups or override"
                     )
             if mode == "aomori_seed_main_v1":
                 if (cid != AOMORI_SPRING or not groups or source is not None):
@@ -299,6 +322,29 @@ class CareerMultiPreviewCheckpointService:
                     repo=self.solo.repo,
                     base_seed=row["base_seed"],
                     career_seed=row["career_seed"],
+                    ability_config_dir=self.solo.ability_config_dir,
+                    match_config_dir=self.solo.match_config_dir,
+                )
+            elif row.get("entry_mode") == "tohoku_composite_qualifier_v1":
+                preview = prepare_future_tohoku_composite_preview(
+                    data_root=self.solo.data_root, year=row["year"],
+                    competition_id=row["competition_id"],
+                    entrant_school_ids=row["entrant_school_ids"],
+                    group_entrant_school_ids=row["group_entrant_school_ids"],
+                    roster_archive=self.solo._rosters(slot),
+                    repo=self.solo.repo,
+                    base_seed=row["base_seed"], career_seed=row["career_seed"],
+                    ability_config_dir=self.solo.ability_config_dir,
+                    match_config_dir=self.solo.match_config_dir,
+                )
+            elif row.get("entry_mode") == "yamagata_direct_main_v1":
+                preview = prepare_future_yamagata_direct_main_preview(
+                    data_root=self.solo.data_root, year=row["year"],
+                    competition_id=row["competition_id"],
+                    entrant_school_ids=row["entrant_school_ids"],
+                    roster_archive=self.solo._rosters(slot),
+                    repo=self.solo.repo,
+                    base_seed=row["base_seed"], career_seed=row["career_seed"],
                     ability_config_dir=self.solo.ability_config_dir,
                     match_config_dir=self.solo.match_config_dir,
                 )
