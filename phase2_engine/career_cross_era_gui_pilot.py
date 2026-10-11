@@ -18,6 +18,7 @@ from tkinter import messagebox, ttk
 from .career_cross_era_navigation import (
     CareerCrossEraNavigator, MAX_SELECTED_YEARS,
 )
+from .career_cross_era_year_catalog import CareerCrossEraYearCatalog
 from .career_cross_era_display_labels import CareerCrossEraDisplayLabels
 from .career_match_table_projection import match_stat_projection
 
@@ -614,13 +615,31 @@ def main() -> None:
     parser.add_argument("--school-id", required=True)
     parser.add_argument(
         "--years", required=True,
-        help="1–24 comma-separated explicit years, e.g. 2026,10000",
+        help="1–24 comma-separated explicit years, e.g. 2026,10000; "
+             "or saved for source-separated sealed-year discovery",
+    )
+    parser.add_argument(
+        "--year-page-offset", type=int, default=0,
+        help="For --years saved: skip N most recent sealed years (page size 24)",
     )
     args = parser.parse_args()
-    try:
-        selected = [int(s.strip()) for s in args.years.split(",")]
-    except ValueError as exc:
-        parser.error(f"invalid year list: {exc}")
+    if args.years == "saved":
+        if args.year_page_offset < 0:
+            parser.error("year page offset must be nonnegative")
+        catalog = CareerCrossEraYearCatalog(args.slot)
+        candidates = catalog.page(
+            limit=MAX_SELECTED_YEARS, offset=args.year_page_offset,
+        )["years"]
+        if not candidates:
+            parser.error("no saved sealed years in the selected catalog page")
+        selected = sorted(row["year"] for row in candidates)
+    else:
+        if args.year_page_offset:
+            parser.error("--year-page-offset requires --years saved")
+        try:
+            selected = [int(s.strip()) for s in args.years.split(",")]
+        except ValueError as exc:
+            parser.error(f"invalid year list: {exc}")
     nav = CareerCrossEraNavigator(args.slot)
     root = tk.Tk()
     try:
