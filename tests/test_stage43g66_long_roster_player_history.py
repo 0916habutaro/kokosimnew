@@ -60,9 +60,9 @@ class Stage43G66LongRosterPlayerHistoryTests(unittest.TestCase):
                           if p.academic_year == grade)
             years = [x["year"] for x in
                      self.archive.player_history(player.player_id)]
-            self.assertEqual(list(range(
-                2026, 2030 - grade if False else 2030,
-            ))[:4 - grade], years)
+            self.assertEqual(
+                [2026 + i for i in range(4 - grade)], years,
+            )
             self.assertEqual([grade + i for i in range(4 - grade)], [
                 x["academic_year"] for x in
                 self.archive.player_history(player.player_id)
