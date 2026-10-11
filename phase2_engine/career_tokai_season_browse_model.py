@@ -9,6 +9,7 @@ from __future__ import annotations
 from contextlib import closing
 from hashlib import sha256
 import json
+import sqlite3
 from pathlib import Path
 
 from .career_history_browse_model import (
@@ -67,7 +68,7 @@ class CareerTokaiSeasonBrowseModel:
         # SQLite URI query_only=ON prevents sidecar creation or DB writes.
         try:
             with closing(_read_only(self.path)) as conn:
-                conn.row_factory = __import__("sqlite3").Row
+                conn.row_factory = sqlite3.Row
                 rows = conn.execute(
                     "SELECT year,competition_id,match_id,match_date,"
                     "record_sha256,payload_json FROM historical_matches "
@@ -75,7 +76,7 @@ class CareerTokaiSeasonBrowseModel:
                     "ORDER BY match_date,competition_id,match_id",
                     (year, *TOKAI_SEASON_IDS),
                 ).fetchall()
-        except (OSError, __import__("sqlite3").DatabaseError) as exc:
+        except (OSError, sqlite3.DatabaseError) as exc:
             raise TokaiSeasonBrowseConflict("Tokai A-history archive unreadable") from exc
         result = []
         seen = set()
@@ -217,6 +218,13 @@ class CareerTokaiSeasonBrowseModel:
             raise TokaiSeasonBrowseConflict("Tokai match ID not in archived year")
         page = self.source.match_page(year, cid, match_id)
         game = page["game"]
+        # Only navigate to players whose saved ID belongs to the actual
+        # two-school roster for this year. Raw game text is not an identity.
+        real_players = set()
+        for school in (game["team1_id"], game["team2_id"]):
+            roster = self.source.rosters.roster(year, school)
+            if roster is not None:
+                real_players.update(p.player_id for p in roster.players)
         ids = set()
         for section in ("batter_stats", "pitcher_stats"):
             for row in game.get(section) or []:
@@ -224,7 +232,7 @@ class CareerTokaiSeasonBrowseModel:
                         and isinstance(row.get("player_id"), str)
                         and row.get("school_id") in {
                             game["team1_id"], game["team2_id"],
-                        }):
+                        } and row["player_id"] in real_players):
                     ids.add(row["player_id"])
         return {
             **page,
