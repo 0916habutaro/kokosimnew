@@ -35,3 +35,25 @@ jobs:
       - name: Stage43G-66 bounded archived player history regression
         run: |
           python -m unittest discover -s tests -p 'test_stage43g66_long_roster_player_history.py' -v
+      - name: Preserve exact observed annual storage and read measurements
+        run: |
+          mkdir -p build/reports
+          python -m phase2_engine.career_long_full_a_audit \
+            --synthetic-data-root data --schools 2 --years 12 \
+            --games-per-school-year 2 --repeats 1 \
+            > build/reports/stage43g67_full_a_12year.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r = json.loads(Path("build/reports/stage43g67_full_a_12year.json").read_text(encoding="utf-8"))
+          print("actual fictional full-A matches", r["complete_a_matches_verified"])
+          print("actual measured SQLite bytes", r["total_actual_sqlite_bytes"])
+          print("logical payload bytes", r["per_year_logical_growth"]["cumulative_logical_payload_total_bytes"])
+          print("yearly measurements", r["per_year_logical_growth"]["years_profiled"])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage43g67-complete-a-12year-measured-json
+          path: build/reports/stage43g67_full_a_12year.json
+          retention-days: 30
+          if-no-files-found: error
