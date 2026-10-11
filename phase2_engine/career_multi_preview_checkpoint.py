@@ -59,6 +59,9 @@ from .future_shizuoka_fmt025_bridge import (
 from .future_gifu_sealed_autumn_bridge import (
     GIFU_SPRING, prepare_future_gifu_sealed_autumn_preview,
 )
+from .future_tokai_concurrent_bridge import (
+    TOKAI_CIDS, prepare_future_tokai_concurrent_previews,
+)
 from .career_hokkaido_senbatsu_gate import (
     HokkaidoRecommendationNotReady,
     SENBATSU_ID,
@@ -102,6 +105,7 @@ class CareerMultiPreviewSession:
     processed_dates: list[str]
     checkpoint_checksum: str = ""
     late_spring: dict | None = None
+    tokai_concurrent: dict | None = None
 
     def summary(self) -> dict:
         return {
@@ -120,6 +124,8 @@ class CareerMultiPreviewSession:
             "official_future_calendar": False,
             "competition_advancement_automatic": False,
             "late_same_year_spring_checkpoint": self.late_spring is not None,
+            "tokai_concurrent_prefectural_checkpoint":
+                self.tokai_concurrent is not None,
         }
 
     def completed_runs(self) -> dict[str, object]:
@@ -513,6 +519,8 @@ class CareerMultiPreviewCheckpointService:
         }
         if session.late_spring is not None:
             data["late_spring"] = session.late_spring
+        if session.tokai_concurrent is not None:
+            data["tokai_concurrent"] = session.tokai_concurrent
         data["payload_checksum"] = _checksum(data)
         return data
 
@@ -694,6 +702,123 @@ class CareerMultiPreviewCheckpointService:
         session.previews[SPRING_HOKKAIDO_ID] = preview
         session.late_spring = metadata
 
+    def _tokai_frozen(self, session: CareerMultiPreviewSession) -> dict:
+        """Verify frozen preseason source without recursively loading a save."""
+        from .career_tokai_concurrent_preflight import (
+            CareerTokaiConcurrentPreflight, TokaiPreflightNotReady,
+        )
+        from .career_invitational_manifest import CareerInvitationalManifestService
+
+        preflight = CareerTokaiConcurrentPreflight(self)
+        path = preflight._path(session.slot_id, session.year)
+        if not path.is_file():
+            raise CareerPreviewSaveError("Tokai frozen preseason manifest missing")
+        frozen = preflight._read(path)
+        manifest_service = CareerInvitationalManifestService(self)
+        recorded_path = manifest_service._path(session.slot_id, session.year)
+        if not recorded_path.is_file():
+            raise CareerPreviewSaveError("Senbatsu original participant manifest missing")
+        recorded = manifest_service._read(recorded_path)
+        national = [x for x in session.inputs if x["competition_id"] == SENBATSU_ID]
+        if (len(national) != 1
+                or national[0].get("entry_mode") != "national_invitational_main_v1"
+                or _digest(national[0]["entrant_school_ids"])
+                != frozen["source_selection_sha256"]
+                or recorded["entrant_school_ids"] != national[0]["entrant_school_ids"]
+                or recorded["payload_checksum"]
+                != frozen["source_selection_manifest_checksum"]
+                or frozen["source_plan_fingerprint"] != self._fingerprint(session)
+                or frozen["prior_year_sealed_ledger_sha256"]
+                != session.prior_ledger_sha256
+                or frozen["slot_id"] != session.slot_id
+                or frozen["year"] != session.year
+                or frozen.get("same_year_concurrent_schedule_required") is not True):
+            raise CareerPreviewSaveError("Tokai preseason source was modified")
+        return frozen
+
+    def _create_tokai_previews(
+        self, session: CareerMultiPreviewSession,
+        frozen: dict,
+    ) -> dict[str, FutureCompetitionPreview]:
+        seed = session.inputs[0]
+        return prepare_future_tokai_concurrent_previews(
+            data_root=self.solo.data_root, year=session.year,
+            repo=self.solo.repo, frozen=frozen,
+            roster_archive=self.solo._rosters(session.slot_id),
+            base_seed=seed["base_seed"], career_seed=seed["career_seed"],
+            ability_config_dir=self.solo.ability_config_dir,
+            match_config_dir=self.solo.match_config_dir,
+        )
+
+    def add_tokai_concurrent(
+        self, session: CareerMultiPreviewSession,
+    ) -> dict:
+        """Activate two already-frozen prefectures BEFORE any annual match.
+
+        Their qualifiers share the national dates, so the scheduled match
+        engine advances all three on the same day, not by backdating.
+        """
+        if (session.processed_dates or session.tokai_concurrent is not None
+                or any(cid in session.previews for cid in TOKAI_CIDS)):
+            raise CareerPreviewSaveError(
+                "Tokai qualifiers must attach once, before the first game"
+            )
+        path = self._path(session.slot_id, session.year)
+        if (not path.is_file()
+                or _checkpoint(path)["payload_checksum"]
+                != session.checkpoint_checksum):
+            raise CareerPreviewSaveError("stale multi-preview checkpoint")
+        self._assert_prior(session)
+        frozen = self._tokai_frozen(session)
+        attached = self._create_tokai_previews(session, frozen)
+        meta = {
+            "entry_mode": "tokai_concurrent_prefectural_v1",
+            "prefecture_competition_ids": sorted(TOKAI_CIDS),
+            "frozen_preflight_checksum": frozen["payload_checksum"],
+            "preplay_initial_digests": self._initial_digests(attached),
+            "activation_after_date": "",
+            "source_competition_id": SENBATSU_ID,
+        }
+        session.previews.update(attached)
+        session.tokai_concurrent = meta
+        try:
+            result = self.save(session)
+        except Exception:
+            for cid in TOKAI_CIDS:
+                session.previews.pop(cid, None)
+            session.tokai_concurrent = None
+            raise
+        return {
+            "year": session.year,
+            "competition_ids": sorted(TOKAI_CIDS),
+            "source_competition_id": SENBATSU_ID,
+            "senbatsu_confirmation_required": True,
+            "checkpoint": result,
+        }
+
+    def _rebuild_tokai(
+        self, session: CareerMultiPreviewSession, metadata: object,
+    ) -> None:
+        if (not isinstance(metadata, dict)
+                or set(metadata) != {
+                    "entry_mode", "prefecture_competition_ids",
+                    "frozen_preflight_checksum", "preplay_initial_digests",
+                    "activation_after_date", "source_competition_id",
+                } or metadata["entry_mode"] != "tokai_concurrent_prefectural_v1"
+                or metadata["prefecture_competition_ids"] != sorted(TOKAI_CIDS)
+                or metadata["activation_after_date"] != ""
+                or metadata["source_competition_id"] != SENBATSU_ID
+                or any(cid in session.previews for cid in TOKAI_CIDS)):
+            raise CareerPreviewSaveError("Tokai attached preview metadata invalid")
+        frozen = self._tokai_frozen(session)
+        attached = self._create_tokai_previews(session, frozen)
+        if (frozen["payload_checksum"] != metadata["frozen_preflight_checksum"]
+                or self._initial_digests(attached)
+                != metadata["preplay_initial_digests"]):
+            raise CareerPreviewSaveError("Tokai frozen qualifier plan changed")
+        session.previews.update(attached)
+        session.tokai_concurrent = metadata
+
     @staticmethod
     def _next_date(session: CareerMultiPreviewSession) -> str:
         days = [
@@ -758,6 +883,9 @@ class CareerMultiPreviewCheckpointService:
             if (not isinstance(dates, list) or dates != sorted(set(dates))
                     or any(not isinstance(d, str) for d in dates)):
                 raise CareerPreviewSaveError("multi-preview replay dates invalid")
+            concurrent = payload.get("tokai_concurrent")
+            if concurrent is not None:
+                self._rebuild_tokai(session, concurrent)
             late = payload.get("late_spring")
             if late is not None:
                 if (not isinstance(late, dict)
