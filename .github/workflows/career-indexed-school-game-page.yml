@@ -1,0 +1,82 @@
+name: Stage43G-74 Indexed School Year Competition Game Pages
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_indexed_school_game_page.py"
+      - "phase2_engine/career_longitudinal_read.py"
+      - "tests/test_stage43g74_indexed_school_game_page.py"
+      - ".github/workflows/career-indexed-school-game-page.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_indexed_school_game_page.py"
+      - "phase2_engine/career_longitudinal_read.py"
+      - "tests/test_stage43g74_indexed_school_game_page.py"
+
+permissions:
+  contents: read
+
+jobs:
+  indexed_legacy_pages:
+    name: Indexed legacy school/year/competition pagination and strict SHA scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Stage43G-74 per-match index page, SHA and competition scope
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g74_indexed_school_game_page.py' -v
+      - name: Stage43G-13 hundred-year grouped history and 14 full A stat regression
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g13_history_scale.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g14_player_records.py' -v
+      - name: Verify old 100-year synthetic source can be paged without DB writes
+        run: |
+          python - <<'PY'
+          import json
+          import tempfile
+          from pathlib import Path
+          from phase2_engine.career_history_scale_benchmark import (
+              build_synthetic_archive, file_sha256,
+          )
+          from phase2_engine.career_longitudinal_read import CareerLongitudinalReadModel
+          with tempfile.TemporaryDirectory(prefix="stage43g74-") as temp:
+              p = Path(temp) / "historical_matches.sqlite3"
+              build_synthetic_archive(
+                  p, schools=4, years=100, games_per_school_year=4,
+              )
+              before = file_sha256(p)
+              model = CareerLongitudinalReadModel(
+                  p, Path(temp) / "not_created_roster.sqlite3",
+              )
+              page = model.school_game_page(
+                  "BENCH-SCH-0001", start_year=2026, end_year=2125,
+                  competition_id="BENCH-CMP-A", limit=30, offset=170,
+                  verify_scope="filtered_window",
+              )
+              assert page["total"] == 200, page
+              assert len(page["records"]) == 30, page
+              assert page["all_filtered_window_checksums_verified"]
+              assert file_sha256(p) == before
+              assert not (Path(temp) / "not_created_roster.sqlite3").exists()
+              Path("stage43g74_100y_paging.json").write_text(
+                  json.dumps({
+                      "synthetic_100y_score_only_not_actual_game": True,
+                      "filtered_competition_match_count": page["total"],
+                      "page_size": len(page["records"]),
+                      "page_offset": page["offset"],
+                      "whole_filter_digest_verified": True,
+                      "source_hash_unchanged": True,
+                  }, indent=2), encoding="utf-8",
+              )
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage43g74-100year-filtered-index-page-scope
+          path: stage43g74_100y_paging.json
+          retention-days: 30
+          if-no-files-found: error
