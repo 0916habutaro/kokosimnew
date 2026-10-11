@@ -1,0 +1,97 @@
+name: Stage43G-75 Real Tk Legacy Year Competition History Filters
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_legacy_filtered_history_pilot.py"
+      - "phase2_engine/career_cross_era_gui_pilot.py"
+      - "tests/test_stage43g75_filtered_legacy_history_pilot.py"
+      - ".github/workflows/career-legacy-filtered-history-tk.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_legacy_filtered_history_pilot.py"
+      - "phase2_engine/career_cross_era_gui_pilot.py"
+      - "tests/test_stage43g75_filtered_legacy_history_pilot.py"
+
+permissions:
+  contents: read
+
+jobs:
+  filtered_real_tk:
+    name: Actual Tk legacy school-year competition filters pages and verified match links
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install Xvfb if missing
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+      - name: Stage43G-75 real Tk plus headless controllers
+        run: |
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g75_filtered_legacy_history_pilot.py' -v
+      - name: Stage43G-74 old A school/competition indexed page SHA regressions
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g74_indexed_school_game_page.py' -v
+      - name: Stage43G-33/36 old pilot navigation and match drilldown regressions
+        run: |
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g33_cross_era_gui_pilot.py' -v
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g36_match_tables_and_scale.py' -v
+      - name: Preserve measured synthetic GUI filter/page state and original SHA
+        env:
+          PYTHONPATH: tests
+        run: |
+          mkdir -p build/reports
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from phase2_engine.career_history_scale_benchmark import file_sha256
+          from test_stage43g75_filtered_legacy_history_pilot import Stage43G75FilteredLegacyPilotTests
+          fixture = Stage43G75FilteredLegacyPilotTests(
+              "test_headless_initial_legacy_school_view_limits_to_30_visible_games",
+          )
+          fixture.setUp()
+          try:
+              before = file_sha256(fixture.match_path)
+              ctrl = fixture.controller()
+              baseline_count = ctrl.page["total"]
+              ctrl.change_competition("BENCH-CMP-A")
+              tournament_count = ctrl.page["total"]
+              ctrl.change_year(2028)
+              ctrl.change_page(1)
+              last_page_rows = len(ctrl.page["records"])
+              result = {
+                  "stage": "43G-75",
+                  "synthetic_fixture_not_actual_tournament": True,
+                  "school": fixture.school,
+                  "explicit_saved_years": fixture.years,
+                  "baseline_2026_game_count": baseline_count,
+                  "competition_a_2026_game_count": tournament_count,
+                  "year_2028_offset_30_page_size": last_page_rows,
+                  "default_checksums_only_for_visible_rows": True,
+                  "fictional_v2_rows_not_combined": True,
+                  "source_sha_unchanged": before == file_sha256(fixture.match_path),
+                  "original_a_record_format_unchanged": True,
+              }
+              assert baseline_count == 36 and tournament_count == 18
+              assert last_page_rows == 6 and result["source_sha_unchanged"]
+              Path("build/reports/stage43g75_filter_pilot.json").write_text(
+                  json.dumps(result, ensure_ascii=False, indent=2),
+                  encoding="utf-8",
+              )
+              print(result)
+          finally:
+              fixture.doCleanups()
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage43g75-tk-filtered-legacy-history-readonly-proof
+          path: build/reports/stage43g75_filter_pilot.json
+          retention-days: 30
+          if-no-files-found: error
