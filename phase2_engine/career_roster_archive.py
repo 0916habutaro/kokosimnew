@@ -240,7 +240,7 @@ class CareerRosterArchive:
             entry_year = identity["entry_year"]
             school_id = identity["school_id"]
             if (type(decoded) is not dict
-                    or type(entry_year) is not int or entry_year < 1
+                    or type(entry_year) is not int
                     or type(school_id) is not str or not school_id
                     or decoded.get("player_id") != player_id
                     or decoded.get("entry_year") != entry_year
@@ -252,7 +252,7 @@ class CareerRosterArchive:
             years = conn.execute(
                 "SELECT year FROM career_school_rosters "
                 "WHERE school_id=? AND year BETWEEN ? AND ? ORDER BY year",
-                (school_id, entry_year, max_year),
+                (school_id, max(1, entry_year), max_year),
             )
             found = []
             for (year,) in years:
