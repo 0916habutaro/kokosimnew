@@ -103,9 +103,11 @@ class Stage43G59YearCatalogAndHistoricNames(unittest.TestCase):
         # this disposable fixture, never to a real player save.
         school = self.fixture.a
         path = self.fixture.slot / "career_rosters.sqlite3"
-        master_name = self.model.source.repo.schools[school]["school_name"]
+        recorded_roster_name = self.model.source.rosters.roster(
+            2027, school,
+        ).school_name
         before_name = self.model.school(2027, school)["school_name"]
-        self.assertEqual(master_name, before_name)
+        self.assertEqual(recorded_roster_name, before_name)
         with sqlite3.connect(path) as conn:
             raw, = conn.execute(
                 "SELECT payload_json FROM career_school_rosters "
