@@ -11,7 +11,6 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from statistics import median
 
 
 class CareerStorageEvidenceConflict(ValueError):
@@ -175,13 +174,20 @@ def _v2(report: dict) -> dict:
         if (type(schools) is not dict
                 or len(schools) != row.get("v2_cached_school_count")):
             raise CareerStorageEvidenceConflict("v2 deep cache coverage missing")
+        checked_players = 0
         for school in schools.values():
-            if (_natural(school.get("verified_players"), "verified players") < 0
-                    or not isinstance(school.get("elapsed_ms"), (int, float))
+            checked_players += _natural(
+                school.get("verified_players"), "verified players"
+            )
+            if (type(school.get("elapsed_ms")) not in (int, float)
                     or school["elapsed_ms"] < 0
-                    or _natural(school.get("peak_traced_python_bytes"),
-                                "v2 peak memory") < 0):
+                    or type(school.get("peak_traced_python_bytes")) is not int
+                    or school["peak_traced_python_bytes"] < 0):
                 raise CareerStorageEvidenceConflict("v2 measured deep read invalid")
+        if checked_players != row["v2_cached_player_year_rows"]:
+            raise CareerStorageEvidenceConflict(
+                "v2 verified player totals differ from cached record rows"
+            )
         if (type(row.get("source_match_full_scan")) is not dict
                 or not isinstance(
                     row["source_match_full_scan"].get("elapsed_ms"), (int, float)
