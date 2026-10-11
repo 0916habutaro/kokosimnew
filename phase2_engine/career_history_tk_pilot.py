@@ -62,6 +62,11 @@ class CareerHistoryTkPilot:
             bar, text="古い年度候補", command=self._older,
         )
         self.older_button.pack(side="left", padx=(6, 0))
+        self.school_list_button = ttk.Button(
+            bar, text="選択年度の学校候補",
+            command=self._show_schools,
+        )
+        self.school_list_button.pack(side="left", padx=(6, 0))
         if self.slot_session is not None:
             ttk.Label(bar, text="セーブ").pack(
                 side="left", padx=(10, 3),
@@ -170,7 +175,15 @@ class CareerHistoryTkPilot:
         self.last_error = None
         self._detail(view["summary"])
         self.older_button.configure(
+            text=(
+                "次の学校候補" if view["screen"] == "history_school_catalog"
+                else "古い年度候補"
+            ),
             state="normal" if view["has_older"] else "disabled",
+        )
+        self.school_list_button.configure(
+            state="normal" if view["screen"] == "history_year_catalog"
+            else "disabled",
         )
         self.back_button.configure(
             state="normal" if self.bridge.history else "disabled",
@@ -216,14 +229,32 @@ class CareerHistoryTkPilot:
         if item["kind"] == "year":
             year = item["year"]
             school = self.school_var.get().strip()
-            self._action(lambda: self.bridge.open_school(year, school))
+            if school:
+                self._action(lambda: self.bridge.open_school(year, school))
+            else:
+                self._action(lambda: self.bridge.open_year(year))
+        elif item["kind"] == "school":
+            self._action(lambda: self.bridge.open_school(
+                item["year"], item["school_id"],
+            ))
         elif item["kind"] == "link":
             self._action(lambda: self.bridge.open_link(item["target"]))
         else:
             self._detail(item["payload"])
 
+    def _show_schools(self) -> None:
+        item = self._selected_row()
+        if item is None or item["kind"] != "year":
+            self.last_error = "保存済み年度を先に選択してください"
+            self.status_var.set(self.last_error)
+            return
+        self._action(lambda: self.bridge.open_year(item["year"]))
+
     def _older(self) -> None:
-        self._action(self.bridge.older_years)
+        if self.bridge.page["screen"] == "history_school_catalog":
+            self._action(self.bridge.older_schools)
+        else:
+            self._action(self.bridge.older_years)
 
     def _back(self) -> None:
         self._action(self.bridge.back)

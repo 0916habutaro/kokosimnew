@@ -1,0 +1,47 @@
+name: Stage43G-65 Saved school selection and history navigation
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_saved_school_catalog.py"
+      - "phase2_engine/career_history_gui_bridge.py"
+      - "phase2_engine/career_history_view_projection.py"
+      - "phase2_engine/career_history_tk_pilot.py"
+      - "tests/test_stage43g65_save_school_history_navigation.py"
+      - ".github/workflows/career-save-school-history-flow.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_saved_school_catalog.py"
+      - "phase2_engine/career_history_gui_bridge.py"
+      - "phase2_engine/career_history_view_projection.py"
+      - "phase2_engine/career_history_tk_pilot.py"
+      - "tests/test_stage43g65_save_school_history_navigation.py"
+
+permissions:
+  contents: read
+
+jobs:
+  saved_school_flow:
+    name: Verified saved slot year school match player Tk routing
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install Xvfb if unavailable
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+      - name: Stage43G-65 complete save year school history flow
+        run: |
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g65_save_school_history_navigation.py' -v
+      - name: Stage43G-62 to 64 headless and real Tk regression
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g62_history_gui_bridge.py' -v
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g63_history_view_tk.py' -v
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g64_history_slots_school_names.py' -v
