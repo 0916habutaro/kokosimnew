@@ -48,7 +48,19 @@ class CareerTokaiSeasonBrowseModel:
     def _year(self, year: int) -> None:
         if type(year) is not int or year <= 2026:
             raise TokaiSeasonBrowseConflict("future Tokai career year required")
-        if year not in {x["year"] for x in self.source.years()}:
+        # Indexed PRIMARY KEY lookup rather than loading all earlier years:
+        # GUI cost must not grow linearly with a long-running career.
+        try:
+            with closing(_read_only(self.path)) as conn:
+                found = conn.execute(
+                    "SELECT 1 FROM career_years WHERE year=? LIMIT 1",
+                    (year,),
+                ).fetchone()
+        except (OSError, sqlite3.DatabaseError) as exc:
+            raise TokaiSeasonBrowseConflict(
+                "Tokai A-history year index unreadable"
+            ) from exc
+        if found is None:
             raise TokaiSeasonBrowseConflict("career season is not archived")
 
     @staticmethod
@@ -127,19 +139,26 @@ class CareerTokaiSeasonBrowseModel:
 
     def overview(self, year: int) -> dict:
         games = self._games(year)
+        # One pass over the SHA-verified rows; avoid six filtered copies.
+        summaries = {
+            cid: {"count": 0, "schools": set(), "latest": None}
+            for cid in TOKAI_SEASON_IDS
+        }
+        for game in games:
+            item = summaries[game["competition_id"]]
+            item["count"] += 1
+            item["schools"].update((game["team1_id"], game["team2_id"]))
+            day = game["match_date"]
+            if item["latest"] is None or day > item["latest"]:
+                item["latest"] = day
         events = []
         for cid in TOKAI_SEASON_IDS:
-            selected = [x for x in games if x["competition_id"] == cid]
-            schools = {
-                s for x in selected for s in (x["team1_id"], x["team2_id"])
-            }
+            item = summaries[cid]
             events.append({
                 "competition_id": cid, "label": TOKAI_LABELS[cid],
-                "archived_match_count": len(selected),
-                "schools_seen_in_saved_games": len(schools),
-                "latest_saved_game_date": (
-                    max(x["match_date"] for x in selected) if selected else None
-                ),
+                "archived_match_count": item["count"],
+                "schools_seen_in_saved_games": len(item["schools"]),
+                "latest_saved_game_date": item["latest"],
                 "competition_target": {
                     "screen": "competition", "year": year,
                     "competition_id": cid,
