@@ -151,6 +151,9 @@ class Stage43G69CrossEraEvidenceTests(unittest.TestCase):
             ("v2", lambda r: r["year_rows"][0].update(
                 {"cached_school_deep_read": {}}
             )),
+            ("v2", lambda r: r["year_rows"][0].update(
+                {"v2_cached_player_year_rows": 1}
+            )),
         )
         for era, mutator in changes:
             old, newer = deepcopy(self.legacy), deepcopy(self.v2)
