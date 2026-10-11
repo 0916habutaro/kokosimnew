@@ -6,6 +6,7 @@ The entrants are deterministic SANDBOX choices, not verified qualifiers.
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
 import shutil
 import tempfile
@@ -112,7 +113,10 @@ class Stage43G39NonKantoRegionalCareerE2ETests(unittest.TestCase):
     def test_first_game_date_checkpoint_replay_and_A_details(self):
         original = self.slot / "manual.json"
         original.write_text("untouched original manual save", encoding="utf-8")
-        prior_ledger = self._history().list_years()[0]["ledger_sha256"]
+        with sqlite3.connect(self.slot / "historical_matches.sqlite3") as con:
+            prior_ledger = con.execute(
+                "SELECT ledger_sha256 FROM career_years WHERE year=2026"
+            ).fetchone()[0]
         self.assertTrue(set(REGIONS).issubset(NON_KANTO_REGIONAL_MAIN_IDS))
         session = self._start()
         self.assertEqual(2, session.summary()["competition_count"])
@@ -141,7 +145,11 @@ class Stage43G39NonKantoRegionalCareerE2ETests(unittest.TestCase):
                             and row["score_source"] == "ability_model_v1"
                             and row["date_source"] == "game_projection_v1"
                             for row in rows))
-        self.assertEqual(prior_ledger, history.list_years()[0]["ledger_sha256"])
+        with sqlite3.connect(self.slot / "historical_matches.sqlite3") as con:
+            after_ledger = con.execute(
+                "SELECT ledger_sha256 FROM career_years WHERE year=2026"
+            ).fetchone()[0]
+        self.assertEqual(prior_ledger, after_ledger)
         self.assertEqual([], history.list_matches(2026))
         self.assertEqual("untouched original manual save",
                          original.read_text(encoding="utf-8"))
