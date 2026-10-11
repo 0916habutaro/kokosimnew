@@ -1,0 +1,37 @@
+name: Stage43G-60 Legacy and v2 sealed-year catalog
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_cross_era_year_catalog.py"
+      - "phase2_engine/career_cross_era_gui_pilot.py"
+      - "tests/test_stage43g60_cross_era_year_catalog.py"
+      - ".github/workflows/career-cross-era-year-catalog.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_cross_era_year_catalog.py"
+      - "phase2_engine/career_cross_era_gui_pilot.py"
+      - "tests/test_stage43g60_cross_era_year_catalog.py"
+
+permissions:
+  contents: read
+
+jobs:
+  cross_era_catalog:
+    name: Two source sealed-year catalog verified legacy ISO and v2 year10000
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Stage43G-60 bounded source index and strict archive verification
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g60_cross_era_year_catalog.py' -v
+      - name: Stage43G-30 to 32 cross-era regression
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g30_cross_era_read_gate.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g31_cross_era_browse_model.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g32_cross_era_navigation.py' -v
