@@ -298,6 +298,24 @@ class CareerV2OptionAArchive:
                     raise CareerV2MatchConflict("sealed v2 ledger changed")
         return status["status"], data
 
+    def school_game_page(
+        self, school_id: str, *, start_year: int, end_year: int,
+        competition_id: str | None = None, limit: int = 30,
+        offset: int = 0, verify_scope: str = "page",
+    ) -> dict:
+        """Sealed fictional-v2 school game page, never the legacy A archive.
+
+        School membership is filtered using a JSON1 scan, NOT a school-first
+        index. 'selected_years' deeply verifies all payloads in saved years.
+        """
+        from .career_v2_school_game_page import read_v2_school_game_page
+        return read_v2_school_game_page(
+            self.path, self.calendar.path, school_id,
+            start_year=start_year, end_year=end_year,
+            competition_id=competition_id, limit=limit, offset=offset,
+            verify_scope=verify_scope,
+        )
+
     def year_matches(self, year: int, *, limit: int = 50,
                      offset: int = 0) -> dict:
         _year(year)
