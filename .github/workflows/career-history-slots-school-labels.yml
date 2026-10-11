@@ -1,0 +1,46 @@
+name: Stage43G-64 Saved slots and exact-year school display labels
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_history_slot_session.py"
+      - "phase2_engine/career_saved_year_display_labels.py"
+      - "phase2_engine/career_history_view_projection.py"
+      - "phase2_engine/career_history_tk_pilot.py"
+      - "tests/test_stage43g64_history_slots_school_names.py"
+      - ".github/workflows/career-history-slots-school-labels.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_history_slot_session.py"
+      - "phase2_engine/career_saved_year_display_labels.py"
+      - "phase2_engine/career_history_view_projection.py"
+      - "phase2_engine/career_history_tk_pilot.py"
+      - "tests/test_stage43g64_history_slots_school_names.py"
+
+permissions:
+  contents: read
+
+jobs:
+  saved_slot_names:
+    name: Isolated two-save Tk switching and verified archived school names
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install Xvfb when needed
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+      - name: Stage43G-64 isolated saved slots exact-year names and real Tk
+        run: |
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g64_history_slots_school_names.py' -v
+      - name: Stage43G-62 and 63 history projection navigation regression
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g62_history_gui_bridge.py' -v
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g63_history_view_tk.py' -v

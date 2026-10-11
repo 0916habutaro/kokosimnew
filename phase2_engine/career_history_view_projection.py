@@ -37,7 +37,7 @@ def _row(kind: str, title: str, value: str, note: str, *,
     }
 
 
-def project_history_screen(page: dict) -> dict:
+def project_history_screen(page: dict, *, labels=None) -> dict:
     """Turn a verified bridge screen into a widget-agnostic Japanese view.
 
     The bridge enforces identity, source integrity and read-only browsing.
@@ -192,6 +192,63 @@ def project_history_screen(page: dict) -> dict:
                 "選択すると当該年度の全フィールドを表示",
                 payload=json.dumps(stat, ensure_ascii=False, sort_keys=True),
             ))
+    display = None
+    if labels is not None and screen != "history_year_catalog":
+        year, school_id = raw["selected_year"], raw["school_id"]
+        historical = labels.school(year, school_id)
+        display = {
+            "year": year, "school": historical,
+            "label_source": historical["source"],
+            "historical_school_name_proven":
+                historical["historical_name_proven"],
+        }
+        if screen == "history_school":
+            title = f"{year}年度｜{historical['label']}"
+            source_note = (
+                "当該年度の保存ロスターによる校名"
+                if historical["historical_name_proven"] else
+                "現行マスター等の代替名／当時の校名とは限りません"
+            )
+            summary += f"／{source_note}"
+            for row in rows:
+                target = row.get("target")
+                if row["kind"] != "link" or target is None:
+                    continue
+                if target["view"] == "player":
+                    player = labels.player(
+                        year, school_id, target["player_id"],
+                    )
+                    row["title"] = f"選手 {player['label']}"
+                elif target["view"] == "school":
+                    other = labels.school(year, target["school_id"])
+                    row["title"] = f"対戦校 {other['label']}"
+            for row in rows:
+                if row["kind"] == "link" and row["title"].startswith("試合 "):
+                    # Original school IDs remain in the verified navigation
+                    # target and in the raw read model, even if names evolve.
+                    row["note"] += "／出典は指定年度の保存試合"
+        elif screen == "history_match":
+            game = raw["match"]
+            a = labels.school(year, game["team1_id"])
+            b = labels.school(year, game["team2_id"])
+            summary = (
+                f"{SOURCE_LABELS[raw['source']]}／{game['date']}／"
+                f"{a['label']} {game['team1_score']}－"
+                f"{game['team2_score']} {b['label']}"
+            )
+            display["teams"] = [a, b]
+        elif screen == "history_player":
+            player = labels.player(year, school_id, raw["player_id"])
+            if raw["selected_status"] == "verified_box_score" and not (
+                player["exact_year_roster_membership_verified"]
+            ):
+                raise CareerHistoryViewConflict(
+                    "saved player stats have no verified exact-year roster"
+                )
+            title = f"{year}年度｜{player['label']}"
+            display["player"] = player
+            summary += f"／所属校 {historical['label']}"
+
     return {
         "screen": screen, "title": title, "summary": summary,
         "rows": rows, "source_verified": verified,
@@ -202,4 +259,5 @@ def project_history_screen(page: dict) -> dict:
             if screen == "history_year_catalog" else False
         ),
         "show_saved_candidate_warning": not verified,
+        "saved_year_display": display,
     }
