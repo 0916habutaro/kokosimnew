@@ -250,9 +250,9 @@ class CareerTokaiSenbatsuAccessService:
                     "future Tokai projected date contract changed"
                 )
             days = [
-                date.fromisoformat(d) for d in pre["date_list"]
+                date.fromisoformat(d) for d in pre["date_list"].split(";") if d
             ]
-            first_main = date.fromisoformat(main["game_date_list"][0])
+            first_main = date.fromisoformat(main["game_date_list"].split(";")[0])
             if (not days or last_source >= first_main
                     or any(d.year != year for d in days)):
                 raise TokaiSenbatsuNotReady(
