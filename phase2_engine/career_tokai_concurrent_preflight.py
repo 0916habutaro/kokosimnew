@@ -7,6 +7,7 @@ is issued only after all 31 same-year Senbatsu games have saved A records.
 """
 from __future__ import annotations
 
+import csv
 from datetime import date
 from pathlib import Path
 from typing import Mapping, Sequence
@@ -25,6 +26,37 @@ from .career_tokai_senbatsu_access_gate import (
     TokaiSenbatsuNotReady, _verify_rule,
 )
 from .future_season_blueprint import build_future_season_blueprint
+from .paths import resolve_data_file
+
+
+def _reference_group_members(repo, group: dict) -> set[str]:
+    """Expand Mie's verified parent areas into their actual eight subareas.
+
+    School memberships are stored on leaf areas only. Never treat a
+    parent's lack of direct rows as proof that its schools are unknown.
+    """
+    known = set(repo.group_school_ids(group, 2026))
+    if group.get("competition_id") != "CMP000115":
+        return known
+    parents = set(group.get("source_area_ids", "").split(";")) - {""}
+    area_path = resolve_data_file(repo.data_dir, "competition_areas.csv")
+    with area_path.open("r", encoding="utf-8-sig", newline="") as stream:
+        areas = list(csv.DictReader(stream))
+    children = {
+        row["area_id"]
+        for row in areas
+        if row["parent_area_id"] in parents
+        and row["scheme_id"] == group.get("source_scheme_id")
+        and row["prefecture_code"] == "24"
+    }
+    # Stage12B uses exactly eight official leaf subareas for the 3 parent
+    # districts; do not invent or infer geography from school names.
+    if not children:
+        raise TokaiPreflightNotReady("Mie subarea membership contract missing")
+    for child in children:
+        known.update(repo.area_school_ids.get(("2026", child), set()))
+    return known
+
 
 
 class TokaiPreflightNotReady(CareerPreviewSaveError):
@@ -137,7 +169,7 @@ class CareerTokaiConcurrentPreflight:
                         or any(type(s) is not str
                                or s not in repo.school_to_program
                                or repo.schools[s]["prefecture_code"] != prefecture
-                               or s not in repo.group_school_ids(group, 2026)
+                               or s not in _reference_group_members(repo, group)
                                for s in members)):
                     raise TokaiPreflightNotReady(
                         f"{gid}: invalid district affiliation or quota"
