@@ -179,6 +179,10 @@ class CareerCrossEraGuiPilot:
         ttk.Button(bar, text="次ページ", command=lambda: self._page(1)).pack(
             side="left",
         )
+        ttk.Button(
+            bar, text="旧Aの過去試合を絞り込む",
+            command=self._open_legacy_history_filter,
+        ).pack(side="left", padx=(8, 0))
         ttk.Label(bar, text="封印済み年度").pack(side="left", padx=(18, 5))
         self.year_box = ttk.Combobox(
             bar, textvariable=self.year_var, state="readonly", width=10,
@@ -283,6 +287,55 @@ class CareerCrossEraGuiPilot:
                 self._render(self.controller.page)
             return
         self._apply(lambda: self.controller.change_page(delta))
+
+    def _open_legacy_history_filter(self):
+        """Stage43G-75: open separate read-only old-A indexed filter window.
+
+        The existing cross-era navigation remains authoritative for match
+        details and revalidates the saved ID/ledger upon click.
+        """
+        from .career_legacy_filtered_history_pilot import (
+            CareerLegacyFilteredSchoolController,
+            CareerLegacyFilteredSchoolPilot,
+        )
+        selection = list(self.controller.target["years"])
+        years = [y for y in selection if y <= 9999]
+        if not years:
+            self._warn(ValueError(
+                "旧A方式の保存済み年度を選択してください（v2は別の保存元です）"
+            ))
+            return
+        chosen = self.controller.target["selected_year"]
+        if chosen not in years:
+            chosen = years[-1]
+        school = self.controller.target["school_id"]
+        try:
+            browser = CareerLegacyFilteredSchoolController(
+                self.controller.navigator.browse.gate.legacy_path.parent,
+                school, years, selected_year=chosen,
+            )
+        except (ValueError, OSError, RuntimeError) as exc:
+            self._warn(exc)
+            return
+        target_years = list(selection)
+
+        def follow_original(year: int, competition: str, match_id: str):
+            self._open(self.controller.navigator._match_target(
+                target_years, year, school, competition, match_id,
+            ))
+
+        window = tk.Toplevel(self.root)
+        try:
+            view = CareerLegacyFilteredSchoolPilot(
+                window, browser, open_match=follow_original,
+                school_label=self.labels.school,
+            )
+        except Exception:
+            window.destroy()
+            raise
+        # Preserve handles for the pilot's actual-Tk regression checks.
+        self.legacy_filter_window = window
+        self.legacy_filter_view = view
 
     def _change_match_filter(self, _event=None):
         """Filter only verified local rows; never follow an inferred ID."""
