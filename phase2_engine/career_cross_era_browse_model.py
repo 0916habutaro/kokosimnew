@@ -119,21 +119,16 @@ class CareerCrossEraBrowseModel:
         return records
 
     def _future_games(self, year: int, school: str, source: str) -> list[dict]:
-        first = self.v2.year_matches(year, limit=100)
-        if first["year_status"] != "sealed":
+        # Preserve the same full verified-source semantics, but scan the
+        # annual archive once instead of re-verifying it for every 100 rows.
+        plan, plan_sha = _calendar_info(self.v2.calendar, year)
+        status, rows = self.v2._verified_year(year, plan, plan_sha)
+        if status != "sealed":
             raise CareerCrossEraBrowseConflict("v2 year must be sealed")
-        found = []
-        for offset in range(0, first["total"], 100):
-            page = (first if offset == 0 else
-                    self.v2.year_matches(year, limit=100, offset=offset))
-            if (page["year_status"] != "sealed"
-                    or page["calendar_sha256"] != first["calendar_sha256"]
-                    or page["total"] != first["total"]):
-                raise CareerCrossEraBrowseConflict("v2 source changed while reading")
-            for game in page["rows"]:
-                if school in (game["team1_id"], game["team2_id"]):
-                    found.append(self._checked_game(game, year, school, source))
-        return found
+        return [
+            self._checked_game(game, year, school, source)
+            for game in rows if school in (game["team1_id"], game["team2_id"])
+        ]
 
     def school_years(self, years: list[int], school_id: str, *,
                      verify_source: bool = True) -> dict:
