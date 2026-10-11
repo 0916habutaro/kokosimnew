@@ -186,8 +186,7 @@ def run_full_a_scaling_study(
         "cases": rows,
         "case_labels": [r["case"] for r in rows],
         "sample_cases_comparable_by_one_input_dimension": (
-            tuple(c[:1] for c in cases) ==
-            tuple(c[:1] for c in CONTROLLED_CASES)
+            cases == CONTROLLED_CASES
         ),
         "total_synthetic_full_a_matches_generated": sum(
             r["archived_complete_a_matches"] for r in rows
