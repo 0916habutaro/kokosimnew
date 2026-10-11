@@ -1,0 +1,44 @@
+name: Cross-era Tk history GUI pilot
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_cross_era_gui_pilot.py"
+      - "phase2_engine/career_history_gui_pilot.py"
+      - "phase2_engine/career_cross_era_navigation.py"
+      - "phase2_engine/career_cross_era_browse_model.py"
+      - "tests/test_stage43g33_cross_era_gui_pilot.py"
+      - ".github/workflows/career-cross-era-tk-gui.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_cross_era_gui_pilot.py"
+      - "phase2_engine/career_history_gui_pilot.py"
+      - "phase2_engine/career_cross_era_navigation.py"
+      - ".github/workflows/career-cross-era-tk-gui.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  real_tk_gui:
+    name: Xvfb Tk widgets and source-verified controller navigation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Ensure virtual display is installed
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+      - name: Actual Tk and headless controller integration test
+        run: |
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g33_cross_era_gui_pilot.py' -v
+      - name: Preserve no-write semantics in existing GUI navigation
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g16_history_gui_navigation.py' -v
