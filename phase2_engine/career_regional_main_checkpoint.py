@@ -76,34 +76,54 @@ def _read_regional_checkpoint(path: Path) -> dict:
 
 
 class CareerRegionalMainCheckpointService:
-    """Sandbox only: complete sources -> 17-team MAIN -> A-history/replay."""
+    """Sandbox only: verified Kanto 17 or Shikoku 8 source schools."""
 
-    def __init__(self, multi: CareerMultiPreviewCheckpointService):
+    def __init__(
+        self, multi: CareerMultiPreviewCheckpointService,
+        *, target_competition_id: str = _TARGET,
+    ):
+        if target_competition_id not in {_TARGET, "CMP000011"}:
+            raise CareerPreviewSaveError(
+                "only Kanto and Shikoku regional MAIN are supported"
+            )
         self.multi = multi
+        self.target = target_competition_id
+
+    @property
+    def expected_team_count(self) -> int:
+        stage = self.multi.solo.repo.stages(self.target)
+        if len(stage) != 1 or stage[0]["stage_code"] != "MAIN":
+            raise RegionalFeederNotReady("regional main structure changed")
+        return int(stage[0]["team_count"])
 
     def _path(self, slot_id: str, year: int) -> Path:
         slot = self.multi.solo.slots.validate_slot_id(slot_id)
         if not isinstance(year, int) or isinstance(year, bool) or not 2026 < year <= 9999:
             raise CareerPreviewSaveError("invalid regional preview year")
         return (self.multi.solo.slots.slot_dir(slot)
-                / "career_regional_previews" / f"{year}_{_TARGET}.json")
+                / "career_regional_previews" / f"{year}_{self.target}.json")
 
     def _context(self, slot: str, year: int, placements: dict[str, str],
                  kanagawa_sidecar_enabled: bool = False):
+        if (self.target != _TARGET and
+                (placements or kanagawa_sidecar_enabled)):
+            raise RegionalFeederNotReady(
+                "Shikoku does not support Kanto placement or Kanagawa overrides"
+            )
         upstream = self.multi.load(slot, year=year)
         if not all(p.scheduled.is_complete for p in upstream.previews.values()):
             raise RegionalFeederNotReady(
                 "all registered prefectural events must complete before regional MAIN"
             )
         gate = project_same_year_regional_feeders(
-            self.multi, upstream, _TARGET,
+            self.multi, upstream, self.target,
             placement_decider_match_ids=placements,
             kanagawa_sidecar_enabled=kanagawa_sidecar_enabled,
         )
         if (not gate["all_feeder_results_verified"]
                 or gate["unresolved_feeder_rule_ids"]
-                or gate["verified_entrant_count"] != 17
-                or len(set(gate["verified_school_ids"])) != 17):
+                or gate["verified_entrant_count"] != self.expected_team_count
+                or len(set(gate["verified_school_ids"])) != self.expected_team_count):
             raise RegionalFeederNotReady(
                 "regional MAIN blocked by unresolved prefectural feeders: "
                 + ",".join(gate["unresolved_feeder_rule_ids"])
@@ -119,7 +139,7 @@ class CareerRegionalMainCheckpointService:
         )
         preview = prepare_future_direct_main_preview(
             blueprint=blueprint,
-            competition_id=_TARGET,
+            competition_id=self.target,
             entrant_school_ids=gate["verified_school_ids"],
             roster_archive=self.multi.solo._rosters(slot),
             repo=self.multi.solo.repo,
@@ -202,7 +222,7 @@ class CareerRegionalMainCheckpointService:
         )
         preview = self._preview(slot, year, upstream, gate)
         session = RegionalCareerSession(
-            slot, year, _TARGET,
+            slot, year, self.target,
             checkpoint["payload_checksum"], self.multi._fingerprint(upstream),
             _digest(gate), placements, preview,
             upstream.inputs[0]["base_seed"], upstream.inputs[0]["career_seed"],
@@ -243,7 +263,7 @@ class CareerRegionalMainCheckpointService:
         if (payload.get("schema_version") != _SCHEMA_VERSION
                 or payload.get("slot_id") != slot
                 or payload.get("year") != year
-                or payload.get("competition_id") != _TARGET
+                or payload.get("competition_id") != self.target
                 or payload.get("official_calendar") is not False
                 or payload.get("full_year_gameplay") is not False
                 or payload.get("automatic_qualification_committed") is not False
@@ -258,7 +278,7 @@ class CareerRegionalMainCheckpointService:
         )
         preview = self._preview(slot, year, upstream, gate)
         session = RegionalCareerSession(
-            slot, year, _TARGET,
+            slot, year, self.target,
             checkpoint["payload_checksum"], self.multi._fingerprint(upstream),
             _digest(gate), placements, preview,
             upstream.inputs[0]["base_seed"], upstream.inputs[0]["career_seed"],
