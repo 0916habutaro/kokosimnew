@@ -63,6 +63,27 @@ class CareerTokaiSeasonBrowseModel:
         if found is None:
             raise TokaiSeasonBrowseConflict("career season is not archived")
 
+    def available_years(self, *, limit: int = 100, offset: int = 0) -> list[int]:
+        """Bounded, read-only years for an opt-in history screen picker.
+
+        Lists registered saved years, not verified tournament participants.
+        Individual year pages still validate each archived match digest.
+        """
+        self._page(offset, limit)
+        try:
+            with closing(_read_only(self.path)) as conn:
+                return [
+                    int(row[0]) for row in conn.execute(
+                        "SELECT year FROM career_years WHERE year>=2027 "
+                        "ORDER BY year DESC LIMIT ? OFFSET ?",
+                        (limit, offset),
+                    )
+                ]
+        except (OSError, sqlite3.DatabaseError) as exc:
+            raise TokaiSeasonBrowseConflict(
+                "Tokai saved-year picker unreadable"
+            ) from exc
+
     @staticmethod
     def _page(offset: int, limit: int) -> None:
         if (type(offset) is not int or offset < 0
@@ -239,19 +260,21 @@ class CareerTokaiSeasonBrowseModel:
         game = page["game"]
         # Only navigate to players whose saved ID belongs to the actual
         # two-school roster for this year. Raw game text is not an identity.
-        real_players = set()
+        team_rosters = {}
         for school in (game["team1_id"], game["team2_id"]):
             roster = self.source.rosters.roster(year, school)
-            if roster is not None:
-                real_players.update(p.player_id for p in roster.players)
+            team_rosters[school] = (
+                {p.player_id for p in roster.players}
+                if roster is not None else set()
+            )
         ids = set()
         for section in ("batter_stats", "pitcher_stats"):
             for row in game.get(section) or []:
                 if (isinstance(row, dict)
                         and isinstance(row.get("player_id"), str)
-                        and row.get("school_id") in {
-                            game["team1_id"], game["team2_id"],
-                        } and row["player_id"] in real_players):
+                        and row["player_id"] in team_rosters.get(
+                            row.get("school_id"), set()
+                        )):
                     ids.add(row["player_id"])
         return {
             **page,
@@ -275,6 +298,15 @@ class CareerTokaiSeasonBrowseModel:
         # reconstructs career totals only from saved Option-A box scores.
         self._year(year)
         page = self.source.player_page(year, player_id)
+        # Historic career pages may include alumni; the Tokai season screen
+        # must never present a graduate as a player on this year's roster.
+        roster = self.source.rosters.roster(year, page["school_id"])
+        if roster is None or player_id not in {
+            p.player_id for p in roster.players
+        }:
+            raise TokaiSeasonBrowseConflict(
+                "player not on the selected-year school roster"
+            )
         if not any(
             page["school_id"] in (x["team1_id"], x["team2_id"])
             for x in self._games(year)
@@ -288,6 +320,7 @@ class CareerTokaiSeasonBrowseModel:
             },
             "source_kind": SOURCE, "read_only": True,
             "official_future_results": False,
+            "selected_year_roster_confirmed": True,
         }
 
     def open(self, target: dict) -> dict:

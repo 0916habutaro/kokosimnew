@@ -1,0 +1,44 @@
+name: Stage43G-58 Tokai adjacent years identity and Tk history
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_tokai_season_browse_model.py"
+      - "phase2_engine/career_tokai_season_gui_pilot.py"
+      - "tests/test_stage43g58_tokai_multiyear_identity.py"
+      - ".github/workflows/career-tokai-multiyear.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_tokai_season_browse_model.py"
+      - "phase2_engine/career_tokai_season_gui_pilot.py"
+      - "tests/test_stage43g58_tokai_multiyear_identity.py"
+
+permissions:
+  contents: read
+
+jobs:
+  tokai_multiyear:
+    name: Two fictional saved seasons year switch graduate identity and no-write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Ensure virtual display
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+      - name: Stage43G-58 multi-year and real Tk identity
+        run: |
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g58_tokai_multiyear_identity.py' -v
+      - name: Stage43G-54/55/56/57 navigation, read-only and PK regression
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g54_tokai_season_history_browse.py' -v
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g55_tokai_history_tk_gui.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g56_tokai_history_scale_probe.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g57_tokai_year_index.py' -v
