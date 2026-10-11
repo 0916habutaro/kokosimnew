@@ -1,0 +1,36 @@
+name: Stage43G-68 Fictional v2 complete-A storage and deep verification audit
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_v2_long_storage_audit.py"
+      - "tests/test_stage43g68_v2_long_storage_audit.py"
+      - ".github/workflows/career-v2-long-storage-audit.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_v2_long_storage_audit.py"
+      - "tests/test_stage43g68_v2_long_storage_audit.py"
+
+permissions:
+  contents: read
+
+jobs:
+  v2_long_deep_audit:
+    name: 12 fictional v2 years sealed A calendars rosters and separate cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Stage43G-68 deep fictional v2 12-year storage audit
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g68_v2_long_storage_audit.py' -v
+      - name: V2 calendar sealed match attribution/cache and cross-era regression
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g27_v2_option_a_archive.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g28_v2_roster_attribution.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g29_v2_player_stat_cache.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g31_cross_era_browse_model.py' -v
