@@ -1,0 +1,38 @@
+name: Stage43G-44 Shikoku prefectural results to regional MAIN
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/future_shikoku_direct_main_bridge.py"
+      - "phase2_engine/career_multi_preview_checkpoint.py"
+      - "phase2_engine/career_regional_main_checkpoint.py"
+      - "tests/test_stage43g44_shikoku_prefecture_to_regional_e2e.py"
+      - ".github/workflows/career-shikoku-prefectural-to-regional.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/future_shikoku_direct_main_bridge.py"
+      - "phase2_engine/career_multi_preview_checkpoint.py"
+      - "phase2_engine/career_regional_main_checkpoint.py"
+      - "tests/test_stage43g44_shikoku_prefecture_to_regional_e2e.py"
+
+permissions:
+  contents: read
+
+jobs:
+  shikoku_prefectural_feeder:
+    name: Four saved prefectural MAIN outcomes qualify eight regional entrants
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Stage43G-44 four prefectural games and certified regional entry
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g44_shikoku_prefecture_to_regional_e2e.py' -v
+      - name: Earlier regional and Kanto direct-main regression
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g5_direct_main_kanto.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g39_nonkanto_regional_career_e2e.py' -v
