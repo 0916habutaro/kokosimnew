@@ -65,6 +65,19 @@ class TokaiSeasonScreenController:
         self.page = page
         return page
 
+    def switch_year(self, year: int) -> dict:
+        """Year changes are atomic and clear old-school/player route stacks."""
+        # Validate first: an absent year must not erase the current route.
+        if type(year) is not int:
+            raise TokaiSeasonBrowseConflict("invalid saved year")
+        target = {"screen": "tokai_season", "year": year}
+        page = self.model.open(target)
+        self.target = target
+        self.offset = 0
+        self.history.clear()
+        self.page = page
+        return page
+
     def back(self) -> dict:
         if not self.history:
             return self.page
@@ -102,6 +115,10 @@ class CareerTokaiSeasonGuiPilot:
             master=root, value="架空ゲームの保存記録のみ／公式結果ではありません"
         )
         self.links: dict[str, dict] = {}
+        self.year_var = tk.StringVar(master=root, value=str(year))
+        self.available_years = model.available_years(limit=100)
+        if year not in self.available_years:
+            self.available_years = [year, *self.available_years]
         self.root.title(APP_NAME)
         self.root.geometry("1090x740")
         self.root.minsize(760, 520)
@@ -115,6 +132,13 @@ class CareerTokaiSeasonGuiPilot:
         ttk.Button(bar, text="東海大会一覧", command=self._home).pack(
             side="left", padx=(8, 0),
         )
+        ttk.Label(bar, text="年度").pack(side="left", padx=(12, 3))
+        year_picker = ttk.Combobox(
+            bar, textvariable=self.year_var, state="readonly",
+            width=8, values=[str(year) for year in self.available_years],
+        )
+        year_picker.pack(side="left")
+        year_picker.bind("<<ComboboxSelected>>", self._change_year)
         ttk.Button(bar, text="前ページ", command=lambda: self._page(-1)).pack(
             side="left", padx=(16, 0),
         )
@@ -171,6 +195,16 @@ class CareerTokaiSeasonGuiPilot:
         self._open({
             "screen": "tokai_season", "year": self.controller.target["year"],
         })
+
+    def _change_year(self, _event=None) -> None:
+        try:
+            year = int(self.year_var.get())
+            page = self.controller.switch_year(year)
+        except (ValueError, OSError) as exc:
+            self.year_var.set(str(self.controller.target["year"]))
+            messagebox.showwarning("保存年度を開けません", str(exc), parent=self.root)
+        else:
+            self._render(page)
 
     def _page(self, delta: int) -> None:
         self._apply(lambda: self.controller.change_page(delta))
