@@ -622,20 +622,36 @@ def main() -> None:
         "--year-page-offset", type=int, default=0,
         help="For --years saved: skip N most recent sealed years (page size 24)",
     )
+    parser.add_argument(
+        "--year-before", type=int,
+        help="For --years saved: seek sealed years older than this exclusive "
+             "year; avoids OFFSET scans for deep career history",
+    )
     args = parser.parse_args()
     if args.years == "saved":
         if args.year_page_offset < 0:
             parser.error("year page offset must be nonnegative")
+        if args.year_before is not None and args.year_page_offset:
+            parser.error("--year-before conflicts with --year-page-offset")
         catalog = CareerCrossEraYearCatalog(args.slot)
-        candidates = catalog.page(
-            limit=MAX_SELECTED_YEARS, offset=args.year_page_offset,
-        )["years"]
+        if args.year_before is not None:
+            candidates = catalog.page_after(
+                limit=MAX_SELECTED_YEARS, before_year=args.year_before,
+            )["years"]
+        elif args.year_page_offset:
+            candidates = catalog.page(
+                limit=MAX_SELECTED_YEARS, offset=args.year_page_offset,
+            )["years"]
+        else:
+            candidates = catalog.page_after(
+                limit=MAX_SELECTED_YEARS,
+            )["years"]
         if not candidates:
             parser.error("no saved sealed years in the selected catalog page")
         selected = sorted(row["year"] for row in candidates)
     else:
-        if args.year_page_offset:
-            parser.error("--year-page-offset requires --years saved")
+        if args.year_page_offset or args.year_before is not None:
+            parser.error("year paging options require --years saved")
         try:
             selected = [int(s.strip()) for s in args.years.split(",")]
         except ValueError as exc:
