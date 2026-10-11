@@ -227,11 +227,18 @@ class CareerTokaiSeasonBrowseModel:
         ]
         window = games[offset: offset + limit]
         roster = self.source.rosters.roster(year, school_id)
+        # The current school master may contain a later renamed display name.
+        # A verified, saved school-year roster is the historical name source.
+        master_name = self.source.repo.schools[school_id].get(
+            "school_name", school_id,
+        )
         return {
             "screen": "tokai_school", "year": year,
             "school_id": school_id,
-            "school_name": self.source.repo.schools[school_id].get(
-                "school_name", school_id,
+            "school_name": roster.school_name if roster else master_name,
+            "school_name_source": (
+                "saved_year_roster" if roster
+                else "current_master_fallback_not_historical_proof"
             ),
             "matches": {"rows": window, "total": len(games),
                         "offset": offset, "limit": limit},

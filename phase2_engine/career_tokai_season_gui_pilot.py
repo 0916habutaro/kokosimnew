@@ -21,6 +21,49 @@ from .career_tokai_season_browse_model import (
 
 APP_NAME = "ココシミュNew｜春季東海ゲーム記録（試験版・閲覧専用）"
 PAGE_SIZE = 30
+YEAR_PAGE_SIZE = 30
+
+
+class TokaiSavedYearPager:
+    """Bounded candidate-year navigation, independent of the current screen.
+
+    Merely listing an archived year does not certify its matches or a played
+    season. Older pages are fetched on demand, not loaded into one ComboBox.
+    """
+
+    def __init__(self, model: CareerTokaiSeasonBrowseModel):
+        self.model = model
+        self.offset = 0
+        self.years: list[int] = []
+        self.has_older = False
+        self._read(0)
+
+    def _read(self, offset: int) -> None:
+        rows = self.model.available_years(
+            limit=YEAR_PAGE_SIZE + 1, offset=offset,
+        )
+        self.offset = offset
+        self.years = rows[:YEAR_PAGE_SIZE]
+        self.has_older = len(rows) > YEAR_PAGE_SIZE
+
+    def move(self, delta: int) -> list[int]:
+        if type(delta) is not int or delta not in (-1, 1):
+            raise TokaiSeasonBrowseConflict("invalid year page direction")
+        if delta == 1 and not self.has_older:
+            return list(self.years)
+        candidate = self.offset + YEAR_PAGE_SIZE * delta
+        if candidate < 0:
+            return list(self.years)
+        # Rejections must leave offset and candidates unchanged.
+        rows = self.model.available_years(
+            limit=YEAR_PAGE_SIZE + 1, offset=candidate,
+        )
+        if not rows:
+            return list(self.years)
+        self.offset = candidate
+        self.years = rows[:YEAR_PAGE_SIZE]
+        self.has_older = len(rows) > YEAR_PAGE_SIZE
+        return list(self.years)
 
 
 class TokaiSeasonScreenController:
@@ -124,9 +167,10 @@ class CareerTokaiSeasonGuiPilot:
         )
         self.links: dict[str, dict] = {}
         self.year_var = tk.StringVar(master=root, value=str(year))
-        self.available_years = model.available_years(limit=100)
-        if year not in self.available_years:
-            self.available_years = [year, *self.available_years]
+        self.year_pager = TokaiSavedYearPager(model)
+        self.available_years = list(self.year_pager.years)
+        self.year_page_var = tk.StringVar(master=root)
+        self._update_year_label()
         self.root.title(APP_NAME)
         self.root.geometry("1090x740")
         self.root.minsize(760, 520)
@@ -141,12 +185,21 @@ class CareerTokaiSeasonGuiPilot:
             side="left", padx=(8, 0),
         )
         ttk.Label(bar, text="年度").pack(side="left", padx=(12, 3))
-        year_picker = ttk.Combobox(
+        self.year_picker = ttk.Combobox(
             bar, textvariable=self.year_var, state="readonly",
-            width=8, values=[str(year) for year in self.available_years],
+            width=8, values=self._display_year_choices(),
         )
-        year_picker.pack(side="left")
-        year_picker.bind("<<ComboboxSelected>>", self._change_year)
+        self.year_picker.pack(side="left")
+        self.year_picker.bind("<<ComboboxSelected>>", self._change_year)
+        ttk.Button(bar, text="新しい年度候補", command=lambda: self._year_candidates(-1)).pack(
+            side="left", padx=(6, 0),
+        )
+        ttk.Button(bar, text="古い年度候補", command=lambda: self._year_candidates(1)).pack(
+            side="left", padx=(4, 0),
+        )
+        ttk.Label(bar, textvariable=self.year_page_var).pack(
+            side="left", padx=(4, 0),
+        )
         ttk.Button(bar, text="前ページ", command=lambda: self._page(-1)).pack(
             side="left", padx=(16, 0),
         )
@@ -203,6 +256,33 @@ class CareerTokaiSeasonGuiPilot:
         self._open({
             "screen": "tokai_season", "year": self.controller.target["year"],
         })
+
+    def _display_year_choices(self) -> list[str]:
+        current = self.controller.target["year"]
+        return [
+            str(year) for year in (
+                self.available_years if current in self.available_years
+                else [current, *self.available_years]
+            )
+        ]
+
+    def _update_year_label(self) -> None:
+        start = self.year_pager.offset + 1 if self.year_pager.years else 0
+        last = self.year_pager.offset + len(self.year_pager.years)
+        self.year_page_var.set(
+            f"候補 {start}～{last} / 登録年度のみ"
+        )
+
+    def _year_candidates(self, delta: int) -> None:
+        try:
+            years = self.year_pager.move(delta)
+        except (ValueError, OSError) as exc:
+            messagebox.showwarning("年度候補を開けません", str(exc), parent=self.root)
+            return
+        self.available_years = years
+        self.year_picker.configure(values=self._display_year_choices())
+        self.year_var.set(str(self.controller.target["year"]))
+        self._update_year_label()
 
     def _change_year(self, _event=None) -> None:
         try:

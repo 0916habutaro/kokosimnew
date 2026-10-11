@@ -1,0 +1,45 @@
+name: Stage43G-59 Tokai extended year picker school names and save slots
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_tokai_season_browse_model.py"
+      - "phase2_engine/career_tokai_season_gui_pilot.py"
+      - "tests/test_stage43g59_tokai_year_catalog_school_names.py"
+      - ".github/workflows/career-tokai-extended-year-pager.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_tokai_season_browse_model.py"
+      - "phase2_engine/career_tokai_season_gui_pilot.py"
+      - "tests/test_stage43g59_tokai_year_catalog_school_names.py"
+
+permissions:
+  contents: read
+
+jobs:
+  extended_years_and_slots:
+    name: Bounded century-plus archive year pages and saved-year school names
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Ensure virtual display
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+      - name: Year catalog, save slot, and historical school name verification
+        run: |
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g59_tokai_year_catalog_school_names.py' -v
+      - name: Stage43G-54 to 58 regression
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g54_tokai_season_history_browse.py' -v
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g55_tokai_history_tk_gui.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g56_tokai_history_scale_probe.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g57_tokai_year_index.py' -v
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g58_tokai_multiyear_identity.py' -v
