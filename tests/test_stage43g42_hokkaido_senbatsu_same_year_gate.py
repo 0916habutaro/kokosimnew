@@ -104,7 +104,7 @@ class Stage43G42HokkaidoSenbatsuSameYearTests(unittest.TestCase):
                 break
             cls.senbatsu_preview.play_next_date()
         assert cls.senbatsu_preview.scheduled.is_complete
-        cls.run = cls.senbatsu_preview.scheduled.to_competition_run()
+        cls.senbatsu_run = cls.senbatsu_preview.scheduled.to_competition_run()
         cls.records = [
             dict(match.__dict__)
             for match in cls.senbatsu_preview.scheduled.matches.values()
@@ -124,7 +124,7 @@ class Stage43G42HokkaidoSenbatsuSameYearTests(unittest.TestCase):
 
     def test_same_year_A_archive_certifies_only_hokkaido_participants(self):
         proof = certify_saved_senbatsu_hokkaido(
-            self.repo, self.archive, self.run, year=2027,
+            self.repo, self.archive, self.senbatsu_run, year=2027,
         )
         self.assertEqual([self.recommended],
                          proof["recommended_hokkaido_school_ids"])
@@ -137,7 +137,7 @@ class Stage43G42HokkaidoSenbatsuSameYearTests(unittest.TestCase):
         self.assertEqual(
             proof["source_matches_sha256"],
             certify_saved_senbatsu_hokkaido(
-                self.repo, self.archive, self.run, year=2027,
+                self.repo, self.archive, self.senbatsu_run, year=2027,
             )["source_matches_sha256"],
         )
 
@@ -145,7 +145,7 @@ class Stage43G42HokkaidoSenbatsuSameYearTests(unittest.TestCase):
         preview, proof = prepare_hokkaido_spring_after_senbatsu(
             data_root=DATA, year=2027, repo=self.repo,
             source_archive=self.archive,
-            completed_senbatsu=self.run,
+            completed_senbatsu=self.senbatsu_run,
             group_entrant_school_ids=self.group_input,
             roster_archive=self.rosters,
             base_seed=SEED, career_seed=SEED,
@@ -203,7 +203,7 @@ class Stage43G42HokkaidoSenbatsuSameYearTests(unittest.TestCase):
         self.assertEqual(
             proof["source_matches_sha256"],
             certify_saved_senbatsu_hokkaido(
-                self.repo, self.archive, self.run, year=2027,
+                self.repo, self.archive, self.senbatsu_run, year=2027,
             )["source_matches_sha256"],
         )
 
@@ -211,9 +211,9 @@ class Stage43G42HokkaidoSenbatsuSameYearTests(unittest.TestCase):
         with self.assertRaisesRegex(HokkaidoRecommendationNotReady,
                                     "same-year"):
             certify_saved_senbatsu_hokkaido(
-                self.repo, self.archive, self.run, year=2028,
+                self.repo, self.archive, self.senbatsu_run, year=2028,
             )
-        partial = deepcopy(self.run)
+        partial = deepcopy(self.senbatsu_run)
         main = next(x for x in partial.stage_executions
                     if x.stage_code == "MAIN")
         main.matches.pop()
@@ -221,7 +221,7 @@ class Stage43G42HokkaidoSenbatsuSameYearTests(unittest.TestCase):
             certify_saved_senbatsu_hokkaido(
                 self.repo, self.archive, partial, year=2027,
             )
-        copy = deepcopy(self.run)
+        copy = deepcopy(self.senbatsu_run)
         copy.main_entrant_school_ids[0] = "NOT_A_REAL_TEAM"
         with self.assertRaises(HokkaidoRecommendationNotReady):
             certify_saved_senbatsu_hokkaido(
@@ -237,7 +237,7 @@ class Stage43G42HokkaidoSenbatsuSameYearTests(unittest.TestCase):
         ):
             prepare_hokkaido_spring_after_senbatsu(
                 data_root=DATA, year=2027, repo=self.repo,
-                source_archive=self.archive, completed_senbatsu=self.run,
+                source_archive=self.archive, completed_senbatsu=self.senbatsu_run,
                 group_entrant_school_ids=wrong, roster_archive=self.rosters,
                 base_seed=SEED, career_seed=SEED,
             )
@@ -248,7 +248,7 @@ class Stage43G42HokkaidoSenbatsuSameYearTests(unittest.TestCase):
         ):
             prepare_hokkaido_spring_after_senbatsu(
                 data_root=DATA, year=2027, repo=self.repo,
-                source_archive=self.archive, completed_senbatsu=self.run,
+                source_archive=self.archive, completed_senbatsu=self.senbatsu_run,
                 group_entrant_school_ids=wrong, roster_archive=self.rosters,
                 base_seed=SEED, career_seed=SEED,
             )
@@ -272,7 +272,7 @@ class Stage43G42HokkaidoSenbatsuSameYearTests(unittest.TestCase):
                 HokkaidoRecommendationNotReady, "checksum",
             ):
                 certify_saved_senbatsu_hokkaido(
-                    self.repo, self.archive, self.run, year=2027,
+                    self.repo, self.archive, self.senbatsu_run, year=2027,
                 )
         finally:
             with sqlite3.connect(self.archive.db_path) as conn:
