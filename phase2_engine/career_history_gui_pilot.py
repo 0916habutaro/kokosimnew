@@ -67,6 +67,9 @@ class CareerHistoryGuiPilot:
         ttk.Button(bar, text="新旧年度履歴", command=self._open_cross_era).pack(
             side="left", padx=(4, 0)
         )
+        ttk.Button(bar, text="春季東海ゲーム記録", command=self._open_tokai).pack(
+            side="left", padx=(4, 0)
+        )
         ttk.Label(bar, text="学校名または学校ID").pack(side="left", padx=(12, 3))
         entry = ttk.Entry(bar, textvariable=self.search_var, width=23)
         entry.pack(side="left")
@@ -171,6 +174,29 @@ class CareerHistoryGuiPilot:
                 raise
         except (ValueError, KeyError, OSError, sqlite3.DatabaseError) as exc:
             messagebox.showwarning("新旧年度履歴を開けません", str(exc))
+
+    def _open_tokai(self) -> None:
+        """Open the optional A-history-only Tokai window for current year."""
+        from .career_tokai_season_browse_model import CareerTokaiSeasonBrowseModel
+        from .career_tokai_season_gui_pilot import CareerTokaiSeasonGuiPilot
+
+        try:
+            year = self._year()
+            model = CareerTokaiSeasonBrowseModel(
+                self.model.repo.data_dir, self.model.slot_root,
+            )
+            # Validate the archive before opening a GUI child window.
+            model.overview(year)
+            child = tk.Toplevel(self.root)
+            try:
+                child._career_tokai_season_gui = CareerTokaiSeasonGuiPilot(
+                    child, model, year=year,
+                )
+            except Exception:
+                child.destroy()
+                raise
+        except (ValueError, KeyError, OSError, sqlite3.DatabaseError) as exc:
+            messagebox.showwarning("春季東海の記録を開けません", str(exc))
 
     def _change_year(self, _event=None) -> None:
         # Explicit year change clears contextual school/game selection.

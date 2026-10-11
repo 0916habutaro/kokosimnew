@@ -1,0 +1,42 @@
+name: Stage43G-55 Tokai history real Tk pilot
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_tokai_season_gui_pilot.py"
+      - "phase2_engine/career_history_gui_pilot.py"
+      - "tests/test_stage43g55_tokai_history_tk_gui.py"
+      - ".github/workflows/career-tokai-history-tk-pilot.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_tokai_season_gui_pilot.py"
+      - "phase2_engine/career_history_gui_pilot.py"
+      - "tests/test_stage43g55_tokai_history_tk_gui.py"
+
+permissions:
+  contents: read
+
+jobs:
+  tokai_history_real_tk:
+    name: Tokai fictional career saved-year GUI Xvfb and navigation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Ensure virtual display
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+      - name: Stage43G-55 headless and actual Tk widgets
+        run: |
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g55_tokai_history_tk_gui.py' -v
+      - name: Stage43G-54 read-only Tokai model and existing GUI regression
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g54_tokai_season_history_browse.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g16_history_gui_navigation.py' -v
