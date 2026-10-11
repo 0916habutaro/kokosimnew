@@ -155,17 +155,14 @@ class CareerCrossEraReadGate:
                     or ledger != header["ledger_sha256"]):
                 raise CareerCrossEraConflict("v2 sealed ledger differs")
             if deep:
-                first = self.v2_archive.year_matches(year, limit=100)
-                if (first["total"] != count or first["year_status"] != "sealed"
-                        or first["calendar_sha256"] != plan_sha):
+                # Verify the full sealed year exactly once. Calling year_matches
+                # for every page would rehash *all* matches for each page,
+                # turning a large archive check into quadratic work.
+                status, verified = self.v2_archive._verified_year(
+                    year, plan, plan_sha,
+                )
+                if status != "sealed" or len(verified) != count:
                     raise CareerCrossEraConflict("v2 deep source metadata differs")
-                for offset in range(100, count, 100):
-                    page = self.v2_archive.year_matches(
-                        year, limit=100, offset=offset,
-                    )
-                    if (page["total"] != count or page["year_status"] != "sealed"
-                            or page["calendar_sha256"] != plan_sha):
-                        raise CareerCrossEraConflict("v2 paging source changed")
         except (sqlite3.DatabaseError, KeyError, TypeError, ValueError) as exc:
             if isinstance(exc, CareerCrossEraConflict):
                 raise
