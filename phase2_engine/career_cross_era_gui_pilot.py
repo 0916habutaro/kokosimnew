@@ -18,6 +18,7 @@ from tkinter import messagebox, ttk
 from .career_cross_era_navigation import (
     CareerCrossEraNavigator, MAX_SELECTED_YEARS,
 )
+from .career_cross_era_display_labels import CareerCrossEraDisplayLabels
 
 APP_NAME = "ココシミュNew｜新旧年度履歴（試験版・閲覧専用）"
 PAGE_SIZE = 30
@@ -110,7 +111,8 @@ class CareerCrossEraGuiPilot:
     def __init__(self, root: tk.Misc, navigator: CareerCrossEraNavigator,
                  *, school_id: str, years: list[int],
                  selected_year: int | None = None,
-                 verify_source: bool = True):
+                 verify_source: bool = True,
+                 data_root: str | Path | None = None):
         if (type(years) is not list or not years
                 or len(years) > MAX_SELECTED_YEARS):
             raise ValueError("choose 1–24 explicitly saved years")
@@ -121,6 +123,9 @@ class CareerCrossEraGuiPilot:
             verify_source=verify_source,
         )
         self.root = root
+        self.labels = CareerCrossEraDisplayLabels(
+            data_root, navigator.browse.rosters, navigator.browse.attribution,
+        )
         self.year_var = tk.StringVar(master=root, value=str(first))
         self.status_var = tk.StringVar(master=root, value="封印済み原本のみ／試験画面")
         self.links: dict[str, dict] = {}
@@ -170,6 +175,8 @@ class CareerCrossEraGuiPilot:
         scroller.pack(side="right", fill="y")
         self.table.configure(yscrollcommand=scroller.set)
         self.table.bind("<Double-1>", self._open_selection)
+        self.table.bind("<Return>", self._open_selection)
+        self.root.bind("<Alt-Left>", lambda _e: self._back())
         details_frame = ttk.Frame(self.root, padding=(10, 0, 10, 6))
         details_frame.pack(fill="both", expand=False)
         self.details = tk.Text(
@@ -232,27 +239,37 @@ class CareerCrossEraGuiPilot:
             self.table.delete(iid)
         self.links.clear()
         self.year_var.set(str(page["selected_year"]))
+        current_names = self.labels.player_labels(
+            page["selected_year"], page["school_id"],
+        )
         if page["screen"] == "cross_era_school":
             for game, link in zip(
                 page["match_page"], page["opponent_school_targets"],
             ):
                 score = (
-                    f"{game['team1_id']} {game['team1_score']} - "
-                    f"{game['team2_score']} {game['team2_id']}"
+                    f"{self.labels.school(game['team1_id'])} "
+                    f"{game['team1_score']} - {game['team2_score']} "
+                    f"{self.labels.school(game['team2_id'])}"
                 )
                 self._add(
-                    f"対戦相手へ / {game['competition_id']}/{game['match_id']}",
+                    "対戦相手へ / " + self.labels.school(
+                        link["target"]["school_id"],
+                    ),
                     f"{game['date']} / {game['result_for_school']}",
-                    score, link["target"],
+                    f"{score} / {game['competition_id']}/{game['match_id']}",
+                    link["target"],
                 )
             for item in page["player_targets"]:
                 self._add(
-                    "所属選手へ / " + item["player_id"],
-                    str(page["selected_year"]), "保存済み恒久ID",
+                    "所属選手へ / " + self.labels.player(
+                        item["player_id"], current_names,
+                    ),
+                    str(page["selected_year"]), "保存済み恒久IDで遷移",
                     item["target"],
                 )
             meta = {
                 "school_id": page["school_id"],
+                "school_name": self.labels.school(page["school_id"]),
                 "year": page["selected_year"],
                 "date_kind": page["date_kind"],
                 "source": page["source"],
@@ -275,13 +292,17 @@ class CareerCrossEraGuiPilot:
                     link,
                 )
             self._add(
-                "学校へ戻る", page["school_id"],
+                "学校へ戻る", self.labels.school(page["school_id"]),
                 "選択年度の学校試合一覧",
                 page["back_to_school_target"],
             )
             meta = {
                 "school_id": page["school_id"],
                 "player_id": page["player_id"],
+                "player_name": self.labels.player(
+                    page["player_id"], current_names,
+                ),
+                "school_name": self.labels.school(page["school_id"]),
                 "year": page["selected_year"],
                 "status": page["selected_status"],
                 "source": page["selected_source"],
@@ -297,9 +318,16 @@ class CareerCrossEraGuiPilot:
             "end", json.dumps(meta, ensure_ascii=False, indent=2),
         )
         self.details.configure(state="disabled")
+        summary = (
+            f"学校試合 {page['match_page_offset']+1 if page['match_page'] else 0}"
+            f"～{page['match_page_offset']+len(page['match_page'])}"
+            f" / {page['match_total']}件"
+            if page["screen"] == "cross_era_school"
+            else "年度ごとの選手所属・個人成績"
+        )
         self.status_var.set(
-            f"{page['screen']} / {page['selected_year']}年度 / "
-            "保存済みIDのみ・閲覧専用／正式GUI未接続"
+            f"{self.labels.school(page['school_id'])} / "
+            f"{page['selected_year']}年度 / {summary} / 閲覧専用・試験版"
         )
 
 
@@ -308,6 +336,10 @@ def main() -> None:
         description="Opt-in cross-era Tk career history pilot (read-only)",
     )
     parser.add_argument("--slot", type=Path, required=True)
+    parser.add_argument(
+        "--data-root", type=Path, default=Path("data"),
+        help="Directory containing the official schools.csv display master",
+    )
     parser.add_argument("--school-id", required=True)
     parser.add_argument(
         "--years", required=True,
@@ -323,6 +355,7 @@ def main() -> None:
     try:
         CareerCrossEraGuiPilot(
             root, nav, school_id=args.school_id, years=selected,
+            data_root=args.data_root,
         )
     except Exception:
         root.destroy()
