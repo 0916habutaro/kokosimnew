@@ -59,7 +59,7 @@ def project_same_year_regional_feeders(
     if not isinstance(kanagawa_sidecar_enabled, bool):
         raise RegionalFeederNotReady("invalid Kanagawa sidecar selection")
     placement_ids = dict(placement_decider_match_ids or {})
-    if (set(placement_ids) - {"CMP000092"} or
+    if (set(placement_ids) - {"CMP000092", "CMP000078"} or
             any(not isinstance(x, str) or not x for x in placement_ids.values())):
         raise RegionalFeederNotReady("unrecognized third-place decider reference")
     slot = service.solo.slots.validate_slot_id(session.slot_id)
@@ -91,6 +91,10 @@ def project_same_year_regional_feeders(
         raise RegionalFeederNotReady("regional feeder rule not registered")
     if any(r.get("region_id") != destination["region_id"] for r in rules):
         raise RegionalFeederNotReady("regional feeder region mismatch")
+    if set(placement_ids) - {r["source_competition_id"] for r in rules}:
+        raise RegionalFeederNotReady(
+            "placement decider belongs to another destination region"
+        )
     stages = repo.stages(destination_competition_id)
     if len(stages) != 1 or stages[0]["stage_code"] != "MAIN":
         raise RegionalFeederNotReady("regional MAIN format not verified")
@@ -229,9 +233,9 @@ def project_same_year_regional_feeders(
                     )
                 teams = outcome["ranked_school_ids"][:quota]
                 if quota > 2:
-                    if cid != "CMP000092" or quota != 3:
+                    if cid not in {"CMP000092", "CMP000078"} or quota != 3:
                         raise RegionalFeederNotReady(
-                            "third-place decider only supported for Chiba"
+                            "third-place decider requires a verified source fixture"
                         )
                     played = matches
                     rounds = sorted({m.round_no for m in played})
