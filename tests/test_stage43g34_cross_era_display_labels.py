@@ -160,6 +160,11 @@ class Stage43G34CrossEraLabelTests(unittest.TestCase):
         )
         gui.table.selection_set(player_iid)
         gui.table.focus(player_iid)
+        # Synthetic Tk key events require focus on the widget, not merely
+        # Treeview's active row. This mirrors keyboard navigation by a user.
+        root.update()
+        gui.table.focus_set()
+        root.update()
         gui.table.event_generate("<Return>")
         root.update()
         self.assertEqual("cross_era_player", gui.controller.page["screen"])
