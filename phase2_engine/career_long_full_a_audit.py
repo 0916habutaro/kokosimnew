@@ -40,6 +40,8 @@ def _annual_summary(annual: dict) -> dict:
     ]
     return {
         "years_profiled": len(rows),
+        "sealed_year_count": annual["sealed_year_count"],
+        "active_year_count": annual["active_year_count"],
         "annual_rows": compact,
         "annual_median_bytes": median(values),
         "annual_min_bytes": min(values),
