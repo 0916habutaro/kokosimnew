@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Callable
 
@@ -353,6 +354,74 @@ class LiveGameService:
             "autosave": save,
         }
 
+    def _advance_with_checkpoints(
+        self,
+        session: LiveGameSession,
+        target: str,
+        *,
+        autosave: bool | None,
+        through: bool,
+    ) -> dict:
+        """Checkpoint completed match days during a long calendar jump.
+
+        A single save at the end of a multi-day advance loses every game
+        simulated since the previous save if the process stops mid-jump.
+        Save the replayable JSON first and then sync the append-only history
+        after each day that actually completed a match. Calendar-only days
+        need no intermediate checkpoint. Explicit autosave=False retains
+        the caller's manual-save contract.
+        """
+        enabled = (
+            self.autosave_after_action
+            if autosave is None
+            else bool(autosave)
+        )
+        action = "advance_through" if through else "advance_to"
+        if not enabled:
+            result = (
+                session.state.advance_through(target)
+                if through else session.state.advance_to(target)
+            )
+            return {"action": action, **result, "autosave": None}
+
+        target_date = (
+            target if isinstance(target, date)
+            else date.fromisoformat(target)
+        )
+        if target_date.year != session.state.year:
+            raise ValueError("target_date must be inside season year")
+        if target_date < session.state.current_date:
+            raise ValueError("season runtime cannot move backward")
+
+        advanced_days = 0
+        played_match_count = 0
+        last_save = None
+        checkpoint_date = None
+        while session.state.current_date < target_date:
+            step = session.state.next_day()
+            advanced_days += 1
+            new_matches = int(step["played_match_count"])
+            played_match_count += new_matches
+            if new_matches:
+                last_save = self.autosave_game(session)
+                checkpoint_date = session.state.current_date
+
+        result = {
+            "current_date": session.state.current_date.isoformat(),
+            "advanced_days": advanced_days,
+            "played_match_count": played_match_count,
+        }
+        if through:
+            # Include games on the target day in the final replayable save.
+            result["played_match_count"] += len(session.state.play_today())
+            result["processed_through"] = (
+                session.state.current_date.isoformat()
+            )
+
+        if through or checkpoint_date != session.state.current_date:
+            last_save = self.autosave_game(session)
+        return {"action": action, **result, "autosave": last_save}
+
     def advance_to(
         self,
         session: LiveGameSession,
@@ -360,20 +429,9 @@ class LiveGameService:
         *,
         autosave: bool | None = None,
     ) -> dict:
-        result = (
-            session.state.advance_to(
-                target
-            )
+        return self._advance_with_checkpoints(
+            session, target, autosave=autosave, through=False,
         )
-        save = self._maybe_autosave(
-            session,
-            autosave,
-        )
-        return {
-            "action": "advance_to",
-            **result,
-            "autosave": save,
-        }
 
     def advance_through(
         self,
@@ -382,20 +440,9 @@ class LiveGameService:
         *,
         autosave: bool | None = None,
     ) -> dict:
-        result = (
-            session.state.advance_through(
-                target
-            )
+        return self._advance_with_checkpoints(
+            session, target, autosave=autosave, through=True,
         )
-        save = self._maybe_autosave(
-            session,
-            autosave,
-        )
-        return {
-            "action": "advance_through",
-            **result,
-            "autosave": save,
-        }
 
     def list_games(self) -> list[dict]:
         return [
