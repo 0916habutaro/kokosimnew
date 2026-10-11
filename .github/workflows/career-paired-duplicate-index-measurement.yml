@@ -1,0 +1,76 @@
+name: Stage43G-72 Controlled Old-vs-New Duplicate B-tree Measurements
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_paired_index_benchmark.py"
+      - "tests/test_stage43g72_paired_index_benchmark.py"
+      - ".github/workflows/career-paired-duplicate-index-measurement.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_paired_index_benchmark.py"
+      - "tests/test_stage43g72_paired_index_benchmark.py"
+
+permissions:
+  contents: read
+
+jobs:
+  paired_equal_content:
+    name: Identical A records vs old/new PK indexes file bytes and indexed reads
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Stage43G-72 deterministic same records SQLite index comparison
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g72_paired_index_benchmark.py' -v
+      - name: Preserve stage43G-70/71 and sealed derived stats contract
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g70_storage_btree_audit.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g71_stats_cache_index_audit.py' -v
+      - name: Generate observed controlled old-vs-new index measurements
+        env:
+          PYTHONPATH: tests
+        run: |
+          mkdir -p build/reports
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          from test_stage43g72_paired_index_benchmark import Stage43G72PairedIndexTests
+          from phase2_engine.career_paired_index_benchmark import compare_duplicate_index_build
+          fixture = Stage43G72PairedIndexTests(
+              "test_v2_two_identical_complete_a_match_rows_old_index_uses_extra_pages",
+          )
+          fixture.setUp()
+          try:
+              for kind, path in (
+                  ("v2_matches", fixture.v2.source),
+                  ("legacy_cache", fixture.cache.legacy_path),
+              ):
+                  r = compare_duplicate_index_build(
+                      path, kind=kind, repeats=10,
+                  )
+                  name = f"build/reports/stage43g72_{kind}_controlled_index.json"
+                  Path(name).write_text(
+                      json.dumps(r, ensure_ascii=False, indent=2),
+                      encoding="utf-8",
+                  )
+                  print(kind, "measured old extra file bytes",
+                        r["observed_extra_file_bytes_in_old_index_copy"])
+                  print(kind, "new median read ms",
+                        r["new_schema"]["median_exact_row_lookup_ms"])
+                  print(kind, "old median read ms",
+                        r["previous_schema"]["median_exact_row_lookup_ms"])
+          finally:
+              fixture.doCleanups()
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage43g72-controlled-identical-A-sqlite-index-comparison
+          path: build/reports/stage43g72_*_controlled_index.json
+          retention-days: 30
+          if-no-files-found: error
