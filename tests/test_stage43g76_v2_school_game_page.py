@@ -7,6 +7,7 @@ import unittest
 
 from phase2_engine.career_calendar_v2 import explicit_sandbox_plan
 from phase2_engine.career_history_scale_benchmark import file_sha256
+from phase2_engine.career_v2_option_a_archive import SOURCE as V2_SOURCE
 from phase2_engine.career_v2_school_game_page import (
     CareerV2SchoolPageConflict, read_v2_school_game_page,
 )
@@ -68,7 +69,7 @@ class Stage43G76V2SchoolPageTests(unittest.TestCase):
             first["records"][0]["opponent_school_id"],
         )
         self.assertTrue(all(r["logical_game_date_not_iso"]
-                            and r["stored_source"] == stage27.SOURCE
+                            and r["stored_source"] == V2_SOURCE
                             for r in first["records"]))
         self.assertEqual([10000, 10001], first["verified_saved_years"])
         self.assertFalse(first["all_selected_year_payloads_verified"])
