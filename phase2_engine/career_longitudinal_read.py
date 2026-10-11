@@ -147,6 +147,26 @@ class CareerLongitudinalReadModel:
             "rankings_inferred": False,
         }
 
+    def school_game_page(
+        self, school_id: str, *, start_year: int, end_year: int,
+        competition_id: str | None = None, limit: int = 30,
+        offset: int = 0, verify_scope: str = "page",
+    ) -> dict:
+        """Read indexed saved *games*, not grouped yearly tournament totals.
+
+        The default fast view verifies visible SHA/identity only. Choose
+        verify_scope="filtered_window" for full window integrity checks.
+        Existing school_results retains its historical full-window audit.
+        """
+        from .career_indexed_school_game_page import (
+            read_indexed_school_game_page,
+        )
+        return read_indexed_school_game_page(
+            self.matches.db_path, school_id, start_year=start_year,
+            end_year=end_year, competition_id=competition_id,
+            limit=limit, offset=offset, verify_scope=verify_scope,
+        )
+
     def school_player_index(self, school_id: str, *, limit: int = 100,
                             offset: int = 0) -> dict:
         """Page stable player identities, including former squad members.
