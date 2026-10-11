@@ -89,8 +89,30 @@ def prepare_future_tokai_concurrent_previews(
                        or repo.schools[sid]["prefecture_code"] != pcode
                        for sid in direct)):
             raise FutureCompetitionNotReady("frozen national byes invalid")
-        other = [sid for group in known
-                 for sid in groups[group["stage_group_id"]]]
+        # Revalidate each saved manifest against verified leaf membership,
+        # including Mie's eight child areas under North/Central/South.
+        from .career_tokai_concurrent_preflight import _reference_group_members
+        other = []
+        quotas = 0
+        for group in known:
+            gid = group["stage_group_id"]
+            members = groups[gid]
+            if not isinstance(members, list):
+                raise FutureCompetitionNotReady("district school list must be frozen")
+            quota = repo.param(
+                qualifier["stage_id"], "output_slots", gid,
+                int(group.get("advance_slots_to_next") or 0),
+            )
+            if (type(quota) is not int or quota <= 0
+                    or len(members) < quota
+                    or len(members) != len(set(members))
+                    or any(sid not in _reference_group_members(repo, group)
+                           for sid in members)):
+                raise FutureCompetitionNotReady("invalid Tokai district roster/quota")
+            quotas += quota
+            other.extend(members)
+        if quotas != slots:
+            raise FutureCompetitionNotReady("Tokai main qualification slots changed")
         entrants = list(dict.fromkeys([*direct, *other]))
         if (len(entrants) != len(direct) + len(other)
                 or any(sid not in repo.school_to_program
