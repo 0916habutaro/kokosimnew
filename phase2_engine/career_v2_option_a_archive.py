@@ -47,8 +47,10 @@ CREATE TABLE IF NOT EXISTS v2_option_a_matches (
 );
 CREATE INDEX IF NOT EXISTS idx_v2_games_day
     ON v2_option_a_matches(year,game_day_token,competition_id,match_id);
-CREATE INDEX IF NOT EXISTS idx_v2_games_school_a
-    ON v2_option_a_matches(year,competition_id,match_id);
+-- The PRIMARY KEY (year,competition_id,match_id) already creates a
+-- covering unique B-tree. Do not allocate an identical second B-tree for
+-- NEW v2 archives. Existing sealed archives are never DROP INDEX migrated.
+-- Stage43G-70: the date index above is retained for calendar browsing.
 """
 
 
