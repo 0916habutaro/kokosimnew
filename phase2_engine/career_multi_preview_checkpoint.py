@@ -33,6 +33,12 @@ from .future_non_kanto_regional_main_bridge import (
     prepare_future_non_kanto_regional_main_preview,
 )
 from .future_qualifier_bridge import prepare_future_fmt001_qualifier_preview
+from .career_hokkaido_senbatsu_gate import (
+    HokkaidoRecommendationNotReady,
+    SENBATSU_ID,
+    SPRING_HOKKAIDO_ID,
+    prepare_hokkaido_spring_after_senbatsu,
+)
 
 _SCHEMA = 2
 _RESOLVER = "career_multi_preview_ability_v1"
@@ -69,6 +75,7 @@ class CareerMultiPreviewSession:
     initial_digests: dict[str, str]
     processed_dates: list[str]
     checkpoint_checksum: str = ""
+    late_spring: dict | None = None
 
     def summary(self) -> dict:
         return {
@@ -86,6 +93,7 @@ class CareerMultiPreviewSession:
             "full_year_gameplay": False,
             "official_future_calendar": False,
             "competition_advancement_automatic": False,
+            "late_same_year_spring_checkpoint": self.late_spring is not None,
         }
 
     def completed_runs(self) -> dict[str, object]:
@@ -341,6 +349,8 @@ class CareerMultiPreviewCheckpointService:
             "full_year_gameplay": False,
             "automatic_feeder_advancement": False,
         }
+        if session.late_spring is not None:
+            data["late_spring"] = session.late_spring
         data["payload_checksum"] = _checksum(data)
         return data
 
@@ -392,6 +402,135 @@ class CareerMultiPreviewCheckpointService:
             "completed_match_count": payload["completed_match_count"],
             "archive": archived,
         }
+
+    @staticmethod
+    def _late_spring_metadata(
+        groups: Mapping[str, Sequence[str]], proof: dict,
+        preview: FutureCompetitionPreview, activation_date: str,
+    ) -> dict:
+        return {
+            "entry_mode": "hokkaido_spring_same_year_senbatsu_v1",
+            "competition_id": SPRING_HOKKAIDO_ID,
+            "source_competition_id": SENBATSU_ID,
+            "group_entrant_school_ids": {
+                gid: list(groups[gid]) for gid in sorted(groups)
+            },
+            "recommended_school_ids": list(
+                proof["recommended_hokkaido_school_ids"]
+            ),
+            "source_matches_sha256": proof["source_matches_sha256"],
+            "initial_digest": _digest(preview.scheduled.public_snapshot()),
+            "activation_after_date": activation_date,
+        }
+
+    def _spring_evidence_preview(
+        self, session: CareerMultiPreviewSession,
+        groups: Mapping[str, Sequence[str]],
+    ) -> tuple[FutureCompetitionPreview, dict]:
+        source = session.previews.get(SENBATSU_ID)
+        if source is None or not source.scheduled.is_complete:
+            raise CareerPreviewSaveError(
+                "same-year Senbatsu must finish before Hokkaido spring activation"
+            )
+        try:
+            preview, proof = prepare_hokkaido_spring_after_senbatsu(
+                data_root=self.solo.data_root,
+                year=session.year,
+                repo=self.solo.repo,
+                source_archive=self.solo._archive(session.slot_id),
+                completed_senbatsu=source.scheduled.to_competition_run(),
+                group_entrant_school_ids=groups,
+                roster_archive=self.solo._rosters(session.slot_id),
+                base_seed=session.inputs[0]["base_seed"],
+                career_seed=session.inputs[0]["career_seed"],
+                ability_config_dir=self.solo.ability_config_dir,
+                match_config_dir=self.solo.match_config_dir,
+            )
+        except (ValueError, TypeError, KeyError, AttributeError) as exc:
+            raise CareerPreviewSaveError(
+                "same-year saved Senbatsu does not authorize spring preview"
+            ) from exc
+        return preview, proof
+
+    def add_hokkaido_spring(
+        self, session: CareerMultiPreviewSession, *,
+        group_entrant_school_ids: Mapping[str, Sequence[str]],
+    ) -> dict:
+        """One optional append to the *same* year's immutable identity.
+
+        Base inputs and initial digests remain unchanged. The new event is
+        replayed with a separate checked activation record in the checkpoint.
+        """
+        if session.late_spring is not None or SPRING_HOKKAIDO_ID in session.previews:
+            raise CareerPreviewSaveError("Hokkaido spring already attached")
+        if not isinstance(group_entrant_school_ids, Mapping):
+            raise CareerPreviewSaveError("explicit Hokkaido group IDs required")
+        path = self._path(session.slot_id, session.year)
+        if not path.is_file() or _checkpoint(path)["payload_checksum"] != session.checkpoint_checksum:
+            raise CareerPreviewSaveError("stale multi-preview checkpoint")
+        self._assert_prior(session)
+        groups = {
+            k: list(v) if isinstance(v, (tuple, list)) else v
+            for k, v in group_entrant_school_ids.items()
+        }
+        preview, proof = self._spring_evidence_preview(session, groups)
+        activated = session.processed_dates[-1] if session.processed_dates else ""
+        first_date = preview.scheduled.next_scheduled_date()
+        if not first_date or (activated and activated >= first_date):
+            raise CareerPreviewSaveError(
+                "cannot attach spring after its projected first game date"
+            )
+        metadata = self._late_spring_metadata(
+            groups, proof, preview, activated,
+        )
+        session.previews[SPRING_HOKKAIDO_ID] = preview
+        session.late_spring = metadata
+        # Keep parent fingerprint/registration intact, but bind the
+        # amendment into the new checksum-verified checkpoint payload.
+        try:
+            result = self.save(session)
+        except Exception:
+            del session.previews[SPRING_HOKKAIDO_ID]
+            session.late_spring = None
+            raise
+        return {
+            "year": session.year,
+            "competition_id": SPRING_HOKKAIDO_ID,
+            "source_match_count": proof["source_match_count"],
+            "recommended_school_ids": metadata["recommended_school_ids"],
+            "checkpoint": result,
+        }
+
+    def _rebuild_late_spring(
+        self, session: CareerMultiPreviewSession, metadata: object,
+        activation: str,
+    ) -> None:
+        if not isinstance(metadata, dict) or set(metadata) != {
+            "entry_mode", "competition_id", "source_competition_id",
+            "group_entrant_school_ids", "recommended_school_ids",
+            "source_matches_sha256", "initial_digest",
+            "activation_after_date",
+        }:
+            raise CareerPreviewSaveError("late spring checkpoint fields invalid")
+        if (metadata["entry_mode"] != "hokkaido_spring_same_year_senbatsu_v1"
+                or metadata["competition_id"] != SPRING_HOKKAIDO_ID
+                or metadata["source_competition_id"] != SENBATSU_ID
+                or metadata["activation_after_date"] != activation
+                or SPRING_HOKKAIDO_ID in session.previews):
+            raise CareerPreviewSaveError("late spring activation metadata invalid")
+        groups = metadata["group_entrant_school_ids"]
+        if not isinstance(groups, dict):
+            raise CareerPreviewSaveError("late spring qualifier group manifest invalid")
+        preview, proof = self._spring_evidence_preview(session, groups)
+        calculated = self._late_spring_metadata(groups, proof, preview, activation)
+        if metadata != calculated:
+            raise CareerPreviewSaveError(
+                "late spring qualification or initial bracket changed"
+            )
+        if activation >= preview.scheduled.next_scheduled_date():
+            raise CareerPreviewSaveError("spring attached after scheduled games")
+        session.previews[SPRING_HOKKAIDO_ID] = preview
+        session.late_spring = metadata
 
     @staticmethod
     def _next_date(session: CareerMultiPreviewSession) -> str:
@@ -457,7 +596,22 @@ class CareerMultiPreviewCheckpointService:
             if (not isinstance(dates, list) or dates != sorted(set(dates))
                     or any(not isinstance(d, str) for d in dates)):
                 raise CareerPreviewSaveError("multi-preview replay dates invalid")
+            late = payload.get("late_spring")
+            if late is not None:
+                if (not isinstance(late, dict)
+                        or not isinstance(late.get("activation_after_date"), str)
+                        or late["activation_after_date"] not in dates):
+                    raise CareerPreviewSaveError(
+                        "late spring activation must follow a played date"
+                    )
             for expected in dates:
+                if (late is not None and session.late_spring is None
+                        and session.processed_dates
+                        and session.processed_dates[-1] ==
+                            late["activation_after_date"]):
+                    self._rebuild_late_spring(
+                        session, late, session.processed_dates[-1],
+                    )
                 next_day = self._next_date(session)
                 if next_day != expected:
                     raise CareerPreviewSaveError("multi-preview replay date changed")
@@ -465,13 +619,17 @@ class CareerMultiPreviewCheckpointService:
                     if preview.scheduled.next_scheduled_date() == expected:
                         preview.play_next_date()
                 session.processed_dates.append(expected)
+            if late is not None and session.late_spring is None:
+                self._rebuild_late_spring(
+                    session, late, session.processed_dates[-1],
+                )
             if (payload.get("completed_match_count") !=
-                    len(_all_completed(previews))
+                    len(_all_completed(session.previews))
                     or payload.get("completed_match_sha256") !=
-                    _digest(_all_completed(previews))
+                    _digest(_all_completed(session.previews))
                     or payload.get("competition_date_progress") != {
                         cid: list(preview.scheduled.processed_dates)
-                        for cid, preview in sorted(previews.items())
+                        for cid, preview in sorted(session.previews.items())
                     } or payload.get("completed_competition_champions") != {
                         cid: run.outcome.champion_school_id
                         for cid, run in sorted(session.completed_runs().items())
