@@ -36,16 +36,27 @@ class CareerCrossEraYearCatalog:
         self.navigator = CareerCrossEraNavigator(self.slot_root)
 
     def _source_years(self, name: str, table: str, source: str,
-                      date_kind: str, bound: int) -> list[dict]:
+                      date_kind: str, bound: int, *,
+                      before_year: int | None = None) -> list[dict]:
         path = self.slot_root / name
         if not path.is_file():
             return []
         try:
             with closing(_read_only(path)) as conn:
-                rows = conn.execute(
-                    f"SELECT year FROM {table} WHERE status='sealed' "
-                    "ORDER BY year DESC LIMIT ?", (bound,),
-                ).fetchall()
+                # Both career_years.year and v2_game_years.year are
+                # INTEGER PRIMARY KEY; a seek cursor does not pay an OFFSET
+                # cost proportional to saved career years.
+                if before_year is None:
+                    rows = conn.execute(
+                        f"SELECT year FROM {table} WHERE status='sealed' "
+                        "ORDER BY year DESC LIMIT ?", (bound,),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        f"SELECT year FROM {table} WHERE status='sealed' "
+                        "AND year<? ORDER BY year DESC LIMIT ?",
+                        (before_year, bound),
+                    ).fetchall()
         except (OSError, sqlite3.DatabaseError) as exc:
             raise CareerCrossEraYearCatalogConflict(
                 "saved year catalog archive unreadable"
@@ -93,6 +104,53 @@ class CareerCrossEraYearCatalog:
             "years": window,
             "offset": offset, "limit": limit,
             "has_older": len(rows) > offset + limit,
+            "year_count_is_exhaustive": False,
+            "source_headers_only_not_record_verification": True,
+            "combined_date_index_authorized": False,
+            "combined_career_stats_authorized": False,
+            "official_future_results": False,
+            "read_only": True,
+        }
+
+    def page_after(self, *, before_year: int | None = None,
+                   limit: int = 24) -> dict:
+        """Seek the next older bounded set without scanning earlier pages.
+
+        A cursor is an exclusive saved-year boundary (not a trusted ledger).
+        Each page lists UNVERIFIED sealed headers only. select_school()
+        remains the mandatory deep-verification step before showing records.
+        """
+        if (type(limit) is not int or not 1 <= limit <= MAX_SELECTED_YEARS
+                or (before_year is not None and (
+                    type(before_year) is not int or before_year < 1
+                ))):
+            raise CareerCrossEraYearCatalogConflict(
+                "invalid keyset saved-year catalog request"
+            )
+        rows = []
+        for name, table, source, date_kind in SOURCES:
+            rows.extend(self._source_years(
+                name, table, source, date_kind,
+                limit + 1, before_year=before_year,
+            ))
+        rows.sort(key=lambda row: row["year"], reverse=True)
+        years = [row["year"] for row in rows]
+        if len(years) != len(set(years)):
+            raise CareerCrossEraYearCatalogConflict(
+                "two archives have overlapping saved years"
+            )
+        window = rows[:limit]
+        older = len(rows) > limit
+        return {
+            "screen": "cross_era_year_catalog",
+            "years": window,
+            "limit": limit,
+            "cursor_before_year": before_year,
+            "next_cursor_before_year": (
+                window[-1]["year"] if older else None
+            ),
+            "has_older": older,
+            "index_kind": "sqlite_year_primary_key_seek",
             "year_count_is_exhaustive": False,
             "source_headers_only_not_record_verification": True,
             "combined_date_index_authorized": False,
