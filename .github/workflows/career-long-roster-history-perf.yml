@@ -1,0 +1,39 @@
+name: Stage43G-66 100-year player roster history and national-scale index probe
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_roster_archive.py"
+      - "phase2_engine/career_long_roster_player_probe.py"
+      - "tests/test_stage43g66_long_roster_player_history.py"
+      - ".github/workflows/career-long-roster-history-perf.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_roster_archive.py"
+      - "phase2_engine/career_long_roster_player_probe.py"
+      - "tests/test_stage43g66_long_roster_player_history.py"
+
+permissions:
+  contents: read
+
+jobs:
+  bounded_player_history:
+    name: Real 100-year school roster IDs and 3000x50 metadata index no-write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Stage43G-66 bounded player history and no-write performance
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g66_long_roster_player_history.py' -v
+      - name: Existing 3-grade career roster progression contract
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43e_career_rosters.py' -v
+      - name: A archive and cross-year player navigation regression
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g31_cross_era_browse_model.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g62_history_gui_bridge.py' -v
