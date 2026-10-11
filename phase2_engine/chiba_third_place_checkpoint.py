@@ -27,6 +27,8 @@ from .historical_match_archive import (
 
 CHIBA = "CMP000092"
 KANTO = "CMP000006"
+AKITA = "CMP000078"
+TOHOKU = "CMP000005"
 SCHEMA = 1
 GAME_DATE = (5, 3)
 REGIONAL_START = (5, 16)
@@ -55,22 +57,41 @@ class ChibaThirdPlaceCheckpointService:
     are exactly the semifinal losers; the resolver uses persisted 2027 rosters.
     """
 
-    def __init__(self, multi: CareerMultiPreviewCheckpointService):
+    def __init__(self, multi: CareerMultiPreviewCheckpointService, *,
+                 source_competition_id: str = CHIBA):
+        if source_competition_id not in {CHIBA, AKITA}:
+            raise ChibaThirdPlaceNotReady(
+                "only verified Chiba or Akita placement is supported"
+            )
         self.multi = multi
+        self.source_competition_id = source_competition_id
+        self.destination_competition_id = (
+            KANTO if source_competition_id == CHIBA else TOHOKU
+        )
+        self.placement_date = (
+            GAME_DATE if source_competition_id == CHIBA else (5, 24)
+        )
+        self.destination_start = (
+            REGIONAL_START if source_competition_id == CHIBA else (6, 9)
+        )
+        self.match_prefix = (
+            "ST43G7" if source_competition_id == CHIBA else "ST43G45"
+        )
 
     def _path(self, slot: str, year: int) -> Path:
         slot = self.multi.solo.slots.validate_slot_id(slot)
         if not isinstance(year, int) or isinstance(year, bool) or not 2026 < year <= 9999:
             raise ChibaThirdPlaceNotReady("future sandbox year required")
         return (self.multi.solo.slots.slot_dir(slot) /
-                "career_placement_previews" / f"{year}_{CHIBA}_third.json")
+                "career_placement_previews" / f"{year}_{self.source_competition_id}_third.json")
 
     def _source(self, slot: str, year: int) -> dict:
         session = self.multi.load(slot, year=year)
-        if CHIBA not in session.previews or CHIBA not in session.completed_runs():
+        if (self.source_competition_id not in session.previews
+                or self.source_competition_id not in session.completed_runs()):
             raise ChibaThirdPlaceNotReady("Chiba MAIN must be completed first")
         try:
-            run = session.completed_runs()[CHIBA]
+            run = session.completed_runs()[self.source_competition_id]
             outcome, matches = _main_result(run)
         except (CareerOutcomeConflictError, ValueError) as exc:
             raise ChibaThirdPlaceNotReady("invalid Chiba MAIN result") from exc
@@ -85,15 +106,15 @@ class ChibaThirdPlaceCheckpointService:
                                 outcome["runner_up_school_id"]) for m in semi)):
             raise ChibaThirdPlaceNotReady("two distinct semifinal losers required")
         losers = sorted(m.loser for m in semi)
-        placement_day = date(year, *GAME_DATE)
-        regional_day = date(year, *REGIONAL_START)
+        placement_day = date(year, *self.placement_date)
+        regional_day = date(year, *self.destination_start)
 
         archive = self.multi.solo._archive(slot)
         with sqlite3.connect(archive.db_path) as conn:
             conn.row_factory = sqlite3.Row
             try:
                 manifest = CareerCompetitionOutcomes._check_source_matches(
-                    conn, year, CHIBA, matches,
+                    conn, year, self.source_competition_id, matches,
                 )
             except (CareerOutcomeConflictError, ValueError) as exc:
                 raise ChibaThirdPlaceNotReady("archived Chiba MAIN results invalid") from exc
@@ -102,7 +123,7 @@ class ChibaThirdPlaceCheckpointService:
                 row = conn.execute(
                     "SELECT match_date FROM historical_matches "
                     "WHERE year=? AND competition_id=? AND match_id=?",
-                    (year, CHIBA, match_id),
+                    (year, self.source_competition_id, match_id),
                 ).fetchone()
                 if row is None:
                     raise ChibaThirdPlaceNotReady("Chiba MAIN match date missing")
@@ -120,12 +141,12 @@ class ChibaThirdPlaceCheckpointService:
             # Do not allow an untracked or second placement decider to coexist.
             for row in conn.execute(
                 "SELECT match_id, payload_json, record_sha256 FROM historical_matches "
-                "WHERE year=? AND competition_id=?", (year, CHIBA),
+                "WHERE year=? AND competition_id=?", (year, self.source_competition_id),
             ):
                 if (hashlib.sha256(row["payload_json"].encode("utf-8")).hexdigest()
                         != row["record_sha256"]):
                     raise ChibaThirdPlaceNotReady("modified Chiba archive record")
-                if row["match_id"] == f"{CHIBA}-ST43G7-{year}-THIRD":
+                if row["match_id"] == f"{self.source_competition_id}-{self.match_prefix}-{year}-THIRD":
                     continue
                 try:
                     payload = json.loads(row["payload_json"])
@@ -140,7 +161,7 @@ class ChibaThirdPlaceCheckpointService:
             "school_ids": losers,
             "placement_day": placement_day.isoformat(),
             "source_sha256": _digest({
-                "year": year, "competition_id": CHIBA,
+                "year": year, "competition_id": self.source_competition_id,
                 "plan_fingerprint": self.multi._fingerprint(session),
                 "main_manifest": manifest,
                 "semifinal_losers": losers,
@@ -159,19 +180,23 @@ class ChibaThirdPlaceCheckpointService:
             match_config_dir=self.multi.solo.match_config_dir,
         )
         resolver.begin_season(year, career_seed)
-        match_id = f"{CHIBA}-ST43G7-{year}-THIRD"
+        match_id = f"{self.source_competition_id}-{self.match_prefix}-{year}-THIRD"
         team1, team2 = source["school_ids"]
         outcome = resolver(
-            match_id=match_id, competition_id=CHIBA,
+            match_id=match_id, competition_id=self.source_competition_id,
             reference_year=year,
-            generation_seed=session.previews[CHIBA].annual.rng_seed,
+            generation_seed=session.previews[self.source_competition_id].annual.rng_seed,
             team1=team1, team2=team2,
         )
         if outcome.score_source != "ability_model_v1":
             raise ChibaThirdPlaceNotReady("third-place game must use ability scorer")
         return {
-            "competition_id": CHIBA,
-            "competition_name": "春季千葉県大会 関東出場校決定戦（ゲーム内仮日程）",
+            "competition_id": self.source_competition_id,
+            "competition_name": (
+                "春季千葉県大会 関東出場校決定戦（ゲーム内仮日程）"
+                if self.source_competition_id == CHIBA else
+                "春季秋田県大会 東北出場校3位決定戦（ゲーム内仮日程）"
+            ),
             "match_id": match_id,
             "match_date": source["placement_day"],
             "completed_on": source["placement_day"],
@@ -195,7 +220,7 @@ class ChibaThirdPlaceCheckpointService:
         payload = {
             "schema_version": SCHEMA,
             "slot_id": slot, "year": year,
-            "competition_id": CHIBA, "destination_competition_id": KANTO,
+            "competition_id": self.source_competition_id, "destination_competition_id": self.destination_competition_id,
             "match_id": game["match_id"],
             "match_date": game["match_date"],
             "third_place_school_id": game["winner_id"],
@@ -242,3 +267,16 @@ class ChibaThirdPlaceCheckpointService:
             raise ChibaThirdPlaceNotReady("Chiba third-place game replay disagrees")
         self._sync(slot, year, source, game)
         return expected
+
+
+class AkitaThirdPlaceCheckpointService(ChibaThirdPlaceCheckpointService):
+    """2027 sandbox Akita placement verified from both semifinal losers.
+
+    The 2026 Akita calendar lists a May 24 third-place game (before its
+    May 25 final); future game runs require the MAIN source to be completed
+    before attaching an extra placement record. This is not an official
+    2027 fixture or proof of the real-world match order.
+    """
+
+    def __init__(self, multi: CareerMultiPreviewCheckpointService):
+        super().__init__(multi, source_competition_id=AKITA)
