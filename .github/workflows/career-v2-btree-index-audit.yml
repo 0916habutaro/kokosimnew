@@ -1,0 +1,69 @@
+name: Stage43G-70 V2 B-tree space and redundant index compatibility
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_v2_option_a_archive.py"
+      - "phase2_engine/career_storage_btree_audit.py"
+      - "tests/test_stage43g70_storage_btree_audit.py"
+      - ".github/workflows/career-v2-btree-index-audit.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_v2_option_a_archive.py"
+      - "phase2_engine/career_storage_btree_audit.py"
+      - "tests/test_stage43g70_storage_btree_audit.py"
+
+permissions:
+  contents: read
+
+jobs:
+  existing_new_v2_index:
+    name: Duplicate v2 PK B-tree avoided in new saves old read-only
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Stage43G-70 actual B-tree allocation indexed lookup tests
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g70_storage_btree_audit.py' -v
+      - name: Stage43G-27 source checksum and stage43G-68 deep record regressions
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g27_v2_option_a_archive.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g68_v2_long_storage_audit.py' -v
+      - name: Report read-only observed B-tree allocation for a newly saved v2
+        env:
+          PYTHONPATH: tests
+        run: |
+          mkdir -p build/reports
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from test_stage43g70_storage_btree_audit import Stage43G70BtreeAuditTests
+          from phase2_engine.career_storage_btree_audit import audit_save_storage_btrees
+          test = Stage43G70BtreeAuditTests(
+              "test_new_v2_keeps_primary_key_and_calendar_day_index",
+          )
+          test.setUp()
+          try:
+              report = audit_save_storage_btrees(test.root)
+              Path("build/reports/stage43g70_new_v2_btree.json").write_text(
+                  json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+              )
+              print("v2 SQLite bytes", report["files"]["v2_matches"]["file_bytes"])
+              print("new v2 legacy duplicate index exists",
+                    report["v2_match_lookup"]["legacy_explicit_duplicate_index_present"])
+              print("v2 query uses indexed day seek",
+                    report["v2_match_lookup"]["required_day_lookup_index_verified"])
+          finally:
+              test.doCleanups()
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage43g70-new-v2-btree-readonly-measurements
+          path: build/reports/stage43g70_new_v2_btree.json
+          retention-days: 30
+          if-no-files-found: error
