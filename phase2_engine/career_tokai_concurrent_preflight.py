@@ -71,6 +71,7 @@ class CareerTokaiConcurrentPreflight:
     def _build(
         self, slot_id: str, year: int,
         groups: Mapping[str, Mapping[str, Sequence[str]]],
+        *, require_preseason: bool = True,
     ) -> dict:
         repo = self.multi.solo.repo
         slot = self.multi.solo.slots.validate_slot_id(slot_id)
@@ -192,7 +193,7 @@ class CareerTokaiConcurrentPreflight:
                 gid: selected_groups[gid] for gid in sorted(selected_groups)
             }
         first = min(x["qualifier_first_date"] for x in calendar.values())
-        if session.processed_dates:
+        if require_preseason and session.processed_dates:
             raise TokaiPreflightNotReady(
                 "freeze must precede ALL annual game dates; never backdate qualification"
             )
@@ -258,7 +259,14 @@ class CareerTokaiConcurrentPreflight:
             raise TokaiPreflightNotReady("foreign season preflight")
         session = self.multi.load(slot, year=year)
         source = self.manifests._manifest(slot, year)
-        recorded = self.manifests.record(slot, year=year)
+        manifest_path = self.manifests._path(slot, year)
+        if not manifest_path.is_file():
+            raise TokaiPreflightNotReady(
+                "original frozen national participant manifest missing"
+            )
+        recorded = self.manifests._read(manifest_path)
+        if recorded != source:
+            raise TokaiPreflightNotReady("national participant manifest changed")
         if (recorded["payload_checksum"]
                 != frozen["source_selection_manifest_checksum"]
                 or source["entrant_sha256"] != frozen["source_selection_sha256"]
@@ -268,9 +276,13 @@ class CareerTokaiConcurrentPreflight:
                 != frozen["prior_year_sealed_ledger_sha256"]):
             raise TokaiPreflightNotReady("preseason selection or ledger changed")
         groups = frozen["qualifier_groups_by_competition"]
-        # Recompute expected group memberships against immutable game plan;
-        # _build requires no processed games, so validate as a temporary
-        # static replay by checking fields against the stored fingerprint.
+        # Recalculate static contract even after games have progressed.
+        # This catches master/fixture changes and invalid stored groups.
+        replay = self._build(
+            slot, year, groups, require_preseason=False,
+        )
+        if replay != frozen:
+            raise TokaiPreflightNotReady("frozen district plan or calendar changed")
         if set(groups) != set(TOKAI_PREFECTURES):
             raise TokaiPreflightNotReady("frozen district contract incomplete")
         if any(
