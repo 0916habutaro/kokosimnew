@@ -19,8 +19,8 @@ DETAIL_LABELS = {
     "pitcher_stats": "投手成績",
 }
 SCREENS = (
-    "history_year_catalog", "history_school", "history_match",
-    "history_player",
+    "history_year_catalog", "history_school_catalog", "history_school",
+    "history_match", "history_player",
 )
 
 
@@ -30,10 +30,12 @@ class CareerHistoryViewConflict(ValueError):
 
 def _row(kind: str, title: str, value: str, note: str, *,
          target: dict | None = None,
-         year: int | None = None, payload: str | None = None) -> dict:
+         year: int | None = None, school_id: str | None = None,
+         payload: str | None = None) -> dict:
     return {
         "kind": kind, "title": title, "value": value, "note": note,
-        "target": target, "year": year, "payload": payload or note,
+        "target": target, "year": year, "school_id": school_id,
+        "payload": payload or note,
     }
 
 
@@ -79,6 +81,36 @@ def project_history_screen(page: dict, *, labels=None) -> dict:
         if not rows:
             rows.append(_row(
                 "notice", "保存済み年度なし", "", "このページには封印済み年度がありません",
+            ))
+    elif screen == "history_school_catalog":
+        if (raw.get("screen") != "history_school_catalog"
+                or raw.get("source_payloads_rechecked") is not True
+                or raw.get("only_saved_year_rosters_indexed") is not True):
+            raise CareerHistoryViewConflict(
+                "unverified saved-year school catalog"
+            )
+        year = raw["year"]
+        title = f"{year}年度｜保存済み学校一覧"
+        summary = (
+            "当該年度の保存ロスターがある学校だけを表示／"
+            "全国全校の収録を保証しません"
+        )
+        for item in raw["schools"]:
+            if (item.get("year") != year
+                    or item.get("school_name_digest_verified") is not True
+                    or type(item.get("school_id")) is not str):
+                raise CareerHistoryViewConflict(
+                    "saved-year school identity or digest differs"
+                )
+            rows.append(_row(
+                "school", item["label"], item["school_id"],
+                "保存年度ロスターの校名／保存済みIDで選択",
+                year=year, school_id=item["school_id"],
+            ))
+        if not rows:
+            rows.append(_row(
+                "notice", "保存済み学校ロスターなし", "",
+                "この年度の学校が全国に存在しないという意味ではありません",
             ))
     elif screen == "history_school":
         if raw.get("screen") != "cross_era_school":
@@ -193,7 +225,9 @@ def project_history_screen(page: dict, *, labels=None) -> dict:
                 payload=json.dumps(stat, ensure_ascii=False, sort_keys=True),
             ))
     display = None
-    if labels is not None and screen != "history_year_catalog":
+    if labels is not None and screen in (
+        "history_school", "history_match", "history_player",
+    ):
         year, school_id = raw["selected_year"], raw["school_id"]
         historical = labels.school(year, school_id)
         display = {
@@ -256,7 +290,8 @@ def project_history_screen(page: dict, *, labels=None) -> dict:
         "allow_advance_year": False,
         "has_older": (
             raw.get("has_older", False)
-            if screen == "history_year_catalog" else False
+            if screen in ("history_year_catalog", "history_school_catalog")
+            else False
         ),
         "show_saved_candidate_warning": not verified,
         "saved_year_display": display,
