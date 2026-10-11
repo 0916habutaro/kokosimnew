@@ -292,7 +292,7 @@ class Stage43G47TohokuFourPrefecturesRegionalTests(unittest.TestCase):
             reopened.preview.scheduled.public_snapshot(),
             resumed.preview.scheduled.public_snapshot(),
         )
-        records = self.hist.list_matches(2027, limit=2000)
+        records = self.hist.list_matches(2027, limit=500)
         region_rows = [x for x in records if x["competition_id"] == REGIONAL]
         self.assertEqual(13, len(region_rows))
         self.assertTrue(all(
