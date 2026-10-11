@@ -21,6 +21,7 @@ from phase2_engine.career_multi_preview_checkpoint import (
 from phase2_engine.career_roster_archive import CareerRosterArchive
 from phase2_engine.career_tokai_concurrent_preflight import (
     CareerTokaiConcurrentPreflight, TokaiPreflightNotReady,
+    _reference_group_members,
 )
 from phase2_engine.historical_match_archive import HistoricalMatchArchive
 from phase2_engine.repository import DataRepository
@@ -80,7 +81,7 @@ class Stage43G51TokaiPreseasonFreeze(unittest.TestCase):
                     stage["stage_id"], "output_slots", gid,
                     int(group.get("advance_slots_to_next") or 0),
                 )
-                possible = sorted(cls.repo.group_school_ids(group, 2026))
+                possible = sorted(_reference_group_members(cls.repo, group))
                 possible = [
                     sid for sid in possible if sid not in cls.direct[cid]
                 ]
