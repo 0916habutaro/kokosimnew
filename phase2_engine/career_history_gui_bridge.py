@@ -10,6 +10,9 @@ from copy import deepcopy
 from pathlib import Path
 
 from .career_cross_era_year_catalog import CareerCrossEraYearCatalog
+from .career_saved_school_catalog import (
+    CareerSavedSchoolCatalog, MAX_SCHOOL_CHOICES,
+)
 
 CATALOG_LIMIT = 24
 MAX_BACK_STACK = 100
@@ -31,6 +34,7 @@ class CareerHistoryGuiBridge:
         if type(year_page_size) is not int or not 1 <= year_page_size <= 24:
             raise CareerHistoryGuiBridgeConflict("invalid history catalog page size")
         self.catalog = CareerCrossEraYearCatalog(slot_root)
+        self.school_catalog = CareerSavedSchoolCatalog(slot_root)
         self.year_page_size = year_page_size
         self.route = {"kind": "catalog", "before_year": None}
         self.history: list[dict] = []
@@ -46,6 +50,16 @@ class CareerHistoryGuiBridge:
             actions = ["open_saved_school"]
             if data["has_older"]:
                 actions.append("older_years")
+        elif route["kind"] == "schools":
+            data = self.school_catalog.page(
+                route["year"], after_school_id=route["after_school_id"],
+                limit=MAX_SCHOOL_CHOICES,
+            )
+            screen = "history_school_catalog"
+            checked = data["source_payloads_rechecked"]
+            actions = ["open_saved_school"]
+            if data["has_older"]:
+                actions.append("older_schools")
         elif route["kind"] == "detail":
             target = route["target"]
             if target["view"] == "school":
@@ -91,20 +105,65 @@ class CareerHistoryGuiBridge:
         self.page = page
         return page
 
-    def open_school(self, year: int, school_id: str) -> dict:
-        if (self.route["kind"] != "catalog"
-                or type(year) is not int
-                or type(school_id) is not str or not school_id
+    def open_year(self, year: int) -> dict:
+        """Open a verified roster-school chooser from a displayed year."""
+        if (self.route["kind"] != "catalog" or type(year) is not int
                 or year not in {
                     row["year"] for row in self.page["data"]["years"]
                 }):
             raise CareerHistoryGuiBridgeConflict(
-                "select a saved year displayed in the current catalog page"
+                "select a saved year from the current catalog page"
+            )
+        return self._navigate({
+            "kind": "schools", "year": year, "after_school_id": None,
+        })
+
+    def open_school(self, year: int, school_id: str) -> dict:
+        if type(year) is not int or (
+            type(school_id) is not str or not school_id
+        ):
+            raise CareerHistoryGuiBridgeConflict(
+                "saved year and stable school ID are required"
+            )
+        if self.route["kind"] == "catalog":
+            allowed = {
+                row["year"] for row in self.page["data"]["years"]
+            }
+            if year not in allowed:
+                raise CareerHistoryGuiBridgeConflict(
+                    "select a saved year displayed in the current catalog page"
+                )
+        elif self.route["kind"] == "schools":
+            if year != self.route["year"] or school_id not in {
+                row["school_id"] for row in self.page["data"]["schools"]
+            }:
+                raise CareerHistoryGuiBridgeConflict(
+                    "select a school from the current saved-year roster page"
+                )
+        else:
+            raise CareerHistoryGuiBridgeConflict(
+                "return to the saved-year school chooser before opening"
             )
         target = self.catalog.navigator._school_target(
             [year], year, school_id,
         )
         return self._navigate({"kind": "detail", "target": target})
+
+    def older_schools(self) -> dict:
+        if self.route["kind"] != "schools":
+            raise CareerHistoryGuiBridgeConflict(
+                "school paging requires the saved-year school chooser"
+            )
+        data = self.page["data"]
+        if not data["has_older"]:
+            return self.page
+        cursor = data["next_after_school_id"]
+        if type(cursor) is not str or not cursor:
+            raise CareerHistoryGuiBridgeConflict("missing school page cursor")
+        return self._navigate({
+            "kind": "schools", "year": self.route["year"],
+            "after_school_id": cursor,
+        })
 
     def older_years(self) -> dict:
         if self.route["kind"] != "catalog":
