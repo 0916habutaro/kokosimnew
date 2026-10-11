@@ -110,7 +110,8 @@ class Stage43G70BtreeAuditTests(unittest.TestCase):
             self.assertIsNone(row["btree_index_bytes"])
             self.assertIsNone(row["index_btree_sizes"])
         self.assertEqual(
-            row["file_bytes"], report["file_bytes_total"],
+            sum(p["file_bytes"] for p in report["files"].values()),
+            report["file_bytes_total"],
         )
 
     def test_integrated_existing_roster_legacy_v2_cache_footprints(self):
