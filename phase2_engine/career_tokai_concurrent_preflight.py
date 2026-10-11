@@ -317,11 +317,24 @@ class CareerTokaiConcurrentPreflight:
             raise TokaiPreflightNotReady("frozen district plan or calendar changed")
         if set(groups) != set(TOKAI_PREFECTURES):
             raise TokaiPreflightNotReady("frozen district contract incomplete")
-        if any(
-            cid in session.previews for cid in TOKAI_PREFECTURES
-        ):
+        from .future_tokai_concurrent_bridge import TOKAI_CIDS
+        attached = session.tokai_concurrent is not None
+        if attached:
+            if set(TOKAI_CIDS) - set(session.previews):
+                raise TokaiPreflightNotReady("incomplete Tokai concurrent attachment")
+            for cid in TOKAI_CIDS:
+                preview = session.previews[cid]
+                expected = frozen["destination_schedule"][cid]
+                if (preview.annual.group_entrant_school_ids
+                        != frozen["qualifier_groups_by_competition"][cid]
+                        or sorted(preview.annual.direct_main_entry_school_ids)
+                        != expected["additional_main_bypass_school_ids"]):
+                    raise TokaiPreflightNotReady(
+                        "attached prefectural event differs from frozen entry plan"
+                    )
+        elif any(cid in session.previews for cid in TOKAI_CIDS):
             raise TokaiPreflightNotReady(
-                "preflight-only contract cannot be confused with live prefectural fixtures"
+                "Tokai prefectural fixture has no preseason freeze activation"
             )
         proof = self.certifier.audit(slot, year=year)
         if proof.get("status") != "complete_same_year_saved_senbatsu_verified":
