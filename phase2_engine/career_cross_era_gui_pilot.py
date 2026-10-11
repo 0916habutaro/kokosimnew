@@ -1,0 +1,334 @@
+"""Stage43G-33: opt-in Tkinter window for verified cross-era school/player years.
+
+Run standalone:
+    python -m phase2_engine.career_cross_era_gui_pilot \
+        --slot /path/to/slot --school-id SCH000001 --years 2026,10000
+
+This is a separate testing window, not the game's official GUI, and never
+builds caches, changes archived matches or guesses a missing game season.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+import tkinter as tk
+from tkinter import messagebox, ttk
+
+from .career_cross_era_navigation import (
+    CareerCrossEraNavigator, MAX_SELECTED_YEARS,
+)
+
+APP_NAME = "ココシミュNew｜新旧年度履歴（試験版・閲覧専用）"
+PAGE_SIZE = 30
+
+
+def available_sealed_years(slot_root: str | Path) -> list[int]:
+    """Read actual saved year headers; never infer missing years or create DBs."""
+    nav = CareerCrossEraNavigator(slot_root)
+    legacy, future = nav.browse.gate._all_headers()
+    return sorted(
+        year for source in (legacy, future)
+        for year, row in source.items() if row["status"] == "sealed"
+    )
+
+
+class CareerCrossEraScreenController:
+    """Small headless state machine shared by Tk callbacks and CI tests."""
+
+    def __init__(self, navigator: CareerCrossEraNavigator,
+                 years: list[int], school_id: str, *, selected_year: int,
+                 verify_source: bool = True):
+        if type(verify_source) is not bool:
+            raise ValueError("verification mode must be bool")
+        self.navigator = navigator
+        self.verify_source = verify_source
+        self.target = navigator._school_target(years, selected_year, school_id)
+        self.history: list[tuple[dict, int]] = []
+        self.offset = 0
+        self.page = self._read(self.target, 0)
+
+    def _read(self, target: dict, offset: int) -> dict:
+        if target.get("view") == "school":
+            return self.navigator.school_page(
+                target["years"], target["school_id"],
+                selected_year=target["selected_year"],
+                limit=PAGE_SIZE, offset=offset,
+                verify_source=self.verify_source,
+            )
+        if target.get("view") == "player":
+            return self.navigator.follow(
+                target, verify_source=self.verify_source,
+            )
+        raise ValueError("unknown history window target")
+
+    def open(self, target: dict) -> dict:
+        """Commit navigation only after the requested source is reverified."""
+        resolved = self.navigator.follow(
+            target, verify_source=self.verify_source,
+        )
+        # For a school target, use the same bounded page size as the GUI.
+        if target["view"] == "school":
+            resolved = self._read(target, 0)
+        self.history.append((self.target, self.offset))
+        self.target, self.offset, self.page = dict(target), 0, resolved
+        return resolved
+
+    def change_year(self, year: int) -> dict:
+        if type(year) is not int:
+            raise ValueError("invalid year")
+        target = {**self.target, "selected_year": year}
+        return self.open(target)
+
+    def back(self) -> dict:
+        if not self.history:
+            return self.page
+        target, offset = self.history[-1]
+        resolved = self._read(target, offset)
+        self.target, self.offset, self.page = target, offset, resolved
+        self.history.pop()
+        return resolved
+
+    def change_page(self, delta: int) -> dict:
+        if type(delta) is not int or delta not in (-1, 1):
+            raise ValueError("invalid page direction")
+        if self.target["view"] != "school":
+            return self.page
+        count = self.page["match_total"]
+        offset = self.offset + PAGE_SIZE * delta
+        if offset < 0 or offset >= count:
+            return self.page
+        new = self._read(self.target, offset)
+        self.history.append((self.target, self.offset))
+        self.offset, self.page = offset, new
+        return new
+
+
+class CareerCrossEraGuiPilot:
+    """Tkinter shell: actual callbacks call the verified headless controller."""
+
+    def __init__(self, root: tk.Misc, navigator: CareerCrossEraNavigator,
+                 *, school_id: str, years: list[int],
+                 selected_year: int | None = None,
+                 verify_source: bool = True):
+        if (type(years) is not list or not years
+                or len(years) > MAX_SELECTED_YEARS):
+            raise ValueError("choose 1–24 explicitly saved years")
+        first = years[-1] if selected_year is None else selected_year
+        # No Tk mutation until the initial archive navigation succeeds.
+        self.controller = CareerCrossEraScreenController(
+            navigator, years, school_id, selected_year=first,
+            verify_source=verify_source,
+        )
+        self.root = root
+        self.year_var = tk.StringVar(master=root, value=str(first))
+        self.status_var = tk.StringVar(master=root, value="封印済み原本のみ／試験画面")
+        self.links: dict[str, dict] = {}
+        self.root.title(APP_NAME)
+        self.root.geometry("1100x730")
+        self.root.minsize(860, 520)
+        self._layout()
+        self._render(self.controller.page)
+
+    def _layout(self):
+        bar = ttk.Frame(self.root, padding=8)
+        bar.pack(fill="x")
+        ttk.Button(bar, text="戻る", command=self._back).pack(side="left")
+        ttk.Button(bar, text="前ページ", command=lambda: self._page(-1)).pack(
+            side="left", padx=(8, 0),
+        )
+        ttk.Button(bar, text="次ページ", command=lambda: self._page(1)).pack(
+            side="left",
+        )
+        ttk.Label(bar, text="封印済み年度").pack(side="left", padx=(18, 5))
+        self.year_box = ttk.Combobox(
+            bar, textvariable=self.year_var, state="readonly", width=10,
+            values=[str(year) for year in self.controller.target["years"]],
+        )
+        self.year_box.pack(side="left")
+        self.year_box.bind("<<ComboboxSelected>>", self._change_year)
+        ttk.Label(bar, text="別年度は当該原本から再検証").pack(
+            side="left", padx=(12, 0),
+        )
+        panel = ttk.Frame(self.root, padding=(10, 0, 10, 8))
+        panel.pack(fill="both", expand=True)
+        self.table = ttk.Treeview(
+            panel, columns=("identity", "value", "summary"),
+            show="headings", selectmode="browse",
+        )
+        for name, label, size in (
+            ("identity", "区分・保存済みID", 295),
+            ("value", "年度・得点", 275),
+            ("summary", "説明・参照元", 475),
+        ):
+            self.table.heading(name, text=label)
+            self.table.column(name, width=size, minwidth=110)
+        self.table.pack(side="left", fill="both", expand=True)
+        scroller = ttk.Scrollbar(
+            panel, orient="vertical", command=self.table.yview,
+        )
+        scroller.pack(side="right", fill="y")
+        self.table.configure(yscrollcommand=scroller.set)
+        self.table.bind("<Double-1>", self._open_selection)
+        details_frame = ttk.Frame(self.root, padding=(10, 0, 10, 6))
+        details_frame.pack(fill="both", expand=False)
+        self.details = tk.Text(
+            details_frame, state="disabled", wrap="word", height=12,
+            font=("Yu Gothic UI", 10),
+        )
+        self.details.pack(side="left", fill="both", expand=True)
+        scroll = ttk.Scrollbar(
+            details_frame, orient="vertical", command=self.details.yview,
+        )
+        scroll.pack(side="right", fill="y")
+        self.details.configure(yscrollcommand=scroll.set)
+        ttk.Label(
+            self.root, textvariable=self.status_var, anchor="w",
+        ).pack(fill="x", padx=12, pady=(0, 8))
+
+    def _warn(self, exc: Exception):
+        messagebox.showwarning("履歴を表示できません", str(exc), parent=self.root)
+
+    def _apply(self, fn):
+        try:
+            page = fn()
+        except (ValueError, KeyError, OSError, RuntimeError) as exc:
+            self.year_var.set(str(self.controller.target["selected_year"]))
+            self._warn(exc)
+            return
+        self._render(page)
+
+    def _open(self, target: dict):
+        self._apply(lambda: self.controller.open(target))
+
+    def _back(self):
+        self._apply(self.controller.back)
+
+    def _page(self, delta: int):
+        self._apply(lambda: self.controller.change_page(delta))
+
+    def _change_year(self, _event=None):
+        try:
+            requested = int(self.year_var.get())
+        except ValueError:
+            self.year_var.set(str(self.controller.target["selected_year"]))
+            return
+        self._apply(lambda: self.controller.change_year(requested))
+
+    def _open_selection(self, _event=None):
+        item = self.table.selection()
+        if item and item[0] in self.links:
+            self._open(self.links[item[0]])
+
+    def _add(self, title: str, value: str, note: str,
+             target: dict | None = None):
+        iid = f"view_{len(self.table.get_children())}"
+        self.table.insert("", "end", iid=iid, values=(title, value, note))
+        if target is not None:
+            self.links[iid] = target
+
+    def _render(self, page: dict):
+        for iid in self.table.get_children():
+            self.table.delete(iid)
+        self.links.clear()
+        self.year_var.set(str(page["selected_year"]))
+        if page["screen"] == "cross_era_school":
+            for game, link in zip(
+                page["match_page"], page["opponent_school_targets"],
+            ):
+                score = (
+                    f"{game['team1_id']} {game['team1_score']} - "
+                    f"{game['team2_score']} {game['team2_id']}"
+                )
+                self._add(
+                    f"対戦相手へ / {game['competition_id']}/{game['match_id']}",
+                    f"{game['date']} / {game['result_for_school']}",
+                    score, link["target"],
+                )
+            for item in page["player_targets"]:
+                self._add(
+                    "所属選手へ / " + item["player_id"],
+                    str(page["selected_year"]), "保存済み恒久ID",
+                    item["target"],
+                )
+            meta = {
+                "school_id": page["school_id"],
+                "year": page["selected_year"],
+                "date_kind": page["date_kind"],
+                "source": page["source"],
+                "match_total": page["match_total"],
+                "match_page_offset": page["match_page_offset"],
+                "match_wins_from_saved_games":
+                    page["match_wins_from_saved_games"],
+                "match_losses_from_saved_games":
+                    page["match_losses_from_saved_games"],
+                "annual_roster_state": page["annual_roster_state"],
+                "unverified_intervening_year_intervals":
+                    page["unverified_intervening_year_intervals"],
+                "combined_career_stats_authorized": False,
+            }
+        else:
+            for link in page["year_targets"]:
+                self._add(
+                    "選手の別年度へ / " + str(link["selected_year"]),
+                    link["player_id"], "所属・成績を年度ごとに確認",
+                    link,
+                )
+            self._add(
+                "学校へ戻る", page["school_id"],
+                "選択年度の学校試合一覧",
+                page["back_to_school_target"],
+            )
+            meta = {
+                "school_id": page["school_id"],
+                "player_id": page["player_id"],
+                "year": page["selected_year"],
+                "status": page["selected_status"],
+                "source": page["selected_source"],
+                "statistics": page["selected_statistics"],
+                "unverified_intervening_year_intervals":
+                    page["unverified_intervening_year_intervals"],
+                "combined_career_totals": None,
+                "identity_continuity_proven": False,
+            }
+        self.details.configure(state="normal")
+        self.details.delete("1.0", "end")
+        self.details.insert(
+            "end", json.dumps(meta, ensure_ascii=False, indent=2),
+        )
+        self.details.configure(state="disabled")
+        self.status_var.set(
+            f"{page['screen']} / {page['selected_year']}年度 / "
+            "保存済みIDのみ・閲覧専用／正式GUI未接続"
+        )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Opt-in cross-era Tk career history pilot (read-only)",
+    )
+    parser.add_argument("--slot", type=Path, required=True)
+    parser.add_argument("--school-id", required=True)
+    parser.add_argument(
+        "--years", required=True,
+        help="1–24 comma-separated explicit years, e.g. 2026,10000",
+    )
+    args = parser.parse_args()
+    try:
+        selected = [int(s.strip()) for s in args.years.split(",")]
+    except ValueError as exc:
+        parser.error(f"invalid year list: {exc}")
+    nav = CareerCrossEraNavigator(args.slot)
+    root = tk.Tk()
+    try:
+        CareerCrossEraGuiPilot(
+            root, nav, school_id=args.school_id, years=selected,
+        )
+    except Exception:
+        root.destroy()
+        raise
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()

@@ -64,6 +64,9 @@ class CareerHistoryGuiPilot:
         box.pack(side="left")
         box.bind("<<ComboboxSelected>>", self._change_year)
         ttk.Button(bar, text="年度一覧", command=self._years).pack(side="left", padx=6)
+        ttk.Button(bar, text="新旧年度履歴", command=self._open_cross_era).pack(
+            side="left", padx=(4, 0)
+        )
         ttk.Label(bar, text="学校名または学校ID").pack(side="left", padx=(12, 3))
         entry = ttk.Entry(bar, textvariable=self.search_var, width=23)
         entry.pack(side="left")
@@ -128,6 +131,46 @@ class CareerHistoryGuiPilot:
 
     def _years(self) -> None:
         self._open(HistoryRoute("years", self._year()))
+
+    def _open_cross_era(self) -> None:
+        """Launch an opt-in isolated source-verified Tk test window.
+
+        The legacy pilot keeps its original pages, cache and route stack.
+        Browsing a saved school never creates a v2 year or player stat cache.
+        """
+        from .career_cross_era_gui_pilot import (
+            CareerCrossEraGuiPilot, available_sealed_years,
+        )
+        from .career_cross_era_navigation import CareerCrossEraNavigator
+
+        school = self.navigator.current.school_id or self.search_var.get().strip()
+        if not school:
+            messagebox.showinfo(
+                "学校未選択", "学校ページを開くか、学校IDを入力してください",
+            )
+            return
+        try:
+            self.model._school(school)
+            years = available_sealed_years(self.model.slot_root)
+            # Stage G-32 deliberately bounds a single explicit browse plan.
+            # Choosing the latest 24 does NOT imply missing older years were
+            # played, nor does it silently fabricate year-10000 fixtures.
+            years = years[-24:]
+            if not years:
+                raise ValueError("封印済みの旧年度・v2年度がありません")
+            selected = self._year() if self._year() in years else years[-1]
+            nav = CareerCrossEraNavigator(self.model.slot_root)
+            child = tk.Toplevel(self.root)
+            try:
+                child._career_cross_era_gui = CareerCrossEraGuiPilot(
+                    child, nav, school_id=school, years=years,
+                    selected_year=selected,
+                )
+            except Exception:
+                child.destroy()
+                raise
+        except (ValueError, KeyError, OSError, sqlite3.DatabaseError) as exc:
+            messagebox.showwarning("新旧年度履歴を開けません", str(exc))
 
     def _change_year(self, _event=None) -> None:
         # Explicit year change clears contextual school/game selection.
