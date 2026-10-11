@@ -34,3 +34,47 @@ jobs:
           python -m unittest discover -s tests -p 'test_stage43g28_v2_roster_attribution.py' -v
           python -m unittest discover -s tests -p 'test_stage43g29_v2_player_stat_cache.py' -v
           python -m unittest discover -s tests -p 'test_stage43g31_cross_era_browse_model.py' -v
+      - name: Preserve observed fictional v2 year-by-year bytes and deep read times
+        env:
+          PYTHONPATH: tests
+        run: |
+          mkdir -p build/reports
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from test_stage43g68_v2_long_storage_audit import (
+              Stage43G68V2LongStorageAuditTests,
+          )
+          from phase2_engine.career_v2_long_storage_audit import (
+              audit_saved_v2_storage,
+          )
+          fixture = Stage43G68V2LongStorageAuditTests(
+              "test_twelve_v2_years_true_roster_progression_full_a_and_size",
+          )
+          fixture.setUp()
+          try:
+              fixture._progress(10011)
+              report = audit_saved_v2_storage(
+                  fixture.root, list(range(10000, 10012)),
+              )
+              Path("build/reports/stage43g68_v2_12year.json").write_text(
+                  json.dumps(report, ensure_ascii=False, indent=2) + "\\n",
+                  encoding="utf-8",
+              )
+              print("selected v2 years", report["selected_year_count"])
+              print("measured v2 matches", sum(
+                  row["match_count"] for row in report["year_rows"]
+              ))
+              print("four saved SQLite files, physical bytes",
+                    report["total_v2_roster_cache_calendar_sqlite_file_bytes"])
+              print("selected annual JSON bytes",
+                    report["selected_json_bytes_total"])
+          finally:
+              fixture.doCleanups()
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage43g68-fictional-v2-12year-measured-json
+          path: build/reports/stage43g68_v2_12year.json
+          retention-days: 30
+          if-no-files-found: error
