@@ -49,6 +49,43 @@ class Stage43G35MatchDetailTests(unittest.TestCase):
         self.assertEqual(2, len(result["details"]["pitcher_stats"]))
         self.assertEqual(self.school, ctrl.back()["school_id"])
 
+    def test_old_score_only_match_discloses_absent_detail_without_guessing(self):
+        import tempfile
+        from pathlib import Path
+        from phase2_engine.historical_match_archive import HistoricalMatchArchive
+
+        with tempfile.TemporaryDirectory() as temp:
+            archive = HistoricalMatchArchive(
+                Path(temp) / "historical_matches.sqlite3"
+            )
+            row = self.fixture.sample(2026, "SCORE_ONLY")
+            row.pop("ability_detail")
+            row["score_source"] = "synthetic_final_score_only"
+            archive.sync(
+                year=2026, rng_seed=17,
+                resolver_contract="stage43g35_score_only_fixture",
+                plan_fingerprint="legacy-2026-score-only",
+                completed=[row],
+            )
+            archive.seal_year(2026, expected_match_count=1)
+            original = file_sha256(archive.db_path)
+            detail = CareerCrossEraNavigator(temp).match_page(
+                [2026], self.school, selected_year=2026,
+                competition_id=row["competition_id"],
+                match_id=row["match_id"],
+            )
+            self.assertEqual("cross_era_match", detail["screen"])
+            self.assertEqual("partial_or_score_only_legacy",
+                             detail["detail_status"])
+            self.assertEqual(
+                ["inning_scores", "team_stats", "batter_stats", "pitcher_stats"],
+                detail["missing_detail_fields"],
+            )
+            self.assertTrue(
+                all(value is None for value in detail["details"].values())
+            )
+            self.assertEqual(original, file_sha256(archive.db_path))
+
     def test_v2_match_keeps_logical_year_and_own_original(self):
         ctrl = self.controller()
         future = ctrl.change_year(10000)
