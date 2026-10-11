@@ -120,6 +120,38 @@ class CareerRegionalMainCheckpointService:
             raise RegionalFeederNotReady(
                 "all registered prefectural events must complete before regional MAIN"
             )
+        # Tokai's Aichi/Mie qualifiers start while Senbatsu is still
+        # playing. The frozen preseason byes MUST also match a complete
+        # saved 31-game national source, not merely two completed local
+        # prefectural brackets.
+        if self.target == "CMP000008":
+            from .career_tokai_senbatsu_access_gate import (
+                TokaiSenbatsuNotReady, TOKAI_PREFECTURES,
+                certify_saved_tokai_senbatsu,
+            )
+            if (upstream.tokai_concurrent is None
+                    or "CMP000001" not in upstream.completed_runs()
+                    or any(cid not in upstream.previews
+                           for cid in TOKAI_PREFECTURES)):
+                raise RegionalFeederNotReady(
+                    "Tokai regional requires frozen concurrent Senbatsu "
+                    "plus complete Aichi and Mie prefectural games"
+                )
+            try:
+                national = certify_saved_tokai_senbatsu(
+                    self.multi.solo.repo, self.multi.solo._archive(slot),
+                    upstream.completed_runs()["CMP000001"], year=year,
+                )
+            except TokaiSenbatsuNotReady as exc:
+                raise RegionalFeederNotReady(
+                    "Tokai regional missing verified same-year 31-game Senbatsu"
+                ) from exc
+            for cid, participants in national["participants_by_prefecture"].items():
+                qualified = upstream.previews[cid].annual.direct_main_entry_school_ids
+                if sorted(qualified) != sorted(participants):
+                    raise RegionalFeederNotReady(
+                        "Tokai direct prefectural entry differs from saved Senbatsu"
+                    )
         gate = project_same_year_regional_feeders(
             self.multi, upstream, self.target,
             placement_decider_match_ids=placements,

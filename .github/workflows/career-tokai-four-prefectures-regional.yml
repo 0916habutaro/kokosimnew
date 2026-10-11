@@ -1,0 +1,37 @@
+name: Stage43G-53 four Tokai prefectures to regional 8
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_regional_main_checkpoint.py"
+      - "phase2_engine/future_tokai_concurrent_bridge.py"
+      - "phase2_engine/career_multi_preview_checkpoint.py"
+      - "phase2_engine/career_tokai_concurrent_preflight.py"
+      - "tests/test_stage43g53_four_tokai_prefectures_to_regional.py"
+      - ".github/workflows/career-tokai-four-prefectures-regional.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_regional_main_checkpoint.py"
+      - "tests/test_stage43g53_four_tokai_prefectures_to_regional.py"
+
+permissions:
+  contents: read
+
+jobs:
+  tokai_all_four:
+    name: Gifu Shizuoka Aichi Mie game feeder 8 to Tokai MAIN 7 replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Stage43G-53 four saved prefectural results to 8 regional schools
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g53_four_tokai_prefectures_to_regional.py' -v
+      - name: Stage43G-52 same-year Tokai concurrent and Stage43G-51 freeze regression
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g52_concurrent_tokai_prefectural_checkpoint.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g51_tokai_concurrent_preflight.py' -v
