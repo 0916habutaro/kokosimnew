@@ -28,6 +28,10 @@ from .future_kanto_direct_main_bridge import (
     prepare_future_kanto_direct_main_preview,
 )
 from .historical_match_archive import HistoricalMatchArchive
+from .future_non_kanto_regional_main_bridge import (
+    NON_KANTO_REGIONAL_MAIN_IDS,
+    prepare_future_non_kanto_regional_main_preview,
+)
 
 _SCHEMA = 2
 _RESOLVER = "career_multi_preview_ability_v1"
@@ -146,12 +150,19 @@ class CareerMultiPreviewCheckpointService:
                 raise CareerPreviewSaveError("invalid prior game source")
             mode = comp.get("entry_mode", "prior_autumn_bypass_v1")
             if mode not in ("prior_autumn_bypass_v1", "kanto_direct_main_v1",
-                            "national_invitational_main_v1"):
+                            "national_invitational_main_v1",
+                            "non_kanto_regional_main_sandbox_v1"):
                 raise CareerPreviewSaveError("unsupported future entrant mode")
             if mode == "kanto_direct_main_v1":
                 if cid not in DIRECT_MAIN_PREFECTURES or groups or source is not None:
                     raise CareerPreviewSaveError(
                         "direct MAIN requires whitelisted competition and no feeder override"
+                    )
+            if mode == "non_kanto_regional_main_sandbox_v1":
+                if cid not in NON_KANTO_REGIONAL_MAIN_IDS or groups or source is not None:
+                    raise CareerPreviewSaveError(
+                        "regional MAIN requires whitelisted competition, "
+                        "explicit entrants and no feeder override"
                     )
             if mode == "national_invitational_main_v1":
                 if (cid != "CMP000001" or groups or source is not None
@@ -230,6 +241,18 @@ class CareerMultiPreviewCheckpointService:
         for row in inputs:
             if row.get("entry_mode") == "kanto_direct_main_v1":
                 preview = prepare_future_kanto_direct_main_preview(
+                    data_root=self.solo.data_root, year=row["year"],
+                    competition_id=row["competition_id"],
+                    entrant_school_ids=row["entrant_school_ids"],
+                    roster_archive=self.solo._rosters(slot),
+                    repo=self.solo.repo,
+                    base_seed=row["base_seed"],
+                    career_seed=row["career_seed"],
+                    ability_config_dir=self.solo.ability_config_dir,
+                    match_config_dir=self.solo.match_config_dir,
+                )
+            elif row.get("entry_mode") == "non_kanto_regional_main_sandbox_v1":
+                preview = prepare_future_non_kanto_regional_main_preview(
                     data_root=self.solo.data_root, year=row["year"],
                     competition_id=row["competition_id"],
                     entrant_school_ids=row["entrant_school_ids"],
