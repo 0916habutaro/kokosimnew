@@ -163,9 +163,9 @@ class Stage43G75TkTests(unittest.TestCase):
 
     def _sqlite_hashes(self):
         return {
-            str(p.relative_to(self.fixture.root)):
+            str(p.relative_to(self.fixture.fixture.root)):
                 sha256(p.read_bytes()).hexdigest()
-            for p in self.fixture.root.rglob("*.sqlite3*") if p.is_file()
+            for p in self.fixture.fixture.root.rglob("*.sqlite3*") if p.is_file()
         }
 
     def _open_legacy(self):
