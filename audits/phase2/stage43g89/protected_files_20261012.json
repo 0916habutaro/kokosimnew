@@ -1,0 +1,7 @@
+{
+  "master_csv_count": 106,
+  "existing_save_count": 4,
+  "all_unchanged": true,
+  "note": "SQLite/CSV baseline before tests; three save JSON files additionally checked before final verification completion. Tests only use temporary fixtures.",
+  "publication_scope": "Counts and unchanged result only. Existing-save paths and SHA values are retained locally and not published."
+}

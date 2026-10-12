@@ -191,6 +191,10 @@ class CareerV2OptionAArchive:
             con.execute("PRAGMA foreign_keys=ON")
             con.executescript(_SCHEMA)
             with con:
+                # Serialize the status/provenance checks with insertion.
+                # A deferred implicit transaction starts only at INSERT and
+                # otherwise allows seal_year to overtake these reads.
+                con.execute("BEGIN IMMEDIATE")
                 entry = con.execute(
                     "SELECT calendar_sha256,status FROM v2_game_years "
                     "WHERE year=?", (year,),
@@ -247,6 +251,9 @@ class CareerV2OptionAArchive:
         with closing(sqlite3.connect(self.path)) as con:
             con.row_factory = sqlite3.Row
             with con:
+                # Pin all verification reads while reserving the writer slot;
+                # append must not commit between _ledger and the seal UPDATE.
+                con.execute("BEGIN IMMEDIATE")
                 status = con.execute(
                     "SELECT * FROM v2_game_years WHERE year=?", (year,),
                 ).fetchone()

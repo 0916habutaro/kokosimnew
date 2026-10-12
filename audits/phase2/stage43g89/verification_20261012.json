@@ -1,0 +1,31 @@
+{
+  "python": "3.12.14",
+  "sqlite": "3.53.1",
+  "cpu_quota": "200000 100000",
+  "full_unittest": {
+    "tests": 2020,
+    "seconds": 829.883,
+    "skipped": 41,
+    "successful": true,
+    "command": "KOKOSIM_SKIP_STAGE43G10_E2E=1 python -m unittest discover -s tests -v"
+  },
+  "kanto17_e2e": {
+    "tests": 2,
+    "seconds": 319.54,
+    "skipped": 0,
+    "successful": true
+  },
+  "focused_real_tk": {
+    "tests": 79,
+    "seconds": 23.323,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "successful": true
+  },
+  "protected_master_csv": 106,
+  "protected_existing_saves": 4,
+  "protected_files_unchanged": true,
+  "multi_file_atomic_generation_guaranteed": false,
+  "save_schema_changed": false
+}
