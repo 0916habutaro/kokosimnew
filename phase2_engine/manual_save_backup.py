@@ -260,7 +260,7 @@ def export_backup(*, save_root, slot_id, source, destination, confirm_game_stopp
         # Never write inside the installed compatibility tree either.
         if dest == repo or dest.is_relative_to(repo) or repo.is_relative_to(dest):
             raise BackupRefused('destination_overlaps_compatibility')
-        dest.mkdir()  # atomic no-clobber, including a concurrent manual export
+        dest.mkdir(mode=0o700)  # exclusive directory; private evidence on POSIX
         payload = dest / 'payload' / sid
         payload.mkdir(parents=True)
         for name in sorted(pin):

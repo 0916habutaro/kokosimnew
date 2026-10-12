@@ -19,7 +19,7 @@ python -m phase2_engine.manual_save_backup verify \
   --candidate /absolute/backups/new-candidate
 ```
 
-Windowsでは例えば `--save-root "C:\\KokoSim\\saves" --destination "D:\\Backups\\new-candidate"` とします。save領域・実行repoとの包含、既存出力、`..`、リンク/junction/hardlink、tmp/WAL/SHM/journalを拒否します。副作用なしのdiagnoseで対象を確認した後、exportを明示実行してください。
+Windowsでは例えば `--save-root "C:\KokoSim\saves" --destination "D:\Backups\new-candidate"` とします。save領域・実行repoとの包含、既存出力、`..`、リンク/junction/hardlink、tmp/WAL/SHM/journalを拒否します。副作用なしのdiagnoseで対象を確認した後、exportを明示実行してください。
 
 元セーブを書き換えず、全履歴・存在する両live系列・rolling backupsと固定許可版の互換入力を保全します。完了標識のない途中候補は不完全で、再実行も上書きしません。`verify`成功は候補内整合性であり、生成時の外部入力版・所有者認証・ゲーム再開・他PC移送を証明しません。自動backup/restore、元save復元/上書き、import/activation、履歴削除、保存形式移行は提供しません。
 

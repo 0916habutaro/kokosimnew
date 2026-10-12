@@ -1,8 +1,10 @@
 """Self-generated real legacy service saves, never external save inputs."""
 import atexit
+from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
 import shutil
+import sqlite3
 import tempfile
 from unittest.mock import patch
 
@@ -18,6 +20,27 @@ from test_stage43g91_save_inventory import StaticPlanner
 from test_stage43g92_legacy_replay import Stage43G92LegacyReplayTests, ROOT, SEED
 
 METRICS = []
+
+
+@contextmanager
+def owned_sqlite_handles():
+    """Close native fixture connections, including legacy roster read methods.
+
+    sqlite Connection.__exit__ commits but does not close. Capture only this
+    self-generated fixture operation; never change production lifetime rules.
+    """
+    original = sqlite3.connect
+    handles = []
+    def connect(*args, **kwargs):
+        connection = original(*args, **kwargs)
+        handles.append(connection)
+        return connection
+    with patch.object(sqlite3, 'connect', connect):
+        try:
+            yield
+        finally:
+            for connection in reversed(handles):
+                connection.close()
 
 
 class Fixture:

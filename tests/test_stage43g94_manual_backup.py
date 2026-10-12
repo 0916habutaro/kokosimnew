@@ -17,7 +17,7 @@ from phase2_engine import manual_save_backup as product
 from phase2_engine.legacy_backup_oracle import facts
 from phase2_engine.live_game_service import LiveGameService
 from phase2_engine.live_season_save import rechecksum_live_season_save_payload
-from stage43g94_fixture_support import Fixture, METRICS
+from stage43g94_fixture_support import Fixture, METRICS, owned_sqlite_handles
 from test_stage43g91_save_inventory import private_anchor, ROOT
 
 
@@ -182,7 +182,8 @@ class Stage43G94ManualBackupTests(unittest.TestCase):
         repo = Stage43G92LegacyReplayTests.repo
         groups = {cid: sorted(s for s in repo.school_to_program if repo.schools[s]['prefecture_code'] == pref)[:8]
                   for cid, pref in (('CMP000086', '09'), ('CMP000088', '10'))}
-        with patch.object(CareerRosterArchive, '_connect', closed_archive_connection), \
+        with owned_sqlite_handles(), \
+             patch.object(CareerRosterArchive, '_connect', closed_archive_connection), \
              patch.object(HistoricalMatchArchive, '_connect', closed_archive_connection):
             rosters = CareerRosterArchive(f.slot/'career_rosters.sqlite3')
             for sid in [s for group in groups.values() for s in group]:
