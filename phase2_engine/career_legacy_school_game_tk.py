@@ -506,7 +506,7 @@ class CareerLegacySchoolGamesTkPilot:
             end = _year(self.end_var.get().strip(),
                         min_year=self.pager.min_year, max_year=None)
             if (start, end) != (preview["start_year"], preview["end_year"]):
-                raise ValueError("year filter changed; reload index candidates")
+                raise ValueError("年度条件が変更されました。候補を再読込してください")
             ids = self.century_candidates_tree.selection()
             names = [
                 self.century_candidates_by_widget_id[wid]
