@@ -82,8 +82,21 @@ class CareerV2SchoolGamePager:
                      else century_paths_override)
             if not paths:
                 raise ValueError("no explicit cross-century index shards selected")
+            from .career_v2_school_century_shards import _shard_details
+            original, calendar = (
+                self.v2_path.resolve(), self.calendar_path.resolve(),
+            )
+            overlapping = []
+            for path in paths:
+                first, last, validated = _shard_details(
+                    original, calendar, path,
+                )
+                if first <= end and start <= last:
+                    overlapping.append(validated)
+            if not overlapping:
+                raise ValueError("no verified century indexes cover the period")
             data = read_v2_school_century_page(
-                self.v2_path, self.calendar_path, paths,
+                self.v2_path, self.calendar_path, overlapping,
                 self.school_id, **kwargs,
             )
             if (data.get("cross_century_school_index_shards") is not True
