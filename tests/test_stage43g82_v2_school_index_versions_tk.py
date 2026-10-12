@@ -43,7 +43,7 @@ class Stage43G82VersionSelectionTests(unittest.TestCase):
     def snapshots(self):
         return {
             p.name: file_sha256(p)
-            for p in self.fixture.root.glob("*.sqlite3")
+            for p in self.fixture.fixture.root.glob("*.sqlite3")
         }
 
     def build_versions(self):
@@ -145,7 +145,7 @@ class Stage43G82VersionSelectionTests(unittest.TestCase):
 
     def test_symlink_escape_rejected_and_not_listed(self):
         self.fixture.fixture.build()
-        escape = self.fixture.root / "fictional_v2_school_read_index_escape.sqlite3"
+        escape = self.fixture.fixture.root / "fictional_v2_school_read_index_escape.sqlite3"
         try:
             escape.symlink_to(self.fixture.old)
         except (OSError, NotImplementedError):
@@ -156,7 +156,7 @@ class Stage43G82VersionSelectionTests(unittest.TestCase):
 
     def test_bounded_version_discovery_rejects_over_limit(self):
         for i in range(MAX_VERSIONS + 1):
-            (self.fixture.root / (
+            (self.fixture.fixture.root / (
                 f"fictional_v2_school_read_index_TEST_{i:03d}.sqlite3"
             )).write_bytes(b"not actual SQLite")
         before = self.snapshots()
