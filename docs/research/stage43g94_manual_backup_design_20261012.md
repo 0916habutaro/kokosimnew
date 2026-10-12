@@ -51,7 +51,7 @@ Issue #243。最新main `2854ee77ae90ac037ce30b946f2e471debe4f3ab`（PR #242マ�
 
 38テストでENOSPC/EIO/KeyboardInterrupt、backup失敗、receipt失敗、copy間writer commit、最終境界前/成功後の変更、同時実行、WAL実writer、unknown table、seed/plan/ledger/identity改変、旧backup混入、hardlink/symlink/Windows junctionを試す。実disk枯渇や電源断とは区別する。実multi-preview生成も拒否する。ユーザーセーブはテスト入力にしない。
 
-専用Linux/Windows CIは新規38件、Stage91/92/93、年次37回帰、Stage89、実Tk read-only GUI回帰。既存Python CIは全Python3.12 unittestと関東8都県17校E2E。全国100/200年の新規高コスト負荷は追加せず、従来の手動dispatchへ分離を維持する。
+専用Linux/Windows CIは新規38件、Stage91/92/93、年次37回帰、実Tk read-only GUI回帰。Stage89の既存Linux専用19件はLinuxで全assertionを維持する。既存Python CIは全Python3.12 unittestと関東8都県17校E2E。全国100/200年の新規高コスト負荷は追加せず、従来の手動dispatchへ分離を維持する。
 
 6状態（active/sealed/registered×manual/autosave）でcopy＋照合の完了境界までの秒数、source/candidate/compatibility bytesを測る。`observed_source_and_candidate_bytes`は各候補完了時の両集合file合計で、FS割当・Pythonメモリ・既存repo・瞬間的journal・他候補を含む普遍的ピークではない。復元コピーは作らない。全履歴保持と年数無制限を維持し、100年度/索引・32シャード/照会をゲーム年数上限にしない。
 

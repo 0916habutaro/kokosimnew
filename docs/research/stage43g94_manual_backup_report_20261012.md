@@ -21,15 +21,15 @@ Issue #243、基点main `2854ee77ae90ac037ce30b946f2e471debe4f3ab`。方式Aを�
 | 年度登録/継続・旧A年次 | 37 | Linux成功・skipなし、annual_linux_20261012.json |
 | GUI明示handle cleanup runner | 15 | Linux成功・skipなし、gui_linux_20261012.json |
 | 関東8都県17校E2E | 2 | Linux成功・skipなし、477.247秒、kanto17_20261012.json |
-| 全Python 3.12 unittest | 2143 | 関東2件は専用実行へ分離。最終headのPython CIで照合 |
+| 全Python 3.12 unittest | 2143 | 関東2件は専用実行へ分離。Linux全体＋spawn再検証成功、full_unittest_20261012.json。最終headのPython CIでも照合 |
 
 重複行は合算しない。新規38件は全体2143件にも含む。すべて自己生成TemporaryDirectoryのsaveだけを入力した。小規模fixtureは8校単大会で、関東実E2Eと同一規模とは表示しない。
 
-専用manual-save-backup.ymlはubuntu/windows各々で新規38、Stage91/92/93、年次37、Stage89、実Tk GUI15を実行し、成功・件数・skipゼロ・source zero-write/no-clobberをassertする。既存python-tests.ymlは全unittestと関東専用を実行する。Windowsは固定互換byteを保持し、junction/hardlink拒否とhandle解放を確認する。GUI旧fixtureはnative接続をassertion後/tearDown前に閉じる専用runnerを使い、製品writerをpatchしない。
+専用manual-save-backup.ymlはubuntu/windows各々で新規38、Stage91/92/93、年次37、実Tk GUI15を実行し、成功・件数・skipゼロ・source zero-write/no-clobberをassertする。Stage89は既存Linux専用19件をLinuxで全assertionを維持して確認する。Windowsの短縮pathとopen DB renameを仮定しないStage94の契約と分け、無関係なv2 Windows対応は追加しない。既存python-tests.ymlは全unittestと関東専用を実行する。Windowsは固定互換byteを保持し、junction/hardlink拒否とhandle解放を確認する。GUI旧fixtureはnative接続をassertion後/tearDown前に閉じる専用runnerを使い、製品writerをpatchしない。
 
 最終headの全CI成功を完了条件とし、証跡はPR Checksと両OS専用artifactのJSONで確認する。local測定とCI時間は別sampleで、Windows成功をLinuxから推定しない。PRは成功後も未マージ・auto-mergeなしでレビュー待ちにする。
 
-localの初回GUI追加検証はサンドボックスによるX11起動/接続拒否で失敗した。TCP無効の仮想displayと接続可能な実行条件で再実行し、104件・15件が成功した。assertionを弱めていない。
+localの初回GUI追加検証はサンドボックスによるX11起動/接続拒否で失敗した。TCP無効の仮想displayと接続可能な実行条件で再実行し、104件・15件が成功した。assertionを弱めていない。全unittestのlocal集計は初回stdin実行器をmultiprocessing spawnが再読込できず、Stage90の3件/25境界がエラーになった。実ファイルのguard付き実行器でStage90全15件を再検証し成功した。初回2143件と15件再検証をJSONに両方保持し、2143件の単発成功と偽らない。CIは通常のpython -m unittestで全体を確認する。
 
 master CSV106ファイルの集合とbyteは不変。実path/SHAは非公開で、protected_inputs_20261012.jsonに件数と一致だけを記録した。添付作業領域の既存save4は0件で、その不変性を確認したと主張しない。ユーザー実saveをテスト入力にしていない。
 
