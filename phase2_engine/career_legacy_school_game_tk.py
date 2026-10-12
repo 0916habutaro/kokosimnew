@@ -21,6 +21,11 @@ WINDOW_TITLE = "ココシミュNew｜旧A方式・学校別試合検索（試験
 class CareerLegacySchoolGamePager:
     """Atomic filters and bounded navigation over one legacy match archive."""
 
+    source_kind = LEGACY_SOURCE
+    valid_verify_scopes = ("page", "filtered_window")
+    min_year = 1
+    max_year = 9999
+
     def __init__(self, match_path: str | Path, school_id: str, selected_year: int):
         if (type(school_id) is not str or not school_id
                 or type(selected_year) is not int
@@ -91,23 +96,30 @@ class CareerLegacySchoolGamePager:
         return self.offset + PAGE_SIZE < self.page["total"]
 
 
-def _year(value: str) -> int:
-    # No float/truncation or guessed game calendar conversion.
+def _year(value: str, *, min_year: int = 1,
+          max_year: int | None = 9999) -> int:
+    # No float/truncation, signed/Unicode numeric input or date conversion.
     if not value.isascii() or not value.isdecimal():
-        raise ValueError("年度は1〜9999の整数で指定してください")
+        raise ValueError("年度は半角整数で指定してください")
     year = int(value)
-    if not 1 <= year <= 9999:
-        raise ValueError("旧A方式は年度1〜9999のみ指定できます")
+    if year < min_year or (max_year is not None and year > max_year):
+        raise ValueError("選択中の保存方式で指定できない年度です")
     return year
 
 
 class CareerLegacySchoolGamesTkPilot:
     """Child window opened only from a verified legacy school-year screen."""
 
-    def __init__(self, parent: tk.Misc, pager: CareerLegacySchoolGamePager):
+    def __init__(self, parent: tk.Misc, pager):
         self.pager = pager
+        self.is_v2 = pager.source_kind == "fictional_option_a_v2"
+        if not (self.is_v2 or pager.source_kind == LEGACY_SOURCE):
+            raise ValueError("unknown school match archive source")
         self.root = tk.Toplevel(parent)
-        self.root.title(WINDOW_TITLE)
+        self.root.title(
+            "ココシミュNew｜架空v2・学校別試合検索（試験版）"
+            if self.is_v2 else WINDOW_TITLE
+        )
         self.root.geometry("1060x580")
         self.start_var = tk.StringVar(self.root, str(pager.start_year))
         self.end_var = tk.StringVar(self.root, str(pager.end_year))
@@ -143,12 +155,17 @@ class CareerLegacySchoolGamesTkPilot:
         ttk.Label(controls, text="SHA検証").pack(side="left")
         scope = ttk.Combobox(
             controls, textvariable=self.scope_var, state="readonly", width=22,
-            values=("page", "filtered_window"),
+            values=self.pager.valid_verify_scopes,
         )
         scope.pack(side="left", padx=6)
-        ttk.Label(controls, text="page＝表示ページのみ／filtered_window＝指定範囲の全件").pack(
-            side="left",
-        )
+        ttk.Label(
+            controls,
+            text=(
+                "page＝表示試合のみ／selected_years＝指定期間の保存済み全校・全大会"
+                if self.is_v2 else
+                "page＝表示ページのみ／filtered_window＝学校・年度・大会の絞込全件"
+            ),
+        ).pack(side="left")
         self.previous_button = ttk.Button(
             controls, text="前の30件", command=lambda: self._move(-1),
         )
@@ -184,7 +201,9 @@ class CareerLegacySchoolGamesTkPilot:
         self.rows_by_widget_id.clear()
         for item in page["records"]:
             widget_id = self.tree.insert("", "end", values=(
-                item["year"], item["match_date"], item["competition_id"],
+                item["year"],
+                item["game_day_token"] if self.is_v2 else item["match_date"],
+                item["competition_id"],
                 item["match_id"], item["opponent_school_id"],
                 f"{item['runs_for']}－{item['runs_against']}",
                 "勝" if item["result_for_school"] == "win" else "敗",
@@ -196,15 +215,26 @@ class CareerLegacySchoolGamesTkPilot:
         self.next_button.configure(
             state="normal" if self.pager.can_next else "disabled",
         )
-        scope = (
-            "指定した年度・大会の範囲全件SHA照合済み"
-            if page["all_filtered_window_checksums_verified"]
-            else "表示ページのみSHA照合済み（ページ外は未検証）"
-        )
+        if self.is_v2:
+            scope = (
+                "期間内に保存済みの全学校・全大会の試合SHA照合済み"
+                if page["all_selected_year_payloads_verified"]
+                else "表示ページのみSHA照合済み（他の原本や所属校の完全性は未検証）"
+            )
+            source = "架空v2（G{year}:MM-DD）"
+            suffix = "旧A方式対象外／JSON検索・高速学校索引なし"
+        else:
+            scope = (
+                "指定した学校・年度・大会の範囲全件SHA照合済み"
+                if page["all_filtered_window_checksums_verified"]
+                else "表示ページのみSHA照合済み（ページ外は未検証）"
+            )
+            source = "旧A方式（ISO日付）"
+            suffix = "v2対象外"
         self.status_var.set(
-            f"旧A方式／学校 {self.pager.school_id}／計{page['total']}件／"
+            f"{source}／学校 {self.pager.school_id}／計{page['total']}件／"
             f"表示 {len(page['records'])}件（先頭位置 {self.pager.offset}）／"
-            f"{scope}／閲覧専用・v2対象外"
+            f"{scope}／閲覧専用・{suffix}"
         )
         self.last_error = None
 
@@ -220,8 +250,16 @@ class CareerLegacySchoolGamesTkPilot:
 
     def _search(self) -> None:
         def run() -> None:
-            start = _year(self.start_var.get().strip())
-            end = _year(self.end_var.get().strip())
+            start = _year(
+                self.start_var.get().strip(),
+                min_year=self.pager.min_year,
+                max_year=self.pager.max_year,
+            )
+            end = _year(
+                self.end_var.get().strip(),
+                min_year=self.pager.min_year,
+                max_year=self.pager.max_year,
+            )
             competition_id = self.competition_var.get().strip() or None
             self.pager.apply_filters(
                 start, end, competition_id, self.scope_var.get(),
