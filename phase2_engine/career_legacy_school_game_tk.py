@@ -120,7 +120,7 @@ class CareerLegacySchoolGamesTkPilot:
             "ココシミュNew｜架空v2・学校別試合検索（試験版）"
             if self.is_v2 else WINDOW_TITLE
         )
-        self.root.geometry("1060x640" if self.is_v2 else "1060x580")
+        self.root.geometry("1060x785" if self.is_v2 else "1060x580")
         self.start_var = tk.StringVar(self.root, str(pager.start_year))
         self.end_var = tk.StringVar(self.root, str(pager.end_year))
         self.competition_var = tk.StringVar(self.root, "")
@@ -143,6 +143,12 @@ class CareerLegacySchoolGamesTkPilot:
         )
         self.century_status_var = (
             tk.StringVar(self.root, "年代横断は未選択・元セーブのみ")
+            if self.is_v2 else None
+        )
+        self.century_candidate_preview: dict | None = None
+        self.century_candidates_by_widget_id: dict[str, str] = {}
+        self.century_candidate_status_var = (
+            tk.StringVar(self.root, "索引候補は未読込・表示名だけでは未検証")
             if self.is_v2 else None
         )
         self.status_var = tk.StringVar(self.root, "")
@@ -246,6 +252,45 @@ class CareerLegacySchoolGamesTkPilot:
             ttk.Label(
                 self.root, textvariable=self.century_status_var, padding=(8, 0, 8, 6),
             ).pack(fill="x")
+            candidate_controls = ttk.Frame(self.root, padding=(8, 0, 8, 4))
+            candidate_controls.pack(fill="x")
+            ttk.Button(
+                candidate_controls, text="保存年度の索引候補を確認",
+                command=self._preview_century_candidates,
+            ).pack(side="left")
+            self.stage_century_candidates_button = ttk.Button(
+                candidate_controls, text="選択候補を入力欄へ（未検証）",
+                command=self._stage_century_candidate_names,
+            )
+            self.stage_century_candidates_button.pack(side="left", padx=7)
+            ttk.Label(
+                candidate_controls, textvariable=self.century_candidate_status_var,
+            ).pack(side="left", padx=7)
+            candidate_frame = ttk.Frame(self.root, padding=(8, 0, 8, 6))
+            candidate_frame.pack(fill="x")
+            self.century_candidates_tree = ttk.Treeview(
+                candidate_frame, show="headings", height=4, selectmode="extended",
+                columns=("range", "saved", "filename", "status"),
+            )
+            for key, label, width in (
+                ("range", "索引対象（100年度）", 140),
+                ("saved", "保存年度数", 82),
+                ("filename", "保存済み候補ファイル名", 600),
+                ("status", "状態", 185),
+            ):
+                self.century_candidates_tree.heading(key, text=label)
+                self.century_candidates_tree.column(key, width=width, anchor="w")
+            candidate_scroll = ttk.Scrollbar(
+                candidate_frame, orient="vertical",
+                command=self.century_candidates_tree.yview,
+            )
+            self.century_candidates_tree.configure(
+                yscrollcommand=candidate_scroll.set,
+            )
+            self.century_candidates_tree.pack(
+                side="left", fill="x", expand=True,
+            )
+            candidate_scroll.pack(side="right", fill="y")
         frame = ttk.Frame(self.root, padding=(8, 0, 8, 4))
         frame.pack(fill="both", expand=True)
         self.tree = ttk.Treeview(
@@ -384,6 +429,102 @@ class CareerLegacySchoolGamesTkPilot:
             self.status_var.set(
                 f"索引版を選べません：{exc}／直前の表示を維持・セーブは変更しません"
             )
+
+    def _preview_century_candidates(self) -> None:
+        """Preview untrusted in-slot filenames; do not activate an index."""
+        if not self.is_v2:
+            raise ValueError("legacy sources cannot preview fictional v2 shards")
+        from .career_v2_school_century_candidates import (
+            preview_v2_school_century_candidates,
+        )
+        try:
+            start = _year(self.start_var.get().strip(),
+                          min_year=self.pager.min_year, max_year=None)
+            end = _year(self.end_var.get().strip(),
+                        min_year=self.pager.min_year, max_year=None)
+            preview = preview_v2_school_century_candidates(
+                self.pager.v2_path, self.pager.calendar_path,
+                start_year=start, end_year=end,
+            )
+            self.century_candidates_tree.delete(
+                *self.century_candidates_tree.get_children(),
+            )
+            self.century_candidates_by_widget_id.clear()
+            for entry in preview["required_windows"]:
+                year_label = (
+                    f"{entry['start_year']}～{entry['end_year']}"
+                )
+                for name in entry["candidate_names"]:
+                    widget_id = self.century_candidates_tree.insert(
+                        "", "end", values=(
+                            year_label, len(entry["saved_years"]),
+                            name, "未検証・選択が必要",
+                        ),
+                    )
+                    self.century_candidates_by_widget_id[widget_id] = name
+                if not entry["candidate_names"]:
+                    self.century_candidates_tree.insert(
+                        "", "end", values=(
+                            year_label, len(entry["saved_years"]),
+                            "候補なし", "索引の明示作成が必要",
+                        ),
+                    )
+            self.century_candidate_preview = preview
+            self.century_candidate_status_var.set(
+                f"保存年度区間{len(preview['required_windows'])}件／"
+                f"索引候補{preview['candidate_count']}件／"
+                f"欠落{len(preview['missing_window_starts'])}件"
+                "（一覧は未検証）"
+            )
+            self.last_error = None
+        except (ValueError, OSError, sqlite3.DatabaseError) as exc:
+            self.century_candidate_preview = None
+            self.century_candidates_by_widget_id.clear()
+            self.century_candidates_tree.delete(
+                *self.century_candidates_tree.get_children(),
+            )
+            self.last_error = str(exc)
+            self.century_candidate_status_var.set(f"候補確認を拒否：{exc}")
+
+    def _stage_century_candidate_names(self) -> None:
+        """Stage exactly one explicit user selection for each saved bucket.
+
+        This only writes the Tk input variable, NOT the underlying SQLite or
+        pager state. SHA checking is deferred until the separate apply button.
+        """
+        if not self.is_v2:
+            raise ValueError("legacy sources cannot select fictional v2 shards")
+        from .career_v2_school_century_candidates import (
+            stage_explicit_century_candidate_names,
+        )
+        try:
+            preview = self.century_candidate_preview
+            if preview is None:
+                raise ValueError("preview the saved years before choosing files")
+            start = _year(self.start_var.get().strip(),
+                          min_year=self.pager.min_year, max_year=None)
+            end = _year(self.end_var.get().strip(),
+                        min_year=self.pager.min_year, max_year=None)
+            if (start, end) != (preview["start_year"], preview["end_year"]):
+                raise ValueError("年度条件が変更されました。候補を再読込してください")
+            ids = self.century_candidates_tree.selection()
+            names = [
+                self.century_candidates_by_widget_id[wid]
+                for wid in ids
+                if wid in self.century_candidates_by_widget_id
+            ]
+            if len(names) != len(ids):
+                raise ValueError("a missing-index notice is not selectable")
+            chosen = stage_explicit_century_candidate_names(preview, names)
+            self.century_files_var.set(" ".join(chosen))
+            self.century_candidate_status_var.set(
+                f"入力欄へ{len(chosen)}索引を反映・未検証"
+                "（右上の「検証して年代横断検索」で確定）"
+            )
+            self.last_error = None
+        except (ValueError, OSError, sqlite3.DatabaseError) as exc:
+            self.last_error = str(exc)
+            self.century_candidate_status_var.set(f"索引候補の選択を拒否：{exc}")
 
     def _apply_century_shards(self) -> None:
         """Manual strict activation, never silently selects or creates shards."""
