@@ -14,7 +14,7 @@ from .career_v2_school_index_health import audit_v2_school_index_health
 
 DEFAULT_INDEX_NAME = "fictional_v2_school_read_index.sqlite3"
 _VERSION = re.compile(
-    r"fictional_v2_school_read_index(?:_[A-Za-z0-9_-]{1,48})?\.sqlite3\Z"
+    r"fictional_v2_school_read_index(?:_[A-Za-z0-9][A-Za-z0-9_-]{0,47})?\.sqlite3\Z"
 )
 MAX_VERSIONS = 32
 
