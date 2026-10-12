@@ -1,0 +1,98 @@
+name: Stage43G-90 disposable generation backup and recovery
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_v2*.py"
+      - "phase2_engine/career_calendar_v2.py"
+      - "phase2_engine/career_roster_archive.py"
+      - "phase2_engine/historical_match_archive.py"
+      - "tests/test_stage43g90_*.py"
+      - ".github/workflows/career-v2-generation-recovery.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_v2_generation_recovery_audit.py"
+      - "tests/test_stage43g90_*.py"
+      - ".github/workflows/career-v2-generation-recovery.yml"
+  workflow_dispatch:
+    inputs:
+      measurement:
+        description: "Optional synthetic capacity measurement (not live career simulation)"
+        type: choice
+        default: none
+        options: [none, national3746, sparse200]
+
+permissions:
+  contents: read
+
+jobs:
+  recovery:
+    name: Recovery oracle on ${{ matrix.os }} Python 3.12
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Deterministic process kills and recovery regressions
+        run: |
+          mkdir -p audit-results
+          python -m phase2_engine.career_v2_generation_recovery_audit --regressions --json-output audit-results/faults.json > audit-results/faults.log 2>&1
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          evidence = json.loads(Path("audit-results/faults.json").read_text(encoding="utf-8"))
+          assert evidence["successful"] and evidence["tests"] == 14
+          assert evidence["skipped"] == 0 and evidence["subtest_schedules"] == 41
+          assert all(row["successful"] for row in evidence["schedules"])
+          PY
+      - name: Small full-A backup restore measurement
+        run: |
+          python -m phase2_engine.career_v2_generation_recovery_audit --profile small --json-output audit-results/small.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          evidence = json.loads(Path("audit-results/small.json").read_text(encoding="utf-8"))
+          assert evidence["fixture_source_sha_unchanged"] and not evidence["manifest_adopted"]
+          assert evidence["retained_backups"] == 2
+          assert all(row["first_school_page_sizes"] == [30, 30, 8, 0] for row in evidence["samples"])
+          assert all(row["verified_queries"] > 0 for row in evidence["samples"])
+          PY
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: stage43g90-${{ matrix.os }}
+          path: audit-results/*
+          retention-days: 14
+
+  capacity:
+    name: Optional synthetic capacity measurement
+    if: github.event_name == 'workflow_dispatch' && inputs.measurement != 'none'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Generate isolated full-A fixture and measure retained copies
+        env:
+          AUDIT_PROFILE: ${{ inputs.measurement }}
+        run: |
+          mkdir -p audit-results
+          python -m phase2_engine.career_v2_generation_recovery_audit --profile "$AUDIT_PROFILE" --json-output audit-results/capacity.json
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: stage43g90-capacity-${{ inputs.measurement }}
+          path: audit-results/*
+          retention-days: 14
