@@ -103,12 +103,21 @@ class Stage43G80PagerTests(unittest.TestCase):
             self.pager.select_lookup("automatic_fallback")
         with self.assertRaises(ValueError):
             self.pager.select_lookup(True)
+        self.assertEqual(before, (
+            self.pager.lookup_mode, self.pager.page,
+            self.pager.start_year, self.pager.end_year,
+        ))
+        # Original JSON1 reader can inspect an unindexed (unsaved) year;
+        # opting into the independently built 10000..10001 index must fail.
+        self.pager.apply_filters(10000, 10002)
+        original = self.pager.page
         with self.assertRaisesRegex(ValueError, "different saved source or year"):
-            self.pager.apply_filters(10000, 10001)
             self.pager.select_lookup("separate_index")
         self.assertEqual("original_json1", self.pager.lookup_mode)
-        self.assertIsNotNone(self.pager.page)
-        self.assertEqual(before[2:], (10000, 10000))
+        self.assertIs(original, self.pager.page)
+        self.assertEqual((10000, 10002), (
+            self.pager.start_year, self.pager.end_year,
+        ))
 
 
 @unittest.skipUnless(DISPLAY, "real Tk or Xvfb display required")
