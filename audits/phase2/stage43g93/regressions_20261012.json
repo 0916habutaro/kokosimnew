@@ -1,0 +1,22 @@
+{
+  "kanto17": {
+    "tests": 2,
+    "seconds": 713.86,
+    "successful": true
+  },
+  "annual_registration": {
+    "tests": 9,
+    "seconds": 15.307,
+    "successful": true
+  },
+  "annual_continuity": {
+    "tests": 10,
+    "seconds": 3.086,
+    "successful": true
+  },
+  "legacy_history": {
+    "tests": 18,
+    "seconds": 0.069,
+    "successful": true
+  }
+}

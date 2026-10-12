@@ -1,0 +1,278 @@
+{
+  "stage": "43G-92",
+  "tests": 21,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "successful": true,
+  "subtest_schedules": 52,
+  "schedules": [
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_busy_timeout_fails_closed_then_retry_succeeds",
+      "schedule": "test_busy_timeout_fails_closed_then_retry_succeeds (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_busy_timeout_fails_closed_then_retry_succeeds) (mode='DELETE', operation='sync')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_busy_timeout_fails_closed_then_retry_succeeds",
+      "schedule": "test_busy_timeout_fails_closed_then_retry_succeeds (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_busy_timeout_fails_closed_then_retry_succeeds) (mode='DELETE', operation='seal')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_busy_timeout_fails_closed_then_retry_succeeds",
+      "schedule": "test_busy_timeout_fails_closed_then_retry_succeeds (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_busy_timeout_fails_closed_then_retry_succeeds) (mode='DELETE', operation='register')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_busy_timeout_fails_closed_then_retry_succeeds",
+      "schedule": "test_busy_timeout_fails_closed_then_retry_succeeds (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_busy_timeout_fails_closed_then_retry_succeeds) (mode='WAL', operation='sync')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_busy_timeout_fails_closed_then_retry_succeeds",
+      "schedule": "test_busy_timeout_fails_closed_then_retry_succeeds (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_busy_timeout_fails_closed_then_retry_succeeds) (mode='WAL', operation='seal')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_busy_timeout_fails_closed_then_retry_succeeds",
+      "schedule": "test_busy_timeout_fails_closed_then_retry_succeeds (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_busy_timeout_fails_closed_then_retry_succeeds) (mode='WAL', operation='register')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_changed_full_a_and_sealed_new_record_refuse_without_write",
+      "schedule": "test_changed_full_a_and_sealed_new_record_refuse_without_write (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_changed_full_a_and_sealed_new_record_refuse_without_write) (mode='DELETE')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_changed_full_a_and_sealed_new_record_refuse_without_write",
+      "schedule": "test_changed_full_a_and_sealed_new_record_refuse_without_write (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_changed_full_a_and_sealed_new_record_refuse_without_write) (mode='WAL')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_concurrent_duplicate_sync_is_idempotent",
+      "schedule": "test_concurrent_duplicate_sync_is_idempotent (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_concurrent_duplicate_sync_is_idempotent) (mode='DELETE')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_concurrent_duplicate_sync_is_idempotent",
+      "schedule": "test_concurrent_duplicate_sync_is_idempotent (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_concurrent_duplicate_sync_is_idempotent) (mode='WAL')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_concurrent_initial_identity_same_and_different",
+      "schedule": "test_concurrent_initial_identity_same_and_different (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_concurrent_initial_identity_same_and_different) (mode='DELETE', seed=42)",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_concurrent_initial_identity_same_and_different",
+      "schedule": "test_concurrent_initial_identity_same_and_different (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_concurrent_initial_identity_same_and_different) (mode='DELETE', seed=99)",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_concurrent_initial_identity_same_and_different",
+      "schedule": "test_concurrent_initial_identity_same_and_different (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_concurrent_initial_identity_same_and_different) (mode='WAL', seed=42)",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_concurrent_initial_identity_same_and_different",
+      "schedule": "test_concurrent_initial_identity_same_and_different (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_concurrent_initial_identity_same_and_different) (mode='WAL', seed=99)",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_concurrent_seal_is_idempotent",
+      "schedule": "test_concurrent_seal_is_idempotent (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_concurrent_seal_is_idempotent) (mode='DELETE')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_concurrent_seal_is_idempotent",
+      "schedule": "test_concurrent_seal_is_idempotent (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_concurrent_seal_is_idempotent) (mode='WAL')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_expected_count_invalid_or_unexpected_never_seals",
+      "schedule": "test_expected_count_invalid_or_unexpected_never_seals (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_expected_count_invalid_or_unexpected_never_seals) (mode='DELETE')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_expected_count_invalid_or_unexpected_never_seals",
+      "schedule": "test_expected_count_invalid_or_unexpected_never_seals (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_expected_count_invalid_or_unexpected_never_seals) (mode='WAL')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_legacy_score_only_and_duplicate_batch_validation",
+      "schedule": "test_legacy_score_only_and_duplicate_batch_validation (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_legacy_score_only_and_duplicate_batch_validation) (mode='DELETE')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_legacy_score_only_and_duplicate_batch_validation",
+      "schedule": "test_legacy_score_only_and_duplicate_batch_validation (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_legacy_score_only_and_duplicate_batch_validation) (mode='WAL')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_nonadjacent_or_active_previous_registration_refuses",
+      "schedule": "test_nonadjacent_or_active_previous_registration_refuses (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_nonadjacent_or_active_previous_registration_refuses) (mode='DELETE')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_nonadjacent_or_active_previous_registration_refuses",
+      "schedule": "test_nonadjacent_or_active_previous_registration_refuses (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_nonadjacent_or_active_previous_registration_refuses) (mode='WAL')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_partial_batch_rolls_back_inserts_on_conflict",
+      "schedule": "test_partial_batch_rolls_back_inserts_on_conflict (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_partial_batch_rolls_back_inserts_on_conflict) (mode='DELETE')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_partial_batch_rolls_back_inserts_on_conflict",
+      "schedule": "test_partial_batch_rolls_back_inserts_on_conflict (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_partial_batch_rolls_back_inserts_on_conflict) (mode='WAL')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_register_and_next_year_sync_both_orders",
+      "schedule": "test_register_and_next_year_sync_both_orders (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_register_and_next_year_sync_both_orders) (mode='DELETE', reg_first=True)",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_register_and_next_year_sync_both_orders",
+      "schedule": "test_register_and_next_year_sync_both_orders (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_register_and_next_year_sync_both_orders) (mode='DELETE', reg_first=False)",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_register_and_next_year_sync_both_orders",
+      "schedule": "test_register_and_next_year_sync_both_orders (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_register_and_next_year_sync_both_orders) (mode='WAL', reg_first=True)",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_register_and_next_year_sync_both_orders",
+      "schedule": "test_register_and_next_year_sync_both_orders (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_register_and_next_year_sync_both_orders) (mode='WAL', reg_first=False)",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_registration_same_or_conflicting_identity",
+      "schedule": "test_registration_same_or_conflicting_identity (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_registration_same_or_conflicting_identity) (mode='DELETE', seed=42)",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_registration_same_or_conflicting_identity",
+      "schedule": "test_registration_same_or_conflicting_identity (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_registration_same_or_conflicting_identity) (mode='DELETE', seed=99)",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_registration_same_or_conflicting_identity",
+      "schedule": "test_registration_same_or_conflicting_identity (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_registration_same_or_conflicting_identity) (mode='WAL', seed=42)",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_registration_same_or_conflicting_identity",
+      "schedule": "test_registration_same_or_conflicting_identity (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_registration_same_or_conflicting_identity) (mode='WAL', seed=99)",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_and_register_both_orders",
+      "schedule": "test_seal_and_register_both_orders (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_and_register_both_orders) (mode='DELETE', seal_first=True)",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_and_register_both_orders",
+      "schedule": "test_seal_and_register_both_orders (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_and_register_both_orders) (mode='DELETE', seal_first=False)",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_and_register_both_orders",
+      "schedule": "test_seal_and_register_both_orders (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_and_register_both_orders) (mode='WAL', seal_first=True)",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_and_register_both_orders",
+      "schedule": "test_seal_and_register_both_orders (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_and_register_both_orders) (mode='WAL', seal_first=False)",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_and_register_write_faults_roll_back_and_release_lock",
+      "schedule": "test_seal_and_register_write_faults_roll_back_and_release_lock (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_and_register_write_faults_roll_back_and_release_lock) (mode='DELETE', operation='seal')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_and_register_write_faults_roll_back_and_release_lock",
+      "schedule": "test_seal_and_register_write_faults_roll_back_and_release_lock (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_and_register_write_faults_roll_back_and_release_lock) (mode='DELETE', operation='register')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_and_register_write_faults_roll_back_and_release_lock",
+      "schedule": "test_seal_and_register_write_faults_roll_back_and_release_lock (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_and_register_write_faults_roll_back_and_release_lock) (mode='WAL', operation='seal')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_and_register_write_faults_roll_back_and_release_lock",
+      "schedule": "test_seal_and_register_write_faults_roll_back_and_release_lock (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_and_register_write_faults_roll_back_and_release_lock) (mode='WAL', operation='register')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_first_identical_sync_succeeds",
+      "schedule": "test_seal_first_identical_sync_succeeds (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_first_identical_sync_succeeds) (mode='DELETE')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_first_identical_sync_succeeds",
+      "schedule": "test_seal_first_identical_sync_succeeds (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_first_identical_sync_succeeds) (mode='WAL')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_first_new_match_refuses_and_full_a_is_immutable",
+      "schedule": "test_seal_first_new_match_refuses_and_full_a_is_immutable (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_first_new_match_refuses_and_full_a_is_immutable) (mode='DELETE')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_first_new_match_refuses_and_full_a_is_immutable",
+      "schedule": "test_seal_first_new_match_refuses_and_full_a_is_immutable (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_seal_first_new_match_refuses_and_full_a_is_immutable) (mode='WAL')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_sealed_corrupt_ledger_refuses_reseal",
+      "schedule": "test_sealed_corrupt_ledger_refuses_reseal (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_sealed_corrupt_ledger_refuses_reseal) (mode='DELETE')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_sealed_corrupt_ledger_refuses_reseal",
+      "schedule": "test_sealed_corrupt_ledger_refuses_reseal (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_sealed_corrupt_ledger_refuses_reseal) (mode='WAL')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_sync_first_correct_count_seals_both_succeed",
+      "schedule": "test_sync_first_correct_count_seals_both_succeed (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_sync_first_correct_count_seals_both_succeed) (mode='DELETE')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_sync_first_correct_count_seals_both_succeed",
+      "schedule": "test_sync_first_correct_count_seals_both_succeed (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_sync_first_correct_count_seals_both_succeed) (mode='WAL')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_sync_first_stale_count_refuses_then_exact_count_seals",
+      "schedule": "test_sync_first_stale_count_refuses_then_exact_count_seals (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_sync_first_stale_count_refuses_then_exact_count_seals) (mode='DELETE')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_sync_first_stale_count_refuses_then_exact_count_seals",
+      "schedule": "test_sync_first_stale_count_refuses_then_exact_count_seals (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_sync_first_stale_count_refuses_then_exact_count_seals) (mode='WAL')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_write_fault_rolls_back_identity_year_and_rows_and_closes",
+      "schedule": "test_write_fault_rolls_back_identity_year_and_rows_and_closes (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_write_fault_rolls_back_identity_year_and_rows_and_closes) (mode='DELETE')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_write_fault_rolls_back_identity_year_and_rows_and_closes",
+      "schedule": "test_write_fault_rolls_back_identity_year_and_rows_and_closes (test_stage43g92_legacy_concurrency.Stage43G92LegacyConcurrencyTests.test_write_fault_rolls_back_identity_year_and_rows_and_closes) (mode='WAL')",
+      "successful": true
+    }
+  ],
+  "seconds": 2.707,
+  "python": "3.12.14",
+  "sqlite": "3.53.1",
+  "fixture_only": true,
+  "schema_changed": false,
+  "generation_adopted": false,
+  "ordering": "threading.Event at SQLite state reads / BEGIN IMMEDIATE"
+}
