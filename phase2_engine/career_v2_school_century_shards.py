@@ -259,6 +259,7 @@ def read_v2_school_century_page(
         "all_selected_year_payloads_verified": verify_scope == "selected_years",
         "offpage_derived_memberships_verified": verify_scope == "selected_years",
         "source_records_not_modified": True,
+        "visible_match_checksums_verified": True,
         "legacy_records_combined": False,
         "uses_separate_verified_school_index": True,
         "cross_century_school_index_shards": True,
