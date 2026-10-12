@@ -139,7 +139,7 @@ def _worker(root, stage, boundary, row, pipe):
     class BoundaryConnection(sqlite3.Connection):
         def around(self, action):
             nonlocal fired
-            eligible = stage == "index" or self.execute("PRAGMA database_list").fetchone()[2] == str(target)
+            eligible = stage == "index" or Path(self.execute("PRAGMA database_list").fetchone()[2]).resolve() == target.resolve()
             if eligible and self.in_transaction and not fired:
                 fired = True
                 if boundary == "commit_before":

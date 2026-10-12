@@ -67,6 +67,11 @@ jobs:
           assert all(row["first_school_page_sizes"] == [30, 30, 8, 0] for row in evidence["samples"])
           assert all(row["verified_queries"] > 0 for row in evidence["samples"])
           PY
+      - name: Display fault diagnostics on failure
+        if: failure()
+        run: |
+          if [ -f audit-results/faults.log ]; then cat audit-results/faults.log; fi
+          if [ -f audit-results/faults.json ]; then cat audit-results/faults.json; fi
       - uses: actions/upload-artifact@v6
         if: always()
         with:
