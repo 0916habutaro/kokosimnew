@@ -1,0 +1,221 @@
+{
+  "stage": "43G-90",
+  "python": "3.12.14",
+  "sqlite": "3.53.1",
+  "os": "Linux",
+  "tests": 15,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "successful": true,
+  "seconds": 19.371,
+  "schedules": [
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_index_publication_kill_before_after",
+      "schedule": "test_actual_index_publication_kill_before_after (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_index_publication_kill_before_after) (boundary='publish_before')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_index_publication_kill_before_after",
+      "schedule": "test_actual_index_publication_kill_before_after (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_index_publication_kill_before_after) (boundary='publish_after')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_process_kill_at_each_sqlite_commit_boundary",
+      "schedule": "test_actual_process_kill_at_each_sqlite_commit_boundary (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_process_kill_at_each_sqlite_commit_boundary) (stage='calendar', boundary='commit_before')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_process_kill_at_each_sqlite_commit_boundary",
+      "schedule": "test_actual_process_kill_at_each_sqlite_commit_boundary (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_process_kill_at_each_sqlite_commit_boundary) (stage='calendar', boundary='commit_after')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_process_kill_at_each_sqlite_commit_boundary",
+      "schedule": "test_actual_process_kill_at_each_sqlite_commit_boundary (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_process_kill_at_each_sqlite_commit_boundary) (stage='append', boundary='commit_before')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_process_kill_at_each_sqlite_commit_boundary",
+      "schedule": "test_actual_process_kill_at_each_sqlite_commit_boundary (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_process_kill_at_each_sqlite_commit_boundary) (stage='append', boundary='commit_after')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_process_kill_at_each_sqlite_commit_boundary",
+      "schedule": "test_actual_process_kill_at_each_sqlite_commit_boundary (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_process_kill_at_each_sqlite_commit_boundary) (stage='seal', boundary='commit_before')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_process_kill_at_each_sqlite_commit_boundary",
+      "schedule": "test_actual_process_kill_at_each_sqlite_commit_boundary (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_process_kill_at_each_sqlite_commit_boundary) (stage='seal', boundary='commit_after')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_process_kill_at_each_sqlite_commit_boundary",
+      "schedule": "test_actual_process_kill_at_each_sqlite_commit_boundary (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_process_kill_at_each_sqlite_commit_boundary) (stage='index', boundary='commit_before')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_process_kill_at_each_sqlite_commit_boundary",
+      "schedule": "test_actual_process_kill_at_each_sqlite_commit_boundary (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_process_kill_at_each_sqlite_commit_boundary) (stage='index', boundary='commit_after')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_cross_restore_of_valid_old_new_source_calendar_is_refused",
+      "schedule": "test_cross_restore_of_valid_old_new_source_calendar_is_refused (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_cross_restore_of_valid_old_new_source_calendar_is_refused) (generation='old')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_cross_restore_of_valid_old_new_source_calendar_is_refused",
+      "schedule": "test_cross_restore_of_valid_old_new_source_calendar_is_refused (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_cross_restore_of_valid_old_new_source_calendar_is_refused) (generation='new')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_disk_full_short_copy_rename_and_existing_publication_refuse",
+      "schedule": "test_disk_full_short_copy_rename_and_existing_publication_refuse (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_disk_full_short_copy_rename_and_existing_publication_refuse) (fault='enospc')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_disk_full_short_copy_rename_and_existing_publication_refuse",
+      "schedule": "test_disk_full_short_copy_rename_and_existing_publication_refuse (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_disk_full_short_copy_rename_and_existing_publication_refuse) (fault='shortcopy')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_disk_full_short_copy_rename_and_existing_publication_refuse",
+      "schedule": "test_disk_full_short_copy_rename_and_existing_publication_refuse (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_disk_full_short_copy_rename_and_existing_publication_refuse) (fault='rename')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_disk_full_short_copy_rename_and_existing_publication_refuse",
+      "schedule": "test_disk_full_short_copy_rename_and_existing_publication_refuse (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_disk_full_short_copy_rename_and_existing_publication_refuse) (fault='existing')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication",
+      "schedule": "test_generation_kill_at_backup_restore_copy_manifest_and_publication (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication) (stage='backup', boundary='source_copy_before')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication",
+      "schedule": "test_generation_kill_at_backup_restore_copy_manifest_and_publication (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication) (stage='backup', boundary='source_copy_after')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication",
+      "schedule": "test_generation_kill_at_backup_restore_copy_manifest_and_publication (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication) (stage='backup', boundary='calendar_copy_after')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication",
+      "schedule": "test_generation_kill_at_backup_restore_copy_manifest_and_publication (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication) (stage='backup', boundary='roster_copy_after')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication",
+      "schedule": "test_generation_kill_at_backup_restore_copy_manifest_and_publication (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication) (stage='backup', boundary='manifest_before')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication",
+      "schedule": "test_generation_kill_at_backup_restore_copy_manifest_and_publication (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication) (stage='backup', boundary='manifest_after')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication",
+      "schedule": "test_generation_kill_at_backup_restore_copy_manifest_and_publication (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication) (stage='backup', boundary='publish_before')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication",
+      "schedule": "test_generation_kill_at_backup_restore_copy_manifest_and_publication (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication) (stage='backup', boundary='publish_after')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication",
+      "schedule": "test_generation_kill_at_backup_restore_copy_manifest_and_publication (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication) (stage='restore', boundary='source_copy_before')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication",
+      "schedule": "test_generation_kill_at_backup_restore_copy_manifest_and_publication (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication) (stage='restore', boundary='source_copy_after')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication",
+      "schedule": "test_generation_kill_at_backup_restore_copy_manifest_and_publication (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication) (stage='restore', boundary='calendar_copy_after')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication",
+      "schedule": "test_generation_kill_at_backup_restore_copy_manifest_and_publication (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication) (stage='restore', boundary='roster_copy_after')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication",
+      "schedule": "test_generation_kill_at_backup_restore_copy_manifest_and_publication (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication) (stage='restore', boundary='manifest_before')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication",
+      "schedule": "test_generation_kill_at_backup_restore_copy_manifest_and_publication (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication) (stage='restore', boundary='manifest_after')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication",
+      "schedule": "test_generation_kill_at_backup_restore_copy_manifest_and_publication (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_generation_kill_at_backup_restore_copy_manifest_and_publication) (stage='restore', boundary='read_before')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_retained_old_and_new_sealed_generations_are_complete",
+      "schedule": "test_retained_old_and_new_sealed_generations_are_complete (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_retained_old_and_new_sealed_generations_are_complete) (generation='old')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_retained_old_and_new_sealed_generations_are_complete",
+      "schedule": "test_retained_old_and_new_sealed_generations_are_complete (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_retained_old_and_new_sealed_generations_are_complete) (generation='new')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_stale_manifest_sha_and_calendar_source_roster_generation_drift",
+      "schedule": "test_stale_manifest_sha_and_calendar_source_roster_generation_drift (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_stale_manifest_sha_and_calendar_source_roster_generation_drift) (fault='stale')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_stale_manifest_sha_and_calendar_source_roster_generation_drift",
+      "schedule": "test_stale_manifest_sha_and_calendar_source_roster_generation_drift (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_stale_manifest_sha_and_calendar_source_roster_generation_drift) (fault='sha')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_stale_manifest_sha_and_calendar_source_roster_generation_drift",
+      "schedule": "test_stale_manifest_sha_and_calendar_source_roster_generation_drift (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_stale_manifest_sha_and_calendar_source_roster_generation_drift) (fault='calendar')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_stale_manifest_sha_and_calendar_source_roster_generation_drift",
+      "schedule": "test_stale_manifest_sha_and_calendar_source_roster_generation_drift (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_stale_manifest_sha_and_calendar_source_roster_generation_drift) (fault='source')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_stale_manifest_sha_and_calendar_source_roster_generation_drift",
+      "schedule": "test_stale_manifest_sha_and_calendar_source_roster_generation_drift (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_stale_manifest_sha_and_calendar_source_roster_generation_drift) (fault='roster')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_stale_manifest_sha_and_calendar_source_roster_generation_drift",
+      "schedule": "test_stale_manifest_sha_and_calendar_source_roster_generation_drift (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_stale_manifest_sha_and_calendar_source_roster_generation_drift) (fault='manifestonly')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_stale_manifest_sha_and_calendar_source_roster_generation_drift",
+      "schedule": "test_stale_manifest_sha_and_calendar_source_roster_generation_drift (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_stale_manifest_sha_and_calendar_source_roster_generation_drift) (fault='missing')",
+      "successful": true
+    },
+    {
+      "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_stale_manifest_sha_and_calendar_source_roster_generation_drift",
+      "schedule": "test_stale_manifest_sha_and_calendar_source_roster_generation_drift (test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_stale_manifest_sha_and_calendar_source_roster_generation_drift) (fault='traversal')",
+      "successful": true
+    }
+  ],
+  "subtest_schedules": 41,
+  "ordering": "spawn + Pipe handshake + process.kill; no random sleep"
+}
