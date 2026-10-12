@@ -8,13 +8,14 @@ No background refresh, no migration, no false unlimited-years guarantee.
 """
 from __future__ import annotations
 
-from contextlib import closing
+from contextlib import ExitStack, closing, contextmanager
 import json
 import os
 from pathlib import Path
 import sqlite3
 import tempfile
 
+from . import career_calendar_v2 as calendar_v2
 from .career_calendar_v2 import CareerCalendarV2Archive
 from .career_option_a_storage_profile import _read_only
 from .career_v2_option_a_archive import (
@@ -276,40 +277,91 @@ def _verify_index_years(source: sqlite3.Connection, cache: sqlite3.Connection,
     return plans
 
 
-def read_indexed_v2_school_page(
-    v2_path: str | Path, calendar_path: str | Path,
-    index_path: str | Path, school_id: str, *,
-    start_year: int, end_year: int, competition_id: str | None = None,
-    limit: int = PAGE_SIZE, offset: int = 0,
-    verify_scope: str = "page",
-) -> dict:
-    """Read a separately indexed page, checking original v2 facts on display."""
-    _validate(start_year, end_year)
-    if (type(school_id) is not str or not school_id
-            or type(limit) is not int or not 1 <= limit <= 200
-            or type(offset) is not int or offset < 0
-            or (competition_id is not None and
-                (type(competition_id) is not str or not competition_id))
-            or verify_scope not in ("page", "selected_years")):
-        raise ValueError("invalid indexed fictional v2 school page")
-    source_path, calendar_path, index_path = _paths(
-        v2_path, calendar_path, index_path,
-    )
-    calendar = CareerCalendarV2Archive(calendar_path)
-    with closing(_read_only(source_path)) as source, closing(
-        _read_only(index_path)
-    ) as cache:
-        source.row_factory = sqlite3.Row
-        cache.row_factory = sqlite3.Row
-        source.execute("BEGIN")
-        cache.execute("BEGIN")
-        _check_index_meta(
-            cache, source_path, calendar_path, start_year, end_year,
-        )
-        plans = _verify_index_years(
-            source, cache, calendar, start_year, end_year,
-            verify_scope=verify_scope,
-        )
+class _SnapshotCalendar:
+    """Use the calendar's existing verifier on this request's pinned read."""
+
+    def __init__(self, connection):
+        self.connection = connection
+
+    def read(self, year):
+        row = self.connection.execute(
+            "SELECT schema_version,source_kind,policy_id,content_sha256,plan_json "
+            "FROM sandbox_year_plans WHERE game_year=?", (year,),
+        ).fetchone()
+        if row is None:
+            return None
+        if tuple(row[:3]) != (calendar_v2.SCHEMA_VERSION,
+                             calendar_v2.SOURCE, calendar_v2.POLICY):
+            raise calendar_v2.SandboxCalendarConflict("stored calendar metadata changed")
+        return calendar_v2._verified(row[4], row[3], year)
+
+
+class _SchoolReadRequest:
+    """Private, single-call scope. Never persists or accepts external proofs.
+
+    Each file has a pinned SQLite read transaction and an independent commit
+    watcher (data_version inside a WAL snapshot alone cannot observe drift).
+    Snapshots across separate files are not one atomic SQLite transaction.
+    """
+
+    def __init__(self, stack, source_path, calendar_path):
+        self.stack = stack
+        self.source_path, self.calendar_path = source_path, calendar_path
+        self.connections = {}
+        self.watchers = []
+        self.source = self.connection(source_path)
+        self.calendar = _SnapshotCalendar(self.connection(calendar_path))
+
+    def connection(self, path):
+        if path not in self.connections:
+            identity = path.stat()
+            watcher = self.stack.enter_context(closing(_read_only(path)))
+            version = watcher.execute("PRAGMA data_version").fetchone()[0]
+            conn = self.stack.enter_context(closing(_read_only(path)))
+            conn.row_factory = sqlite3.Row
+            conn.execute("BEGIN")
+            # Acquire the snapshot now, including files with no selected rows.
+            conn.execute("SELECT name FROM sqlite_master LIMIT 1").fetchall()
+            self.connections[path] = conn
+            self.watchers.append((path, watcher, version, identity.st_dev, identity.st_ino))
+        return self.connections[path]
+
+    def prepare(self, index_path, start, end, verify_scope):
+        cache = self.connection(index_path)
+        _check_index_meta(cache, self.source_path, self.calendar_path, start, end)
+        plans = _verify_index_years(self.source, cache, self.calendar, start, end,
+                                    verify_scope=verify_scope)
+        return _VerifiedSchoolSlice(self.source, cache, plans, start, end, verify_scope)
+
+    def check_unchanged(self):
+        for path, watcher, version, device, inode in self.watchers:
+            try:
+                identity = path.stat()
+            except FileNotFoundError as exc:
+                raise CareerV2ReadIndexConflict("saved file removed during school read") from exc
+            if ((identity.st_dev, identity.st_ino) != (device, inode)
+                    or watcher.execute("PRAGMA data_version").fetchone()[0] != version):
+                raise CareerV2ReadIndexConflict("saved source or index changed during school read")
+
+
+@contextmanager
+def _school_read_request(source_path, calendar_path):
+    with ExitStack() as stack:
+        request = _SchoolReadRequest(stack, source_path, calendar_path)
+        yield request
+        request.check_unchanged()
+
+
+class _VerifiedSchoolSlice:
+    """Count and display share verified plans and the same source/index reads."""
+
+    def __init__(self, source, cache, plans, start, end, verify_scope):
+        self.source, self.cache, self.plans = source, cache, plans
+        self.start, self.end, self.verify_scope = start, end, verify_scope
+
+    def page(self, school_id, competition_id, limit, offset):
+        source, cache, plans = self.source, self.cache, self.plans
+        start_year, end_year, verify_scope = self.start, self.end, self.verify_scope
         where = "school_id=? AND year BETWEEN ? AND ?"
         params: tuple = (school_id, start_year, end_year)
         if competition_id is not None:
@@ -352,24 +404,49 @@ def read_indexed_v2_school_page(
                     "derived lookup does not match verified original game"
                 )
             records.append(game)
-    return {
-        "school_id": school_id, "start_year": start_year,
-        "end_year": end_year, "competition_id": competition_id,
-        "records": records, "total": total, "limit": limit, "offset": offset,
-        "verification_scope": verify_scope,
-        "verified_saved_years": list(plans),
-        "saved_year_metadata_and_ledger_verified": True,
-        "visible_match_checksums_verified": True,
-        "all_selected_year_payloads_verified":
-            verify_scope == "selected_years",
-        "school_membership_integrity_for_years_verified":
-            verify_scope == "selected_years",
-        "source_records_not_modified": True,
-        "legacy_records_combined": False,
-        "school_filter_uses_unindexed_json_scan": False,
-        "uses_separate_verified_school_index": True,
-        "derived_index_does_not_replace_source": True,
-        "offpage_derived_memberships_verified":
-            verify_scope == "selected_years",
-        "real_tournament_runtime_connected": False,
-    }
+        return {
+            "school_id": school_id, "start_year": start_year,
+            "end_year": end_year, "competition_id": competition_id,
+            "records": records, "total": total, "limit": limit, "offset": offset,
+            "verification_scope": verify_scope,
+            "verified_saved_years": list(plans),
+            "saved_year_metadata_and_ledger_verified": True,
+            "visible_match_checksums_verified": True,
+            "all_selected_year_payloads_verified":
+                verify_scope == "selected_years",
+            "school_membership_integrity_for_years_verified":
+                verify_scope == "selected_years",
+            "source_records_not_modified": True,
+            "legacy_records_combined": False,
+            "school_filter_uses_unindexed_json_scan": False,
+            "uses_separate_verified_school_index": True,
+            "derived_index_does_not_replace_source": True,
+            "offpage_derived_memberships_verified":
+                verify_scope == "selected_years",
+            "real_tournament_runtime_connected": False,
+        }
+
+
+def read_indexed_v2_school_page(
+    v2_path: str | Path, calendar_path: str | Path,
+    index_path: str | Path, school_id: str, *,
+    start_year: int, end_year: int, competition_id: str | None = None,
+    limit: int = PAGE_SIZE, offset: int = 0,
+    verify_scope: str = "page",
+) -> dict:
+    """Read a separately indexed page, checking original v2 facts on display."""
+    _validate(start_year, end_year)
+    if (type(school_id) is not str or not school_id
+            or type(limit) is not int or not 1 <= limit <= 200
+            or type(offset) is not int or offset < 0
+            or (competition_id is not None and
+                (type(competition_id) is not str or not competition_id))
+            or verify_scope not in ("page", "selected_years")):
+        raise ValueError("invalid indexed fictional v2 school page")
+    source_path, calendar_path, index_path = _paths(
+        v2_path, calendar_path, index_path,
+    )
+    with _school_read_request(source_path, calendar_path) as request:
+        verified = request.prepare(index_path, start_year, end_year, verify_scope)
+        result = verified.page(school_id, competition_id, limit, offset)
+    return result

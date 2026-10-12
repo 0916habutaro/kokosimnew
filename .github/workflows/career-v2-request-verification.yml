@@ -1,0 +1,80 @@
+name: Stage43G-88 request-scoped strict verification
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_v2_school_read_index.py"
+      - "phase2_engine/career_v2_school_century_shards.py"
+      - "phase2_engine/career_v2_verification_audit.py"
+      - "tests/test_stage43g88_request_scoped_verification.py"
+      - ".github/workflows/career-v2-request-verification.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_v2_school_read_index.py"
+      - "phase2_engine/career_v2_school_century_shards.py"
+      - "phase2_engine/career_v2_verification_audit.py"
+      - "tests/test_stage43g88_request_scoped_verification.py"
+  workflow_dispatch:
+    inputs:
+      national_load:
+        description: "3,746校・18,730試合の同一DB比較を追加実行"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    name: Single-call SHA proofs, WAL drift and Stage83-87 Tk regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Ensure virtual Tk display
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+      - name: Exact-source, request-local proofs and GUI source separation
+        run: |
+          for stage in 79 83 84 85 86 87 88; do
+            xvfb-run -a python -m unittest discover -s tests -p "test_stage43g${stage}_*.py" -v
+          done
+      - name: Paired 100-school 400-match comparison against merged Stage87
+        run: |
+          mkdir -p audit-results
+          python -m phase2_engine.career_v2_verification_audit > audit-results/small100.json
+      - uses: actions/upload-artifact@v6
+        with:
+          name: stage43g88-small-paired-metrics
+          path: audit-results/*.json
+          retention-days: 14
+
+  national_load:
+    name: Optional paired 3746-school complete-A load
+    if: github.event_name == 'workflow_dispatch' && inputs.national_load
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: |
+          mkdir -p audit-results
+          python -m phase2_engine.career_v2_verification_audit --schools 3746 --years 1 --rounds 10 --allow-large > audit-results/national3746.json
+      - uses: actions/upload-artifact@v6
+        with:
+          name: stage43g88-national-paired-metrics
+          path: audit-results/*.json
+          retention-days: 14

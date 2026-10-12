@@ -10,7 +10,7 @@ created, queried and paged through independently.
 """
 from __future__ import annotations
 
-from contextlib import ExitStack, closing
+from contextlib import closing, nullcontext
 from pathlib import Path
 import re
 import sqlite3
@@ -18,7 +18,7 @@ import sqlite3
 from .career_option_a_storage_profile import _read_only
 from .career_v2_school_read_index import (
     SCHEMA, CareerV2ReadIndexConflict, build_v2_school_read_index,
-    read_indexed_v2_school_page,
+    _school_read_request,
 )
 from .career_v2_school_game_page import PAGE_SIZE
 
@@ -118,7 +118,7 @@ def build_v2_school_century_shards(
 
 
 def _shard_details(source: Path, calendar: Path,
-                   index_path: str | Path) -> tuple[int, int, Path]:
+                   index_path: str | Path, *, connection=None) -> tuple[int, int, Path]:
     """Reject foreign/alias/overlong/non-century source index candidates."""
     p = Path(index_path)
     if p.is_symlink() or p.resolve().parent != source.parent:
@@ -126,7 +126,8 @@ def _shard_details(source: Path, calendar: Path,
     resolved = p.resolve()
     if resolved in (source, calendar):
         raise ValueError("derived index must not alias a source file")
-    with closing(_read_only(resolved)) as conn:
+    with (closing(_read_only(resolved)) if connection is None
+          else nullcontext(connection)) as conn:
         conn.row_factory = sqlite3.Row
         meta = conn.execute("SELECT * FROM meta").fetchall()
         if len(meta) != 1:
@@ -158,8 +159,9 @@ def read_v2_school_century_page(
     zero games there. Missing shard coverage of *any saved source year*
     is fatal, rather than silently reporting fewer results.
 
-    The read-only original source and calendar are guarded against commits
-    during composition through a persistent PRAGMA data_version tracker.
+    Proof, count and display share per-file read snapshots for this call.
+    Independent PRAGMA data_version watchers reject observed commits to
+    source, calendar or indexes. Separate files are not one atomic snapshot.
     """
     if (type(school_id) is not str or not school_id
             or type(start_year) is not int or type(end_year) is not int
@@ -179,19 +181,27 @@ def read_v2_school_century_page(
         raise FileNotFoundError("source v2 matches and calendar required")
     if source.parent != calendar.parent:
         raise ValueError("source and calendar must share a save slot")
-    details = sorted([
-        _shard_details(source, calendar, path) for path in index_paths
-    ])
-    for i, (first, last, _) in enumerate(details):
-        if i and details[i - 1][1] >= first:
-            raise CareerV2ReadIndexConflict("overlapping century index shards")
-        if last < start_year or first > end_year:
-            raise ValueError("index shard outside selected year window")
-    with ExitStack() as stack:
-        original = stack.enter_context(closing(_read_only(source)))
-        cal_conn = stack.enter_context(closing(_read_only(calendar)))
-        source_version = original.execute("PRAGMA data_version").fetchone()[0]
-        calendar_version = cal_conn.execute("PRAGMA data_version").fetchone()[0]
+    with _school_read_request(source, calendar) as request:
+        # Validate candidate paths before opening; then inspect exactly the
+        # same pinned index snapshot used for proof, count and display.
+        details = []
+        for path in index_paths:
+            p = Path(path)
+            if p.is_symlink() or p.resolve().parent != source.parent:
+                raise ValueError("index shard must be local to the save slot")
+            resolved = p.resolve()
+            if resolved in (source, calendar):
+                raise ValueError("derived index must not alias a source file")
+            details.append(_shard_details(
+                source, calendar, path, connection=request.connection(resolved),
+            ))
+        details.sort()
+        for i, (first, last, _) in enumerate(details):
+            if i and details[i - 1][1] >= first:
+                raise CareerV2ReadIndexConflict("overlapping century index shards")
+            if last < start_year or first > end_year:
+                raise ValueError("index shard outside selected year window")
+        original = request.source
         years = original.execute(
             "SELECT year,status FROM v2_game_years "
             "WHERE year BETWEEN ? AND ? ORDER BY year",
@@ -208,20 +218,16 @@ def read_v2_school_century_page(
         all_total = 0
         for first, last, path in details:
             lo, hi = max(start_year, first), min(end_year, last)
-            data = read_indexed_v2_school_page(
-                source, calendar, path, school_id,
-                start_year=lo, end_year=hi,
-                competition_id=competition_id, limit=1, offset=0,
-                verify_scope=verify_scope,
-            )
+            verified = request.prepare(path, lo, hi, verify_scope)
+            data = verified.page(school_id, competition_id, 1, 0)
             count = data["total"]
             if type(count) is not int or count < 0:
                 raise CareerV2ReadIndexConflict("invalid shard total")
-            slices.append((lo, hi, path, count))
+            slices.append((lo, hi, path, count, verified))
             all_total += count
         remaining, skipped = limit, offset
         records = []
-        for lo, hi, path, count in slices:
+        for lo, hi, path, count, verified in slices:
             if skipped >= count:
                 skipped -= count
                 continue
@@ -229,12 +235,7 @@ def read_v2_school_century_page(
                 break
             take = min(remaining, count - skipped)
             if take > 0:
-                data = read_indexed_v2_school_page(
-                    source, calendar, path, school_id,
-                    start_year=lo, end_year=hi,
-                    competition_id=competition_id, limit=take, offset=skipped,
-                    verify_scope=verify_scope,
-                )
+                data = verified.page(school_id, competition_id, take, skipped)
                 if (data["total"] != count or
                         len(data["records"]) != take):
                     raise CareerV2ReadIndexConflict(
@@ -243,13 +244,6 @@ def read_v2_school_century_page(
                 records.extend(data["records"])
                 remaining -= take
             skipped = 0
-        if (original.execute("PRAGMA data_version").fetchone()[0]
-                != source_version or
-                cal_conn.execute("PRAGMA data_version").fetchone()[0]
-                != calendar_version):
-            raise CareerV2ReadIndexConflict(
-                "original saved source changed during century read"
-            )
     return {
         "school_id": school_id, "start_year": start_year,
         "end_year": end_year, "competition_id": competition_id,
@@ -264,7 +258,7 @@ def read_v2_school_century_page(
         "uses_separate_verified_school_index": True,
         "cross_century_school_index_shards": True,
         "shard_count": len(slices),
-        "index_paths": [str(path) for _, _, path, _ in slices],
+        "index_paths": [str(path) for _, _, path, _, _ in slices],
         "source_records_fictional": True,
         "index_shards_generated_by_read": False,
         "original_source_data_version_unchanged": True,

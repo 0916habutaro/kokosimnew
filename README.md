@@ -2,6 +2,16 @@
 
 高校野球の大会構造・日程・試合進行を扱うゲーム用データ／エンジンの管理リポジトリ。
 
+## Stage 43G-88：検索内の厳密SHA検証共有
+
+年代横断検索の件数・ページ取得で、同じ読取snapshotの年度/全学校所属検証を共有。完全A SHA・封印・出典確認を維持し、別検索では再検証する。保存schemaや既存セーブは変更しない。[日本語設計](docs/research/stage43g88_request_verification_design_20261012.md)・[同一DBの変更前後比較報告](docs/research/stage43g88_request_verification_report_20261012.md)。
+
+```bash
+python -m phase2_engine.career_v2_verification_audit
+# 全国3,746校の同条件比較は必要時だけ実行（baselineを含むgit履歴が必要）
+python -m phase2_engine.career_v2_verification_audit --schools 3746 --years 1 --rounds 10 --allow-large
+```
+
 ## Stage 43G-87：全国校規模の長期履歴・容量監査
 
 現行3,746校マスターの計数と、架空の完全A試合を使った保存・年次封印・学校索引・SHA付き検索の実測を追加。既存セーブを使用せず一時ディレクトリで検証し、ゲームの保存可能年数は制限しない。全国100/200年分の実大会進行は未検証。
