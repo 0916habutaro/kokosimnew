@@ -31,6 +31,10 @@ jobs:
       - name: Print measured full-A search latencies and actual SQLite plans
         run: |
           python -m phase2_engine.career_v2_school_search_benchmark --years 4 --games-per-year 40 --repetitions 3
+      - name: Real measurements for 50- and 100-year bounded full-A sandboxes
+        run: |
+          python -m phase2_engine.career_v2_school_search_benchmark --years 50 --games-per-year 10 --repetitions 2
+          python -m phase2_engine.career_v2_school_search_benchmark --years 100 --games-per-year 10 --repetitions 2
       - name: Stage43G-76 original v2 school match paging regressions
         run: |
           python -m unittest discover -s tests -p 'test_stage43g76_v2_school_game_page.py' -v
