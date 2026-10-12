@@ -7,7 +7,7 @@ index activation is exposed. The manifest is an unadopted laboratory format.
 from __future__ import annotations
 
 import argparse
-from contextlib import ExitStack, closing
+from contextlib import ExitStack, closing, contextmanager
 import copy
 import errno
 import hashlib
@@ -20,6 +20,7 @@ import random
 import shutil
 import sqlite3
 from time import perf_counter
+from unittest.mock import patch
 
 from game_core.players import PlayerRosterGenerator
 from .career_calendar_v2 import CareerCalendarV2Archive, explicit_sandbox_plan
@@ -32,6 +33,8 @@ from .career_v2_school_century_shards import (
     build_v2_school_century_shards, read_v2_school_century_page,
 )
 from .repository import DataRepository
+from .historical_match_archive import HistoricalMatchArchive
+from . import career_v2_national_storage_audit as fixture_module
 
 DATA = Path(__file__).resolve().parents[1] / "data"
 FORMAT = "stage90-laboratory-only-v1"
@@ -188,6 +191,36 @@ def _worker(root, stage, boundary, row, pipe):
         pipe.close()
 
 
+class LabRosterArchive(CareerRosterArchive):
+    """Close fixture write handles explicitly; SQLite context only commits.
+
+    The existing roster writer nests a connection transaction in _connect().
+    This audit-only outer context owns that handle, including exceptional exit.
+    No production save contract is changed and no GC timing is relied on.
+    """
+
+    @contextmanager
+    def _connect(self):
+        with closing(super()._connect()) as connection:
+            yield connection
+
+    def roster(self, year, school_id):
+        if not self.db_path.is_file():
+            return None
+        with closing(ro(self.db_path)) as connection:
+            connection.row_factory = sqlite3.Row
+            return self._get(connection, year, school_id)
+
+
+class LabHistoricalArchive(HistoricalMatchArchive):
+    """Same transaction semantics, explicit outer fixture-handle ownership."""
+
+    @contextmanager
+    def _connect(self):
+        with closing(super()._connect()) as connection:
+            yield connection
+
+
 class GenerationLab:
     """Own all inputs; no constructor parameter can specify a saved DB."""
 
@@ -200,12 +233,15 @@ class GenerationLab:
 
     def __enter__(self):
         try:
-            self.f = self.stack.enter_context(synthetic_storage_fixture(DATA, **self.dimensions))
+            # Limit the substitute to creating the fixture's separate legacy guard.
+            # Existing production classes/paths are not invoked or changed.
+            with patch.object(fixture_module, "HistoricalMatchArchive", LabHistoricalArchive):
+                self.f = self.stack.enter_context(synthetic_storage_fixture(DATA, **self.dimensions))
             self.root = self.f.source.parent
             self.roster = self.root / "career_rosters.sqlite3"
             repo = DataRepository(DATA)
             for school in self.f.schools[:2]:
-                CareerRosterArchive(self.roster).save_initial_roster(
+                LabRosterArchive(self.roster).save_initial_roster(
                     PlayerRosterGenerator().generate_for_school_id(repo, school, self.f.years[0], SEED))
             self.roles = {"source": self.f.source, "calendar": self.f.calendar,
                           "legacy": self.f.legacy, "roster": self.roster}

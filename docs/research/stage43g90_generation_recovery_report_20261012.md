@@ -8,7 +8,7 @@
 
 ## 保証済み（本実験の範囲）
 
-- 14 unittest、41 subtestスケジュール。実SQLite、WAL、spawn子プロセスとPipe到達通知、process.kill、新接続での再検証を使用。ランダムsleepなし。commit前後8、index公開前後2、backup/restore境界15の計25 killスケジュール。
+- 15 unittest、41 subtestスケジュール。実SQLite、WAL、spawn子プロセスとPipe到達通知、process.kill、新接続での再検証を使用。ランダムsleepなし。commit前後8、index公開前後2、backup/restore境界15の計25 killスケジュール。
 - 独立入力oracleとraw SQL/SHAによる全完全A・calendar・年次ledgerの一致。復元先でstrict学校読取を再検証し、G10099/G10100、68件30/30/8、0件学校、2大会filter、offset超過が一致。
 - 異内容の旧・新封印世代を両方保持し復元。旧公開世代のfile SHAを維持。途中状態はactive/欠落/manifestなしとして拒否。完全状態だけを公開/検証する。
 - SHA不正・古いmanifest・manifestだけ偽造・原本/calendar/roster改ざん・正しい旧/新calendarの取り違え・必須正本欠落・異slot・foreign索引・path逸脱を拒否。file SHAを再計算しても独立承認proof不一致を拒否する。
@@ -49,9 +49,11 @@ OS停止/電源断、Windows open-handle/antivirus干渉、directory fsync耐久
 
 ## 検証記録とCI
 
-専用 `.github/workflows/career-v2-generation-recovery.yml` はUbuntu/Windows・Python3.12で14回帰/41subtestと小規模測定を必須とする。全国3,746校と200年度はworkflow_dispatchへ分離。整合性oracle/SHA/件数/不変性を合格条件にし、固定ms閾値は置かない。実行済みの詳細は[障害回帰JSON](../../audits/phase2/stage43g90/fault_regressions_20261012.json)。
+専用 `.github/workflows/career-v2-generation-recovery.yml` はUbuntu/Windows・Python3.12で15回帰/41subtestと小規模測定を必須とする。全国3,746校と200年度はworkflow_dispatchへ分離。整合性oracle/SHA/件数/不変性を合格条件にし、固定ms閾値は置かない。実行済みの詳細は[障害回帰JSON](../../audits/phase2/stage43g90/fault_regressions_20261012.json)。
 
-ローカルPython3.12の関東17校E2Eは2テスト/499.899秒で成功。新規最終回帰は14テスト/41subtest/19.671秒で全成功・スキップ0。全Python unittestの完了結果はPR本文に記録し、ローカル結果とGitHub CIを区別する。最終headのGitHub専用CI・全Python3.12 unittest・関東17校E2Eの結果/URLはPR本文に記録し、成功確認後も未マージでレビュー待ちにする。
+ローカルPython3.12の関東17校E2Eは2テスト/499.899秒で成功。新規回帰は15テスト/41subtest。最終実行結果はPR本文に記録する。ローカル全Python unittestは2,034件/1,197.796秒で成功（関東E2Eの2件は専用実行へ分離）。接続closeの最終修正後は新規回帰を再実行し、最終headの全unittestはGitHub CIで確認する。最終headのGitHub専用CI・全Python3.12 unittest・関東17校E2Eの結果/URLはPR本文に記録し、成功確認後も未マージでレビュー待ちにする。
+
+初回Windows CIではfixtureのロスター書込接続がtransaction出口後も開いており、WinError32でTemporaryDirectory cleanupが失敗した。SQLite接続のwithはcommit/rollbackだけでcloseしないため、監査専用LabRosterArchiveの外側contextで明示closeし、ロスター読取もclosing付きro接続にする。同じ形の旧A fixture guard書込も監査専用の外側contextで閉じる。productionのCareerRosterArchiveは変更せず、GC待ちやcleanupエラーの無視も使わない。close済みhandleへのSQLがProgrammingErrorになる15件目の回帰を追加した。SQLiteが返すpathの比較もPath.resolveへ統一し、CI失敗時のログ/JSONを標準ログへ出す。最終Windows/Ubuntu結果はPR本文へ記録する。
 
 既存セーブとマスター106CSVのprivate SHAは検証前に取得した。最終一致結果は[保護ファイル記録](../../audits/phase2/stage43g90/protected_files_20261012.json)へ件数・一致だけ記載する。セーブの具体的filename/fullpath/SHA一覧はGitHubへ追加しない。既存saveをテストの入力に使わない。
 

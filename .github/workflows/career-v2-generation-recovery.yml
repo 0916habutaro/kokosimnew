@@ -51,7 +51,7 @@ jobs:
           import json
           from pathlib import Path
           evidence = json.loads(Path("audit-results/faults.json").read_text(encoding="utf-8"))
-          assert evidence["successful"] and evidence["tests"] == 14
+          assert evidence["successful"] and evidence["tests"] == 15
           assert evidence["skipped"] == 0 and evidence["subtest_schedules"] == 41
           assert all(row["successful"] for row in evidence["schedules"])
           PY

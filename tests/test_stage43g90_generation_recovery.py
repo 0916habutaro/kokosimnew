@@ -6,11 +6,12 @@ import random
 import shutil
 import sqlite3
 import unittest
+from unittest.mock import patch
 
 from phase2_engine.career_calendar_v2 import CareerCalendarV2Archive, explicit_sandbox_plan
 from phase2_engine.career_roster_archive import CareerRosterArchive
 from phase2_engine.career_v2_generation_recovery_audit import (
-    GenerationLab, Refused, canonical, kill_generation, raw_oracle, ro, sha,
+    GenerationLab, LabRosterArchive, Refused, canonical, kill_generation, raw_oracle, ro, sha,
     sql_fingerprint, COMPETITIONS, SEED, _box_score,
     read_v2_school_century_page,
 )
@@ -60,8 +61,8 @@ class Stage43G90GenerationTests(unittest.TestCase):
         self.assertEqual(before, {k: sha(p) for k, p in lab.roles.items()})
         self.assertEqual(lab.approvals["old"]["proofs"], {k: sql_fingerprint(p) for k, p in lab.restored_roles(restored).items()})
         # Roster/identity history is a separate real contract from synthetic box-score IDs.
-        original = CareerRosterArchive(lab.roster)
-        recovered = CareerRosterArchive(lab.restored_roles(restored)["roster"])
+        original = LabRosterArchive(lab.roster)
+        recovered = LabRosterArchive(lab.restored_roles(restored)["roster"])
         for school in lab.f.schools[:2]:
             roster = original.roster(10099, school)
             self.assertEqual(roster.to_dict(), recovered.roster(10099, school).to_dict())
@@ -82,6 +83,18 @@ class Stage43G90GenerationTests(unittest.TestCase):
                 self.assertEqual(count, raw_oracle(roles["source"], roles["calendar"], lab.approvals[label]["expected"]))
                 self.assertGreater(lab.read(recovered, label, lab.build(approved=True, restored=recovered))["verified_queries"], 0)
         self.assertEqual(old_sha, {p.name: sha(p) for p in old.iterdir()})
+
+    def test_fixture_roster_writer_closes_handle_without_waiting_for_gc(self):
+        lab = self.lab(schools=2, years=1, rounds=1)
+        archive = LabRosterArchive(lab.roster)
+        roster = archive.roster(10099, lab.f.schools[0])
+        connection = sqlite3.connect(lab.roster)
+        connection.row_factory = sqlite3.Row
+        self.addCleanup(connection.close)
+        with patch.object(CareerRosterArchive, "_connect", return_value=connection):
+            self.assertFalse(archive.save_initial_roster(roster)["inserted"])
+        with self.assertRaises(sqlite3.ProgrammingError):
+            connection.execute("SELECT 1")
 
     def test_sources_only_backup_omits_derived_indexes_and_requires_explicit_rebuild(self):
         lab = self.lab(schools=2, years=1, rounds=1)

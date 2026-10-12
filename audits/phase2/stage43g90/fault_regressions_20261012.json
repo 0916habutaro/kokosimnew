@@ -3,12 +3,12 @@
   "python": "3.12.14",
   "sqlite": "3.53.1",
   "os": "Linux",
-  "tests": 14,
+  "tests": 15,
   "failures": 0,
   "errors": 0,
   "skipped": 0,
   "successful": true,
-  "seconds": 19.672,
+  "seconds": 19.371,
   "schedules": [
     {
       "test": "test_stage43g90_generation_recovery.Stage43G90GenerationTests.test_actual_index_publication_kill_before_after",
