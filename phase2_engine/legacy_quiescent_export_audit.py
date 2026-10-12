@@ -12,18 +12,24 @@ import unittest
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--json-output', type=Path)
+    parser.add_argument('--annual-regressions', action='store_true',
+                        help='Run owned annual fixtures with explicit SQLite teardown')
     args = parser.parse_args(argv)
     with args.json_output.open('x', encoding='utf-8') if args.json_output else nullcontext(None) as output:
-        suite = unittest.defaultTestLoader.discover(str(Path(__file__).resolve().parents[1] / 'tests'),
-                                                   pattern='test_stage43g93_*.py')
+        tests = Path(__file__).resolve().parents[1] / 'tests'
+        # Discover first to register the fixture module directory on sys.path.
+        suite = unittest.defaultTestLoader.discover(str(tests), pattern='test_stage43g93_*.py')
         from stage43g93_fixture_support import METRICS
+        from stage43g93_annual_fixture_runner import annual_fixture_suite
         METRICS.clear()
         start = perf_counter()
-        result = unittest.TextTestRunner(verbosity=2).run(suite)
+        with annual_fixture_suite(tests) if args.annual_regressions else nullcontext(suite) as selected:
+            result = unittest.TextTestRunner(verbosity=2).run(selected)
         evidence = dict(stage='43G-93', tests=result.testsRun, failures=len(result.failures),
             errors=len(result.errors), skipped=len(result.skipped), successful=result.wasSuccessful(),
             seconds=round(perf_counter() - start, 3), python=platform.python_version(),
             os=platform.system(), sqlite=sqlite3.sqlite_version, metrics=METRICS,
+            annual_fixture_teardown=args.annual_regressions,
             fixture_only=True, production_writers_changed=False, generation_adopted=False,
             restoration_authorized=False, whole_game_restore_proven=False)
         encoded = json.dumps(evidence, ensure_ascii=False, indent=2)

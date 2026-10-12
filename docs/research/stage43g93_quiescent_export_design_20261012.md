@@ -6,7 +6,9 @@ Issue #241。基点は最新main `a53d7ff1fac06ed50eaf3e2eda4a68083690791b`（PR
 
 実装は `tests/stage43g93_fixture_support.py` の `OwnedLab`。コンストラクタには実save rootや出力pathを渡せない。自身で作ったTemporaryDirectory内に、実LiveGameService＋能力モデルの8校・単大会の小規模ゲーム投影を生成する。初期生成後の再利用テンプレートも自分で生成した一時ファイルのみ。全校・全国全大会の実連続進行とは表示しない。
 
-`phase2_engine.legacy_quiescent_export_audit` はそのunittestを実行するCLIだけであり、製品writer/readerから呼ばれない。受け付ける引数は新規の監査結果 `--json-output` のみ。既存slotへのbackup/restore、利用開始、同名復元、migration、GUI、共通slot lock、世代manifest、過去年GCはない。製品コード・schema・保存形式の変更はゼロ。
+関連する既存年次37回帰のCIでは、`--annual-regressions` が `tests/stage43g93_annual_fixture_runner.py` を使う。native SQLite接続・transaction・既存assertionを変えず、一時fixtureの接続だけを収集して各tearDownの直前に明示closeする。旧fixtureのGC依存でWindowsの一時DB削除が失敗するための実行器であり、製品APIのhandle規約変更や失敗無視ではない。
+
+`phase2_engine.legacy_quiescent_export_audit` はそのunittestを実行するCLIだけであり、製品writer/readerから呼ばれない。引数は新規の監査結果 `--json-output` とfixture回帰の選択だけ。既存slotへのbackup/restore、利用開始、同名復元、migration、GUI、共通slot lock、世代manifest、過去年GCはない。製品コード・schema・保存形式の変更はゼロ。
 
 候補名は短い英数字の識別子に限定。lab内の `candidates/名前` を排他的mkdirで新規作成し、その中の別ディレクトリへコピーする。既存の空ディレクトリも拒否する。祖先・子孫のsymlink/junction/hardlink、path traversal、絶対path、同FS外は拒否。失敗・中断時の途中ディレクトリは利用不可のまま残し、再実行で上書きせず、lab終了時だけ所有一時領域を片付ける。renameで既存slotに公開しない。
 

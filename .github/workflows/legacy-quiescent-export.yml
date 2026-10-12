@@ -68,9 +68,14 @@ jobs:
           python -m phase2_engine.legacy_archive_concurrency_audit --json-output audit-results/concurrency.json > audit-results/concurrency.log 2>&1
       - name: Annual registration continuity and checkpoint regression
         run: |
-          python -m unittest discover -s tests -p 'test_stage43g11_*.py' -v
-          python -m unittest discover -s tests -p 'test_stage43g12_*.py' -v
-          python -m unittest discover -s tests -p 'test_stage43c*_*.py' -v
+          python -m phase2_engine.legacy_quiescent_export_audit --annual-regressions --json-output audit-results/annual.json > audit-results/annual.log 2>&1
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('audit-results/annual.json').read_text(encoding='utf-8'))
+          assert data['successful'] and data['tests'] == 37 and data['skipped'] == 0
+          assert data['fixture_only'] and data['annual_fixture_teardown']
+          PY
       - name: Show diagnostics if a check fails
         if: failure()
         run: |

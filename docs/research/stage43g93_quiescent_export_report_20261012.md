@@ -39,6 +39,19 @@ Python 3.12.14 / SQLite 3.53.1。新規29テストは41.639秒、failures/errors
 
 ## 保証外と次の条件
 
+### Ubuntu / Windows CIでの追加計測
+
+PR #242の初回head `f5fcb95441c4fb4033a009b30af9788655a702d4`、[専用CI実行](https://github.com/0916habutaro/kokosimnew/actions/runs/38257171305)で新規29件は両OSとも成功（skip 0）。次は封印後候補の値であり、後続CLI拡張による互換コードbytesの増分を含まない、明示したheadの測定値である。
+
+| OS | 新規29テスト秒 | 候補payload bytes | 互換入力bytes | copy＋照合秒 | 観測最大合計bytes |
+|---|---:|---:|---:|---:|---:|
+| Ubuntu | 16.222 | 10,817,467 | 7,640,880 | 0.270 | 21,634,934 |
+| Windows（Python 3.12.10 / SQLite 3.49.1） | 79.193 | 10,997,481 | 7,730,484 | 1.348 | 21,994,962 |
+
+WindowsとUbuntuのbytes差はJSON保存・checkoutの改行等のOS条件も含む。同一byteのOS比較や別OSでのreplay保証とは扱わない。機械可読の `export_ubuntu_ci_20261012.json` / `export_windows_ci_20261012.json` はこのheadとrunを固定して記録する。
+
+初回Windowsの新規29件とStage91/92は成功したが、旧年度登録fixtureのtearDownが未closeのSQLite接続によりWinError 32となった。製品writerを変更せず、fixture専用実行器でnative接続を収集して一時領域cleanup前に明示closeする。既存の年次登録9件・年次継続10件・旧A履歴18件のassertionやtransactionは変更せず、合計37件・skip 0を専用CIで再確認する。Linuxでこの実行器の37件も6.778秒で成功した。初回CI全体の成功と候補29件の成功を混同しない。
+
 静止は所有者のwriter停止と全handle終了を前提に、file集合不変・sidecarなし・checkpoint/archive整合を検査する。非参加writer、外部復元、TOCTOU/ABAに対する排他はない。無停止export、複数SQLite＋JSONの同時点保証、同slot復元、別PCのreplay/全所属/成長/資格/大会run再開を保証しない。
 
 Windows/Ubuntu専用CIで作成・handle終了後rename・リンク拒否・同FS制約を確認する。異種FSは拒否境界を注入試験するだけで実移送は未検証。Windowsの開いたfileへのrename、antivirus、NFS、電源断、fsync耐久性、実disk枯渇は保証外。中断試験はKeyboardInterrupt注入であり、電源断試験ではない。
