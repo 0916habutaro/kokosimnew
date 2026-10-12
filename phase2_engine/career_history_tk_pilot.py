@@ -21,6 +21,7 @@ from .career_history_view_projection import project_history_screen
 from .career_legacy_school_game_tk import (
     LEGACY_SOURCE, CareerLegacySchoolGamePager, CareerLegacySchoolGamesTkPilot,
 )
+from .career_v2_school_game_tk import V2_SOURCE, CareerV2SchoolGamePager
 
 APP_NAME = "ココシミュNew｜保存履歴ビューア（試験版・閲覧専用）"
 
@@ -49,6 +50,7 @@ class CareerHistoryTkPilot:
         self.view: dict = {}
         self.last_error: str | None = None
         self.legacy_window: CareerLegacySchoolGamesTkPilot | None = None
+        self.v2_window: CareerLegacySchoolGamesTkPilot | None = None
         root.title(APP_NAME)
         root.geometry("1120x760")
         root.minsize(780, 540)
@@ -103,6 +105,11 @@ class CareerHistoryTkPilot:
             command=self._open_legacy_games,
         )
         self.legacy_games_button.pack(side="left")
+        self.v2_games_button = ttk.Button(
+            legacy_bar, text="架空v2：学校の過去試合を検索",
+            command=self._open_v2_games,
+        )
+        self.v2_games_button.pack(side="left", padx=(8, 0))
         ttk.Label(
             self.root, textvariable=self.heading_var, padding=(12, 8),
         ).pack(fill="x")
@@ -206,11 +213,18 @@ class CareerHistoryTkPilot:
                 and self.bridge.page["data"].get("source") == LEGACY_SOURCE
             ) else "disabled",
         )
+        self.v2_games_button.configure(
+            state="normal" if (
+                self.bridge.page["screen"] == "history_school"
+                and self.bridge.page["source_verified"] is True
+                and self.bridge.page["data"].get("source") == V2_SOURCE
+            ) else "disabled",
+        )
 
     def _action(self, operation) -> None:
         try:
             operation()
-            self._close_legacy_games()
+            self._close_game_windows()
             # Reformat only after the verified bridge transition succeeds.
             self._render()
         except (ValueError, OSError) as exc:
@@ -231,7 +245,7 @@ class CareerHistoryTkPilot:
                 proposed, self.data_root,
             )
             project_history_screen(proposed.page, labels=labels)
-            self._close_legacy_games()
+            self._close_game_windows()
             self.bridge = proposed
             self.labels = labels
             self._render()
@@ -247,6 +261,39 @@ class CareerHistoryTkPilot:
             if self.legacy_window.root.winfo_exists():
                 self.legacy_window.root.destroy()
             self.legacy_window = None
+
+    def _close_game_windows(self) -> None:
+        self._close_legacy_games()
+        if self.v2_window is not None:
+            if self.v2_window.root.winfo_exists():
+                self.v2_window.root.destroy()
+            self.v2_window = None
+
+    def _open_v2_games(self) -> None:
+        try:
+            page = self.bridge.page
+            if (page["screen"] != "history_school"
+                    or page["source_verified"] is not True
+                    or page["data"].get("source") != V2_SOURCE):
+                raise ValueError("verified fictional-v2 school-year screen required")
+            year = page["data"]["selected_year"]
+            school_id = page["data"]["school_id"]
+            slot = self.bridge.catalog.slot_root
+            pager = CareerV2SchoolGamePager(
+                slot / "fictional_option_a_v2.sqlite3",
+                slot / "sandbox_calendar_v2.sqlite3",
+                school_id, year,
+            )
+            self._close_game_windows()
+            self.v2_window = CareerLegacySchoolGamesTkPilot(
+                self.root, pager,
+            )
+            self.last_error = None
+        except (ValueError, OSError) as exc:
+            self.last_error = str(exc)
+            self.status_var.set(
+                f"架空v2試合検索を開けません：{exc}／元画面を維持"
+            )
 
     def _open_legacy_games(self) -> None:
         try:
