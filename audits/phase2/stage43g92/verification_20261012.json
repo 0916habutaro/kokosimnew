@@ -1,0 +1,45 @@
+{
+  "base_sha": "6c3132b84e3ade25973afec8ac0fcef6ed3d8317",
+  "full_unittest": {
+    "tests": 2076,
+    "seconds": 835.784,
+    "skipped": 2,
+    "failures": 0,
+    "errors": 0,
+    "successful": true,
+    "real_tk_display": true,
+    "skipped_reason": "Kanto17 runs separately"
+  },
+  "kanto17": {
+    "tests": 2,
+    "skipped": 0,
+    "failures": 0,
+    "errors": 0,
+    "successful": true,
+    "seconds": 309.167
+  },
+  "legacy92": {
+    "tests": 21,
+    "subtest_schedules": 52,
+    "skipped": 0,
+    "successful": true
+  },
+  "inventory91": {
+    "tests": 20,
+    "skipped": 0,
+    "successful": true
+  },
+  "v2_89": {
+    "tests": 19,
+    "subtest_schedules": 54,
+    "skipped": 0,
+    "successful": true
+  },
+  "master_csv_count": 106,
+  "existing_save_count": 4,
+  "all_protected_content_unchanged": true,
+  "schema_exactly_unchanged": true,
+  "generation_adopted": false,
+  "python": "3.12.14",
+  "sqlite": "3.53.1"
+}

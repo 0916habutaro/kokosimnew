@@ -1,16 +1,17 @@
-"""Reproduce existing legacy boundaries without changing production writers."""
+"""Legacy inventory boundaries; Stage92 requires safe sync/seal serialization."""
 from contextlib import closing
 import json
 from pathlib import Path
 import sqlite3
 import tempfile
-import threading
 import unittest
 from unittest.mock import patch
 
 from stage43g91_fixture_support import closed_archive_connection
 
-from phase2_engine.historical_match_archive import HistoricalMatchArchive
+from stage43g92_fixture_support import ordered_pair, oracle
+
+from phase2_engine.historical_match_archive import HistoricalMatchArchive, HistoricalMatchConflictError
 from phase2_engine.save_inventory_audit import inventory_slot
 
 
@@ -45,70 +46,23 @@ class Stage43G91LegacyBoundaryTests(unittest.TestCase):
     def audit(self):
         return inventory_slot(self.slot, slot_id='fixture91', contract='legacy_history', authorized_read=True)
 
-    def test_old_a_sync_seal_interleaving_exposes_ledger_breach_and_inventory_refuses(self):
-        # Captured status read is deliberately BEFORE the first write. The
-        # existing legacy sync has no BEGIN IMMEDIATE covering this read.
-        read = threading.Event()
-        resume = threading.Event()
-        errors = []
-        class OneRow:
-            def __init__(self, row):
-                self.row = row
-            def fetchone(self):
-                return self.row
-        class OrderedConnection(sqlite3.Connection):
-            depth = 0
-            def __enter__(self):
-                self.depth += 1
-                return super().__enter__()
-            def execute(self, sql, parameters=()):
-                cursor = super().execute(sql, parameters)
-                normalized = ' '.join(sql.split())
-                if normalized.startswith('SELECT metadata_json, status FROM career_years WHERE year='):
-                    row = cursor.fetchone()
-                    cursor.fetchall()  # release the SQLite read statement
-                    read.set()
-                    if not resume.wait(10):
-                        raise TimeoutError('fixture status boundary')
-                    return OneRow(row)
-                return cursor
-            def __exit__(self, *args):
-                try:
-                    return super().__exit__(*args)
-                finally:
-                    self.depth -= 1
-                    if not self.depth:
-                        self.close()
-        writer = HistoricalMatchArchive(self.archive.db_path)
-        def connect():
-            con = sqlite3.connect(writer.db_path, factory=OrderedConnection)
-            con.row_factory = sqlite3.Row
-            return con
-        writer._connect = connect  # fixture-local, no production hooks
-        def append():
-            try:
-                sync(writer, [record('M1'), record('M2')])
-            except BaseException as exc:
-                errors.append(exc)
-        thread = threading.Thread(target=append, daemon=True)
-        thread.start()
-        try:
-            self.assertTrue(read.wait(10), 'writer did not reach known status read')
-            sealed = self.archive.seal_year(2026, expected_match_count=1)
-        finally:
-            resume.set()
-            thread.join(10)
-        self.assertFalse(thread.is_alive())
-        self.assertEqual([], errors)
-        self.assertEqual(1, sealed['match_count'])
-        with closing(sqlite3.connect(self.archive.db_path)) as con:
-            status, count = con.execute('SELECT status,match_count FROM career_years').fetchone()
-            actual = con.execute('SELECT COUNT(*) FROM historical_matches').fetchone()[0]
-        # Observation of the UNFIXED current contract, not an accepted behavior.
-        self.assertEqual(('sealed', 1, 2), (status, count, actual))
+    def test_old_a_sync_seal_interleaving_preserves_ledger_and_inventory_accepts(self):
+        results, errors = ordered_pair(
+            self, self.archive,
+            lambda archive: sync(archive, [record('M1'), record('M2')]),
+            lambda archive: archive.seal_year(2026, expected_match_count=1),
+        )
+        self.assertEqual({'inserted': 1, 'already_archived': 1}, results['first'])
+        self.assertEqual({'second'}, set(errors))
+        self.assertIsInstance(errors['second'], HistoricalMatchConflictError)
+        rows, headers = oracle(self, self.archive)
+        self.assertEqual(2, len(rows))
+        self.assertEqual([(2026, 'active', None, None)], headers)
+        self.archive.seal_year(2026, expected_match_count=2)
+        oracle(self, self.archive)
         result = self.audit()
-        self.assertFalse(result['contract_consistent'])
-        self.assertIn('original_contract_invalid:legacy_history', result['blockers'])
+        self.assertTrue(result['contract_consistent'], result['blockers'])
+        self.assertEqual(1, result['counts']['legacy_sealed_years'])
 
     def test_year_rollover_requires_sealed_adjacent_source_and_retains_history(self):
         with self.assertRaises(ValueError):
