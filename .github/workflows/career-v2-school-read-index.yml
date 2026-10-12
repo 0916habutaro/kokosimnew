@@ -4,7 +4,9 @@ on:
   pull_request:
     paths:
       - "phase2_engine/career_v2_school_read_index.py"
+      - "phase2_engine/career_v2_school_read_index_benchmark.py"
       - "tests/test_stage43g79_v2_school_read_index.py"
+      - "tests/test_stage43g79_v2_school_read_index_benchmark.py"
       - ".github/workflows/career-v2-school-read-index.yml"
   push:
     branches: [main]
@@ -27,5 +29,11 @@ jobs:
           python-version: "3.12"
       - name: Verify Stage43G-79 derived index and fail-closed source handling
         run: python -m unittest discover -s tests -p 'test_stage43g79_v2_school_read_index.py' -v
+      - name: Compare real elapsed time of JSON1 and source-backed indexed reads
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g79_v2_school_read_index_benchmark.py' -v
+          python -m phase2_engine.career_v2_school_read_index_benchmark --years 4 --games-per-year 40 --repetitions 3
+          python -m phase2_engine.career_v2_school_read_index_benchmark --years 50 --games-per-year 10 --repetitions 2
+          python -m phase2_engine.career_v2_school_read_index_benchmark --years 100 --games-per-year 10 --repetitions 2
       - name: Regress Stage43G-76 authoritative JSON school browsing
         run: python -m unittest discover -s tests -p 'test_stage43g76_v2_school_game_page.py' -v
