@@ -1,0 +1,40 @@
+name: Stage43G-78 V2 school search scale audit
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_v2_school_search_benchmark.py"
+      - "tests/test_stage43g78_v2_school_search_benchmark.py"
+      - ".github/workflows/career-v2-school-search-scale-audit.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_v2_school_search_benchmark.py"
+      - "tests/test_stage43g78_v2_school_search_benchmark.py"
+
+permissions:
+  contents: read
+
+jobs:
+  full_a_school_search_audit:
+    name: Bounded synthetic full-A JSON1 search performance and source integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Benchmark contract, full-A fixture and SHA regression tests
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g78_v2_school_search_benchmark.py' -v
+      - name: Print measured full-A search latencies and actual SQLite plans
+        run: |
+          python -m phase2_engine.career_v2_school_search_benchmark --years 4 --games-per-year 40 --repetitions 3
+      - name: Real measurements for 50- and 100-year bounded full-A sandboxes
+        run: |
+          python -m phase2_engine.career_v2_school_search_benchmark --years 50 --games-per-year 10 --repetitions 2
+          python -m phase2_engine.career_v2_school_search_benchmark --years 100 --games-per-year 10 --repetitions 2
+      - name: Stage43G-76 original v2 school match paging regressions
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g76_v2_school_game_page.py' -v
