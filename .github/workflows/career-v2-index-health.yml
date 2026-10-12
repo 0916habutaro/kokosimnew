@@ -1,0 +1,33 @@
+name: Stage43G-81 V2 school index health and versioned refresh
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_v2_school_index_health.py"
+      - "tests/test_stage43g81_v2_school_index_health.py"
+      - ".github/workflows/career-v2-index-health.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_v2_school_index_health.py"
+      - "tests/test_stage43g81_v2_school_index_health.py"
+
+permissions:
+  contents: read
+
+jobs:
+  index_health:
+    name: Strict v2 source and derived index audit with safe new-path refresh
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Stage43G-81 health, year extension and versioned refresh
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g81_v2_school_index_health.py' -v
+      - name: Stage43G-79 original/index source integrity regression
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g79_v2_school_read_index.py' -v
