@@ -125,6 +125,9 @@ class CareerLegacySchoolGamesTkPilot:
         self.end_var = tk.StringVar(self.root, str(pager.end_year))
         self.competition_var = tk.StringVar(self.root, "")
         self.scope_var = tk.StringVar(self.root, "page")
+        self.lookup_var = (
+            tk.StringVar(self.root, pager.lookup_mode) if self.is_v2 else None
+        )
         self.status_var = tk.StringVar(self.root, "")
         self.last_error: str | None = None
         self.rows_by_widget_id: dict[str, dict] = {}
@@ -174,6 +177,21 @@ class CareerLegacySchoolGamesTkPilot:
             controls, text="次の30件", command=lambda: self._move(1),
         )
         self.next_button.pack(side="right", padx=4)
+        if self.is_v2:
+            lookup_bar = ttk.Frame(self.root, padding=(8, 0, 8, 8))
+            lookup_bar.pack(fill="x")
+            ttk.Label(lookup_bar, text="検索方式（手動切替）").pack(side="left")
+            self.lookup_box = ttk.Combobox(
+                lookup_bar, textvariable=self.lookup_var,
+                state="readonly", width=20,
+                values=("original_json1", "separate_index"),
+            )
+            self.lookup_box.pack(side="left", padx=(6, 10))
+            self.lookup_box.bind("<<ComboboxSelected>>", self._change_lookup)
+            ttk.Label(
+                lookup_bar,
+                text="original_json1＝原本検索 ／ separate_index＝事前作成した別SQLite索引（自動作成・自動切替なし）",
+            ).pack(side="left")
         frame = ttk.Frame(self.root, padding=(8, 0, 8, 4))
         frame.pack(fill="both", expand=True)
         self.tree = ttk.Treeview(
@@ -222,7 +240,11 @@ class CareerLegacySchoolGamesTkPilot:
                 else "表示ページのみSHA照合済み（他の原本や所属校の完全性は未検証）"
             )
             source = "架空v2（G{year}:MM-DD）"
-            suffix = "旧A方式対象外／JSON検索・高速学校索引なし"
+            suffix = (
+                "旧A方式対象外／独立SQLite学校索引を利用（表示原本SHA照合）"
+                if self.pager.lookup_mode == "separate_index"
+                else "旧A方式対象外／原本JSON1検索（学校索引なし）"
+            )
         else:
             scope = (
                 "指定した学校・年度・大会の範囲全件SHA照合済み"
@@ -236,6 +258,8 @@ class CareerLegacySchoolGamesTkPilot:
             f"表示 {len(page['records'])}件（先頭位置 {self.pager.offset}）／"
             f"{scope}／閲覧専用・{suffix}"
         )
+        if self.is_v2:
+            self.lookup_var.set(self.pager.lookup_mode)
         self.last_error = None
 
     def _operate(self, fn) -> None:
@@ -243,10 +267,18 @@ class CareerLegacySchoolGamesTkPilot:
             fn()
             self._render()
         except (ValueError, OSError, sqlite3.DatabaseError) as exc:
+            if self.is_v2:
+                self.lookup_var.set(self.pager.lookup_mode)
             self.last_error = str(exc)
             self.status_var.set(
                 f"検索できません：{exc}／直前の表示を維持・セーブは変更しません"
             )
+
+    def _change_lookup(self, _event=None) -> None:
+        if not self.is_v2:
+            raise ValueError("legacy school game search cannot use v2 index")
+        requested = self.lookup_var.get()
+        self._operate(lambda: self.pager.select_lookup(requested))
 
     def _search(self) -> None:
         def run() -> None:
