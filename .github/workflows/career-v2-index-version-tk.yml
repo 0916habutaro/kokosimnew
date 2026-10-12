@@ -1,0 +1,44 @@
+name: Stage43G-82 Slot-local v2 school index version selection
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_v2_school_index_versions.py"
+      - "phase2_engine/career_v2_school_game_tk.py"
+      - "phase2_engine/career_legacy_school_game_tk.py"
+      - "tests/test_stage43g82_v2_school_index_versions_tk.py"
+      - ".github/workflows/career-v2-index-version-tk.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_v2_school_index_versions.py"
+      - "phase2_engine/career_v2_school_game_tk.py"
+      - "phase2_engine/career_legacy_school_game_tk.py"
+      - "tests/test_stage43g82_v2_school_index_versions_tk.py"
+
+permissions:
+  contents: read
+
+jobs:
+  version_selection:
+    name: Per-save index versions and real Tk strict-selection rollback
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Ensure virtual display exists
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+      - name: Stage43G-82 candidate integrity and real Tk selector
+        run: |
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g82_v2_school_index_versions_tk.py' -v
+      - name: Regress Stage43G-80 Tk manual lookup and Stage43G-81 health
+        run: |
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g80_optional_v2_school_index_tk.py' -v
+          python -m unittest discover -s tests -p 'test_stage43g81_v2_school_index_health.py' -v
