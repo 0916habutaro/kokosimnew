@@ -1,0 +1,43 @@
+name: Stage43G-75 Legacy school game filter Tk pilot
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_legacy_school_game_tk.py"
+      - "phase2_engine/career_history_tk_pilot.py"
+      - "tests/test_stage43g75_legacy_game_filter_tk.py"
+      - ".github/workflows/career-legacy-school-game-tk.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_legacy_school_game_tk.py"
+      - "phase2_engine/career_history_tk_pilot.py"
+      - "tests/test_stage43g75_legacy_game_filter_tk.py"
+
+permissions:
+  contents: read
+
+jobs:
+  legacy_game_tk:
+    name: Indexed A school search filters, paging, SHA scope and real Tk
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install Xvfb if unavailable
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+      - name: Stage43G-75 headless and Tk tests
+        run: |
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g75_legacy_game_filter_tk.py' -v
+      - name: Stage43G-74 index and Stage43G-63/65 Tk regressions
+        run: |
+          python -m unittest discover -s tests -p 'test_stage43g74_indexed_school_game_page.py' -v
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g63_history_view_tk.py' -v
+          xvfb-run -a python -m unittest discover -s tests -p 'test_stage43g65_save_school_history_navigation.py' -v
