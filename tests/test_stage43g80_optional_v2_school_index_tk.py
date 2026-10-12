@@ -13,6 +13,7 @@ import sys
 import unittest
 
 from phase2_engine.career_history_scale_benchmark import file_sha256
+from phase2_engine.career_calendar_v2 import explicit_sandbox_plan
 from phase2_engine.career_v2_school_game_tk import CareerV2SchoolGamePager
 from phase2_engine.career_v2_school_read_index import (
     build_v2_school_read_index,
@@ -81,6 +82,38 @@ class Stage43G80PagerTests(unittest.TestCase):
         self.assertEqual("original_json1", self.pager.lookup_mode)
         self.assertEqual(before_source, self.source_hashes())
         self.assertEqual(before_index, file_sha256(self.index))
+
+    def test_switch_preserves_second_page_of_34_sealed_games(self):
+        self.fixture.fixture.calendar.record(explicit_sandbox_plan(
+            10002, {stage79.stage27.COMP: ["04-01"]},
+            approved_for_fictional_game=True,
+        ))
+        for i in range(29):
+            self.fixture.v2.append(
+                10002, stage79.stage27.full_a(
+                    10002, f"V2-IDX-EXTRA-{i:03d}", "04-01",
+                ),
+            )
+        self.fixture.v2.seal_year(10002, expected_match_count=29)
+        build_v2_school_read_index(
+            self.fixture.source, self.fixture.calendar, self.index,
+            start_year=10000, end_year=10002,
+        )
+        source_before = self.source_hashes()
+        first = self.pager.apply_filters(10000, 10002)
+        self.assertEqual(34, first["total"])
+        self.assertEqual(30, len(first["records"]))
+        second = self.pager.move(1)
+        self.assertEqual(30, self.pager.offset)
+        self.assertEqual(4, len(second["records"]))
+        indexed = self.pager.select_lookup("separate_index")
+        self.assertEqual(30, self.pager.offset)
+        self.assertEqual(second["records"], indexed["records"])
+        self.assertEqual(34, indexed["total"])
+        self.assertFalse(self.pager.can_next)
+        restored = self.pager.select_lookup("original_json1")
+        self.assertEqual(second["records"], restored["records"])
+        self.assertEqual(source_before, self.source_hashes())
 
     def test_wrong_index_source_and_corruption_fail_without_fallback(self):
         self.fixture.build()
