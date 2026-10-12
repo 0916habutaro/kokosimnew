@@ -52,7 +52,7 @@ class Stage43G85CenturyCandidateTests(unittest.TestCase):
         self.assertTrue(report["candidate_source_integrity_not_verified"])
         self.assertTrue(report["no_implicit_generation_or_activation"])
         self.assertEqual(before, self.hashes())
-        with self.assertRaisesRegex(ValueError, "one candidate"):
+        with self.assertRaisesRegex(ValueError, "exactly one candidate"):
             stage_explicit_century_candidate_names(report, [])
 
     def test_two_centuries_and_versions_are_explicit_one_per_saved_bucket(self):
