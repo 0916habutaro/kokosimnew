@@ -1,0 +1,68 @@
+name: Stage43G-89 SQLite save and snapshot concurrency
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_v2_option_a_archive.py"
+      - "phase2_engine/career_calendar_v2.py"
+      - "phase2_engine/career_v2_school_read_index.py"
+      - "phase2_engine/career_v2_school_century_shards.py"
+      - "phase2_engine/career_v2_school_game_tk.py"
+      - "phase2_engine/career_legacy_school_game_tk.py"
+      - "phase2_engine/career_v2_sqlite_concurrency_audit.py"
+      - "phase2_engine/career_v2_national_storage_audit.py"
+      - "tests/test_stage43g79_*.py"
+      - "tests/test_stage43g83_*.py"
+      - "tests/test_stage43g84_*.py"
+      - "tests/test_stage43g85_*.py"
+      - "tests/test_stage43g86_*.py"
+      - "tests/test_stage43g87_*.py"
+      - "tests/test_stage43g88_*.py"
+      - "tests/test_stage43g89_*.py"
+      - ".github/workflows/career-v2-sqlite-concurrency.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_v2_option_a_archive.py"
+      - "phase2_engine/career_calendar_v2.py"
+      - "phase2_engine/career_v2_school_read_index.py"
+      - "phase2_engine/career_v2_school_century_shards.py"
+      - "phase2_engine/career_v2_sqlite_concurrency_audit.py"
+      - "tests/test_stage43g89_*.py"
+      - ".github/workflows/career-v2-sqlite-concurrency.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  concurrency:
+    name: Deterministic WAL, rename, append/seal and real Tk regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Ensure virtual Tk display
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+      - name: Deterministic concurrency audit including real Tk
+        run: |
+          mkdir -p audit-results
+          xvfb-run -a python -m phase2_engine.career_v2_sqlite_concurrency_audit > audit-results/concurrency.json 2> audit-results/concurrency.log
+      - name: Stage79 and Stage83-88 regressions
+        run: |
+          for stage in 79 83 84 85 86 87 88; do
+            xvfb-run -a python -m unittest discover -s tests -p "test_stage43g${stage}_*.py" -v
+          done
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: stage43g89-concurrency-evidence
+          path: audit-results/*
+          retention-days: 14

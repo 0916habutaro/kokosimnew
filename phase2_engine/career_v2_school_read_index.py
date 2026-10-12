@@ -115,7 +115,6 @@ def build_v2_school_read_index(v2_path: str | Path,
         raise FileExistsError("derived v2 school index already exists")
     if not source.is_file() or not calendar_file.is_file():
         raise FileNotFoundError("both fictional v2 source and calendar required")
-    calendar = CareerCalendarV2Archive(calendar_file)
     target.parent.mkdir(parents=True, exist_ok=True)
     temp_path: Path | None = None
     try:
@@ -124,16 +123,15 @@ def build_v2_school_read_index(v2_path: str | Path,
             dir=target.parent, delete=False,
         ) as temp:
             temp_path = Path(temp.name)
-        with closing(_read_only(source)) as src, closing(
+        with _school_read_request(source, calendar_file) as request, closing(
             sqlite3.connect(temp_path)
         ) as dest:
-            src.row_factory = sqlite3.Row
+            src, calendar = request.source, request.calendar
             dest.executescript(_SQL)
             dest.execute(
                 "INSERT INTO meta VALUES (?,?,?,?,?)",
                 (SCHEMA, str(source), str(calendar_file), start_year, end_year),
             )
-            src.execute("BEGIN")
             headers = src.execute(
                 "SELECT * FROM v2_game_years "
                 "WHERE year BETWEEN ? AND ? ORDER BY year",
@@ -179,7 +177,8 @@ def build_v2_school_read_index(v2_path: str | Path,
                      _digest(_canonical(membership_rows))),
                 )
             dest.commit()
-            # Reject source ledger drift before publishing the derived index.
+            # Recheck snapshot proofs; the request's independent watchers also
+            # reject observed live commits/replacements before publication.
             for header in headers:
                 count, ledger = _ledger(src, header["year"])
                 if (count, ledger) != (
@@ -337,10 +336,13 @@ class _SchoolReadRequest:
         for path, watcher, version, device, inode in self.watchers:
             try:
                 identity = path.stat()
+                current_version = watcher.execute("PRAGMA data_version").fetchone()[0]
+                after = path.stat()
             except FileNotFoundError as exc:
                 raise CareerV2ReadIndexConflict("saved file removed during school read") from exc
             if ((identity.st_dev, identity.st_ino) != (device, inode)
-                    or watcher.execute("PRAGMA data_version").fetchone()[0] != version):
+                    or (after.st_dev, after.st_ino) != (device, inode)
+                    or current_version != version):
                 raise CareerV2ReadIndexConflict("saved source or index changed during school read")
 
 

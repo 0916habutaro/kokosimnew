@@ -2,6 +2,12 @@
 
 高校野球の大会構造・日程・試合進行を扱うゲーム用データ／エンジンの管理リポジトリ。
 
+## Stage 43G-89：SQLite保存と読取snapshotの競合監査
+
+v2の試合追加・年度封印が競合すると封印台帳と原本がずれる実問題を、別thread・別接続の決定論的テストで再現し、状態確認と書込みを同じSQLite transactionにしました。索引生成中の更新と最終監視中のrenameも検出します。新規19件・実Tk付き関連79件を検証し、完全A・SHA・既存保存・年数無制限の方針を維持します。
+
+各fileの固定snapshot上の整合性と観測した更新の拒否を確認します。全DBの同一世代や返却時の最新版は保証せず、強い世代保証は未採用ADRに分離しました。[設計](docs/research/stage43g89_sqlite_snapshot_design_20261012.md)、[競合表・再現/検証報告](docs/research/stage43g89_sqlite_snapshot_report_20261012.md)、[ADR-030](docs/adr/ADR-030-v2-multifile-generation-snapshot-proposal.md)。PRはCI成功後もレビュー待ち・未マージとします。
+
 ## Stage 43G-88：検索内の厳密SHA検証共有
 
 年代横断検索の件数・ページ取得で、同じ読取snapshotの年度/全学校所属検証を共有。完全A SHA・封印・出典確認を維持し、別検索では再検証する。保存schemaや既存セーブは変更しない。[日本語設計](docs/research/stage43g88_request_verification_design_20261012.md)・[同一DBの変更前後比較報告](docs/research/stage43g88_request_verification_report_20261012.md)。
