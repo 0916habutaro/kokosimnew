@@ -19,7 +19,7 @@ import stat
 from time import perf_counter
 
 from .legacy_backup_oracle import Refused as OracleRefused, TABLES, facts, ro, live_and_membership
-from .legacy_backup_compatibility import CATALOG, CATALOG_VERSION
+from .legacy_backup_compatibility import CATALOG, CATALOG_VERSION, CATALOG_DIGEST
 from .live_season_save import DEFAULT_RESOLVER_CONTRACT, _validate_save_payload
 from .save_inventory_audit import InventoryRefused, inventory_slot
 from .save_slots import SaveSlotManager
@@ -105,11 +105,15 @@ def _logical_digest(raw_facts):
 
 def _compatibility(root):
     # Fixed, reviewed names only; never glob an arbitrary working directory.
-    for name, expected in CATALOG.items():
+    pin = {}
+    for name in CATALOG:
         p = _path(root / name)
-        if not p.is_file() or p.stat().st_nlink != 1 or _sha(p.read_bytes()) != expected:
+        if not p.is_file() or p.stat().st_nlink != 1:
             raise BackupRefused('compatibility_missing_or_unknown_version')
-    return dict(CATALOG)
+        pin[name] = _sha(p.read_bytes())
+    if _sha(_encoded(pin)) != CATALOG_DIGEST:
+        raise BackupRefused('compatibility_missing_or_unknown_version')
+    return pin
 
 
 def _inspect(slot, slot_id, source):
@@ -343,7 +347,8 @@ def verify_candidate(*, candidate):
             'payload/'+sid+'/'+n for n in copied} | {'compatibility/'+n for n in compat_pin}
         if (set(before) != expected or copied != evidence['payload_files']
                 or _logical_digest(raw) != evidence['logical_digest']
-                or compat_pin != evidence['compatibility_files'] or compat_pin != CATALOG):
+                or compat_pin != evidence['compatibility_files'] or set(compat_pin) != set(CATALOG)
+                or _sha(_encoded(compat_pin)) != CATALOG_DIGEST):
             raise BackupRefused('candidate_content_mismatch')
         if _anchor(root) != before:
             raise BackupRefused('candidate_changed_during_verification')

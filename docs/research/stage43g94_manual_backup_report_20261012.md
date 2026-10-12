@@ -4,7 +4,7 @@ Issue #243、基点main `2854ee77ae90ac037ce30b946f2e471debe4f3ab`。方式Aを�
 
 ## 実装・対象・保全
 
-変更はmanual_save_backup（診断/export/verify）、legacy_backup_oracle（独立SQL/SHA）、legacy_backup_compatibility（固定許可版338ファイル）、fixture専用audit/runner、両OS CI、日本語文書・ADR・README・測定JSON。既存ゲームwriter・保存schema・load/replay経路は変更していない。
+変更はmanual_save_backup（診断/export/verify）、legacy_backup_oracle（独立SQL/SHA）、legacy_backup_compatibility（固定許可名と集合版チェックによる338ファイル）、fixture専用audit/runner、両OS CI、日本語文書・ADR・README・測定JSON。既存ゲームwriter・保存schema・load/replay経路は変更していない。
 
 現行v1/default resolver契約の単大会liveを、manual/autosave、封印後、隣接翌年登録後の6状態で検証した。存在する両live系列・全rolling backups、全年度/全試合Option A、年度identity/ledger/outcomes、全roster/player identity、現在の固定互換入力を保存する。派生cache/索引は不使用。career/multi preview/地域feeder/年度continuity/架空v2混在/unknown file・table・versionは拒否する。
 

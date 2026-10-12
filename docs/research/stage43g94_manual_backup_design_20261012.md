@@ -25,7 +25,7 @@ Issue #243。最新main `2854ee77ae90ac037ce30b946f2e471debe4f3ab`（PR #242マ�
 | 未知file/table・追加checkpoint directory | 正本の可能性があるため拒否 |
 | 互換入力338ファイル | 固定許可リストのrepo CSV106・config JSON・既存game_core/phase2_engine Pythonをコピー |
 
-`legacy_backup_compatibility.py` は基点mainで追跡されていた上記338ファイルの固定名・固定SHA。runtimeに任意directoryをglobせず、.env・private token・git設定・tests・backup補助コード・追加ファイルを同梱しない。必須名の欠落、リンク、hardlink、版SHA不一致は拒否する。変更は将来のレビューを伴うコード変更で行う。Windows専用CIはcheckout前にautocrlfを無効にする。
+`legacy_backup_compatibility.py` は基点mainで追跡されていた上記338ファイルの固定許可名と集合全体の版SHA。個別SHAは候補内evidenceにだけ保存し、コード/公開サマリーに一覧を載せない。runtimeに任意directoryをglobせず、.env・private token・git設定・tests・backup補助コード・追加ファイルを同梱しない。必須名の欠落、リンク、hardlink、版SHA不一致は拒否する。変更は将来のレビューを伴うコード変更で行う。Windows専用CIはcheckout前にautocrlfを無効にする。
 
 これは**現在インストールされた許可版を同梱する契約**。旧セーブには生成時のCSV/config/コードSHAがなく、当時の外部入力版の一致や他PC完全replayは証明できない。seed・plan fingerprint・resolver・年度登録の正本内照合と、未証明の歴史入力版を区別して表示する。互換性確認のためにload_gameやarchive syncを呼ばない。
 
