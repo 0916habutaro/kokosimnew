@@ -128,6 +128,16 @@ class CareerLegacySchoolGamesTkPilot:
         self.lookup_var = (
             tk.StringVar(self.root, pager.lookup_mode) if self.is_v2 else None
         )
+        self.index_version_var = (
+            tk.StringVar(
+                self.root,
+                pager.index_path.name if pager.index_path is not None else "",
+            ) if self.is_v2 else None
+        )
+        self.index_version_status_var = (
+            tk.StringVar(self.root, "索引版は未検証・手動選択のみ")
+            if self.is_v2 else None
+        )
         self.status_var = tk.StringVar(self.root, "")
         self.last_error: str | None = None
         self.rows_by_widget_id: dict[str, dict] = {}
@@ -192,6 +202,26 @@ class CareerLegacySchoolGamesTkPilot:
                 lookup_bar,
                 text="original_json1＝原本検索 ／ separate_index＝事前作成した別SQLite索引（自動作成・自動切替なし）",
             ).pack(side="left")
+            versions_bar = ttk.Frame(self.root, padding=(8, 0, 8, 8))
+            versions_bar.pack(fill="x")
+            ttk.Label(versions_bar, text="保存済み索引版").pack(side="left")
+            self.index_version_box = ttk.Combobox(
+                versions_bar, textvariable=self.index_version_var,
+                state="readonly", width=49, values=(),
+            )
+            self.index_version_box.pack(side="left", padx=(6, 8))
+            self.index_version_box.bind(
+                "<<ComboboxSelected>>", self._change_index_version,
+            )
+            self.refresh_versions_button = ttk.Button(
+                versions_bar, text="索引候補再読込",
+                command=self._refresh_index_versions,
+            )
+            self.refresh_versions_button.pack(side="left")
+            ttk.Label(
+                versions_bar, textvariable=self.index_version_status_var,
+            ).pack(side="left", padx=(8, 0))
+            self._load_index_versions()
         frame = ttk.Frame(self.root, padding=(8, 0, 8, 4))
         frame.pack(fill="both", expand=True)
         self.tree = ttk.Treeview(
@@ -260,6 +290,10 @@ class CareerLegacySchoolGamesTkPilot:
         )
         if self.is_v2:
             self.lookup_var.set(self.pager.lookup_mode)
+            self.index_version_var.set(
+                self.pager.index_path.name
+                if self.pager.index_path is not None else ""
+            )
         self.last_error = None
 
     def _operate(self, fn) -> None:
@@ -269,9 +303,58 @@ class CareerLegacySchoolGamesTkPilot:
         except (ValueError, OSError, sqlite3.DatabaseError) as exc:
             if self.is_v2:
                 self.lookup_var.set(self.pager.lookup_mode)
+                self.index_version_var.set(
+                    self.pager.index_path.name
+                    if self.pager.index_path is not None else ""
+                )
             self.last_error = str(exc)
             self.status_var.set(
                 f"検索できません：{exc}／直前の表示を維持・セーブは変更しません"
+            )
+
+    def _load_index_versions(self) -> tuple[str, ...]:
+        """Refresh unverified names only; never create/activate an index."""
+        if not self.is_v2:
+            return ()
+        versions = self.pager.available_index_versions()
+        self.index_version_box.configure(values=versions)
+        self.index_version_status_var.set(
+            f"候補{len(versions)}件（一覧は未検証・手動選択で全件照合）"
+        )
+        return versions
+
+    def _refresh_index_versions(self) -> None:
+        if not self.is_v2:
+            raise ValueError("legacy sources have no v2 index versions")
+        try:
+            self._load_index_versions()
+            self.last_error = None
+        except (ValueError, OSError, sqlite3.DatabaseError) as exc:
+            self.last_error = str(exc)
+            self.index_version_status_var.set(
+                f"候補の再読込に失敗：{exc}"
+            )
+
+    def _change_index_version(self, _event=None) -> None:
+        if not self.is_v2:
+            raise ValueError("legacy sources have no v2 index versions")
+        name = self.index_version_var.get()
+        try:
+            selected = self.pager.select_index_version(name)
+            self._render()
+            self.index_version_status_var.set(
+                f"厳密検証済み・{len(selected['indexed_saved_years'])}年度"
+                "（閲覧方式は手動切替）"
+            )
+        except (ValueError, OSError, sqlite3.DatabaseError) as exc:
+            self.last_error = str(exc)
+            self.index_version_var.set(
+                self.pager.index_path.name
+                if self.pager.index_path is not None else ""
+            )
+            self.index_version_status_var.set(f"索引版を拒否：{exc}")
+            self.status_var.set(
+                f"索引版を選べません：{exc}／直前の表示を維持・セーブは変更しません"
             )
 
     def _change_lookup(self, _event=None) -> None:
