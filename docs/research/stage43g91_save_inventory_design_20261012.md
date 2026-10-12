@@ -133,4 +133,6 @@ private `expected_files`は独立にpinした集合とのメモリ上照合。�
 
 [ADR-032](../adr/ADR-032-production-save-inventory-adoption-proposal.md)のA/B/C選択表に、容量式、Stage90実測範囲、OS制約、ATTACHの適用限界、段階案とrollback条件をまとめる。[ADR-030](../adr/ADR-030-v2-multifile-generation-snapshot-proposal.md)/[ADR-031](../adr/ADR-031-generation-backup-recovery-evaluation.md)は引き続きProposed。本Stageで新しい正式方式を採用しない。
 
-専用CIは両OSで新規20監査（実旧A replay/境界を含む）とStage89/90回帰、Linuxで既存旧A save/year関連回帰を追加する。既存全suiteはUbuntu、関東17校は独立ジョブ。fixtureのJSON読書はUTF-8を指定する。
+専用CIは両OSで新規20監査（実旧A replay/境界を含む）とStage90回帰、LinuxでStage89と既存旧A save/year関連回帰を追加する。既存全suiteはUbuntu、関東17校は独立ジョブ。fixtureのJSON読書はUTF-8を指定する。
+
+Stage89の元workflowはLinux限定。追加確認したWindowsでは8.3 pathとfixture probeの一致、開いたfileへのrename/fixture legacy handle終了がLinuxと同じではなく、その全schedule成功を保証しない。Stage91は本番v2 readerを変更せず、元Stage89のOS検証範囲を維持する。Windowsの安全な公開/reader pin/rename耐久性はADR-032の正式導入前受入事項として残す。

@@ -69,10 +69,13 @@ jobs:
           python -m unittest discover -s tests -p 'test_stage43f*_*.py' -v
           python -m unittest discover -s tests -p 'test_stage43g11_*.py' -v
           python -m unittest discover -s tests -p 'test_stage43g12_*.py' -v
-      - name: Previous v2 snapshot and recovery contracts
-        run: |
-          python -m unittest discover -s tests -p 'test_stage43g89_*.py' -v
-          python -m unittest discover -s tests -p 'test_stage43g90_*.py' -v
+      # Stage89's original workflow is Linux-only: open-file rename and
+      # its fixture path probes do not assert a portable Windows contract.
+      - name: Previous Linux v2 snapshot concurrency contract
+        if: runner.os == 'Linux'
+        run: python -m unittest discover -s tests -p 'test_stage43g89_*.py' -v
+      - name: Previous cross-platform v2 recovery contract
+        run: python -m unittest discover -s tests -p 'test_stage43g90_*.py' -v
       - uses: actions/upload-artifact@v6
         if: always()
         with:
