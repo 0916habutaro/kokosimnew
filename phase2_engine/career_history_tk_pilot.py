@@ -283,6 +283,7 @@ class CareerHistoryTkPilot:
                 slot / "fictional_option_a_v2.sqlite3",
                 slot / "sandbox_calendar_v2.sqlite3",
                 school_id, year,
+                index_path=slot / "fictional_v2_school_read_index.sqlite3",
             )
             self._close_game_windows()
             self.v2_window = CareerLegacySchoolGamesTkPilot(
