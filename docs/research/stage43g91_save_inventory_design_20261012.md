@@ -112,7 +112,7 @@ APIは `legacy_live`（manual/autosaveを明示）、`legacy_history`、`legacy_
 
 任意SQLiteを派生と推定しない。既存v2学校索引namespaceと二種のstats cacheだけ不使用の派生と分類。checkpoint/年度選択証拠はchecksum/slotだけ照合し、完全依存/replayを未検証と報告。未知fileは件数と要手動確認だけを返す。結果/例外には入力path・学校/選手ID・SHA値・タイトル・rawエラーを返さない。
 
-symlink、root名とslot不一致、WAL/SHM/journalは読取前に拒否。閉じたcopyに`mode=ro&immutable=1`とquery_onlyを使い、SQLite sidecar生成を避ける。未checkpoint WALをimmutableで見落とさないよう、先に全sidecarを拒否する。稼働中DBのbackupをこのAPI内で行わない。前後SHAとfile集合が変化したら拒否し、読取接続はcloseする。これは共通lock/電源断/ABAに対する原子snapshot保証ではない。
+symlink/junction（祖先も含む）、root名とslot不一致、WAL/SHM/journalは読取前に拒否。Windowsの正当な8.3短縮pathはresolveで正規化する。閉じたcopyに`mode=ro&immutable=1`とquery_onlyを使い、SQLite sidecar生成を避ける。未checkpoint WALをimmutableで見落とさないよう、先に全sidecarを拒否する。稼働中DBのbackupをこのAPI内で行わない。前後SHAとfile集合が変化したら拒否し、読取接続はcloseする。fixture writerの既存`_connect`にはtest内だけでcloseするcontextを与え、GC待ちでWindows handleを残さない。製品接続APIは変更しない。これは共通lock/電源断/ABAに対する原子snapshot保証ではない。
 
 private `expected_files`は独立にpinした集合とのメモリ上照合。必須正本欠落/別内容を拒否、派生だけの欠落は不使用/明示再生成候補。署名/永続approval/manifestではない。legacy live JSONもv2もslot identityを保存しないため、同じseed/plan/bytesの別slotや整合的に切り落とされた過去年は内容だけでは識別不能。anchor無しは必ず未証明の注記を返し、全結果で`restoration_authorized=false` / `whole_game_restore_proven=false` / `generation_adopted=false`。APIの緑判定で復元/移行を自動実行しない。
 
@@ -132,3 +132,5 @@ private `expected_files`は独立にpinした集合とのメモリ上照合。�
 ## 7. 方式比較・正式判断
 
 [ADR-032](../adr/ADR-032-production-save-inventory-adoption-proposal.md)のA/B/C選択表に、容量式、Stage90実測範囲、OS制約、ATTACHの適用限界、段階案とrollback条件をまとめる。[ADR-030](../adr/ADR-030-v2-multifile-generation-snapshot-proposal.md)/[ADR-031](../adr/ADR-031-generation-backup-recovery-evaluation.md)は引き続きProposed。本Stageで新しい正式方式を採用しない。
+
+専用CIは両OSで新規20監査（実旧A replay/境界を含む）とStage89/90回帰、Linuxで既存旧A save/year関連回帰を追加する。既存全suiteはUbuntu、関東17校は独立ジョブ。fixtureのJSON読書はUTF-8を指定する。

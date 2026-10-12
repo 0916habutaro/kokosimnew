@@ -20,6 +20,8 @@ from phase2_engine.live_season_save import rechecksum_live_season_save_payload
 from phase2_engine.repository import DataRepository
 from phase2_engine.save_inventory_audit import InventoryRefused, inventory_slot, file_digest
 
+from stage43g91_fixture_support import closed_archive_connection
+
 ROOT = Path(__file__).resolve().parents[1]
 SEED = 2026101201
 
@@ -40,6 +42,10 @@ def private_anchor(root):
 class Stage43G91InventoryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        for archive_class in (HistoricalMatchArchive, CareerRosterArchive):
+            lifetime = patch.object(archive_class, '_connect', closed_archive_connection)
+            lifetime.start()
+            cls.addClassCleanup(lifetime.stop)
         cls.repo = DataRepository(ROOT / 'data')
         full = LiveSeasonGraphPlanner(cls.repo, ROOT / 'data', SEED, year=2026).build_plan()
         keep = ['CMP000029', 'CMP000077']
@@ -59,7 +65,7 @@ class Stage43G91InventoryTests(unittest.TestCase):
         session = cls.service(cls.legacy.parent).load_game('legacy')
         cls.service(cls.legacy.parent).advance_through(session, '2026-07-12')
         assert sum(len(s.matches) for s in session.state.competitions.values()) > 0
-        assert json.loads((cls.legacy / 'autosave.json').read_text())['completed_match_results']
+        assert json.loads((cls.legacy / 'autosave.json').read_text(encoding='utf-8'))['completed_match_results']
         cls.v2 = Path(cls.base.name) / 'v2'
         cls.v2.mkdir()
         with synthetic_storage_fixture(ROOT / 'data', schools=2, years=2,
@@ -161,9 +167,9 @@ class Stage43G91InventoryTests(unittest.TestCase):
 
     def test_different_seed_same_schema_is_cross_contract_refusal(self):
         path = self.slot / 'autosave.json'
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding='utf-8'))
         data['rng_seed'] += 1
-        path.write_text(json.dumps(rechecksum_live_season_save_payload(data)))
+        path.write_text(json.dumps(rechecksum_live_season_save_payload(data)), encoding='utf-8')
         result = self.audit(expected_files=None)
         self.assertIn('original_contract_invalid:live_archive_pair', result['blockers'])
 
@@ -175,7 +181,7 @@ class Stage43G91InventoryTests(unittest.TestCase):
         # Real checkpoint checksum and slot fields; replay is outside this API.
         value = {'schema_version': 'career_multi_preview_sandbox_v1', 'slot_id': 'foreign', 'year': 2027}
         value['payload_checksum'] = hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
-        (folder / '2027.json').write_text(json.dumps(value))
+        (folder / '2027.json').write_text(json.dumps(value), encoding='utf-8')
         self.assertIn('original_contract_invalid:checkpoint', self.audit(expected_files=None)['blockers'])
 
     def test_identical_content_foreign_slot_requires_private_pin(self):
@@ -281,7 +287,7 @@ class Stage43G91InventoryTests(unittest.TestCase):
         original = audit_module._history
         def modify(*args, **kwargs):
             result = original(*args, **kwargs)
-            (self.slot / 'unexpected.txt').write_text('owned fixture mutation')
+            (self.slot / 'unexpected.txt').write_text('owned fixture mutation', encoding='utf-8')
             return result
         with patch.object(audit_module, '_history', side_effect=modify):
             result = self.audit()

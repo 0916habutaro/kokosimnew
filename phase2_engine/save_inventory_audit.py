@@ -200,11 +200,15 @@ def _inventory_slot(slot_root: str | Path, *, slot_id: str, contract: str,
     if contract not in CONTRACTS or source not in ("manual", "autosave"):
         raise InventoryRefused("invalid_request")
     root = Path(slot_root)
-    if root.absolute() != root.resolve() or root.name != slot or not root.is_dir():
+    # Windows Temp may use a legitimate RUNNER~1 short-name alias. Resolve
+    # that alias without treating it as a symlink, but reject real links in
+    # the supplied directory chain before reading anything.
+    if any(p.is_symlink() or p.is_junction() for p in (root, *root.parents)) or root.name != slot or not root.is_dir():
         raise InventoryRefused("slot_root_mismatch")
+    root = root.resolve()
     # Refuse nested symlinks/active SQLite artifacts BEFORE any reads.
     paths = sorted(root.rglob("*"))
-    if any(p.is_symlink() for p in paths):
+    if any(p.is_symlink() or p.is_junction() for p in paths):
         raise InventoryRefused("symlink_input")
     if any(p.name.endswith(("-wal", "-shm", "-journal")) for p in paths):
         raise InventoryRefused("quiescent_copy_required")

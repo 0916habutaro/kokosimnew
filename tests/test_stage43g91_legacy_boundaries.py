@@ -6,6 +6,9 @@ import sqlite3
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
+
+from stage43g91_fixture_support import closed_archive_connection
 
 from phase2_engine.historical_match_archive import HistoricalMatchArchive
 from phase2_engine.save_inventory_audit import inventory_slot
@@ -30,6 +33,9 @@ def sync(archive, rows, year=2026):
 
 class Stage43G91LegacyBoundaryTests(unittest.TestCase):
     def setUp(self):
+        lifetime = patch.object(HistoricalMatchArchive, '_connect', closed_archive_connection)
+        lifetime.start()
+        self.addCleanup(lifetime.stop)
         self.temp = tempfile.TemporaryDirectory(prefix='stage91-boundary-')
         self.addCleanup(self.temp.cleanup)
         self.slot = Path(self.temp.name) / 'fixture91'
