@@ -32,6 +32,7 @@ class CareerV2SchoolGamePager:
         # not activate it: user selection must explicitly opt in.
         self.index_path = Path(index_path) if index_path is not None else None
         self.lookup_mode = "original_json1"
+        self.century_index_paths: tuple[Path, ...] = ()
         self.start_year = selected_year
         self.end_year = selected_year
         self.competition_id: str | None = None
@@ -44,7 +45,8 @@ class CareerV2SchoolGamePager:
     def _fetch(self, start: int, end: int, competition_id: str | None,
                offset: int, verify_scope: str,
                lookup_mode: str | None = None,
-               index_path_override: Path | None = None) -> dict:
+               index_path_override: Path | None = None,
+               century_paths_override: tuple[Path, ...] | None = None) -> dict:
         mode = self.lookup_mode if lookup_mode is None else lookup_mode
         kwargs = dict(
             start_year=start, end_year=end, competition_id=competition_id,
@@ -72,6 +74,35 @@ class CareerV2SchoolGamePager:
                     or data.get("school_filter_uses_unindexed_json_scan")
                     is not False):
                 raise ValueError("derived school index source differs")
+        elif mode == "century_shards":
+            from .career_v2_school_century_shards import (
+                read_v2_school_century_page,
+            )
+            paths = (self.century_index_paths if century_paths_override is None
+                     else century_paths_override)
+            if not paths:
+                raise ValueError("no explicit cross-century index shards selected")
+            from .career_v2_school_century_shards import _shard_details
+            original, calendar = (
+                self.v2_path.resolve(), self.calendar_path.resolve(),
+            )
+            overlapping = []
+            for path in paths:
+                first, last, validated = _shard_details(
+                    original, calendar, path,
+                )
+                if first <= end and start <= last:
+                    overlapping.append(validated)
+            if not overlapping:
+                raise ValueError("no verified century indexes cover the period")
+            data = read_v2_school_century_page(
+                self.v2_path, self.calendar_path, overlapping,
+                self.school_id, **kwargs,
+            )
+            if (data.get("cross_century_school_index_shards") is not True
+                    or data.get("original_source_data_version_unchanged") is not True
+                    or data.get("index_shards_generated_by_read") is not False):
+                raise ValueError("cross-century source provenance differs")
         else:
             raise ValueError("unknown fictional-v2 lookup selection")
         if (data.get("school_id") != self.school_id
@@ -132,6 +163,77 @@ class CareerV2SchoolGamePager:
         self.page = data
         return candidate
 
+    def select_century_shards(
+        self, filenames: tuple[str, ...] | list[str], *,
+        start_year: int | None = None, end_year: int | None = None,
+        competition_id: str | None = None, verify_scope: str | None = None,
+    ) -> dict:
+        """Explicitly verify named slot-local indexes then atomically activate.
+
+        Names are not paths; we do not scan the directory, create shards,
+        switch save slots, or infer missing coverage. Even if the UI was
+        previously using another backend it is unchanged on failure.
+        """
+        import re
+
+        from .career_v2_school_century_shards import MAX_SHARDS_PER_REQUEST
+        if (not isinstance(filenames, (tuple, list))
+                or not 1 <= len(filenames) <= MAX_SHARDS_PER_REQUEST):
+            raise ValueError("select 1..32 explicit century index filenames")
+        name_rule = re.compile(
+            r"fictional_v2_school_read_index_G[0-9]+_G[0-9]+"
+            r"(?:_[A-Za-z0-9_-]+)?\.sqlite3\Z"
+        )
+        paths = []
+        slot = self.v2_path.resolve().parent
+        if self.calendar_path.resolve().parent != slot:
+            raise ValueError("calendar is not within this saved slot")
+        for name in filenames:
+            if type(name) is not str or name_rule.fullmatch(name) is None:
+                raise ValueError("century index filename is not allowed")
+            path = slot / name
+            if path.is_symlink() or not path.is_file():
+                raise ValueError("century index is missing or a symbolic link")
+            paths.append(path)
+        if len(set(paths)) != len(paths):
+            raise ValueError("duplicate century index filenames")
+
+        candidate_paths = tuple(paths)
+        start = self.start_year if start_year is None else start_year
+        end = self.end_year if end_year is None else end_year
+        scope = self.verify_scope if verify_scope is None else verify_scope
+        # Changing a window resets pagination only after source verification.
+        changed = ((start, end, competition_id, scope) != (
+            self.start_year, self.end_year, self.competition_id,
+            self.verify_scope,
+        ))
+        offset = 0 if changed else self.offset
+        # A manual activation always audits the requested full time window,
+        # not just the 30 visible rows.
+        proof = self._fetch(
+            start, end, competition_id,
+            offset, "selected_years", lookup_mode="century_shards",
+            century_paths_override=candidate_paths,
+        )
+        if not proof.get("offpage_derived_memberships_verified"):
+            raise ValueError("full-century index source proof was not completed")
+        if scope == "selected_years":
+            data = proof
+        else:
+            data = self._fetch(
+                start, end, competition_id,
+                offset, scope, lookup_mode="century_shards",
+                century_paths_override=candidate_paths,
+            )
+        if offset and not data["records"]:
+            raise ValueError("no verified page at this cross-century offset")
+        self.century_index_paths = candidate_paths
+        self.start_year, self.end_year = start, end
+        self.competition_id, self.verify_scope = competition_id, scope
+        self.offset = offset
+        self.lookup_mode, self.page = "century_shards", data
+        return data
+
     def select_lookup(self, mode: str) -> dict:
         """Switch read backend only after verifying the selected saved page.
 
@@ -139,7 +241,7 @@ class CareerV2SchoolGamePager:
         failure, leaving the previous verified mode/page/filters intact.
         """
         if type(mode) is not str or mode not in (
-            "original_json1", "separate_index",
+            "original_json1", "separate_index", "century_shards",
         ):
             raise ValueError("unknown fictional-v2 lookup selection")
         if mode == self.lookup_mode:
