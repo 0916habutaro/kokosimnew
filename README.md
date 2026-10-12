@@ -2,6 +2,19 @@
 
 高校野球の大会構造・日程・試合進行を扱うゲーム用データ／エンジンの管理リポジトリ。
 
+## Stage 43G-87：全国校規模の長期履歴・容量監査
+
+現行3,746校マスターの計数と、架空の完全A試合を使った保存・年次封印・学校索引・SHA付き検索の実測を追加。既存セーブを使用せず一時ディレクトリで検証し、ゲームの保存可能年数は制限しない。全国100/200年分の実大会進行は未検証。
+
+```bash
+python -m phase2_engine.career_v2_national_storage_audit --survey-master
+python -m phase2_engine.career_v2_national_storage_audit --schools 100 --years 2 --rounds 4 --repeats 3
+# 必要時だけ実行する全国校数の高密度fixture（1年度18,730試合・実大会方式ではない）
+python -m phase2_engine.career_v2_national_storage_audit --schools 3746 --years 1 --rounds 10 --repeats 3 --allow-large
+```
+
+[日本語設計](docs/research/stage43g87_v2_national_storage_design_20261012.md)・[実測報告](docs/research/stage43g87_v2_national_storage_report_20261012.md)。専用CIは小規模回帰と必要時の負荷試験を分離する。
+
 ## 現在地
 - Phase 1: 完了（47都道府県、学校 3,746、硬式野球部 3,746）
 - Phase 2: Stage 12M完了（Stage 12M-1〜8で夏地方49大会すべてを個別実試合日へ詳細化）
