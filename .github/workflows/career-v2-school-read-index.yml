@@ -1,0 +1,31 @@
+name: Stage43G-79 Independent sealed v2 school read index
+
+on:
+  pull_request:
+    paths:
+      - "phase2_engine/career_v2_school_read_index.py"
+      - "tests/test_stage43g79_v2_school_read_index.py"
+      - ".github/workflows/career-v2-school-read-index.yml"
+  push:
+    branches: [main]
+    paths:
+      - "phase2_engine/career_v2_school_read_index.py"
+      - "tests/test_stage43g79_v2_school_read_index.py"
+
+permissions:
+  contents: read
+
+jobs:
+  derived_school_index:
+    name: Opt-in index read-only source SHA and strict cache proof tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Verify Stage43G-79 derived index and fail-closed source handling
+        run: python -m unittest discover -s tests -p 'test_stage43g79_v2_school_read_index.py' -v
+      - name: Regress Stage43G-76 authoritative JSON school browsing
+        run: python -m unittest discover -s tests -p 'test_stage43g76_v2_school_game_page.py' -v
