@@ -1,5 +1,7 @@
 # ADR-032：本番save正本集合と世代公開方式の採用判断（未採用案）
 
+> Stage43G-94追補（2026-10-12、日本時間）：利用者は方式Aの段階導入を明示選択した。[ADR-033](ADR-033-manual-independent-backup-adoption.md)で、停止済み単純旧A slotの手動独立exportとread-only照合だけを限定採用する。以下のProposed/未採用記述はStage91時点の履歴として維持する。方式B/C、自動backup/restore、元save変更・移行・履歴削除・世代manifest/共通slot lock・正式GUIは未承認。
+
 - 状態：**Proposed / 未採用。ユーザーの明示承認まで本番導入・移行なし**
 - 日付：2026-10-12（日本時間）、Stage43G-91 / Issue #237
 - 基点：Stage90後のmain `e74397bced489a12f6c4150b7ef75b8dffe199f5`
