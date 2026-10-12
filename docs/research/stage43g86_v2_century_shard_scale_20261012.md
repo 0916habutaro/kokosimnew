@@ -38,3 +38,18 @@
 - 本工程は読み取りAPIの試験のみで、正式なゲームGUI・実大会エンジン・セーブ移行は実施しない。
 
 専用CIに加えて全Python unittest、関東8都県17校E2Eを確認し、全成功後にmainへマージする。
+
+
+## GitHub Actions実測（専用CIの初回成功）
+
+[Stage43G-86 専用CI](https://github.com/0916habutaro/kokosimnew/actions/runs/38199753576)で検証した単発計測値。CIのPython実行環境に依存し、将来の性能保証や大規模実プレイ負荷の代用にはしない。
+
+| 独立索引数 | 保存済み年度 | 通算試合数 | page | selected_years厳密全件 |
+|---:|---:|---:|---:|---:|
+| 4 | 4 | 4 | 10.392 ms | 11.420 ms |
+| 16 | 16 | 16 | 37.624 ms | 43.338 ms |
+| 32 | 32 | 32 | 73.251 ms | 85.388 ms |
+
+年度範囲は4索引で10000〜10300、16索引で10000〜11500、32索引で10000〜13100。実際の封印保存年度数はそれぞれ4/16/32であり、**その間すべての年度を進行したという結果ではない**。全て`source_full_a_sha_verified=true`、`all_shard_memberships_strictly_verified=true`、`source_sqlite_and_indexes_unchanged=true`。32索引で初回ページ30試合と次ページ2試合を取得した。
+
+テスト結果はStage43G-86新規2件、Stage43G-83回帰8件、Stage43G-85回帰9件、合計19件すべて成功。全体CIのPython unittest・関東17校E2Eは別途結果確認が必要。
