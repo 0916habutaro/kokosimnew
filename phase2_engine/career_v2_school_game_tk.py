@@ -43,7 +43,8 @@ class CareerV2SchoolGamePager:
 
     def _fetch(self, start: int, end: int, competition_id: str | None,
                offset: int, verify_scope: str,
-               lookup_mode: str | None = None) -> dict:
+               lookup_mode: str | None = None,
+               index_path_override: Path | None = None) -> dict:
         mode = self.lookup_mode if lookup_mode is None else lookup_mode
         kwargs = dict(
             start_year=start, end_year=end, competition_id=competition_id,
@@ -57,11 +58,12 @@ class CareerV2SchoolGamePager:
             if data.get("school_filter_uses_unindexed_json_scan") is not True:
                 raise ValueError("original v2 search source differs")
         elif mode == "separate_index":
-            if self.index_path is None:
+            path = index_path_override or self.index_path
+            if path is None:
                 raise ValueError("derived school index path was not configured")
             from .career_v2_school_read_index import read_indexed_v2_school_page
             data = read_indexed_v2_school_page(
-                self.v2_path, self.calendar_path, self.index_path,
+                self.v2_path, self.calendar_path, path,
                 self.school_id, **kwargs,
             )
             if (data.get("uses_separate_verified_school_index") is not True
@@ -92,6 +94,43 @@ class CareerV2SchoolGamePager:
                     or type(row.get("game_day_token")) is not str):
                 raise ValueError("fictional v2 game row has wrong provenance")
         return data
+
+    def available_index_versions(self) -> tuple[str, ...]:
+        """List names only; enumeration cannot enable an index."""
+        from .career_v2_school_index_versions import (
+            list_v2_school_index_versions,
+        )
+        return list_v2_school_index_versions(
+            self.v2_path, self.calendar_path,
+        )
+
+    def select_index_version(self, filename: str) -> dict:
+        """Select a strictly verified slot-local index without fallback.
+
+        Even when the index is already active, its replacement is staged
+        and re-read under the current filters and pagination position
+        before committing any part of the selection.
+        """
+        from .career_v2_school_index_versions import (
+            verify_v2_school_index_version,
+        )
+        candidate = verify_v2_school_index_version(
+            self.v2_path, self.calendar_path, filename,
+        )
+        candidate_path = Path(candidate["path"])
+        if self.lookup_mode == "separate_index":
+            data = self._fetch(
+                self.start_year, self.end_year, self.competition_id,
+                self.offset, self.verify_scope, lookup_mode="separate_index",
+                index_path_override=candidate_path,
+            )
+            if self.offset and not data["records"]:
+                raise ValueError("selected version has no current game page")
+        else:
+            data = self.page
+        self.index_path = candidate_path
+        self.page = data
+        return candidate
 
     def select_lookup(self, mode: str) -> dict:
         """Switch read backend only after verifying the selected saved page.
