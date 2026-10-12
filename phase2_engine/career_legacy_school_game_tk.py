@@ -120,7 +120,7 @@ class CareerLegacySchoolGamesTkPilot:
             "ココシミュNew｜架空v2・学校別試合検索（試験版）"
             if self.is_v2 else WINDOW_TITLE
         )
-        self.root.geometry("1060x580")
+        self.root.geometry("1060x640" if self.is_v2 else "1060x580")
         self.start_var = tk.StringVar(self.root, str(pager.start_year))
         self.end_var = tk.StringVar(self.root, str(pager.end_year))
         self.competition_var = tk.StringVar(self.root, "")
@@ -136,6 +136,13 @@ class CareerLegacySchoolGamesTkPilot:
         )
         self.index_version_status_var = (
             tk.StringVar(self.root, "索引版は未検証・手動選択のみ")
+            if self.is_v2 else None
+        )
+        self.century_files_var = (
+            tk.StringVar(self.root, "") if self.is_v2 else None
+        )
+        self.century_status_var = (
+            tk.StringVar(self.root, "年代横断は未選択・元セーブのみ")
             if self.is_v2 else None
         )
         self.status_var = tk.StringVar(self.root, "")
@@ -194,7 +201,7 @@ class CareerLegacySchoolGamesTkPilot:
             self.lookup_box = ttk.Combobox(
                 lookup_bar, textvariable=self.lookup_var,
                 state="readonly", width=20,
-                values=("original_json1", "separate_index"),
+                values=("original_json1", "separate_index", "century_shards"),
             )
             self.lookup_box.pack(side="left", padx=(6, 10))
             self.lookup_box.bind("<<ComboboxSelected>>", self._change_lookup)
@@ -222,6 +229,23 @@ class CareerLegacySchoolGamesTkPilot:
                 versions_bar, textvariable=self.index_version_status_var,
             ).pack(side="left", padx=(8, 0))
             self._load_index_versions()
+            century_bar = ttk.Frame(self.root, padding=(8, 0, 8, 8))
+            century_bar.pack(fill="x")
+            ttk.Label(
+                century_bar, text="年代横断索引（ファイル名を空白区切り）",
+            ).pack(side="left")
+            self.century_files_entry = ttk.Entry(
+                century_bar, textvariable=self.century_files_var, width=57,
+            )
+            self.century_files_entry.pack(side="left", padx=(6, 8))
+            self.century_apply_button = ttk.Button(
+                century_bar, text="検証して年代横断検索",
+                command=self._apply_century_shards,
+            )
+            self.century_apply_button.pack(side="left")
+            ttk.Label(
+                self.root, textvariable=self.century_status_var, padding=(8, 0, 8, 6),
+            ).pack(fill="x")
         frame = ttk.Frame(self.root, padding=(8, 0, 8, 4))
         frame.pack(fill="both", expand=True)
         self.tree = ttk.Treeview(
@@ -270,11 +294,15 @@ class CareerLegacySchoolGamesTkPilot:
                 else "表示ページのみSHA照合済み（他の原本や所属校の完全性は未検証）"
             )
             source = "架空v2（G{year}:MM-DD）"
-            suffix = (
-                "旧A方式対象外／独立SQLite学校索引を利用（表示原本SHA照合）"
-                if self.pager.lookup_mode == "separate_index"
-                else "旧A方式対象外／原本JSON1検索（学校索引なし）"
-            )
+            if self.pager.lookup_mode == "century_shards":
+                suffix = (
+                    f"旧A方式対象外／年代横断索引"
+                    f"{len(self.pager.century_index_paths)}件（表示原本SHA照合）"
+                )
+            elif self.pager.lookup_mode == "separate_index":
+                suffix = "旧A方式対象外／独立SQLite学校索引を利用（表示原本SHA照合）"
+            else:
+                suffix = "旧A方式対象外／原本JSON1検索（学校索引なし）"
         else:
             scope = (
                 "指定した学校・年度・大会の範囲全件SHA照合済み"
@@ -355,6 +383,33 @@ class CareerLegacySchoolGamesTkPilot:
             self.index_version_status_var.set(f"索引版を拒否：{exc}")
             self.status_var.set(
                 f"索引版を選べません：{exc}／直前の表示を維持・セーブは変更しません"
+            )
+
+    def _apply_century_shards(self) -> None:
+        """Manual strict activation, never silently selects or creates shards."""
+        if not self.is_v2:
+            raise ValueError("legacy school search has no century shards")
+
+        def run() -> None:
+            start = _year(self.start_var.get().strip(),
+                          min_year=self.pager.min_year, max_year=None)
+            end = _year(self.end_var.get().strip(),
+                        min_year=self.pager.min_year, max_year=None)
+            names = self.century_files_var.get().split()
+            self.pager.select_century_shards(
+                names, start_year=start, end_year=end,
+                competition_id=self.competition_var.get().strip() or None,
+                verify_scope=self.scope_var.get(),
+            )
+        self._operate(run)
+        if self.last_error is None:
+            self.century_status_var.set(
+                f"封印済みの保存元と索引を厳密照合済み／"
+                f"{len(self.pager.century_index_paths)}シャード使用"
+            )
+        else:
+            self.century_status_var.set(
+                "年代横断への切替は拒否（以前の表示と索引を維持）"
             )
 
     def _change_lookup(self, _event=None) -> None:
