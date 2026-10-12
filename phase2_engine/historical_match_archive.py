@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Iterable, Mapping
 
@@ -247,6 +248,17 @@ class HistoricalMatchArchive:
         conn.row_factory = sqlite3.Row
         return conn
 
+    @contextmanager
+    def _connection(self):
+        """Own the handle as well as the SQLite commit/rollback context."""
+        conn = None
+        try:
+            with self._connect() as conn:
+                yield conn
+        finally:
+            if conn is not None:
+                conn.close()
+
     @staticmethod
     def _identity(
         year: int, rng_seed: int, resolver_contract: str, plan_fingerprint: str
@@ -301,9 +313,12 @@ class HistoricalMatchArchive:
             raise ValueError("expected_match_count must be non-negative")
         if not self.db_path.is_file():
             raise ValueError("archive does not exist")
-        with self._connect() as conn:
+        with self._connection() as conn:
             conn.executescript(_SCHEMA)
             with conn:
+                # executescript commits implicitly: reserve the writer AFTER
+                # schema setup, BEFORE any state/ledger decision.
+                conn.execute("BEGIN IMMEDIATE")
                 entry = conn.execute(
                     "SELECT status, match_count, ledger_sha256 "
                     "FROM career_years WHERE year = ?", (year,),
@@ -348,9 +363,10 @@ class HistoricalMatchArchive:
         )
         if not self.db_path.is_file():
             raise HistoricalMatchConflictError("archive does not exist")
-        with self._connect() as conn:
+        with self._connection() as conn:
             conn.executescript(_SCHEMA)
             with conn:
+                conn.execute("BEGIN IMMEDIATE")
                 known = conn.execute(
                     "SELECT metadata_json, status FROM career_years WHERE year=?",
                     (year,),
@@ -381,7 +397,7 @@ class HistoricalMatchArchive:
         """Return registered career years, including sealed state."""
         if not self.db_path.is_file():
             return []
-        with self._connect() as conn:
+        with self._connection() as conn:
             conn.executescript(_SCHEMA)
             return [
                 {"year": int(row["year"]), "status": row["status"],
@@ -422,9 +438,10 @@ class HistoricalMatchArchive:
             raw = _canonical(payload)
             normalized.append((key, payload, raw, _digest(raw)))
 
-        with self._connect() as conn:
+        with self._connection() as conn:
             conn.executescript(_SCHEMA)
             with conn:
+                conn.execute("BEGIN IMMEDIATE")
                 existing_identity = conn.execute(
                     "SELECT metadata_json FROM archive_identity WHERE id = 1"
                 ).fetchone()
@@ -508,7 +525,7 @@ class HistoricalMatchArchive:
     def get_match(self, year: int, competition_id: str, match_id: str) -> dict | None:
         if not self.db_path.is_file():
             return None
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn:
             row = conn.execute(
                 """SELECT payload_json FROM historical_matches
                    WHERE year=? AND competition_id=? AND match_id=?""",
@@ -530,7 +547,7 @@ class HistoricalMatchArchive:
             filters += " AND (team1_id=? OR team2_id=?)"
             args.extend((school_id, school_id))
         args.extend((limit, offset))
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn:
             rows = conn.execute(
                 f"""SELECT payload_json FROM historical_matches
                     WHERE {filters}
