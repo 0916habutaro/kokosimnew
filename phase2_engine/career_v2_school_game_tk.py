@@ -150,7 +150,11 @@ class CareerV2SchoolGamePager:
         self.page = data
         return candidate
 
-    def select_century_shards(self, filenames: tuple[str, ...] | list[str]) -> dict:
+    def select_century_shards(
+        self, filenames: tuple[str, ...] | list[str], *,
+        start_year: int | None = None, end_year: int | None = None,
+        competition_id: str | None = None, verify_scope: str | None = None,
+    ) -> dict:
         """Explicitly verify named slot-local indexes then atomically activate.
 
         Names are not paths; we do not scan the directory, create shards,
@@ -182,26 +186,38 @@ class CareerV2SchoolGamePager:
             raise ValueError("duplicate century index filenames")
 
         candidate_paths = tuple(paths)
+        start = self.start_year if start_year is None else start_year
+        end = self.end_year if end_year is None else end_year
+        scope = self.verify_scope if verify_scope is None else verify_scope
+        # Changing a window resets pagination only after source verification.
+        changed = ((start, end, competition_id, scope) != (
+            self.start_year, self.end_year, self.competition_id,
+            self.verify_scope,
+        ))
+        offset = 0 if changed else self.offset
         # A manual activation always audits the requested full time window,
         # not just the 30 visible rows.
         proof = self._fetch(
-            self.start_year, self.end_year, self.competition_id,
-            self.offset, "selected_years", lookup_mode="century_shards",
+            start, end, competition_id,
+            offset, "selected_years", lookup_mode="century_shards",
             century_paths_override=candidate_paths,
         )
         if not proof.get("offpage_derived_memberships_verified"):
             raise ValueError("full-century index source proof was not completed")
-        if self.verify_scope == "selected_years":
+        if scope == "selected_years":
             data = proof
         else:
             data = self._fetch(
-                self.start_year, self.end_year, self.competition_id,
-                self.offset, self.verify_scope, lookup_mode="century_shards",
+                start, end, competition_id,
+                offset, scope, lookup_mode="century_shards",
                 century_paths_override=candidate_paths,
             )
-        if self.offset and not data["records"]:
+        if offset and not data["records"]:
             raise ValueError("no verified page at this cross-century offset")
         self.century_index_paths = candidate_paths
+        self.start_year, self.end_year = start, end
+        self.competition_id, self.verify_scope = competition_id, scope
+        self.offset = offset
         self.lookup_mode, self.page = "century_shards", data
         return data
 
