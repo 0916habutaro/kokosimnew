@@ -6,6 +6,8 @@ no nationwide simulated progression is claimed.
 from __future__ import annotations
 
 from hashlib import sha256
+import os
+import sys
 from pathlib import Path
 import sqlite3
 import unittest
@@ -19,6 +21,8 @@ from phase2_engine.career_v2_school_century_candidates import (
 )
 import test_stage43g83_v2_century_shards as stage83
 import test_stage43g84_v2_cross_century_tk as stage84
+
+DISPLAY = bool(os.environ.get("DISPLAY") or sys.platform.startswith("win"))
 
 
 class Stage43G85CenturyCandidateTests(unittest.TestCase):
@@ -160,6 +164,7 @@ class Stage43G85CenturyCandidateTests(unittest.TestCase):
             self.preview()
 
 
+@unittest.skipUnless(DISPLAY, "real Tk or Xvfb display required")
 class Stage43G85CenturyCandidateTkTests(unittest.TestCase):
     def setUp(self):
         self.fixture = stage84.Stage43G84CenturyTkTests(
