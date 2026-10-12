@@ -73,6 +73,8 @@ BEGIN IMMEDIATEはsealの全SHA検証中もv2 writer予約を保持する。並�
 
 専用 `career-v2-sqlite-concurrency.yml` は新規19件とStage79/83〜88の60件を実Tkで実行し、JSON/logをartifactに保存。全Python 3.12と関東17校は既存CIを維持。最終headに対するCIの完了結果・head SHA・URLはPR本文を正本として記録する（CI待ちの時点を成功と扱わない）。成功確認後もPRをマージせずレビュー待ちにする。
 
+初回CIはテスト成功後も成果物を実際にダウンロードしたところ、標準出力リダイレクトのJSONにテストログが混ざっていた。`--json-output` で新規ファイルへ直接保存し、CI内でJSON decode、19件/54 subtest/スキップ0/全成功をassertする。ログは別ファイルに保存し、既存出力ファイルの上書きは拒否する。
+
 ```bash
 xvfb-run -a python -m phase2_engine.career_v2_sqlite_concurrency_audit
 for stage in 79 83 84 85 86 87 88 89; do

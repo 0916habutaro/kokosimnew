@@ -54,7 +54,15 @@ jobs:
       - name: Deterministic concurrency audit including real Tk
         run: |
           mkdir -p audit-results
-          xvfb-run -a python -m phase2_engine.career_v2_sqlite_concurrency_audit > audit-results/concurrency.json 2> audit-results/concurrency.log
+          xvfb-run -a python -m phase2_engine.career_v2_sqlite_concurrency_audit --json-output audit-results/concurrency.json > audit-results/concurrency.log 2>&1
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path("audit-results/concurrency.json").read_text())
+          assert data["successful"] and data["tests"] == 19
+          assert data["skipped"] == 0 and data["subtest_schedules"] == 54
+          assert all(case["successful"] for case in data["schedules"])
+          PY
       - name: Stage79 and Stage83-88 regressions
         run: |
           for stage in 79 83 84 85 86 87 88; do

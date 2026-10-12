@@ -95,6 +95,21 @@ def commit_probe(path):
 
 def main():
     """Run disposable-fixture regressions and emit machine-readable evidence."""
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--json-output", type=Path,
+                        help="write evidence directly to a NEW JSON file")
+    args = parser.parse_args()
+    # Refuse overwriting an existing artifact; keep this handle separate from
+    # process stdout/stderr, which some runners combine into one console log.
+    from contextlib import ExitStack
+    with ExitStack() as outputs:
+        evidence = (outputs.enter_context(args.json_output.open("x"))
+                    if args.json_output is not None else None)
+        return _run_audit(evidence)
+
+
+def _run_audit(evidence):
     root = Path(__file__).resolve().parents[1]
     suite = unittest.defaultTestLoader.discover(
         str(root / "tests"), pattern="test_stage43g89_*.py")
@@ -110,7 +125,7 @@ def main():
 
     started = perf_counter()
     result = unittest.TextTestRunner(verbosity=2, resultclass=EvidenceResult).run(suite)
-    print(json.dumps({
+    payload = json.dumps({
         "stage": "43G-89", "python": platform.python_version(),
         "sqlite": sqlite3.sqlite_version, "tests": result.testsRun,
         "failures": len(result.failures), "errors": len(result.errors),
@@ -119,7 +134,12 @@ def main():
         "subtest_schedules": len(result.schedules), "schedules": result.schedules,
         "ordering": "threading.Event + exact SQL/API boundaries; no sleeps",
         "fixtures": "temporary full-A synthetic data, never user saves",
-    }, ensure_ascii=False, indent=2))
+    }, ensure_ascii=False, indent=2)
+    if evidence is not None:
+        evidence.write(payload + "\n")
+        evidence.flush()
+    else:
+        print(payload)
     raise SystemExit(not result.wasSuccessful())
 
 
