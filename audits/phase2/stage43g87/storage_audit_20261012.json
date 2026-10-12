@@ -1,0 +1,6072 @@
+{
+  "cases": {
+    "medium1000": {
+      "annual_storage": [
+        {
+          "calendar_bytes": 8192,
+          "source_bytes": 44142592,
+          "year": 10000
+        }
+      ],
+      "append_ms": 55545.959,
+      "career_roster_archive_and_player_stats_cache_included": false,
+      "derived_school_index_bytes": 2904064,
+      "environment": {
+        "machine": "x86_64",
+        "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+        "python": "3.12.14",
+        "sqlite": "3.53.1"
+      },
+      "file_sha256_verification": {
+        "max_ms": 118.141,
+        "median_ms": 107.08,
+        "min_ms": 103.9,
+        "samples_ms": [
+          118.141,
+          103.9,
+          107.08
+        ]
+      },
+      "full_a": {
+        "content_sha256": "9ca892e4aecdcbb7091ad81865e0ce892c59fe5693a6427f83d15a0bb3b6ec33",
+        "field_counts_and_bytes": {
+          "batter_stats_rows": 90000,
+          "batter_stats_value_bytes": 26645000,
+          "inning_scores_rows": 90000,
+          "inning_scores_value_bytes": 7610000,
+          "pitcher_stats_rows": 10000,
+          "pitcher_stats_value_bytes": 2180352,
+          "team_stats_rows": 10000,
+          "team_stats_value_bytes": 557676
+        },
+        "field_shapes": {
+          "batter_stats": [
+            [
+              "at_bats",
+              "caught_stealing",
+              "doubles",
+              "hit_by_pitch",
+              "hits",
+              "home_runs",
+              "plate_appearances",
+              "player_id",
+              "rbi",
+              "runs",
+              "sacrifice_bunts",
+              "sacrifice_flies",
+              "school_id",
+              "singles",
+              "stolen_bases",
+              "strikeouts",
+              "triples",
+              "walks"
+            ]
+          ],
+          "inning_scores": [
+            [
+              "batting_team_id",
+              "half",
+              "inning",
+              "runs",
+              "was_played"
+            ]
+          ],
+          "pitcher_stats": [
+            [
+              "batters_faced",
+              "earned_runs",
+              "hit_batters",
+              "hits_allowed",
+              "home_runs_allowed",
+              "outs_recorded",
+              "player_id",
+              "runs_allowed",
+              "school_id",
+              "strikeouts",
+              "walks"
+            ]
+          ],
+          "team_stats": [
+            [
+              "errors",
+              "hits",
+              "runs",
+              "school_id"
+            ]
+          ]
+        },
+        "full_events_retained": false,
+        "matches": 5000,
+        "metadata_and_json_syntax_bytes": 3671338,
+        "payload_bytes": 40664366,
+        "payload_bytes_per_match": {
+          "max": 8145,
+          "median": 8131.0,
+          "min": 8131
+        }
+      },
+      "game_save_year_limit_imposed": false,
+      "index_build_ms": 3215.24,
+      "index_definitions": [
+        [
+          "idx_v2_school_game_date",
+          "CREATE INDEX idx_v2_school_game_date ON school_game (\n  school_id,year,game_day_token,competition_id,match_id\n)"
+        ],
+        [
+          "idx_v2_school_game_year",
+          "CREATE INDEX idx_v2_school_game_year ON school_game(year)"
+        ],
+        [
+          "sqlite_autoindex_meta_1",
+          null
+        ],
+        [
+          "sqlite_autoindex_school_game_1",
+          null
+        ]
+      ],
+      "index_shards": 1,
+      "indexed_memberships": 10000,
+      "national_100_or_200_year_full_tournaments_verified": false,
+      "nine_innings_18_batters_2_pitchers_no_substitutions": true,
+      "repetitions": 3,
+      "saved_years": [
+        10000
+      ],
+      "schools": 1000,
+      "seal_ms": 2889.873,
+      "search": {
+        "sampled_schools": [
+          "SCH000001",
+          "SCH000510",
+          "SCH001009"
+        ],
+        "source_calendar_legacy_indexes_sha_unchanged": true,
+        "timings": {
+          "AUDIT87-ZERO-SCHOOL:competition_a": {
+            "max_ms": 60.038,
+            "median_ms": 24.457,
+            "min_ms": 15.899,
+            "samples_ms": [
+              24.457,
+              60.038,
+              15.899
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:competition_b": {
+            "max_ms": 61.08,
+            "median_ms": 16.154,
+            "min_ms": 15.679,
+            "samples_ms": [
+              16.154,
+              15.679,
+              61.08
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:first_page": {
+            "max_ms": 15.097,
+            "median_ms": 13.834,
+            "min_ms": 13.651,
+            "samples_ms": [
+              13.651,
+              13.834,
+              15.097
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:first_year": {
+            "max_ms": 53.77,
+            "median_ms": 19.864,
+            "min_ms": 17.667,
+            "samples_ms": [
+              53.77,
+              19.864,
+              17.667
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:last_page": {
+            "max_ms": 55.5,
+            "median_ms": 29.757,
+            "min_ms": 21.001,
+            "samples_ms": [
+              21.001,
+              55.5,
+              29.757
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:last_year": {
+            "max_ms": 52.98,
+            "median_ms": 19.715,
+            "min_ms": 15.93,
+            "samples_ms": [
+              19.715,
+              52.98,
+              15.93
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:no_competition": {
+            "max_ms": 49.393,
+            "median_ms": 18.234,
+            "min_ms": 15.986,
+            "samples_ms": [
+              18.234,
+              15.986,
+              49.393
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:past_last_page": {
+            "max_ms": 25.772,
+            "median_ms": 14.467,
+            "min_ms": 13.122,
+            "samples_ms": [
+              13.122,
+              14.467,
+              25.772
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:strict_selected_years": {
+            "max_ms": 2119.643,
+            "median_ms": 1912.507,
+            "min_ms": 1865.329,
+            "samples_ms": [
+              1865.329,
+              1912.507,
+              2119.643
+            ]
+          },
+          "SCH000001:competition_a": {
+            "max_ms": 80.181,
+            "median_ms": 70.38,
+            "min_ms": 41.194,
+            "samples_ms": [
+              80.181,
+              41.194,
+              70.38
+            ]
+          },
+          "SCH000001:competition_b": {
+            "max_ms": 83.167,
+            "median_ms": 76.468,
+            "min_ms": 45.087,
+            "samples_ms": [
+              76.468,
+              45.087,
+              83.167
+            ]
+          },
+          "SCH000001:first_page": {
+            "max_ms": 91.13,
+            "median_ms": 81.355,
+            "min_ms": 44.028,
+            "samples_ms": [
+              81.355,
+              91.13,
+              44.028
+            ]
+          },
+          "SCH000001:first_year": {
+            "max_ms": 90.153,
+            "median_ms": 84.204,
+            "min_ms": 81.962,
+            "samples_ms": [
+              84.204,
+              81.962,
+              90.153
+            ]
+          },
+          "SCH000001:last_page": {
+            "max_ms": 87.046,
+            "median_ms": 83.109,
+            "min_ms": 51.817,
+            "samples_ms": [
+              83.109,
+              87.046,
+              51.817
+            ]
+          },
+          "SCH000001:last_year": {
+            "max_ms": 99.311,
+            "median_ms": 80.574,
+            "min_ms": 48.994,
+            "samples_ms": [
+              48.994,
+              80.574,
+              99.311
+            ]
+          },
+          "SCH000001:no_competition": {
+            "max_ms": 56.201,
+            "median_ms": 30.078,
+            "min_ms": 25.033,
+            "samples_ms": [
+              56.201,
+              30.078,
+              25.033
+            ]
+          },
+          "SCH000001:past_last_page": {
+            "max_ms": 54.122,
+            "median_ms": 53.75,
+            "min_ms": 37.037,
+            "samples_ms": [
+              54.122,
+              37.037,
+              53.75
+            ]
+          },
+          "SCH000001:strict_selected_years": {
+            "max_ms": 6817.145,
+            "median_ms": 6125.477,
+            "min_ms": 5845.552,
+            "samples_ms": [
+              5845.552,
+              6125.477,
+              6817.145
+            ]
+          },
+          "SCH000510:competition_a": {
+            "max_ms": 74.628,
+            "median_ms": 72.923,
+            "min_ms": 34.466,
+            "samples_ms": [
+              34.466,
+              72.923,
+              74.628
+            ]
+          },
+          "SCH000510:competition_b": {
+            "max_ms": 68.718,
+            "median_ms": 32.017,
+            "min_ms": 31.58,
+            "samples_ms": [
+              31.58,
+              68.718,
+              32.017
+            ]
+          },
+          "SCH000510:first_page": {
+            "max_ms": 79.533,
+            "median_ms": 78.588,
+            "min_ms": 46.566,
+            "samples_ms": [
+              46.566,
+              79.533,
+              78.588
+            ]
+          },
+          "SCH000510:first_year": {
+            "max_ms": 287.719,
+            "median_ms": 279.872,
+            "min_ms": 215.582,
+            "samples_ms": [
+              215.582,
+              287.719,
+              279.872
+            ]
+          },
+          "SCH000510:last_page": {
+            "max_ms": 78.26,
+            "median_ms": 74.884,
+            "min_ms": 43.581,
+            "samples_ms": [
+              43.581,
+              74.884,
+              78.26
+            ]
+          },
+          "SCH000510:last_year": {
+            "max_ms": 81.636,
+            "median_ms": 78.439,
+            "min_ms": 39.145,
+            "samples_ms": [
+              78.439,
+              39.145,
+              81.636
+            ]
+          },
+          "SCH000510:no_competition": {
+            "max_ms": 45.933,
+            "median_ms": 16.637,
+            "min_ms": 14.983,
+            "samples_ms": [
+              14.983,
+              45.933,
+              16.637
+            ]
+          },
+          "SCH000510:past_last_page": {
+            "max_ms": 50.024,
+            "median_ms": 34.905,
+            "min_ms": 16.568,
+            "samples_ms": [
+              34.905,
+              50.024,
+              16.568
+            ]
+          },
+          "SCH000510:strict_selected_years": {
+            "max_ms": 17882.019,
+            "median_ms": 5992.372,
+            "min_ms": 5749.502,
+            "samples_ms": [
+              5749.502,
+              5992.372,
+              17882.019
+            ]
+          },
+          "SCH001009:competition_a": {
+            "max_ms": 63.62,
+            "median_ms": 61.644,
+            "min_ms": 30.588,
+            "samples_ms": [
+              63.62,
+              30.588,
+              61.644
+            ]
+          },
+          "SCH001009:competition_b": {
+            "max_ms": 62.594,
+            "median_ms": 29.031,
+            "min_ms": 28.895,
+            "samples_ms": [
+              29.031,
+              28.895,
+              62.594
+            ]
+          },
+          "SCH001009:first_page": {
+            "max_ms": 69.395,
+            "median_ms": 37.325,
+            "min_ms": 32.426,
+            "samples_ms": [
+              37.325,
+              69.395,
+              32.426
+            ]
+          },
+          "SCH001009:first_year": {
+            "max_ms": 76.017,
+            "median_ms": 61.67,
+            "min_ms": 33.592,
+            "samples_ms": [
+              33.592,
+              61.67,
+              76.017
+            ]
+          },
+          "SCH001009:last_page": {
+            "max_ms": 85.123,
+            "median_ms": 66.853,
+            "min_ms": 40.049,
+            "samples_ms": [
+              66.853,
+              85.123,
+              40.049
+            ]
+          },
+          "SCH001009:last_year": {
+            "max_ms": 71.035,
+            "median_ms": 47.874,
+            "min_ms": 31.027,
+            "samples_ms": [
+              31.027,
+              71.035,
+              47.874
+            ]
+          },
+          "SCH001009:no_competition": {
+            "max_ms": 46.702,
+            "median_ms": 17.334,
+            "min_ms": 14.501,
+            "samples_ms": [
+              14.501,
+              17.334,
+              46.702
+            ]
+          },
+          "SCH001009:past_last_page": {
+            "max_ms": 46.907,
+            "median_ms": 29.424,
+            "min_ms": 14.974,
+            "samples_ms": [
+              29.424,
+              14.974,
+              46.907
+            ]
+          },
+          "SCH001009:strict_selected_years": {
+            "max_ms": 4272.025,
+            "median_ms": 4174.603,
+            "min_ms": 3623.568,
+            "samples_ms": [
+              4174.603,
+              4272.025,
+              3623.568
+            ]
+          },
+          "original_json1_first_year": {
+            "max_ms": 487.129,
+            "median_ms": 486.8,
+            "min_ms": 482.038,
+            "samples_ms": [
+              486.8,
+              487.129,
+              482.038
+            ]
+          }
+        },
+        "verified_page_calls": 108
+      },
+      "seed": 2026101201,
+      "source_and_calendar_bytes": 44150784,
+      "sql_plans": {
+        "competition_page": [
+          "SEARCH school_game USING INDEX idx_v2_school_game_date (school_id=? AND year>? AND year<?)",
+          "USE TEMP B-TREE FOR LAST TERM OF ORDER BY"
+        ],
+        "school_page": [
+          "SEARCH school_game USING INDEX idx_v2_school_game_date (school_id=? AND year>? AND year<?)"
+        ]
+      },
+      "stage": "43G-87",
+      "storage": {
+        "fictional_option_a_v2.sqlite3": {
+          "allocated_page_bytes": 44142592,
+          "btree_page_bytes": {
+            "idx_v2_games_day": 335872,
+            "sqlite_autoindex_v2_option_a_matches_1": 266240,
+            "sqlite_schema": 4096,
+            "v2_game_years": 4096,
+            "v2_option_a_matches": 43532288
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 44142592,
+          "freelist_count": 0,
+          "page_count": 10777,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G10000_G10099.sqlite3": {
+          "allocated_page_bytes": 2904064,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 774144,
+            "idx_v2_school_game_year": 118784,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 1372160,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 622592,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 2904064,
+          "freelist_count": 0,
+          "page_count": 709,
+          "page_size": 4096
+        },
+        "historical_matches.sqlite3": {
+          "allocated_page_bytes": 40960,
+          "btree_page_bytes": {
+            "archive_identity": 4096,
+            "career_years": 4096,
+            "historical_matches": 4096,
+            "idx_history_date": 4096,
+            "idx_history_school1_year": 4096,
+            "idx_history_school2_year": 4096,
+            "idx_history_team1": 4096,
+            "idx_history_team2": 4096,
+            "sqlite_autoindex_historical_matches_1": 4096,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 40960,
+          "freelist_count": 0,
+          "page_count": 10,
+          "page_size": 4096
+        },
+        "sandbox_calendar_v2.sqlite3": {
+          "allocated_page_bytes": 8192,
+          "btree_page_bytes": {
+            "sandbox_year_plans": 4096,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 8192,
+          "freelist_count": 0,
+          "page_count": 2,
+          "page_size": 4096
+        }
+      },
+      "synthetic_calendar_and_pairings_not_current_tournament_schedule": true,
+      "synthetic_games_per_school_year": 10,
+      "temporary_fixture_deleted": true,
+      "year_step": 1
+    },
+    "national3746": {
+      "annual_storage": [
+        {
+          "calendar_bytes": 8192,
+          "source_bytes": 165232640,
+          "year": 10000
+        }
+      ],
+      "append_ms": 140495.421,
+      "career_roster_archive_and_player_stats_cache_included": false,
+      "derived_school_index_bytes": 10752000,
+      "environment": {
+        "machine": "x86_64",
+        "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+        "python": "3.12.14",
+        "sqlite": "3.53.1"
+      },
+      "file_sha256_verification": {
+        "max_ms": 917.577,
+        "median_ms": 864.264,
+        "min_ms": 828.947,
+        "samples_ms": [
+          828.947,
+          917.577,
+          864.264
+        ]
+      },
+      "full_a": {
+        "content_sha256": "2e100958e3d1278e894f6e279a8bb9ce06b1c6c862e4cbf7bee4d5267f35fa06",
+        "field_counts_and_bytes": {
+          "batter_stats_rows": 337140,
+          "batter_stats_value_bytes": 99812170,
+          "inning_scores_rows": 337140,
+          "inning_scores_value_bytes": 28507060,
+          "pitcher_stats_rows": 37460,
+          "pitcher_stats_value_bytes": 8167690,
+          "team_stats_rows": 37460,
+          "team_stats_value_bytes": 2089100
+        },
+        "field_shapes": {
+          "batter_stats": [
+            [
+              "at_bats",
+              "caught_stealing",
+              "doubles",
+              "hit_by_pitch",
+              "hits",
+              "home_runs",
+              "plate_appearances",
+              "player_id",
+              "rbi",
+              "runs",
+              "sacrifice_bunts",
+              "sacrifice_flies",
+              "school_id",
+              "singles",
+              "stolen_bases",
+              "strikeouts",
+              "triples",
+              "walks"
+            ]
+          ],
+          "inning_scores": [
+            [
+              "batting_team_id",
+              "half",
+              "inning",
+              "runs",
+              "was_played"
+            ]
+          ],
+          "pitcher_stats": [
+            [
+              "batters_faced",
+              "earned_runs",
+              "hit_batters",
+              "hits_allowed",
+              "home_runs_allowed",
+              "outs_recorded",
+              "player_id",
+              "runs_allowed",
+              "school_id",
+              "strikeouts",
+              "walks"
+            ]
+          ],
+          "team_stats": [
+            [
+              "errors",
+              "hits",
+              "runs",
+              "school_id"
+            ]
+          ]
+        },
+        "full_events_retained": false,
+        "matches": 18730,
+        "metadata_and_json_syntax_bytes": 13752855,
+        "payload_bytes": 152328875,
+        "payload_bytes_per_match": {
+          "max": 8145,
+          "median": 8131.0,
+          "min": 8131
+        }
+      },
+      "game_save_year_limit_imposed": false,
+      "index_build_ms": 17253.052,
+      "index_definitions": [
+        [
+          "idx_v2_school_game_date",
+          "CREATE INDEX idx_v2_school_game_date ON school_game (\n  school_id,year,game_day_token,competition_id,match_id\n)"
+        ],
+        [
+          "idx_v2_school_game_year",
+          "CREATE INDEX idx_v2_school_game_year ON school_game(year)"
+        ],
+        [
+          "sqlite_autoindex_meta_1",
+          null
+        ],
+        [
+          "sqlite_autoindex_school_game_1",
+          null
+        ]
+      ],
+      "index_shards": 1,
+      "indexed_memberships": 37460,
+      "national_100_or_200_year_full_tournaments_verified": false,
+      "nine_innings_18_batters_2_pitchers_no_substitutions": true,
+      "repetitions": 3,
+      "saved_years": [
+        10000
+      ],
+      "schools": 3746,
+      "seal_ms": 38628.722,
+      "search": {
+        "sampled_schools": [
+          "SCH000001",
+          "SCH001883",
+          "SCH003755"
+        ],
+        "source_calendar_legacy_indexes_sha_unchanged": true,
+        "timings": {
+          "AUDIT87-ZERO-SCHOOL:competition_a": {
+            "max_ms": 249.086,
+            "median_ms": 204.019,
+            "min_ms": 196.338,
+            "samples_ms": [
+              249.086,
+              204.019,
+              196.338
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:competition_b": {
+            "max_ms": 222.508,
+            "median_ms": 210.743,
+            "min_ms": 207.607,
+            "samples_ms": [
+              207.607,
+              222.508,
+              210.743
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:first_page": {
+            "max_ms": 697.046,
+            "median_ms": 499.347,
+            "min_ms": 98.5,
+            "samples_ms": [
+              98.5,
+              499.347,
+              697.046
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:first_year": {
+            "max_ms": 405.519,
+            "median_ms": 209.465,
+            "min_ms": 179.688,
+            "samples_ms": [
+              405.519,
+              209.465,
+              179.688
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:last_page": {
+            "max_ms": 396.077,
+            "median_ms": 263.557,
+            "min_ms": 223.15,
+            "samples_ms": [
+              396.077,
+              223.15,
+              263.557
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:last_year": {
+            "max_ms": 323.481,
+            "median_ms": 284.526,
+            "min_ms": 211.406,
+            "samples_ms": [
+              211.406,
+              284.526,
+              323.481
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:no_competition": {
+            "max_ms": 212.651,
+            "median_ms": 207.411,
+            "min_ms": 199.621,
+            "samples_ms": [
+              212.651,
+              199.621,
+              207.411
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:past_last_page": {
+            "max_ms": 277.246,
+            "median_ms": 241.808,
+            "min_ms": 223.575,
+            "samples_ms": [
+              277.246,
+              223.575,
+              241.808
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:strict_selected_years": {
+            "max_ms": 27076.167,
+            "median_ms": 26089.564,
+            "min_ms": 20144.011,
+            "samples_ms": [
+              27076.167,
+              20144.011,
+              26089.564
+            ]
+          },
+          "SCH000001:competition_a": {
+            "max_ms": 345.045,
+            "median_ms": 220.742,
+            "min_ms": 200.203,
+            "samples_ms": [
+              200.203,
+              220.742,
+              345.045
+            ]
+          },
+          "SCH000001:competition_b": {
+            "max_ms": 219.298,
+            "median_ms": 214.955,
+            "min_ms": 200.904,
+            "samples_ms": [
+              214.955,
+              219.298,
+              200.904
+            ]
+          },
+          "SCH000001:first_page": {
+            "max_ms": 789.875,
+            "median_ms": 586.74,
+            "min_ms": 535.935,
+            "samples_ms": [
+              789.875,
+              586.74,
+              535.935
+            ]
+          },
+          "SCH000001:first_year": {
+            "max_ms": 750.534,
+            "median_ms": 223.523,
+            "min_ms": 215.29,
+            "samples_ms": [
+              750.534,
+              223.523,
+              215.29
+            ]
+          },
+          "SCH000001:last_page": {
+            "max_ms": 379.712,
+            "median_ms": 278.28,
+            "min_ms": 219.859,
+            "samples_ms": [
+              379.712,
+              278.28,
+              219.859
+            ]
+          },
+          "SCH000001:last_year": {
+            "max_ms": 305.178,
+            "median_ms": 276.412,
+            "min_ms": 208.337,
+            "samples_ms": [
+              305.178,
+              208.337,
+              276.412
+            ]
+          },
+          "SCH000001:no_competition": {
+            "max_ms": 161.669,
+            "median_ms": 124.545,
+            "min_ms": 95.815,
+            "samples_ms": [
+              124.545,
+              95.815,
+              161.669
+            ]
+          },
+          "SCH000001:past_last_page": {
+            "max_ms": 103.298,
+            "median_ms": 103.14,
+            "min_ms": 98.547,
+            "samples_ms": [
+              103.14,
+              103.298,
+              98.547
+            ]
+          },
+          "SCH000001:strict_selected_years": {
+            "max_ms": 26051.799,
+            "median_ms": 24851.449,
+            "min_ms": 14325.183,
+            "samples_ms": [
+              14325.183,
+              26051.799,
+              24851.449
+            ]
+          },
+          "SCH001883:competition_a": {
+            "max_ms": 351.059,
+            "median_ms": 326.205,
+            "min_ms": 230.686,
+            "samples_ms": [
+              351.059,
+              326.205,
+              230.686
+            ]
+          },
+          "SCH001883:competition_b": {
+            "max_ms": 447.625,
+            "median_ms": 444.704,
+            "min_ms": 359.019,
+            "samples_ms": [
+              447.625,
+              359.019,
+              444.704
+            ]
+          },
+          "SCH001883:first_page": {
+            "max_ms": 260.588,
+            "median_ms": 221.052,
+            "min_ms": 213.045,
+            "samples_ms": [
+              213.045,
+              260.588,
+              221.052
+            ]
+          },
+          "SCH001883:first_year": {
+            "max_ms": 375.259,
+            "median_ms": 319.823,
+            "min_ms": 232.643,
+            "samples_ms": [
+              232.643,
+              319.823,
+              375.259
+            ]
+          },
+          "SCH001883:last_page": {
+            "max_ms": 261.407,
+            "median_ms": 243.437,
+            "min_ms": 191.865,
+            "samples_ms": [
+              243.437,
+              191.865,
+              261.407
+            ]
+          },
+          "SCH001883:last_year": {
+            "max_ms": 293.695,
+            "median_ms": 293.626,
+            "min_ms": 228.41,
+            "samples_ms": [
+              293.695,
+              293.626,
+              228.41
+            ]
+          },
+          "SCH001883:no_competition": {
+            "max_ms": 124.801,
+            "median_ms": 84.577,
+            "min_ms": 79.556,
+            "samples_ms": [
+              124.801,
+              79.556,
+              84.577
+            ]
+          },
+          "SCH001883:past_last_page": {
+            "max_ms": 99.928,
+            "median_ms": 81.719,
+            "min_ms": 54.585,
+            "samples_ms": [
+              54.585,
+              81.719,
+              99.928
+            ]
+          },
+          "SCH001883:strict_selected_years": {
+            "max_ms": 27540.363,
+            "median_ms": 20464.979,
+            "min_ms": 17274.211,
+            "samples_ms": [
+              27540.363,
+              20464.979,
+              17274.211
+            ]
+          },
+          "SCH003755:competition_a": {
+            "max_ms": 593.004,
+            "median_ms": 497.044,
+            "min_ms": 256.141,
+            "samples_ms": [
+              256.141,
+              593.004,
+              497.044
+            ]
+          },
+          "SCH003755:competition_b": {
+            "max_ms": 2274.784,
+            "median_ms": 1038.836,
+            "min_ms": 230.475,
+            "samples_ms": [
+              230.475,
+              2274.784,
+              1038.836
+            ]
+          },
+          "SCH003755:first_page": {
+            "max_ms": 185.494,
+            "median_ms": 172.586,
+            "min_ms": 131.558,
+            "samples_ms": [
+              172.586,
+              131.558,
+              185.494
+            ]
+          },
+          "SCH003755:first_year": {
+            "max_ms": 211.738,
+            "median_ms": 204.853,
+            "min_ms": 203.455,
+            "samples_ms": [
+              211.738,
+              203.455,
+              204.853
+            ]
+          },
+          "SCH003755:last_page": {
+            "max_ms": 205.698,
+            "median_ms": 178.128,
+            "min_ms": 132.109,
+            "samples_ms": [
+              178.128,
+              205.698,
+              132.109
+            ]
+          },
+          "SCH003755:last_year": {
+            "max_ms": 189.239,
+            "median_ms": 189.055,
+            "min_ms": 157.752,
+            "samples_ms": [
+              189.239,
+              189.055,
+              157.752
+            ]
+          },
+          "SCH003755:no_competition": {
+            "max_ms": 760.263,
+            "median_ms": 749.095,
+            "min_ms": 172.522,
+            "samples_ms": [
+              760.263,
+              749.095,
+              172.522
+            ]
+          },
+          "SCH003755:past_last_page": {
+            "max_ms": 169.047,
+            "median_ms": 126.174,
+            "min_ms": 109.289,
+            "samples_ms": [
+              169.047,
+              126.174,
+              109.289
+            ]
+          },
+          "SCH003755:strict_selected_years": {
+            "max_ms": 30050.834,
+            "median_ms": 27198.28,
+            "min_ms": 14208.55,
+            "samples_ms": [
+              14208.55,
+              30050.834,
+              27198.28
+            ]
+          },
+          "original_json1_first_year": {
+            "max_ms": 4847.554,
+            "median_ms": 4418.197,
+            "min_ms": 4391.417,
+            "samples_ms": [
+              4847.554,
+              4391.417,
+              4418.197
+            ]
+          }
+        },
+        "verified_page_calls": 108
+      },
+      "seed": 2026101201,
+      "source_and_calendar_bytes": 165240832,
+      "sql_plans": {
+        "competition_page": [
+          "SEARCH school_game USING INDEX idx_v2_school_game_date (school_id=? AND year>? AND year<?)",
+          "USE TEMP B-TREE FOR LAST TERM OF ORDER BY"
+        ],
+        "school_page": [
+          "SEARCH school_game USING INDEX idx_v2_school_game_date (school_id=? AND year>? AND year<?)"
+        ]
+      },
+      "stage": "43G-87",
+      "storage": {
+        "fictional_option_a_v2.sqlite3": {
+          "allocated_page_bytes": 165232640,
+          "btree_page_bytes": {
+            "idx_v2_games_day": 1228800,
+            "sqlite_autoindex_v2_option_a_matches_1": 942080,
+            "sqlite_schema": 4096,
+            "v2_game_years": 4096,
+            "v2_option_a_matches": 163053568
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 165232640,
+          "freelist_count": 0,
+          "page_count": 40340,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G10000_G10099.sqlite3": {
+          "allocated_page_bytes": 10752000,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 2846720,
+            "idx_v2_school_game_year": 438272,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 5132288,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 2318336,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 10752000,
+          "freelist_count": 0,
+          "page_count": 2625,
+          "page_size": 4096
+        },
+        "historical_matches.sqlite3": {
+          "allocated_page_bytes": 40960,
+          "btree_page_bytes": {
+            "archive_identity": 4096,
+            "career_years": 4096,
+            "historical_matches": 4096,
+            "idx_history_date": 4096,
+            "idx_history_school1_year": 4096,
+            "idx_history_school2_year": 4096,
+            "idx_history_team1": 4096,
+            "idx_history_team2": 4096,
+            "sqlite_autoindex_historical_matches_1": 4096,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 40960,
+          "freelist_count": 0,
+          "page_count": 10,
+          "page_size": 4096
+        },
+        "sandbox_calendar_v2.sqlite3": {
+          "allocated_page_bytes": 8192,
+          "btree_page_bytes": {
+            "sandbox_year_plans": 4096,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 8192,
+          "freelist_count": 0,
+          "page_count": 2,
+          "page_size": 4096
+        }
+      },
+      "synthetic_calendar_and_pairings_not_current_tournament_schedule": true,
+      "synthetic_games_per_school_year": 10,
+      "temporary_fixture_deleted": true,
+      "year_step": 1
+    },
+    "shards32": {
+      "annual_storage": [
+        {
+          "calendar_bytes": 8192,
+          "source_bytes": 909312,
+          "year": 10000
+        },
+        {
+          "calendar_bytes": 8192,
+          "source_bytes": 1785856,
+          "year": 10100
+        },
+        {
+          "calendar_bytes": 8192,
+          "source_bytes": 2670592,
+          "year": 10200
+        },
+        {
+          "calendar_bytes": 8192,
+          "source_bytes": 3547136,
+          "year": 10300
+        },
+        {
+          "calendar_bytes": 8192,
+          "source_bytes": 4431872,
+          "year": 10400
+        },
+        {
+          "calendar_bytes": 8192,
+          "source_bytes": 5316608,
+          "year": 10500
+        },
+        {
+          "calendar_bytes": 8192,
+          "source_bytes": 6197248,
+          "year": 10600
+        },
+        {
+          "calendar_bytes": 16384,
+          "source_bytes": 7077888,
+          "year": 10700
+        },
+        {
+          "calendar_bytes": 16384,
+          "source_bytes": 7958528,
+          "year": 10800
+        },
+        {
+          "calendar_bytes": 16384,
+          "source_bytes": 8843264,
+          "year": 10900
+        },
+        {
+          "calendar_bytes": 16384,
+          "source_bytes": 9728000,
+          "year": 11000
+        },
+        {
+          "calendar_bytes": 16384,
+          "source_bytes": 10604544,
+          "year": 11100
+        },
+        {
+          "calendar_bytes": 16384,
+          "source_bytes": 11489280,
+          "year": 11200
+        },
+        {
+          "calendar_bytes": 16384,
+          "source_bytes": 12369920,
+          "year": 11300
+        },
+        {
+          "calendar_bytes": 20480,
+          "source_bytes": 13254656,
+          "year": 11400
+        },
+        {
+          "calendar_bytes": 20480,
+          "source_bytes": 14131200,
+          "year": 11500
+        },
+        {
+          "calendar_bytes": 20480,
+          "source_bytes": 15015936,
+          "year": 11600
+        },
+        {
+          "calendar_bytes": 20480,
+          "source_bytes": 15900672,
+          "year": 11700
+        },
+        {
+          "calendar_bytes": 20480,
+          "source_bytes": 16781312,
+          "year": 11800
+        },
+        {
+          "calendar_bytes": 20480,
+          "source_bytes": 17661952,
+          "year": 11900
+        },
+        {
+          "calendar_bytes": 20480,
+          "source_bytes": 18542592,
+          "year": 12000
+        },
+        {
+          "calendar_bytes": 24576,
+          "source_bytes": 19427328,
+          "year": 12100
+        },
+        {
+          "calendar_bytes": 24576,
+          "source_bytes": 20312064,
+          "year": 12200
+        },
+        {
+          "calendar_bytes": 24576,
+          "source_bytes": 21188608,
+          "year": 12300
+        },
+        {
+          "calendar_bytes": 24576,
+          "source_bytes": 22073344,
+          "year": 12400
+        },
+        {
+          "calendar_bytes": 24576,
+          "source_bytes": 22953984,
+          "year": 12500
+        },
+        {
+          "calendar_bytes": 24576,
+          "source_bytes": 23838720,
+          "year": 12600
+        },
+        {
+          "calendar_bytes": 24576,
+          "source_bytes": 24727552,
+          "year": 12700
+        },
+        {
+          "calendar_bytes": 28672,
+          "source_bytes": 25608192,
+          "year": 12800
+        },
+        {
+          "calendar_bytes": 28672,
+          "source_bytes": 26492928,
+          "year": 12900
+        },
+        {
+          "calendar_bytes": 28672,
+          "source_bytes": 27373568,
+          "year": 13000
+        },
+        {
+          "calendar_bytes": 28672,
+          "source_bytes": 28254208,
+          "year": 13100
+        }
+      ],
+      "append_ms": 47565.568,
+      "career_roster_archive_and_player_stats_cache_included": false,
+      "derived_school_index_bytes": 2883584,
+      "environment": {
+        "machine": "x86_64",
+        "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+        "python": "3.12.14",
+        "sqlite": "3.53.1"
+      },
+      "file_sha256_verification": {
+        "max_ms": 70.449,
+        "median_ms": 66.087,
+        "min_ms": 46.316,
+        "samples_ms": [
+          46.316,
+          70.449,
+          66.087
+        ]
+      },
+      "full_a": {
+        "content_sha256": "a0fef5e403f7105ca0964907976ec93d99eeaedf2caad98ee3bb5343ca7ce1c1",
+        "field_counts_and_bytes": {
+          "batter_stats_rows": 57600,
+          "batter_stats_value_bytes": 17052800,
+          "inning_scores_rows": 57600,
+          "inning_scores_value_bytes": 4870400,
+          "pitcher_stats_rows": 6400,
+          "pitcher_stats_value_bytes": 1395632,
+          "team_stats_rows": 6400,
+          "team_stats_value_bytes": 357016
+        },
+        "field_shapes": {
+          "batter_stats": [
+            [
+              "at_bats",
+              "caught_stealing",
+              "doubles",
+              "hit_by_pitch",
+              "hits",
+              "home_runs",
+              "plate_appearances",
+              "player_id",
+              "rbi",
+              "runs",
+              "sacrifice_bunts",
+              "sacrifice_flies",
+              "school_id",
+              "singles",
+              "stolen_bases",
+              "strikeouts",
+              "triples",
+              "walks"
+            ]
+          ],
+          "inning_scores": [
+            [
+              "batting_team_id",
+              "half",
+              "inning",
+              "runs",
+              "was_played"
+            ]
+          ],
+          "pitcher_stats": [
+            [
+              "batters_faced",
+              "earned_runs",
+              "hit_batters",
+              "hits_allowed",
+              "home_runs_allowed",
+              "outs_recorded",
+              "player_id",
+              "runs_allowed",
+              "school_id",
+              "strikeouts",
+              "walks"
+            ]
+          ],
+          "team_stats": [
+            [
+              "errors",
+              "hits",
+              "runs",
+              "school_id"
+            ]
+          ]
+        },
+        "full_events_retained": false,
+        "matches": 3200,
+        "metadata_and_json_syntax_bytes": 2349708,
+        "payload_bytes": 26025556,
+        "payload_bytes_per_match": {
+          "max": 8145,
+          "median": 8131.0,
+          "min": 8131
+        }
+      },
+      "game_save_year_limit_imposed": false,
+      "index_build_ms": 2448.328,
+      "index_definitions": [
+        [
+          "idx_v2_school_game_date",
+          "CREATE INDEX idx_v2_school_game_date ON school_game (\n  school_id,year,game_day_token,competition_id,match_id\n)"
+        ],
+        [
+          "idx_v2_school_game_year",
+          "CREATE INDEX idx_v2_school_game_year ON school_game(year)"
+        ],
+        [
+          "sqlite_autoindex_meta_1",
+          null
+        ],
+        [
+          "sqlite_autoindex_school_game_1",
+          null
+        ]
+      ],
+      "index_shards": 32,
+      "indexed_memberships": 6400,
+      "national_100_or_200_year_full_tournaments_verified": false,
+      "nine_innings_18_batters_2_pitchers_no_substitutions": true,
+      "repetitions": 3,
+      "saved_years": [
+        10000,
+        10100,
+        10200,
+        10300,
+        10400,
+        10500,
+        10600,
+        10700,
+        10800,
+        10900,
+        11000,
+        11100,
+        11200,
+        11300,
+        11400,
+        11500,
+        11600,
+        11700,
+        11800,
+        11900,
+        12000,
+        12100,
+        12200,
+        12300,
+        12400,
+        12500,
+        12600,
+        12700,
+        12800,
+        12900,
+        13000,
+        13100
+      ],
+      "schools": 100,
+      "seal_ms": 6226.269,
+      "search": {
+        "sampled_schools": [
+          "SCH000001",
+          "SCH000051",
+          "SCH000101"
+        ],
+        "source_calendar_legacy_indexes_sha_unchanged": true,
+        "timings": {
+          "AUDIT87-ZERO-SCHOOL:competition_a": {
+            "max_ms": 197.915,
+            "median_ms": 154.279,
+            "min_ms": 114.318,
+            "samples_ms": [
+              197.915,
+              154.279,
+              114.318
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:competition_b": {
+            "max_ms": 191.843,
+            "median_ms": 106.004,
+            "min_ms": 105.252,
+            "samples_ms": [
+              191.843,
+              105.252,
+              106.004
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:first_page": {
+            "max_ms": 142.264,
+            "median_ms": 114.238,
+            "min_ms": 113.945,
+            "samples_ms": [
+              142.264,
+              114.238,
+              113.945
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:first_year": {
+            "max_ms": 5.973,
+            "median_ms": 3.344,
+            "min_ms": 3.017,
+            "samples_ms": [
+              5.973,
+              3.344,
+              3.017
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:last_page": {
+            "max_ms": 148.263,
+            "median_ms": 117.338,
+            "min_ms": 111.911,
+            "samples_ms": [
+              117.338,
+              148.263,
+              111.911
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:last_year": {
+            "max_ms": 3.175,
+            "median_ms": 2.924,
+            "min_ms": 2.675,
+            "samples_ms": [
+              2.675,
+              2.924,
+              3.175
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:no_competition": {
+            "max_ms": 106.133,
+            "median_ms": 104.868,
+            "min_ms": 104.783,
+            "samples_ms": [
+              104.868,
+              106.133,
+              104.783
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:past_last_page": {
+            "max_ms": 137.167,
+            "median_ms": 106.569,
+            "min_ms": 102.246,
+            "samples_ms": [
+              137.167,
+              106.569,
+              102.246
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:strict_selected_years": {
+            "max_ms": 1993.995,
+            "median_ms": 1863.842,
+            "min_ms": 1626.114,
+            "samples_ms": [
+              1626.114,
+              1863.842,
+              1993.995
+            ]
+          },
+          "SCH000001:competition_a": {
+            "max_ms": 368.684,
+            "median_ms": 328.183,
+            "min_ms": 304.866,
+            "samples_ms": [
+              304.866,
+              328.183,
+              368.684
+            ]
+          },
+          "SCH000001:competition_b": {
+            "max_ms": 343.889,
+            "median_ms": 250.388,
+            "min_ms": 240.962,
+            "samples_ms": [
+              240.962,
+              343.889,
+              250.388
+            ]
+          },
+          "SCH000001:first_page": {
+            "max_ms": 283.792,
+            "median_ms": 276.92,
+            "min_ms": 262.588,
+            "samples_ms": [
+              262.588,
+              276.92,
+              283.792
+            ]
+          },
+          "SCH000001:first_year": {
+            "max_ms": 39.04,
+            "median_ms": 7.521,
+            "min_ms": 6.614,
+            "samples_ms": [
+              39.04,
+              7.521,
+              6.614
+            ]
+          },
+          "SCH000001:last_page": {
+            "max_ms": 193.626,
+            "median_ms": 190.891,
+            "min_ms": 172.317,
+            "samples_ms": [
+              193.626,
+              172.317,
+              190.891
+            ]
+          },
+          "SCH000001:last_year": {
+            "max_ms": 11.382,
+            "median_ms": 8.129,
+            "min_ms": 7.666,
+            "samples_ms": [
+              8.129,
+              7.666,
+              11.382
+            ]
+          },
+          "SCH000001:no_competition": {
+            "max_ms": 153.199,
+            "median_ms": 111.721,
+            "min_ms": 104.758,
+            "samples_ms": [
+              153.199,
+              111.721,
+              104.758
+            ]
+          },
+          "SCH000001:past_last_page": {
+            "max_ms": 171.822,
+            "median_ms": 165.094,
+            "min_ms": 138.047,
+            "samples_ms": [
+              165.094,
+              138.047,
+              171.822
+            ]
+          },
+          "SCH000001:strict_selected_years": {
+            "max_ms": 3436.121,
+            "median_ms": 3045.269,
+            "min_ms": 2942.501,
+            "samples_ms": [
+              3436.121,
+              3045.269,
+              2942.501
+            ]
+          },
+          "SCH000051:competition_a": {
+            "max_ms": 282.717,
+            "median_ms": 270.62,
+            "min_ms": 242.018,
+            "samples_ms": [
+              270.62,
+              242.018,
+              282.717
+            ]
+          },
+          "SCH000051:competition_b": {
+            "max_ms": 299.244,
+            "median_ms": 282.355,
+            "min_ms": 280.449,
+            "samples_ms": [
+              280.449,
+              282.355,
+              299.244
+            ]
+          },
+          "SCH000051:first_page": {
+            "max_ms": 273.149,
+            "median_ms": 221.234,
+            "min_ms": 211.824,
+            "samples_ms": [
+              273.149,
+              211.824,
+              221.234
+            ]
+          },
+          "SCH000051:first_year": {
+            "max_ms": 37.53,
+            "median_ms": 8.797,
+            "min_ms": 7.043,
+            "samples_ms": [
+              8.797,
+              7.043,
+              37.53
+            ]
+          },
+          "SCH000051:last_page": {
+            "max_ms": 182.75,
+            "median_ms": 173.891,
+            "min_ms": 138.143,
+            "samples_ms": [
+              173.891,
+              182.75,
+              138.143
+            ]
+          },
+          "SCH000051:last_year": {
+            "max_ms": 7.959,
+            "median_ms": 6.292,
+            "min_ms": 6.133,
+            "samples_ms": [
+              6.292,
+              7.959,
+              6.133
+            ]
+          },
+          "SCH000051:no_competition": {
+            "max_ms": 154.353,
+            "median_ms": 124.694,
+            "min_ms": 120.023,
+            "samples_ms": [
+              124.694,
+              154.353,
+              120.023
+            ]
+          },
+          "SCH000051:past_last_page": {
+            "max_ms": 156.032,
+            "median_ms": 139.265,
+            "min_ms": 125.332,
+            "samples_ms": [
+              125.332,
+              156.032,
+              139.265
+            ]
+          },
+          "SCH000051:strict_selected_years": {
+            "max_ms": 3105.942,
+            "median_ms": 2885.462,
+            "min_ms": 2789.459,
+            "samples_ms": [
+              3105.942,
+              2885.462,
+              2789.459
+            ]
+          },
+          "SCH000101:competition_a": {
+            "max_ms": 278.853,
+            "median_ms": 272.171,
+            "min_ms": 239.64,
+            "samples_ms": [
+              278.853,
+              239.64,
+              272.171
+            ]
+          },
+          "SCH000101:competition_b": {
+            "max_ms": 282.266,
+            "median_ms": 268.22,
+            "min_ms": 234.671,
+            "samples_ms": [
+              282.266,
+              234.671,
+              268.22
+            ]
+          },
+          "SCH000101:first_page": {
+            "max_ms": 242.548,
+            "median_ms": 210.964,
+            "min_ms": 205.451,
+            "samples_ms": [
+              242.548,
+              210.964,
+              205.451
+            ]
+          },
+          "SCH000101:first_year": {
+            "max_ms": 7.661,
+            "median_ms": 6.051,
+            "min_ms": 5.499,
+            "samples_ms": [
+              5.499,
+              6.051,
+              7.661
+            ]
+          },
+          "SCH000101:last_page": {
+            "max_ms": 180.687,
+            "median_ms": 168.788,
+            "min_ms": 134.025,
+            "samples_ms": [
+              134.025,
+              168.788,
+              180.687
+            ]
+          },
+          "SCH000101:last_year": {
+            "max_ms": 8.309,
+            "median_ms": 7.26,
+            "min_ms": 6.638,
+            "samples_ms": [
+              6.638,
+              7.26,
+              8.309
+            ]
+          },
+          "SCH000101:no_competition": {
+            "max_ms": 138.4,
+            "median_ms": 122.498,
+            "min_ms": 113.865,
+            "samples_ms": [
+              113.865,
+              122.498,
+              138.4
+            ]
+          },
+          "SCH000101:past_last_page": {
+            "max_ms": 162.149,
+            "median_ms": 141.276,
+            "min_ms": 131.523,
+            "samples_ms": [
+              141.276,
+              162.149,
+              131.523
+            ]
+          },
+          "SCH000101:strict_selected_years": {
+            "max_ms": 5291.598,
+            "median_ms": 4397.973,
+            "min_ms": 3414.701,
+            "samples_ms": [
+              5291.598,
+              4397.973,
+              3414.701
+            ]
+          },
+          "original_json1_first_year": {
+            "max_ms": 8.17,
+            "median_ms": 7.969,
+            "min_ms": 7.243,
+            "samples_ms": [
+              7.969,
+              8.17,
+              7.243
+            ]
+          }
+        },
+        "verified_page_calls": 108
+      },
+      "seed": 2026101201,
+      "source_and_calendar_bytes": 28282880,
+      "sql_plans": {
+        "competition_page": [
+          "SEARCH school_game USING INDEX idx_v2_school_game_date (school_id=? AND year>? AND year<?)",
+          "USE TEMP B-TREE FOR LAST TERM OF ORDER BY"
+        ],
+        "school_page": [
+          "SEARCH school_game USING INDEX idx_v2_school_game_date (school_id=? AND year>? AND year<?)"
+        ]
+      },
+      "stage": "43G-87",
+      "storage": {
+        "fictional_option_a_v2.sqlite3": {
+          "allocated_page_bytes": 28254208,
+          "btree_page_bytes": {
+            "idx_v2_games_day": 212992,
+            "sqlite_autoindex_v2_option_a_matches_1": 167936,
+            "sqlite_schema": 4096,
+            "v2_game_years": 12288,
+            "v2_option_a_matches": 27856896
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 28254208,
+          "freelist_count": 0,
+          "page_count": 6898,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G10000_G10099.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G10100_G10199.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G10200_G10299.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G10300_G10399.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G10400_G10499.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G10500_G10599.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G10600_G10699.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G10700_G10799.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G10800_G10899.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G10900_G10999.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G11000_G11099.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G11100_G11199.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G11200_G11299.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G11300_G11399.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G11400_G11499.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G11500_G11599.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G11600_G11699.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G11700_G11799.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G11800_G11899.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G11900_G11999.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G12000_G12099.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G12100_G12199.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G12200_G12299.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G12300_G12399.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G12400_G12499.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G12500_G12599.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G12600_G12699.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G12700_G12799.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G12800_G12899.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G12900_G12999.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G13000_G13099.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G13100_G13199.sqlite3": {
+          "allocated_page_bytes": 90112,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 20480,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 32768,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 16384,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 90112,
+          "freelist_count": 0,
+          "page_count": 22,
+          "page_size": 4096
+        },
+        "historical_matches.sqlite3": {
+          "allocated_page_bytes": 40960,
+          "btree_page_bytes": {
+            "archive_identity": 4096,
+            "career_years": 4096,
+            "historical_matches": 4096,
+            "idx_history_date": 4096,
+            "idx_history_school1_year": 4096,
+            "idx_history_school2_year": 4096,
+            "idx_history_team1": 4096,
+            "idx_history_team2": 4096,
+            "sqlite_autoindex_historical_matches_1": 4096,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 40960,
+          "freelist_count": 0,
+          "page_count": 10,
+          "page_size": 4096
+        },
+        "sandbox_calendar_v2.sqlite3": {
+          "allocated_page_bytes": 28672,
+          "btree_page_bytes": {
+            "sandbox_year_plans": 24576,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 28672,
+          "freelist_count": 0,
+          "page_count": 7,
+          "page_size": 4096
+        }
+      },
+      "synthetic_calendar_and_pairings_not_current_tournament_schedule": true,
+      "synthetic_games_per_school_year": 2,
+      "temporary_fixture_deleted": true,
+      "year_step": 100
+    },
+    "small100": {
+      "annual_storage": [
+        {
+          "calendar_bytes": 8192,
+          "source_bytes": 1785856,
+          "year": 10000
+        },
+        {
+          "calendar_bytes": 8192,
+          "source_bytes": 3547136,
+          "year": 10001
+        }
+      ],
+      "append_ms": 1088.392,
+      "career_roster_archive_and_player_stats_cache_included": false,
+      "derived_school_index_bytes": 258048,
+      "environment": {
+        "machine": "x86_64",
+        "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+        "python": "3.12.14",
+        "sqlite": "3.53.1"
+      },
+      "file_sha256_verification": {
+        "max_ms": 13.59,
+        "median_ms": 13.47,
+        "min_ms": 11.314,
+        "samples_ms": [
+          11.314,
+          13.47,
+          13.59
+        ]
+      },
+      "full_a": {
+        "content_sha256": "7f2670d88fd17860974c2b7c05897e188484678f9fc3f062e4b481b89de62b8d",
+        "field_counts_and_bytes": {
+          "batter_stats_rows": 7200,
+          "batter_stats_value_bytes": 2131600,
+          "inning_scores_rows": 7200,
+          "inning_scores_value_bytes": 608800,
+          "pitcher_stats_rows": 800,
+          "pitcher_stats_value_bytes": 174416,
+          "team_stats_rows": 800,
+          "team_stats_value_bytes": 44608
+        },
+        "field_shapes": {
+          "batter_stats": [
+            [
+              "at_bats",
+              "caught_stealing",
+              "doubles",
+              "hit_by_pitch",
+              "hits",
+              "home_runs",
+              "plate_appearances",
+              "player_id",
+              "rbi",
+              "runs",
+              "sacrifice_bunts",
+              "sacrifice_flies",
+              "school_id",
+              "singles",
+              "stolen_bases",
+              "strikeouts",
+              "triples",
+              "walks"
+            ]
+          ],
+          "inning_scores": [
+            [
+              "batting_team_id",
+              "half",
+              "inning",
+              "runs",
+              "was_played"
+            ]
+          ],
+          "pitcher_stats": [
+            [
+              "batters_faced",
+              "earned_runs",
+              "hit_batters",
+              "hits_allowed",
+              "home_runs_allowed",
+              "outs_recorded",
+              "player_id",
+              "runs_allowed",
+              "school_id",
+              "strikeouts",
+              "walks"
+            ]
+          ],
+          "team_stats": [
+            [
+              "errors",
+              "hits",
+              "runs",
+              "school_id"
+            ]
+          ]
+        },
+        "full_events_retained": false,
+        "matches": 400,
+        "metadata_and_json_syntax_bytes": 293704,
+        "payload_bytes": 3253128,
+        "payload_bytes_per_match": {
+          "max": 8145,
+          "median": 8131.0,
+          "min": 8131
+        }
+      },
+      "game_save_year_limit_imposed": false,
+      "index_build_ms": 188.676,
+      "index_definitions": [
+        [
+          "idx_v2_school_game_date",
+          "CREATE INDEX idx_v2_school_game_date ON school_game (\n  school_id,year,game_day_token,competition_id,match_id\n)"
+        ],
+        [
+          "idx_v2_school_game_year",
+          "CREATE INDEX idx_v2_school_game_year ON school_game(year)"
+        ],
+        [
+          "sqlite_autoindex_meta_1",
+          null
+        ],
+        [
+          "sqlite_autoindex_school_game_1",
+          null
+        ]
+      ],
+      "index_shards": 1,
+      "indexed_memberships": 800,
+      "national_100_or_200_year_full_tournaments_verified": false,
+      "nine_innings_18_batters_2_pitchers_no_substitutions": true,
+      "repetitions": 3,
+      "saved_years": [
+        10000,
+        10001
+      ],
+      "schools": 100,
+      "seal_ms": 119.26,
+      "search": {
+        "sampled_schools": [
+          "SCH000001",
+          "SCH000051",
+          "SCH000101"
+        ],
+        "source_calendar_legacy_indexes_sha_unchanged": true,
+        "timings": {
+          "AUDIT87-ZERO-SCHOOL:competition_a": {
+            "max_ms": 7.905,
+            "median_ms": 7.154,
+            "min_ms": 6.259,
+            "samples_ms": [
+              6.259,
+              7.905,
+              7.154
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:competition_b": {
+            "max_ms": 9.103,
+            "median_ms": 8.154,
+            "min_ms": 8.144,
+            "samples_ms": [
+              8.154,
+              9.103,
+              8.144
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:first_page": {
+            "max_ms": 8.184,
+            "median_ms": 6.827,
+            "min_ms": 5.926,
+            "samples_ms": [
+              6.827,
+              5.926,
+              8.184
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:first_year": {
+            "max_ms": 6.052,
+            "median_ms": 5.01,
+            "min_ms": 3.837,
+            "samples_ms": [
+              6.052,
+              5.01,
+              3.837
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:last_page": {
+            "max_ms": 7.593,
+            "median_ms": 5.864,
+            "min_ms": 3.55,
+            "samples_ms": [
+              7.593,
+              5.864,
+              3.55
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:last_year": {
+            "max_ms": 6.337,
+            "median_ms": 6.302,
+            "min_ms": 5.33,
+            "samples_ms": [
+              6.302,
+              5.33,
+              6.337
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:no_competition": {
+            "max_ms": 11.822,
+            "median_ms": 7.663,
+            "min_ms": 7.047,
+            "samples_ms": [
+              7.047,
+              7.663,
+              11.822
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:past_last_page": {
+            "max_ms": 9.339,
+            "median_ms": 8.369,
+            "min_ms": 7.82,
+            "samples_ms": [
+              7.82,
+              8.369,
+              9.339
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:strict_selected_years": {
+            "max_ms": 210.292,
+            "median_ms": 195.164,
+            "min_ms": 144.908,
+            "samples_ms": [
+              195.164,
+              210.292,
+              144.908
+            ]
+          },
+          "SCH000001:competition_a": {
+            "max_ms": 45.766,
+            "median_ms": 28.456,
+            "min_ms": 22.517,
+            "samples_ms": [
+              45.766,
+              28.456,
+              22.517
+            ]
+          },
+          "SCH000001:competition_b": {
+            "max_ms": 520.667,
+            "median_ms": 207.294,
+            "min_ms": 27.142,
+            "samples_ms": [
+              207.294,
+              520.667,
+              27.142
+            ]
+          },
+          "SCH000001:first_page": {
+            "max_ms": 80.94,
+            "median_ms": 10.177,
+            "min_ms": 7.409,
+            "samples_ms": [
+              7.409,
+              10.177,
+              80.94
+            ]
+          },
+          "SCH000001:first_year": {
+            "max_ms": 17.047,
+            "median_ms": 14.373,
+            "min_ms": 14.097,
+            "samples_ms": [
+              14.097,
+              17.047,
+              14.373
+            ]
+          },
+          "SCH000001:last_page": {
+            "max_ms": 21.113,
+            "median_ms": 9.176,
+            "min_ms": 8.471,
+            "samples_ms": [
+              9.176,
+              8.471,
+              21.113
+            ]
+          },
+          "SCH000001:last_year": {
+            "max_ms": 80.355,
+            "median_ms": 27.6,
+            "min_ms": 22.835,
+            "samples_ms": [
+              22.835,
+              27.6,
+              80.355
+            ]
+          },
+          "SCH000001:no_competition": {
+            "max_ms": 12.653,
+            "median_ms": 11.121,
+            "min_ms": 7.672,
+            "samples_ms": [
+              7.672,
+              11.121,
+              12.653
+            ]
+          },
+          "SCH000001:past_last_page": {
+            "max_ms": 9.618,
+            "median_ms": 5.745,
+            "min_ms": 5.534,
+            "samples_ms": [
+              9.618,
+              5.534,
+              5.745
+            ]
+          },
+          "SCH000001:strict_selected_years": {
+            "max_ms": 1300.91,
+            "median_ms": 892.683,
+            "min_ms": 636.2,
+            "samples_ms": [
+              1300.91,
+              892.683,
+              636.2
+            ]
+          },
+          "SCH000051:competition_a": {
+            "max_ms": 33.443,
+            "median_ms": 19.473,
+            "min_ms": 17.352,
+            "samples_ms": [
+              33.443,
+              19.473,
+              17.352
+            ]
+          },
+          "SCH000051:competition_b": {
+            "max_ms": 31.943,
+            "median_ms": 22.128,
+            "min_ms": 15.507,
+            "samples_ms": [
+              22.128,
+              31.943,
+              15.507
+            ]
+          },
+          "SCH000051:first_page": {
+            "max_ms": 14.834,
+            "median_ms": 13.957,
+            "min_ms": 12.441,
+            "samples_ms": [
+              14.834,
+              13.957,
+              12.441
+            ]
+          },
+          "SCH000051:first_year": {
+            "max_ms": 14.445,
+            "median_ms": 12.439,
+            "min_ms": 9.104,
+            "samples_ms": [
+              14.445,
+              9.104,
+              12.439
+            ]
+          },
+          "SCH000051:last_page": {
+            "max_ms": 16.625,
+            "median_ms": 14.424,
+            "min_ms": 8.547,
+            "samples_ms": [
+              8.547,
+              16.625,
+              14.424
+            ]
+          },
+          "SCH000051:last_year": {
+            "max_ms": 141.699,
+            "median_ms": 20.198,
+            "min_ms": 10.496,
+            "samples_ms": [
+              10.496,
+              141.699,
+              20.198
+            ]
+          },
+          "SCH000051:no_competition": {
+            "max_ms": 12.094,
+            "median_ms": 10.479,
+            "min_ms": 7.502,
+            "samples_ms": [
+              7.502,
+              12.094,
+              10.479
+            ]
+          },
+          "SCH000051:past_last_page": {
+            "max_ms": 15.609,
+            "median_ms": 13.309,
+            "min_ms": 7.85,
+            "samples_ms": [
+              15.609,
+              7.85,
+              13.309
+            ]
+          },
+          "SCH000051:strict_selected_years": {
+            "max_ms": 641.875,
+            "median_ms": 502.262,
+            "min_ms": 266.502,
+            "samples_ms": [
+              266.502,
+              502.262,
+              641.875
+            ]
+          },
+          "SCH000101:competition_a": {
+            "max_ms": 16.294,
+            "median_ms": 15.813,
+            "min_ms": 13.201,
+            "samples_ms": [
+              16.294,
+              15.813,
+              13.201
+            ]
+          },
+          "SCH000101:competition_b": {
+            "max_ms": 13.48,
+            "median_ms": 8.528,
+            "min_ms": 8.382,
+            "samples_ms": [
+              13.48,
+              8.528,
+              8.382
+            ]
+          },
+          "SCH000101:first_page": {
+            "max_ms": 35.45,
+            "median_ms": 23.694,
+            "min_ms": 23.645,
+            "samples_ms": [
+              35.45,
+              23.694,
+              23.645
+            ]
+          },
+          "SCH000101:first_year": {
+            "max_ms": 19.548,
+            "median_ms": 14.572,
+            "min_ms": 12.707,
+            "samples_ms": [
+              12.707,
+              14.572,
+              19.548
+            ]
+          },
+          "SCH000101:last_page": {
+            "max_ms": 13.031,
+            "median_ms": 11.942,
+            "min_ms": 8.608,
+            "samples_ms": [
+              13.031,
+              11.942,
+              8.608
+            ]
+          },
+          "SCH000101:last_year": {
+            "max_ms": 14.67,
+            "median_ms": 8.63,
+            "min_ms": 7.272,
+            "samples_ms": [
+              14.67,
+              8.63,
+              7.272
+            ]
+          },
+          "SCH000101:no_competition": {
+            "max_ms": 4.927,
+            "median_ms": 4.837,
+            "min_ms": 3.053,
+            "samples_ms": [
+              4.927,
+              3.053,
+              4.837
+            ]
+          },
+          "SCH000101:past_last_page": {
+            "max_ms": 5.384,
+            "median_ms": 3.884,
+            "min_ms": 3.868,
+            "samples_ms": [
+              3.868,
+              3.884,
+              5.384
+            ]
+          },
+          "SCH000101:strict_selected_years": {
+            "max_ms": 384.745,
+            "median_ms": 343.705,
+            "min_ms": 231.487,
+            "samples_ms": [
+              231.487,
+              343.705,
+              384.745
+            ]
+          },
+          "original_json1_first_year": {
+            "max_ms": 39.594,
+            "median_ms": 36.687,
+            "min_ms": 26.638,
+            "samples_ms": [
+              36.687,
+              39.594,
+              26.638
+            ]
+          }
+        },
+        "verified_page_calls": 108
+      },
+      "seed": 2026101201,
+      "source_and_calendar_bytes": 3555328,
+      "sql_plans": {
+        "competition_page": [
+          "SEARCH school_game USING INDEX idx_v2_school_game_date (school_id=? AND year>? AND year<?)",
+          "USE TEMP B-TREE FOR LAST TERM OF ORDER BY"
+        ],
+        "school_page": [
+          "SEARCH school_game USING INDEX idx_v2_school_game_date (school_id=? AND year>? AND year<?)"
+        ]
+      },
+      "stage": "43G-87",
+      "storage": {
+        "fictional_option_a_v2.sqlite3": {
+          "allocated_page_bytes": 3547136,
+          "btree_page_bytes": {
+            "idx_v2_games_day": 28672,
+            "sqlite_autoindex_v2_option_a_matches_1": 24576,
+            "sqlite_schema": 4096,
+            "v2_game_years": 4096,
+            "v2_option_a_matches": 3485696
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 3547136,
+          "freelist_count": 0,
+          "page_count": 866,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G10000_G10099.sqlite3": {
+          "allocated_page_bytes": 258048,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 65536,
+            "idx_v2_school_game_year": 12288,
+            "indexed_year": 4096,
+            "meta": 4096,
+            "school_game": 114688,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 49152,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 258048,
+          "freelist_count": 0,
+          "page_count": 63,
+          "page_size": 4096
+        },
+        "historical_matches.sqlite3": {
+          "allocated_page_bytes": 40960,
+          "btree_page_bytes": {
+            "archive_identity": 4096,
+            "career_years": 4096,
+            "historical_matches": 4096,
+            "idx_history_date": 4096,
+            "idx_history_school1_year": 4096,
+            "idx_history_school2_year": 4096,
+            "idx_history_team1": 4096,
+            "idx_history_team2": 4096,
+            "sqlite_autoindex_historical_matches_1": 4096,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 40960,
+          "freelist_count": 0,
+          "page_count": 10,
+          "page_size": 4096
+        },
+        "sandbox_calendar_v2.sqlite3": {
+          "allocated_page_bytes": 8192,
+          "btree_page_bytes": {
+            "sandbox_year_plans": 4096,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 8192,
+          "freelist_count": 0,
+          "page_count": 2,
+          "page_size": 4096
+        }
+      },
+      "synthetic_calendar_and_pairings_not_current_tournament_schedule": true,
+      "synthetic_games_per_school_year": 4,
+      "temporary_fixture_deleted": true,
+      "year_step": 1
+    },
+    "sparse200": {
+      "annual_storage": [
+        {
+          "calendar_bytes": 8192,
+          "source_bytes": 36864,
+          "year": 10000
+        },
+        {
+          "calendar_bytes": 8192,
+          "source_bytes": 53248,
+          "year": 10001
+        },
+        {
+          "calendar_bytes": 8192,
+          "source_bytes": 69632,
+          "year": 10002
+        },
+        {
+          "calendar_bytes": 8192,
+          "source_bytes": 86016,
+          "year": 10003
+        },
+        {
+          "calendar_bytes": 8192,
+          "source_bytes": 110592,
+          "year": 10004
+        },
+        {
+          "calendar_bytes": 8192,
+          "source_bytes": 126976,
+          "year": 10005
+        },
+        {
+          "calendar_bytes": 8192,
+          "source_bytes": 143360,
+          "year": 10006
+        },
+        {
+          "calendar_bytes": 16384,
+          "source_bytes": 159744,
+          "year": 10007
+        },
+        {
+          "calendar_bytes": 16384,
+          "source_bytes": 180224,
+          "year": 10008
+        },
+        {
+          "calendar_bytes": 16384,
+          "source_bytes": 196608,
+          "year": 10009
+        },
+        {
+          "calendar_bytes": 16384,
+          "source_bytes": 212992,
+          "year": 10010
+        },
+        {
+          "calendar_bytes": 16384,
+          "source_bytes": 229376,
+          "year": 10011
+        },
+        {
+          "calendar_bytes": 16384,
+          "source_bytes": 249856,
+          "year": 10012
+        },
+        {
+          "calendar_bytes": 16384,
+          "source_bytes": 266240,
+          "year": 10013
+        },
+        {
+          "calendar_bytes": 20480,
+          "source_bytes": 282624,
+          "year": 10014
+        },
+        {
+          "calendar_bytes": 20480,
+          "source_bytes": 299008,
+          "year": 10015
+        },
+        {
+          "calendar_bytes": 20480,
+          "source_bytes": 319488,
+          "year": 10016
+        },
+        {
+          "calendar_bytes": 20480,
+          "source_bytes": 335872,
+          "year": 10017
+        },
+        {
+          "calendar_bytes": 20480,
+          "source_bytes": 352256,
+          "year": 10018
+        },
+        {
+          "calendar_bytes": 20480,
+          "source_bytes": 368640,
+          "year": 10019
+        },
+        {
+          "calendar_bytes": 20480,
+          "source_bytes": 389120,
+          "year": 10020
+        },
+        {
+          "calendar_bytes": 24576,
+          "source_bytes": 405504,
+          "year": 10021
+        },
+        {
+          "calendar_bytes": 24576,
+          "source_bytes": 421888,
+          "year": 10022
+        },
+        {
+          "calendar_bytes": 24576,
+          "source_bytes": 438272,
+          "year": 10023
+        },
+        {
+          "calendar_bytes": 24576,
+          "source_bytes": 458752,
+          "year": 10024
+        },
+        {
+          "calendar_bytes": 24576,
+          "source_bytes": 475136,
+          "year": 10025
+        },
+        {
+          "calendar_bytes": 24576,
+          "source_bytes": 491520,
+          "year": 10026
+        },
+        {
+          "calendar_bytes": 24576,
+          "source_bytes": 516096,
+          "year": 10027
+        },
+        {
+          "calendar_bytes": 28672,
+          "source_bytes": 536576,
+          "year": 10028
+        },
+        {
+          "calendar_bytes": 28672,
+          "source_bytes": 552960,
+          "year": 10029
+        },
+        {
+          "calendar_bytes": 28672,
+          "source_bytes": 569344,
+          "year": 10030
+        },
+        {
+          "calendar_bytes": 28672,
+          "source_bytes": 585728,
+          "year": 10031
+        },
+        {
+          "calendar_bytes": 28672,
+          "source_bytes": 606208,
+          "year": 10032
+        },
+        {
+          "calendar_bytes": 28672,
+          "source_bytes": 622592,
+          "year": 10033
+        },
+        {
+          "calendar_bytes": 28672,
+          "source_bytes": 638976,
+          "year": 10034
+        },
+        {
+          "calendar_bytes": 32768,
+          "source_bytes": 663552,
+          "year": 10035
+        },
+        {
+          "calendar_bytes": 32768,
+          "source_bytes": 684032,
+          "year": 10036
+        },
+        {
+          "calendar_bytes": 32768,
+          "source_bytes": 700416,
+          "year": 10037
+        },
+        {
+          "calendar_bytes": 32768,
+          "source_bytes": 716800,
+          "year": 10038
+        },
+        {
+          "calendar_bytes": 32768,
+          "source_bytes": 733184,
+          "year": 10039
+        },
+        {
+          "calendar_bytes": 32768,
+          "source_bytes": 753664,
+          "year": 10040
+        },
+        {
+          "calendar_bytes": 32768,
+          "source_bytes": 770048,
+          "year": 10041
+        },
+        {
+          "calendar_bytes": 36864,
+          "source_bytes": 786432,
+          "year": 10042
+        },
+        {
+          "calendar_bytes": 36864,
+          "source_bytes": 802816,
+          "year": 10043
+        },
+        {
+          "calendar_bytes": 36864,
+          "source_bytes": 823296,
+          "year": 10044
+        },
+        {
+          "calendar_bytes": 36864,
+          "source_bytes": 839680,
+          "year": 10045
+        },
+        {
+          "calendar_bytes": 36864,
+          "source_bytes": 864256,
+          "year": 10046
+        },
+        {
+          "calendar_bytes": 36864,
+          "source_bytes": 880640,
+          "year": 10047
+        },
+        {
+          "calendar_bytes": 36864,
+          "source_bytes": 901120,
+          "year": 10048
+        },
+        {
+          "calendar_bytes": 40960,
+          "source_bytes": 917504,
+          "year": 10049
+        },
+        {
+          "calendar_bytes": 40960,
+          "source_bytes": 933888,
+          "year": 10050
+        },
+        {
+          "calendar_bytes": 40960,
+          "source_bytes": 950272,
+          "year": 10051
+        },
+        {
+          "calendar_bytes": 40960,
+          "source_bytes": 970752,
+          "year": 10052
+        },
+        {
+          "calendar_bytes": 40960,
+          "source_bytes": 987136,
+          "year": 10053
+        },
+        {
+          "calendar_bytes": 40960,
+          "source_bytes": 1007616,
+          "year": 10054
+        },
+        {
+          "calendar_bytes": 40960,
+          "source_bytes": 1024000,
+          "year": 10055
+        },
+        {
+          "calendar_bytes": 45056,
+          "source_bytes": 1044480,
+          "year": 10056
+        },
+        {
+          "calendar_bytes": 45056,
+          "source_bytes": 1060864,
+          "year": 10057
+        },
+        {
+          "calendar_bytes": 45056,
+          "source_bytes": 1077248,
+          "year": 10058
+        },
+        {
+          "calendar_bytes": 45056,
+          "source_bytes": 1093632,
+          "year": 10059
+        },
+        {
+          "calendar_bytes": 45056,
+          "source_bytes": 1114112,
+          "year": 10060
+        },
+        {
+          "calendar_bytes": 45056,
+          "source_bytes": 1130496,
+          "year": 10061
+        },
+        {
+          "calendar_bytes": 45056,
+          "source_bytes": 1146880,
+          "year": 10062
+        },
+        {
+          "calendar_bytes": 49152,
+          "source_bytes": 1163264,
+          "year": 10063
+        },
+        {
+          "calendar_bytes": 49152,
+          "source_bytes": 1183744,
+          "year": 10064
+        },
+        {
+          "calendar_bytes": 49152,
+          "source_bytes": 1200128,
+          "year": 10065
+        },
+        {
+          "calendar_bytes": 49152,
+          "source_bytes": 1216512,
+          "year": 10066
+        },
+        {
+          "calendar_bytes": 49152,
+          "source_bytes": 1232896,
+          "year": 10067
+        },
+        {
+          "calendar_bytes": 49152,
+          "source_bytes": 1253376,
+          "year": 10068
+        },
+        {
+          "calendar_bytes": 49152,
+          "source_bytes": 1269760,
+          "year": 10069
+        },
+        {
+          "calendar_bytes": 53248,
+          "source_bytes": 1286144,
+          "year": 10070
+        },
+        {
+          "calendar_bytes": 53248,
+          "source_bytes": 1306624,
+          "year": 10071
+        },
+        {
+          "calendar_bytes": 53248,
+          "source_bytes": 1327104,
+          "year": 10072
+        },
+        {
+          "calendar_bytes": 53248,
+          "source_bytes": 1343488,
+          "year": 10073
+        },
+        {
+          "calendar_bytes": 53248,
+          "source_bytes": 1359872,
+          "year": 10074
+        },
+        {
+          "calendar_bytes": 53248,
+          "source_bytes": 1376256,
+          "year": 10075
+        },
+        {
+          "calendar_bytes": 53248,
+          "source_bytes": 1396736,
+          "year": 10076
+        },
+        {
+          "calendar_bytes": 57344,
+          "source_bytes": 1413120,
+          "year": 10077
+        },
+        {
+          "calendar_bytes": 57344,
+          "source_bytes": 1429504,
+          "year": 10078
+        },
+        {
+          "calendar_bytes": 57344,
+          "source_bytes": 1445888,
+          "year": 10079
+        },
+        {
+          "calendar_bytes": 57344,
+          "source_bytes": 1466368,
+          "year": 10080
+        },
+        {
+          "calendar_bytes": 57344,
+          "source_bytes": 1486848,
+          "year": 10081
+        },
+        {
+          "calendar_bytes": 57344,
+          "source_bytes": 1503232,
+          "year": 10082
+        },
+        {
+          "calendar_bytes": 57344,
+          "source_bytes": 1519616,
+          "year": 10083
+        },
+        {
+          "calendar_bytes": 61440,
+          "source_bytes": 1540096,
+          "year": 10084
+        },
+        {
+          "calendar_bytes": 61440,
+          "source_bytes": 1556480,
+          "year": 10085
+        },
+        {
+          "calendar_bytes": 61440,
+          "source_bytes": 1572864,
+          "year": 10086
+        },
+        {
+          "calendar_bytes": 61440,
+          "source_bytes": 1589248,
+          "year": 10087
+        },
+        {
+          "calendar_bytes": 61440,
+          "source_bytes": 1609728,
+          "year": 10088
+        },
+        {
+          "calendar_bytes": 61440,
+          "source_bytes": 1626112,
+          "year": 10089
+        },
+        {
+          "calendar_bytes": 61440,
+          "source_bytes": 1642496,
+          "year": 10090
+        },
+        {
+          "calendar_bytes": 65536,
+          "source_bytes": 1658880,
+          "year": 10091
+        },
+        {
+          "calendar_bytes": 65536,
+          "source_bytes": 1683456,
+          "year": 10092
+        },
+        {
+          "calendar_bytes": 65536,
+          "source_bytes": 1699840,
+          "year": 10093
+        },
+        {
+          "calendar_bytes": 65536,
+          "source_bytes": 1716224,
+          "year": 10094
+        },
+        {
+          "calendar_bytes": 65536,
+          "source_bytes": 1732608,
+          "year": 10095
+        },
+        {
+          "calendar_bytes": 65536,
+          "source_bytes": 1753088,
+          "year": 10096
+        },
+        {
+          "calendar_bytes": 65536,
+          "source_bytes": 1769472,
+          "year": 10097
+        },
+        {
+          "calendar_bytes": 69632,
+          "source_bytes": 1785856,
+          "year": 10098
+        },
+        {
+          "calendar_bytes": 69632,
+          "source_bytes": 1802240,
+          "year": 10099
+        },
+        {
+          "calendar_bytes": 69632,
+          "source_bytes": 1822720,
+          "year": 10100
+        },
+        {
+          "calendar_bytes": 69632,
+          "source_bytes": 1839104,
+          "year": 10101
+        },
+        {
+          "calendar_bytes": 69632,
+          "source_bytes": 1855488,
+          "year": 10102
+        },
+        {
+          "calendar_bytes": 69632,
+          "source_bytes": 1871872,
+          "year": 10103
+        },
+        {
+          "calendar_bytes": 69632,
+          "source_bytes": 1892352,
+          "year": 10104
+        },
+        {
+          "calendar_bytes": 73728,
+          "source_bytes": 1908736,
+          "year": 10105
+        },
+        {
+          "calendar_bytes": 73728,
+          "source_bytes": 1925120,
+          "year": 10106
+        },
+        {
+          "calendar_bytes": 73728,
+          "source_bytes": 1945600,
+          "year": 10107
+        },
+        {
+          "calendar_bytes": 73728,
+          "source_bytes": 1970176,
+          "year": 10108
+        },
+        {
+          "calendar_bytes": 73728,
+          "source_bytes": 1986560,
+          "year": 10109
+        },
+        {
+          "calendar_bytes": 73728,
+          "source_bytes": 2002944,
+          "year": 10110
+        },
+        {
+          "calendar_bytes": 73728,
+          "source_bytes": 2019328,
+          "year": 10111
+        },
+        {
+          "calendar_bytes": 77824,
+          "source_bytes": 2039808,
+          "year": 10112
+        },
+        {
+          "calendar_bytes": 77824,
+          "source_bytes": 2056192,
+          "year": 10113
+        },
+        {
+          "calendar_bytes": 77824,
+          "source_bytes": 2072576,
+          "year": 10114
+        },
+        {
+          "calendar_bytes": 77824,
+          "source_bytes": 2088960,
+          "year": 10115
+        },
+        {
+          "calendar_bytes": 77824,
+          "source_bytes": 2109440,
+          "year": 10116
+        },
+        {
+          "calendar_bytes": 77824,
+          "source_bytes": 2125824,
+          "year": 10117
+        },
+        {
+          "calendar_bytes": 77824,
+          "source_bytes": 2142208,
+          "year": 10118
+        },
+        {
+          "calendar_bytes": 81920,
+          "source_bytes": 2158592,
+          "year": 10119
+        },
+        {
+          "calendar_bytes": 81920,
+          "source_bytes": 2179072,
+          "year": 10120
+        },
+        {
+          "calendar_bytes": 81920,
+          "source_bytes": 2195456,
+          "year": 10121
+        },
+        {
+          "calendar_bytes": 81920,
+          "source_bytes": 2211840,
+          "year": 10122
+        },
+        {
+          "calendar_bytes": 81920,
+          "source_bytes": 2228224,
+          "year": 10123
+        },
+        {
+          "calendar_bytes": 81920,
+          "source_bytes": 2248704,
+          "year": 10124
+        },
+        {
+          "calendar_bytes": 81920,
+          "source_bytes": 2265088,
+          "year": 10125
+        },
+        {
+          "calendar_bytes": 86016,
+          "source_bytes": 2281472,
+          "year": 10126
+        },
+        {
+          "calendar_bytes": 86016,
+          "source_bytes": 2297856,
+          "year": 10127
+        },
+        {
+          "calendar_bytes": 86016,
+          "source_bytes": 2318336,
+          "year": 10128
+        },
+        {
+          "calendar_bytes": 86016,
+          "source_bytes": 2334720,
+          "year": 10129
+        },
+        {
+          "calendar_bytes": 86016,
+          "source_bytes": 2351104,
+          "year": 10130
+        },
+        {
+          "calendar_bytes": 86016,
+          "source_bytes": 2367488,
+          "year": 10131
+        },
+        {
+          "calendar_bytes": 86016,
+          "source_bytes": 2387968,
+          "year": 10132
+        },
+        {
+          "calendar_bytes": 90112,
+          "source_bytes": 2404352,
+          "year": 10133
+        },
+        {
+          "calendar_bytes": 90112,
+          "source_bytes": 2420736,
+          "year": 10134
+        },
+        {
+          "calendar_bytes": 90112,
+          "source_bytes": 2441216,
+          "year": 10135
+        },
+        {
+          "calendar_bytes": 90112,
+          "source_bytes": 2461696,
+          "year": 10136
+        },
+        {
+          "calendar_bytes": 90112,
+          "source_bytes": 2482176,
+          "year": 10137
+        },
+        {
+          "calendar_bytes": 90112,
+          "source_bytes": 2502656,
+          "year": 10138
+        },
+        {
+          "calendar_bytes": 90112,
+          "source_bytes": 2519040,
+          "year": 10139
+        },
+        {
+          "calendar_bytes": 94208,
+          "source_bytes": 2539520,
+          "year": 10140
+        },
+        {
+          "calendar_bytes": 94208,
+          "source_bytes": 2555904,
+          "year": 10141
+        },
+        {
+          "calendar_bytes": 94208,
+          "source_bytes": 2572288,
+          "year": 10142
+        },
+        {
+          "calendar_bytes": 94208,
+          "source_bytes": 2588672,
+          "year": 10143
+        },
+        {
+          "calendar_bytes": 94208,
+          "source_bytes": 2609152,
+          "year": 10144
+        },
+        {
+          "calendar_bytes": 94208,
+          "source_bytes": 2625536,
+          "year": 10145
+        },
+        {
+          "calendar_bytes": 94208,
+          "source_bytes": 2641920,
+          "year": 10146
+        },
+        {
+          "calendar_bytes": 98304,
+          "source_bytes": 2658304,
+          "year": 10147
+        },
+        {
+          "calendar_bytes": 98304,
+          "source_bytes": 2678784,
+          "year": 10148
+        },
+        {
+          "calendar_bytes": 98304,
+          "source_bytes": 2695168,
+          "year": 10149
+        },
+        {
+          "calendar_bytes": 98304,
+          "source_bytes": 2711552,
+          "year": 10150
+        },
+        {
+          "calendar_bytes": 98304,
+          "source_bytes": 2727936,
+          "year": 10151
+        },
+        {
+          "calendar_bytes": 98304,
+          "source_bytes": 2748416,
+          "year": 10152
+        },
+        {
+          "calendar_bytes": 98304,
+          "source_bytes": 2764800,
+          "year": 10153
+        },
+        {
+          "calendar_bytes": 102400,
+          "source_bytes": 2781184,
+          "year": 10154
+        },
+        {
+          "calendar_bytes": 102400,
+          "source_bytes": 2797568,
+          "year": 10155
+        },
+        {
+          "calendar_bytes": 102400,
+          "source_bytes": 2818048,
+          "year": 10156
+        },
+        {
+          "calendar_bytes": 102400,
+          "source_bytes": 2834432,
+          "year": 10157
+        },
+        {
+          "calendar_bytes": 102400,
+          "source_bytes": 2850816,
+          "year": 10158
+        },
+        {
+          "calendar_bytes": 102400,
+          "source_bytes": 2867200,
+          "year": 10159
+        },
+        {
+          "calendar_bytes": 102400,
+          "source_bytes": 2887680,
+          "year": 10160
+        },
+        {
+          "calendar_bytes": 106496,
+          "source_bytes": 2904064,
+          "year": 10161
+        },
+        {
+          "calendar_bytes": 106496,
+          "source_bytes": 2924544,
+          "year": 10162
+        },
+        {
+          "calendar_bytes": 106496,
+          "source_bytes": 2940928,
+          "year": 10163
+        },
+        {
+          "calendar_bytes": 106496,
+          "source_bytes": 2961408,
+          "year": 10164
+        },
+        {
+          "calendar_bytes": 106496,
+          "source_bytes": 2977792,
+          "year": 10165
+        },
+        {
+          "calendar_bytes": 106496,
+          "source_bytes": 2994176,
+          "year": 10166
+        },
+        {
+          "calendar_bytes": 106496,
+          "source_bytes": 3010560,
+          "year": 10167
+        },
+        {
+          "calendar_bytes": 110592,
+          "source_bytes": 3031040,
+          "year": 10168
+        },
+        {
+          "calendar_bytes": 110592,
+          "source_bytes": 3047424,
+          "year": 10169
+        },
+        {
+          "calendar_bytes": 110592,
+          "source_bytes": 3067904,
+          "year": 10170
+        },
+        {
+          "calendar_bytes": 110592,
+          "source_bytes": 3084288,
+          "year": 10171
+        },
+        {
+          "calendar_bytes": 110592,
+          "source_bytes": 3104768,
+          "year": 10172
+        },
+        {
+          "calendar_bytes": 110592,
+          "source_bytes": 3121152,
+          "year": 10173
+        },
+        {
+          "calendar_bytes": 110592,
+          "source_bytes": 3137536,
+          "year": 10174
+        },
+        {
+          "calendar_bytes": 114688,
+          "source_bytes": 3153920,
+          "year": 10175
+        },
+        {
+          "calendar_bytes": 114688,
+          "source_bytes": 3174400,
+          "year": 10176
+        },
+        {
+          "calendar_bytes": 114688,
+          "source_bytes": 3194880,
+          "year": 10177
+        },
+        {
+          "calendar_bytes": 114688,
+          "source_bytes": 3211264,
+          "year": 10178
+        },
+        {
+          "calendar_bytes": 114688,
+          "source_bytes": 3227648,
+          "year": 10179
+        },
+        {
+          "calendar_bytes": 114688,
+          "source_bytes": 3248128,
+          "year": 10180
+        },
+        {
+          "calendar_bytes": 114688,
+          "source_bytes": 3264512,
+          "year": 10181
+        },
+        {
+          "calendar_bytes": 118784,
+          "source_bytes": 3280896,
+          "year": 10182
+        },
+        {
+          "calendar_bytes": 118784,
+          "source_bytes": 3297280,
+          "year": 10183
+        },
+        {
+          "calendar_bytes": 118784,
+          "source_bytes": 3317760,
+          "year": 10184
+        },
+        {
+          "calendar_bytes": 118784,
+          "source_bytes": 3334144,
+          "year": 10185
+        },
+        {
+          "calendar_bytes": 118784,
+          "source_bytes": 3350528,
+          "year": 10186
+        },
+        {
+          "calendar_bytes": 118784,
+          "source_bytes": 3366912,
+          "year": 10187
+        },
+        {
+          "calendar_bytes": 118784,
+          "source_bytes": 3387392,
+          "year": 10188
+        },
+        {
+          "calendar_bytes": 122880,
+          "source_bytes": 3407872,
+          "year": 10189
+        },
+        {
+          "calendar_bytes": 122880,
+          "source_bytes": 3424256,
+          "year": 10190
+        },
+        {
+          "calendar_bytes": 122880,
+          "source_bytes": 3440640,
+          "year": 10191
+        },
+        {
+          "calendar_bytes": 122880,
+          "source_bytes": 3461120,
+          "year": 10192
+        },
+        {
+          "calendar_bytes": 122880,
+          "source_bytes": 3477504,
+          "year": 10193
+        },
+        {
+          "calendar_bytes": 122880,
+          "source_bytes": 3493888,
+          "year": 10194
+        },
+        {
+          "calendar_bytes": 122880,
+          "source_bytes": 3510272,
+          "year": 10195
+        },
+        {
+          "calendar_bytes": 126976,
+          "source_bytes": 3530752,
+          "year": 10196
+        },
+        {
+          "calendar_bytes": 126976,
+          "source_bytes": 3547136,
+          "year": 10197
+        },
+        {
+          "calendar_bytes": 126976,
+          "source_bytes": 3563520,
+          "year": 10198
+        },
+        {
+          "calendar_bytes": 126976,
+          "source_bytes": 3579904,
+          "year": 10199
+        }
+      ],
+      "append_ms": 2947.101,
+      "career_roster_archive_and_player_stats_cache_included": false,
+      "derived_school_index_bytes": 335872,
+      "environment": {
+        "machine": "x86_64",
+        "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+        "python": "3.12.14",
+        "sqlite": "3.53.1"
+      },
+      "file_sha256_verification": {
+        "max_ms": 52.138,
+        "median_ms": 19.738,
+        "min_ms": 15.731,
+        "samples_ms": [
+          52.138,
+          19.738,
+          15.731
+        ]
+      },
+      "full_a": {
+        "content_sha256": "e929299c2972d74223427b50fc421844ff583d4a2714cb0e60db7197cab6ba06",
+        "field_counts_and_bytes": {
+          "batter_stats_rows": 7200,
+          "batter_stats_value_bytes": 2131600,
+          "inning_scores_rows": 7200,
+          "inning_scores_value_bytes": 608800,
+          "pitcher_stats_rows": 800,
+          "pitcher_stats_value_bytes": 174464,
+          "team_stats_rows": 800,
+          "team_stats_value_bytes": 44632
+        },
+        "field_shapes": {
+          "batter_stats": [
+            [
+              "at_bats",
+              "caught_stealing",
+              "doubles",
+              "hit_by_pitch",
+              "hits",
+              "home_runs",
+              "plate_appearances",
+              "player_id",
+              "rbi",
+              "runs",
+              "sacrifice_bunts",
+              "sacrifice_flies",
+              "school_id",
+              "singles",
+              "stolen_bases",
+              "strikeouts",
+              "triples",
+              "walks"
+            ]
+          ],
+          "inning_scores": [
+            [
+              "batting_team_id",
+              "half",
+              "inning",
+              "runs",
+              "was_played"
+            ]
+          ],
+          "pitcher_stats": [
+            [
+              "batters_faced",
+              "earned_runs",
+              "hit_batters",
+              "hits_allowed",
+              "home_runs_allowed",
+              "outs_recorded",
+              "player_id",
+              "runs_allowed",
+              "school_id",
+              "strikeouts",
+              "walks"
+            ]
+          ],
+          "team_stats": [
+            [
+              "errors",
+              "hits",
+              "runs",
+              "school_id"
+            ]
+          ]
+        },
+        "full_events_retained": false,
+        "matches": 400,
+        "metadata_and_json_syntax_bytes": 293716,
+        "payload_bytes": 3253212,
+        "payload_bytes_per_match": {
+          "max": 8145,
+          "median": 8131.0,
+          "min": 8131
+        }
+      },
+      "game_save_year_limit_imposed": false,
+      "index_build_ms": 855.989,
+      "index_definitions": [
+        [
+          "idx_v2_school_game_date",
+          "CREATE INDEX idx_v2_school_game_date ON school_game (\n  school_id,year,game_day_token,competition_id,match_id\n)"
+        ],
+        [
+          "idx_v2_school_game_year",
+          "CREATE INDEX idx_v2_school_game_year ON school_game(year)"
+        ],
+        [
+          "sqlite_autoindex_meta_1",
+          null
+        ],
+        [
+          "sqlite_autoindex_school_game_1",
+          null
+        ]
+      ],
+      "index_shards": 2,
+      "indexed_memberships": 800,
+      "national_100_or_200_year_full_tournaments_verified": false,
+      "nine_innings_18_batters_2_pitchers_no_substitutions": true,
+      "repetitions": 3,
+      "saved_years": [
+        10000,
+        10001,
+        10002,
+        10003,
+        10004,
+        10005,
+        10006,
+        10007,
+        10008,
+        10009,
+        10010,
+        10011,
+        10012,
+        10013,
+        10014,
+        10015,
+        10016,
+        10017,
+        10018,
+        10019,
+        10020,
+        10021,
+        10022,
+        10023,
+        10024,
+        10025,
+        10026,
+        10027,
+        10028,
+        10029,
+        10030,
+        10031,
+        10032,
+        10033,
+        10034,
+        10035,
+        10036,
+        10037,
+        10038,
+        10039,
+        10040,
+        10041,
+        10042,
+        10043,
+        10044,
+        10045,
+        10046,
+        10047,
+        10048,
+        10049,
+        10050,
+        10051,
+        10052,
+        10053,
+        10054,
+        10055,
+        10056,
+        10057,
+        10058,
+        10059,
+        10060,
+        10061,
+        10062,
+        10063,
+        10064,
+        10065,
+        10066,
+        10067,
+        10068,
+        10069,
+        10070,
+        10071,
+        10072,
+        10073,
+        10074,
+        10075,
+        10076,
+        10077,
+        10078,
+        10079,
+        10080,
+        10081,
+        10082,
+        10083,
+        10084,
+        10085,
+        10086,
+        10087,
+        10088,
+        10089,
+        10090,
+        10091,
+        10092,
+        10093,
+        10094,
+        10095,
+        10096,
+        10097,
+        10098,
+        10099,
+        10100,
+        10101,
+        10102,
+        10103,
+        10104,
+        10105,
+        10106,
+        10107,
+        10108,
+        10109,
+        10110,
+        10111,
+        10112,
+        10113,
+        10114,
+        10115,
+        10116,
+        10117,
+        10118,
+        10119,
+        10120,
+        10121,
+        10122,
+        10123,
+        10124,
+        10125,
+        10126,
+        10127,
+        10128,
+        10129,
+        10130,
+        10131,
+        10132,
+        10133,
+        10134,
+        10135,
+        10136,
+        10137,
+        10138,
+        10139,
+        10140,
+        10141,
+        10142,
+        10143,
+        10144,
+        10145,
+        10146,
+        10147,
+        10148,
+        10149,
+        10150,
+        10151,
+        10152,
+        10153,
+        10154,
+        10155,
+        10156,
+        10157,
+        10158,
+        10159,
+        10160,
+        10161,
+        10162,
+        10163,
+        10164,
+        10165,
+        10166,
+        10167,
+        10168,
+        10169,
+        10170,
+        10171,
+        10172,
+        10173,
+        10174,
+        10175,
+        10176,
+        10177,
+        10178,
+        10179,
+        10180,
+        10181,
+        10182,
+        10183,
+        10184,
+        10185,
+        10186,
+        10187,
+        10188,
+        10189,
+        10190,
+        10191,
+        10192,
+        10193,
+        10194,
+        10195,
+        10196,
+        10197,
+        10198,
+        10199
+      ],
+      "schools": 2,
+      "seal_ms": 1222.134,
+      "search": {
+        "sampled_schools": [
+          "SCH000001",
+          "SCH000002"
+        ],
+        "source_calendar_legacy_indexes_sha_unchanged": true,
+        "timings": {
+          "AUDIT87-ZERO-SCHOOL:competition_a": {
+            "max_ms": 365.032,
+            "median_ms": 305.625,
+            "min_ms": 299.609,
+            "samples_ms": [
+              299.609,
+              365.032,
+              305.625
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:competition_b": {
+            "max_ms": 1027.136,
+            "median_ms": 357.422,
+            "min_ms": 303.813,
+            "samples_ms": [
+              303.813,
+              1027.136,
+              357.422
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:first_page": {
+            "max_ms": 322.455,
+            "median_ms": 318.785,
+            "min_ms": 294.218,
+            "samples_ms": [
+              318.785,
+              294.218,
+              322.455
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:first_year": {
+            "max_ms": 7.286,
+            "median_ms": 6.656,
+            "min_ms": 2.072,
+            "samples_ms": [
+              2.072,
+              6.656,
+              7.286
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:last_page": {
+            "max_ms": 323.079,
+            "median_ms": 288.03,
+            "min_ms": 268.107,
+            "samples_ms": [
+              268.107,
+              323.079,
+              288.03
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:last_year": {
+            "max_ms": 11.562,
+            "median_ms": 6.676,
+            "min_ms": 3.125,
+            "samples_ms": [
+              6.676,
+              11.562,
+              3.125
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:no_competition": {
+            "max_ms": 396.03,
+            "median_ms": 390.023,
+            "min_ms": 349.335,
+            "samples_ms": [
+              396.03,
+              390.023,
+              349.335
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:past_last_page": {
+            "max_ms": 365.115,
+            "median_ms": 315.578,
+            "min_ms": 288.95,
+            "samples_ms": [
+              365.115,
+              288.95,
+              315.578
+            ]
+          },
+          "AUDIT87-ZERO-SCHOOL:strict_selected_years": {
+            "max_ms": 960.662,
+            "median_ms": 795.164,
+            "min_ms": 734.187,
+            "samples_ms": [
+              734.187,
+              960.662,
+              795.164
+            ]
+          },
+          "SCH000001:competition_a": {
+            "max_ms": 490.559,
+            "median_ms": 489.795,
+            "min_ms": 462.652,
+            "samples_ms": [
+              489.795,
+              490.559,
+              462.652
+            ]
+          },
+          "SCH000001:competition_b": {
+            "max_ms": 532.463,
+            "median_ms": 490.238,
+            "min_ms": 465.955,
+            "samples_ms": [
+              490.238,
+              465.955,
+              532.463
+            ]
+          },
+          "SCH000001:first_page": {
+            "max_ms": 553.765,
+            "median_ms": 530.675,
+            "min_ms": 521.909,
+            "samples_ms": [
+              530.675,
+              553.765,
+              521.909
+            ]
+          },
+          "SCH000001:first_year": {
+            "max_ms": 17.07,
+            "median_ms": 15.246,
+            "min_ms": 14.605,
+            "samples_ms": [
+              17.07,
+              15.246,
+              14.605
+            ]
+          },
+          "SCH000001:last_page": {
+            "max_ms": 511.02,
+            "median_ms": 491.194,
+            "min_ms": 484.74,
+            "samples_ms": [
+              484.74,
+              491.194,
+              511.02
+            ]
+          },
+          "SCH000001:last_year": {
+            "max_ms": 42.131,
+            "median_ms": 10.369,
+            "min_ms": 7.391,
+            "samples_ms": [
+              7.391,
+              42.131,
+              10.369
+            ]
+          },
+          "SCH000001:no_competition": {
+            "max_ms": 348.693,
+            "median_ms": 304.199,
+            "min_ms": 297.715,
+            "samples_ms": [
+              297.715,
+              348.693,
+              304.199
+            ]
+          },
+          "SCH000001:past_last_page": {
+            "max_ms": 392.826,
+            "median_ms": 312.773,
+            "min_ms": 287.974,
+            "samples_ms": [
+              312.773,
+              392.826,
+              287.974
+            ]
+          },
+          "SCH000001:strict_selected_years": {
+            "max_ms": 1374.293,
+            "median_ms": 1314.895,
+            "min_ms": 1293.149,
+            "samples_ms": [
+              1314.895,
+              1293.149,
+              1374.293
+            ]
+          },
+          "SCH000002:competition_a": {
+            "max_ms": 421.439,
+            "median_ms": 408.125,
+            "min_ms": 406.373,
+            "samples_ms": [
+              421.439,
+              408.125,
+              406.373
+            ]
+          },
+          "SCH000002:competition_b": {
+            "max_ms": 496.807,
+            "median_ms": 457.13,
+            "min_ms": 415.689,
+            "samples_ms": [
+              457.13,
+              496.807,
+              415.689
+            ]
+          },
+          "SCH000002:first_page": {
+            "max_ms": 535.809,
+            "median_ms": 508.181,
+            "min_ms": 441.433,
+            "samples_ms": [
+              441.433,
+              508.181,
+              535.809
+            ]
+          },
+          "SCH000002:first_year": {
+            "max_ms": 12.805,
+            "median_ms": 9.87,
+            "min_ms": 8.481,
+            "samples_ms": [
+              8.481,
+              9.87,
+              12.805
+            ]
+          },
+          "SCH000002:last_page": {
+            "max_ms": 544.435,
+            "median_ms": 525.93,
+            "min_ms": 467.347,
+            "samples_ms": [
+              467.347,
+              544.435,
+              525.93
+            ]
+          },
+          "SCH000002:last_year": {
+            "max_ms": 40.413,
+            "median_ms": 9.43,
+            "min_ms": 8.108,
+            "samples_ms": [
+              9.43,
+              40.413,
+              8.108
+            ]
+          },
+          "SCH000002:no_competition": {
+            "max_ms": 329.867,
+            "median_ms": 307.204,
+            "min_ms": 289.097,
+            "samples_ms": [
+              289.097,
+              329.867,
+              307.204
+            ]
+          },
+          "SCH000002:past_last_page": {
+            "max_ms": 360.956,
+            "median_ms": 298.348,
+            "min_ms": 292.59,
+            "samples_ms": [
+              298.348,
+              360.956,
+              292.59
+            ]
+          },
+          "SCH000002:strict_selected_years": {
+            "max_ms": 1310.499,
+            "median_ms": 1157.273,
+            "min_ms": 1111.194,
+            "samples_ms": [
+              1310.499,
+              1157.273,
+              1111.194
+            ]
+          },
+          "original_json1_first_year": {
+            "max_ms": 2.42,
+            "median_ms": 1.992,
+            "min_ms": 1.47,
+            "samples_ms": [
+              1.992,
+              2.42,
+              1.47
+            ]
+          }
+        },
+        "verified_page_calls": 81
+      },
+      "seed": 2026101201,
+      "source_and_calendar_bytes": 3706880,
+      "sql_plans": {
+        "competition_page": [
+          "SEARCH school_game USING INDEX idx_v2_school_game_date (school_id=? AND year>? AND year<?)",
+          "USE TEMP B-TREE FOR LAST TERM OF ORDER BY"
+        ],
+        "school_page": [
+          "SEARCH school_game USING INDEX idx_v2_school_game_date (school_id=? AND year>? AND year<?)"
+        ]
+      },
+      "stage": "43G-87",
+      "storage": {
+        "fictional_option_a_v2.sqlite3": {
+          "allocated_page_bytes": 3579904,
+          "btree_page_bytes": {
+            "idx_v2_games_day": 28672,
+            "sqlite_autoindex_v2_option_a_matches_1": 24576,
+            "sqlite_schema": 4096,
+            "v2_game_years": 36864,
+            "v2_option_a_matches": 3485696
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 3579904,
+          "freelist_count": 0,
+          "page_count": 874,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G10000_G10099.sqlite3": {
+          "allocated_page_bytes": 167936,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 32768,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 28672,
+            "meta": 4096,
+            "school_game": 61440,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 28672,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 167936,
+          "freelist_count": 0,
+          "page_count": 41,
+          "page_size": 4096
+        },
+        "fictional_v2_school_read_index_G10100_G10199.sqlite3": {
+          "allocated_page_bytes": 167936,
+          "btree_page_bytes": {
+            "idx_v2_school_game_date": 32768,
+            "idx_v2_school_game_year": 4096,
+            "indexed_year": 28672,
+            "meta": 4096,
+            "school_game": 61440,
+            "sqlite_autoindex_meta_1": 4096,
+            "sqlite_autoindex_school_game_1": 28672,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 167936,
+          "freelist_count": 0,
+          "page_count": 41,
+          "page_size": 4096
+        },
+        "historical_matches.sqlite3": {
+          "allocated_page_bytes": 40960,
+          "btree_page_bytes": {
+            "archive_identity": 4096,
+            "career_years": 4096,
+            "historical_matches": 4096,
+            "idx_history_date": 4096,
+            "idx_history_school1_year": 4096,
+            "idx_history_school2_year": 4096,
+            "idx_history_team1": 4096,
+            "idx_history_team2": 4096,
+            "sqlite_autoindex_historical_matches_1": 4096,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 40960,
+          "freelist_count": 0,
+          "page_count": 10,
+          "page_size": 4096
+        },
+        "sandbox_calendar_v2.sqlite3": {
+          "allocated_page_bytes": 126976,
+          "btree_page_bytes": {
+            "sandbox_year_plans": 122880,
+            "sqlite_schema": 4096
+          },
+          "btree_page_bytes_include_indexes": true,
+          "dbstat_available": true,
+          "file_bytes": 126976,
+          "freelist_count": 0,
+          "page_count": 31,
+          "page_size": 4096
+        }
+      },
+      "synthetic_calendar_and_pairings_not_current_tournament_schedule": true,
+      "synthetic_games_per_school_year": 2,
+      "temporary_fixture_deleted": true,
+      "year_step": 1
+    }
+  },
+  "concurrent_local_tests_and_other_fixtures": true,
+  "cpu_model": "Intel Xeon Platinum 8573C",
+  "existing_save_files_sha_unchanged": 14,
+  "local_cpu_quota_cores": 2,
+  "logical_cpus_visible": 3,
+  "master": {
+    "actual_historical_results": false,
+    "competition_counts": [
+      {
+        "competition_id": "CMP000001",
+        "entrants": 32,
+        "matches": 31,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000002",
+        "entrants": 49,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000003",
+        "entrants": 10,
+        "matches": 15,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000004",
+        "entrants": 192,
+        "matches": 219,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000005",
+        "entrants": 14,
+        "matches": 15,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000006",
+        "entrants": 17,
+        "matches": 31,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000007",
+        "entrants": 8,
+        "matches": 7,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000008",
+        "entrants": 8,
+        "matches": 7,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000009",
+        "entrants": 8,
+        "matches": 7,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000010",
+        "entrants": 8,
+        "matches": 7,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000011",
+        "entrants": 8,
+        "matches": 7,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000012",
+        "entrants": 16,
+        "matches": 15,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000013",
+        "entrants": 192,
+        "matches": 232,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000014",
+        "entrants": 18,
+        "matches": 31,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000015",
+        "entrants": 15,
+        "matches": 15,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000016",
+        "entrants": 232,
+        "matches": 249,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000017",
+        "entrants": 16,
+        "matches": 15,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000018",
+        "entrants": 12,
+        "matches": 15,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000019",
+        "entrants": 16,
+        "matches": 15,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000020",
+        "entrants": 16,
+        "matches": 15,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000021",
+        "entrants": 12,
+        "matches": 15,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000022",
+        "entrants": 16,
+        "matches": 15,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000023",
+        "entrants": 84,
+        "matches": 127,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000024",
+        "entrants": 108,
+        "matches": 127,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000025",
+        "entrants": 53,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000026",
+        "entrants": 61,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000027",
+        "entrants": 42,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000028",
+        "entrants": 42,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000029",
+        "entrants": 65,
+        "matches": 127,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000030",
+        "entrants": 67,
+        "matches": 127,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000031",
+        "entrants": 100,
+        "matches": 127,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000032",
+        "entrants": 62,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000033",
+        "entrants": 68,
+        "matches": 127,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000034",
+        "entrants": 153,
+        "matches": 255,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000035",
+        "entrants": 174,
+        "matches": 255,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000036",
+        "entrants": 140,
+        "matches": 255,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000037",
+        "entrants": 129,
+        "matches": 255,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000038",
+        "entrants": 186,
+        "matches": 255,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000039",
+        "entrants": 78,
+        "matches": 127,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000040",
+        "entrants": 82,
+        "matches": 127,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000041",
+        "entrants": 33,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000042",
+        "entrants": 108,
+        "matches": 127,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000043",
+        "entrants": 182,
+        "matches": 255,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000044",
+        "entrants": 67,
+        "matches": 127,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000045",
+        "entrants": 63,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000046",
+        "entrants": 43,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000047",
+        "entrants": 50,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000048",
+        "entrants": 28,
+        "matches": 31,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000049",
+        "entrants": 52,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000050",
+        "entrants": 76,
+        "matches": 127,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000051",
+        "entrants": 172,
+        "matches": 255,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000052",
+        "entrants": 167,
+        "matches": 255,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000053",
+        "entrants": 39,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000054",
+        "entrants": 39,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000055",
+        "entrants": 59,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000056",
+        "entrants": 94,
+        "matches": 127,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000057",
+        "entrants": 24,
+        "matches": 31,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000058",
+        "entrants": 38,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000059",
+        "entrants": 54,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000060",
+        "entrants": 37,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000061",
+        "entrants": 30,
+        "matches": 31,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000062",
+        "entrants": 60,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000063",
+        "entrants": 28,
+        "matches": 31,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000064",
+        "entrants": 137,
+        "matches": 255,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000065",
+        "entrants": 36,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000066",
+        "entrants": 53,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000067",
+        "entrants": 59,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000068",
+        "entrants": 44,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000069",
+        "entrants": 47,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000070",
+        "entrants": 71,
+        "matches": 127,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000071",
+        "entrants": 62,
+        "matches": 63,
+        "season_segment": "summer"
+      },
+      {
+        "competition_id": "CMP000072",
+        "entrants": 53,
+        "matches": 214,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000073",
+        "entrants": 53,
+        "matches": 214,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000074",
+        "entrants": 61,
+        "matches": 132,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000075",
+        "entrants": 61,
+        "matches": 134,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000076",
+        "entrants": 65,
+        "matches": 134,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000077",
+        "entrants": 65,
+        "matches": 132,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000078",
+        "entrants": 42,
+        "matches": 63,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000079",
+        "entrants": 42,
+        "matches": 93,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000080",
+        "entrants": 42,
+        "matches": 63,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000081",
+        "entrants": 42,
+        "matches": 63,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000082",
+        "entrants": 67,
+        "matches": 139,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000083",
+        "entrants": 67,
+        "matches": 132,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000084",
+        "entrants": 100,
+        "matches": 148,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000085",
+        "entrants": 100,
+        "matches": 246,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000086",
+        "entrants": 62,
+        "matches": 63,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000087",
+        "entrants": 62,
+        "matches": 63,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000088",
+        "entrants": 68,
+        "matches": 127,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000089",
+        "entrants": 68,
+        "matches": 127,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000090",
+        "entrants": 153,
+        "matches": 189,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000091",
+        "entrants": 153,
+        "matches": 186,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000092",
+        "entrants": 174,
+        "matches": 207,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000093",
+        "entrants": 141,
+        "matches": 345,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000094",
+        "entrants": 269,
+        "matches": 319,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000095",
+        "entrants": 163,
+        "matches": 364,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000096",
+        "entrants": 161,
+        "matches": 359,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000097",
+        "entrants": 78,
+        "matches": 127,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000098",
+        "entrants": 78,
+        "matches": 127,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000099",
+        "entrants": 43,
+        "matches": 63,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000100",
+        "entrants": 43,
+        "matches": 63,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000101",
+        "entrants": 50,
+        "matches": 63,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000102",
+        "entrants": 50,
+        "matches": 63,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000103",
+        "entrants": 28,
+        "matches": 31,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000104",
+        "entrants": 28,
+        "matches": 31,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000105",
+        "entrants": 33,
+        "matches": 63,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000106",
+        "entrants": 33,
+        "matches": 63,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000107",
+        "entrants": 82,
+        "matches": 100,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000108",
+        "entrants": 82,
+        "matches": 124,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000109",
+        "entrants": 67,
+        "matches": 152,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000110",
+        "entrants": 58,
+        "matches": 145,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000111",
+        "entrants": 108,
+        "matches": 267,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000112",
+        "entrants": 108,
+        "matches": 285,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000113",
+        "entrants": 182,
+        "matches": 288,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000114",
+        "entrants": 182,
+        "matches": 330,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000115",
+        "entrants": 63,
+        "matches": 124,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000116",
+        "entrants": 63,
+        "matches": 130,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000117",
+        "entrants": 52,
+        "matches": 63,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000118",
+        "entrants": 52,
+        "matches": 63,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000119",
+        "entrants": 76,
+        "matches": 99,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000120",
+        "entrants": 76,
+        "matches": 127,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000121",
+        "entrants": 172,
+        "matches": 255,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000122",
+        "entrants": 172,
+        "matches": 255,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000123",
+        "entrants": 167,
+        "matches": 246,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000124",
+        "entrants": 167,
+        "matches": 391,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000125",
+        "entrants": 39,
+        "matches": 63,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000126",
+        "entrants": 39,
+        "matches": 63,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000127",
+        "entrants": 39,
+        "matches": 63,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000128",
+        "entrants": 39,
+        "matches": 47,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000129",
+        "entrants": 24,
+        "matches": 31,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000130",
+        "entrants": 24,
+        "matches": 31,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000131",
+        "entrants": 38,
+        "matches": 63,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000132",
+        "entrants": 38,
+        "matches": 63,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000133",
+        "entrants": 59,
+        "matches": 79,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000134",
+        "entrants": 59,
+        "matches": 138,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000135",
+        "entrants": 94,
+        "matches": 249,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000136",
+        "entrants": 94,
+        "matches": 217,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000137",
+        "entrants": 54,
+        "matches": 61,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000138",
+        "entrants": 54,
+        "matches": 61,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000139",
+        "entrants": 30,
+        "matches": 31,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000140",
+        "entrants": 30,
+        "matches": 58,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000141",
+        "entrants": 37,
+        "matches": 63,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000142",
+        "entrants": 37,
+        "matches": 63,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000143",
+        "entrants": 60,
+        "matches": 63,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000144",
+        "entrants": 60,
+        "matches": 126,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000145",
+        "entrants": 28,
+        "matches": 31,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000146",
+        "entrants": 28,
+        "matches": 31,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000147",
+        "entrants": 137,
+        "matches": 148,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000148",
+        "entrants": 137,
+        "matches": 159,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000149",
+        "entrants": 36,
+        "matches": 63,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000150",
+        "entrants": 36,
+        "matches": 63,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000151",
+        "entrants": 53,
+        "matches": 63,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000152",
+        "entrants": 53,
+        "matches": 63,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000153",
+        "entrants": 59,
+        "matches": 63,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000154",
+        "entrants": 59,
+        "matches": 63,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000155",
+        "entrants": 44,
+        "matches": 63,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000156",
+        "entrants": 44,
+        "matches": 63,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000157",
+        "entrants": 47,
+        "matches": 63,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000158",
+        "entrants": 47,
+        "matches": 112,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000159",
+        "entrants": 71,
+        "matches": 127,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000160",
+        "entrants": 68,
+        "matches": 199,
+        "season_segment": "autumn"
+      },
+      {
+        "competition_id": "CMP000161",
+        "entrants": 62,
+        "matches": 63,
+        "season_segment": "spring"
+      },
+      {
+        "competition_id": "CMP000162",
+        "entrants": 62,
+        "matches": 122,
+        "season_segment": "autumn"
+      }
+    ],
+    "engine_summary": {
+      "ability_competition_count": 0,
+      "ability_match_count": 0,
+      "access_rules_resolved": 23,
+      "access_rules_total": 23,
+      "autumn_prefectural_executed": 47,
+      "autumn_prefectural_pass": 47,
+      "autumn_regional_executed": 8,
+      "internal_structure_gap_count": 0,
+      "jingu_completed": true,
+      "player_master_count": 0,
+      "prefectural_calendar_gap_count": 0,
+      "prefectural_gap_total": 0,
+      "prefectural_pass_total": 94,
+      "prefectural_total": 94,
+      "qualification_rules_blocked": 0,
+      "qualification_rules_resolved": 59,
+      "qualification_rules_total": 59,
+      "regional_bridge_gap_count": 0,
+      "regional_competitions_pass": 16,
+      "regional_competitions_total": 16,
+      "regional_feeder_rules_resolved": 96,
+      "regional_feeder_rules_total": 96,
+      "regional_playoffs_resolved": 2,
+      "regional_playoffs_total": 2,
+      "rng_seed": 2026101201,
+      "senbatsu_bootstrap_count": 32,
+      "spring_prefectural_executed": 47,
+      "spring_prefectural_pass": 47,
+      "spring_regional_executed": 8,
+      "summer_local_completed": 49,
+      "summer_local_total": 49,
+      "summer_national_completed": true,
+      "warnings": [],
+      "year": 2026
+    },
+    "hardball_schools": 3746,
+    "live_calendar_progression_verified": false,
+    "master_competitions": 162,
+    "master_csv_sha256": {
+      "areas/area_branch_prefecture_status.csv": "265e9eb3241dd5388df39db21738bc591d64e9aae15ca83e581c6b68a8444053",
+      "areas/area_registration_2026_summer_all47.csv": "bbde5e536d4a1b7481b26982270a7a254a0a74f320736b6419ff6a871a0de9b5",
+      "areas/area_scheme_policy.csv": "21c63883266e626ba1a7ffe10b53db03a5b7172787340a090aa885437f1bb4d2",
+      "areas/area_schemes.csv": "c3c41f1c724aa41b6147eda15d2ad819125f277d77722810a9642952a5168ae1",
+      "areas/competition_areas.csv": "eb8d40889e95b1878f38b9720357f0afb0631438c7427c82985bdbf18e47ed09",
+      "areas/school_area_memberships.csv": "30ef99895c9aedb56b8f86226907c4f94f309e7462021ab74c8fa2816bcb7bd2",
+      "competitions/2026/hiroshima_2026_prefectural_main_berth_roster.csv": "fcab3ad42307644cf372a0dffe51b991b5a8e66500f50a3a8184a8f193cfba87",
+      "competitions/2026/hiroshima_annual_child_route_input_requirements_2026.csv": "3fe0734ead01dc3d77ce7deb74055e97b7e3ff57fd0e0e7859b200c7aafd67aa",
+      "competitions/2026/hiroshima_annual_route_evidence_requirements_2026.csv": "9380788226a57081ea10455710a2a45b804630e013bc7dadd7cc1d9a760ac3bf",
+      "competitions/2026/hiroshima_annual_route_release_review_2026.csv": "815d3137cde40a112b9fe97c1249ecd02902ddbf89df27b11dc7570bb4de44b1",
+      "competitions/2026/hiroshima_annual_zone_rule_contract_2026.csv": "20278f56ea90295dca965824565fc6401d44643af9ecf1dc567b4c4c23a908ac",
+      "competitions/2026/hiroshima_autumn_west_match_nodes_stage13e3g25.csv": "d37bcc3750c013a78142fffd7a985658eebef9d7f2e9a494e57ca75a261bf574",
+      "competitions/2026/hiroshima_autumn_west_observed_edges_stage13e3g25.csv": "5f25f2b83ff79137e933dae057f044550bb0822b62f92eeeaac24934ccf7a31b",
+      "competitions/2026/hiroshima_autumn_west_official_visual_phase_graph_2026.csv": "a1f3181b7f9669582c28f716e4631ad57d71a6ddc45cc8e53e928258c10ce053",
+      "competitions/2026/hiroshima_autumn_west_publisher_team_groups_2026.csv": "a8af21235fa34d6e7ed341ea1a806c2de0c86e81345c9f85ad66132490c87e90",
+      "competitions/2026/hiroshima_award_game_evidence_stage13e3g12.csv": "4352324f06dff9478c6a9dceb81f89b1c16c8d27248eb3906c7882f7b169f015",
+      "competitions/2026/hiroshima_award_game_evidence_stage13e3g13.csv": "d5427e1cde7b3461ee6e575f6a6dd63ffc5f09c122b3f1a84ea105ac769b22d6",
+      "competitions/2026/hiroshima_bracket_pdf_review_2026.csv": "ca9be39a697652a25d6df6de61f86458d5933bc4c534abf52d4badf7c2039153",
+      "competitions/2026/hiroshima_district_qualification_routes.csv": "6d5bd0cc2180375423c482c2211e79f14e329e996143c4445b9cb0d23cbe156b",
+      "competitions/2026/hiroshima_eight_district_official_macro_comparison_2026.csv": "bbb092edce8c242c2dfbe473f0b0769f24f4153def43900dacab0eed2f9ade6a",
+      "competitions/2026/hiroshima_federation_qualifier_calendar_2026.csv": "580cc9992fc819023dcaf49125510a4ce1e757c1604f2a3f170c0d37a80c263a",
+      "competitions/2026/hiroshima_fixture_census_2026.csv": "1d4fe8ed703ae128282d9309f6e0ad4e42e6787413f5e014282da90d9204dcdc",
+      "competitions/2026/hiroshima_fmt025_group_phase_contract_2026.csv": "9575ae6e9e59beb495470dd4c6eaec45dbf79fd99f0924ad20ffe84966953c2e",
+      "competitions/2026/hiroshima_fmt025_input_release_locks_stage13e3g32.csv": "d0354d659c15b1cc9d86723091bd1e2bd6a942ad5fa72a9cbdb41bebb08e3b1d",
+      "competitions/2026/hiroshima_fmt025_route_phase_crosswalk_2026.csv": "c270019c6aacdd2f582b785f3df8611f2e5a6bd944943c9964a807a62f9287a4",
+      "competitions/2026/hiroshima_macro_template_stage13e3g26.csv": "30c301b4966611baca3a3ed21d9ef9c11b1b3ffa0199d7f17352757ab14a2556",
+      "competitions/2026/hiroshima_match_level_anchors_2026.csv": "2d45fb6a1d4c7450a233353984eecd4dad02476422862146a4fdab40d53bdcb5",
+      "competitions/2026/hiroshima_nonaward_fixtures_stage13e3g14.csv": "01592b19af52b200f94d50bbe6c57c121e18cf81bef991dfe198a502ab5cbec9",
+      "competitions/2026/hiroshima_nonaward_fixtures_stage13e3g15.csv": "057ff4c4dcaa9dcb8ad51120bada786d055f1ce4d391fa3750bbd9de68202725",
+      "competitions/2026/hiroshima_observed_match_transitions_2026.csv": "f00e566a3fcda88e862762e1aee92627eec560ac8bb08130ea35cf5a6e27301a",
+      "competitions/2026/hiroshima_observed_transition_counts_2026.csv": "978eedb1e09283dd3b0d3d35c8e35c4c5d7bf733e32eea76979b2e86ca546814",
+      "competitions/2026/hiroshima_other_seven_official_image_macro_2026.csv": "4154252a0699a467285663b37a86ef59276eb22c1248080e11cdbcab875c01d3",
+      "competitions/2026/hiroshima_primary_loser_forwarding_observations_2026.csv": "d0442d5e612aee960e9431ee6908945fde59d5ddbfc03aa7244598f699cfcb28",
+      "competitions/2026/hiroshima_publisher_berth_event_crosscheck_2026.csv": "2c440099eb41cfcc01a2856723a5c0340ec1cf1db5a3b1b63bfbf89719e0049e",
+      "competitions/2026/hiroshima_publisher_event_structure_2026.csv": "b27004e9a8b2ccca6615424de49eb386f5331791acbce64ed57d711fa64d2047",
+      "competitions/2026/hiroshima_qualification_examples.csv": "02800c3ee759c01ee7150c40e416d4fe03ecd7a33a6ead9bbef6b5a3937c27d8",
+      "competitions/2026/hiroshima_qualification_match_timeline_2026.csv": "41d460501243a02478dbadf3bff32fc107871e29eb71283554995ecc4a9cd158",
+      "competitions/2026/hiroshima_qualification_missing_award_queue_2026.csv": "b7536c64ca4d52c966ac0244af92720d9f3abeb118ca54c83a36aa5b5b5ed1b8",
+      "competitions/2026/hiroshima_repechage_second_chance_examples_2026.csv": "40976fc2ca14560576b6485cdd20ed86cb50930d4994a8d32d9632fc51922ec8",
+      "competitions/2026/hiroshima_retry_gate_group_policies_2026.csv": "9567f3da06325cde99ca64c18ffecb74486e9a9a030f5e8460ddac6d3acfbee2",
+      "competitions/2026/hiroshima_retry_gate_observations_2026.csv": "4f227ed735aff9370b3bee285630d6aa93ca0916aa0ffc578581d1334c232740",
+      "competitions/2026/post_qualification_cross_block_pairs.csv": "7a9ca33e4bba0391375ea2ae4781d1ae4377e3709e254c14874fb280239f216d",
+      "competitions/2026/post_qualification_rank_observations.csv": "b095f15567b3c3f38c643a8a6ec972f4f160f7160bc98d3018e9d6803cdbb36e",
+      "competitions/2026/post_qualification_rank_school_aliases.csv": "0a993b95df10d45fd6d27858652decfc1cc1a65ca285b6f8947f0525acd7c411",
+      "competitions/2026/post_qualification_rank_school_mapping.csv": "4c043888a72fd7fefc151949e696c5407d0eca2c859b7551fbd8e8b5a4d1693e",
+      "competitions/baseball_regions.csv": "1c7154e49605dee08a462b098b7b5020afccb69b11fb90b1538c58b18c93a85d",
+      "competitions/bracket_generation_policies.csv": "cc0bd1f03f2b2a61f1412c2b7561e31d8173309f1612f79b372f92947aee806e",
+      "competitions/competition_access_rules.csv": "aade5e21ba8dacb291f5ab72c578892957e5fc0275ca91aa3a0e19559708996b",
+      "competitions/competition_seed_rules.csv": "fb2998e4a37128368f649d5e0caf9bcdeb41836c57e31ed3db68476e6607dc24",
+      "competitions/competition_stage_action_bindings.csv": "691c82e1c34d5b859af021fcd6e9c1f551934cf5c6adc97c0d135b09e139f010",
+      "competitions/competition_stage_format_assignments.csv": "21b45cbf30026ea3a1c32113f4908f07f333140a179373de3b0b7fc29f49153e",
+      "competitions/competition_stage_format_models.csv": "dc6228f974533f942a53471768df019e302a727664a70d7b0c86f9cd1ea0d603",
+      "competitions/competition_stage_format_parameters.csv": "4e5d6c3042e6c07daa257812daf8968c197c95bbd7b81a73caba2b91c754291f",
+      "competitions/competition_stage_format_phases.csv": "c4604c3027784afe7dd3b982e146445e6b77640022a0f79187a3f5a5fecbed26",
+      "competitions/competition_stage_group_format_overrides.csv": "ee4f7df9e10b828d8f77a81a7d1eecc9380a500732d77efa44c863950ba8a871",
+      "competitions/competition_stage_groups.csv": "af5563b8320d5490ca31f7d972308589c08f553e39706d76baf961fd771f5d56",
+      "competitions/competition_stage_internal_transitions.csv": "4be1419651e3a0506d274e10527299a5caf39b66b8157ddaba19e74956cebfb8",
+      "competitions/competition_stage_transitions.csv": "bf075fc1c7e7cefab1b6467080164f8b52d319655fc5394a3bcf13d28590af63",
+      "competitions/competition_stages.csv": "29d995a6e04fcc62095926079cf6a1e4aa16ab6c6bce52ca5dea6c2d28b2b0c6",
+      "competitions/competitions.csv": "e94c061b03fd8f5bd3cec7e3fd60e4196da586f95d929ff70ff43fb5caf78ab9",
+      "competitions/main_tournament_engine_policies.csv": "1fbc9c01850ab704fb973abfd8a01597e7429d4056197677d7d58425c638350b",
+      "competitions/post_qualification_ranking_profiles.csv": "f594676e44d9184699c46c852712d84c4ca9990b08a4832bb06f4d2cf9f4d0e6",
+      "competitions/prefectural_branch_usage_2026.csv": "86f02bfe3269eb4366779a3a870ca38d4e87bc8b7d33570e7e668d6657289b89",
+      "competitions/prefectural_competition_index_2026.csv": "cf1f00f2b257fb957cc81c159de1aa51aee32182a220a96fcdb8a06f10ba497f",
+      "competitions/prefecture_region_memberships.csv": "f277d1cfd14dfa2defacc96055233000d2f6dc13d7a90fd2f08fc28768aaf61f",
+      "competitions/qualification_rules.csv": "ce8f96dcf370fd9a273bdcef63d245e94c39309243616a6864370e54c80b9b45",
+      "competitions/regional_feeder_rules.csv": "22ba63e57d07b3aa7293bd82871645ddf30052d5979a1d70c9184572fd60c59a",
+      "competitions/regional_qualification_playoffs.csv": "bc74cdd4638b1aed976a451c2c52dde1f5759c6a501954643e526c4ebf1307e5",
+      "competitions/selection_rules.csv": "d426a0dc648ccf129e362e22cf51d7f3df6d81002bd0b97684d22ee71488e248",
+      "competitions/stage12c3_structured_competition_execution.csv": "675f1f151b42a253b8f1d30e38e47c63c12e080247e083d2edcb9fd6a0f577cd",
+      "competitions/tokyo_autumn_preliminary_policies.csv": "9e781c88d657b84524d7cc1a21ae86163c3c41c76e8f06fea4d7ee8637cde36c",
+      "master/baseball_programs.csv": "7c20a4b6b32c9d8e6eda00646822814070da56d4ef446b917f81bb329ed52245",
+      "master/prefectures.csv": "f74f8b127b92a06451a4d33fe26143c1ee8d90b4907019c96178cddb2b99b550",
+      "master/schools.csv": "bd5f2a76758278cdf98432f9212a5bf9f09ad5a12181f2a663cfb368d3c4bfdd",
+      "master/sources.csv": "2efd0d85d05896ef67d96465b39f4456c0f5632f1fa6b85a059f2a7cc0f18a9a",
+      "research/2026/hiroshima_2026_unresolved_route_rules_stage13e3g30.csv": "732b9033218525ea99fa9788e758eefda7df98d3d2586b403b498059578e8d40",
+      "research/2026/hiroshima_2026_written_rule_evidence_stage13e3g30.csv": "3da2b1f86a2878bf2f1caa60b76acb1f41350db50c14d766c52fe41716cdb0ef",
+      "research/2026/hiroshima_autumn_west_official_arrow_review_queue_2026.csv": "5f032237de888235f1a974cb5c7ff92e887c032eb19b10e6acfa4a94b7a6ebf0",
+      "research/2026/hiroshima_autumn_west_official_image_evidence_2026.csv": "2617dedc5e049689628ca9986993e8b3a5ad12d99e7b3204ed5208a12107ab9e",
+      "research/2026/hiroshima_autumn_west_official_number_review_queue_2026.csv": "c990f4a8f31be97bc32ffa1d959246d46d52e660ed8ed03029d70e2d4eceb0e1",
+      "research/2026/hiroshima_autumn_west_pdf_acquisition_attempts_stage13e3g29.csv": "616ddb02a7a242831bc6c2288842243c063002a953c1520c7029a01104553849",
+      "research/2026/hiroshima_autumn_west_school_master_review_stage13e3g37.csv": "226295c53dde798fca4a2d46c7dd995cd728bee5be387648173df4b6364bc913",
+      "research/2026/hiroshima_explicit_match_sandbox_examples_stage13e3g31.csv": "08ad8e10c5fc32bc7e4e51d2109e41d9f50d16566f419bb32279125b027c11ab",
+      "research/2026/hiroshima_fmt025_browse_expected_states_stage13e3g34.csv": "3345154458a1b2046d53c862979f6a6e8277a240551ecb3106f8d1d6ac2105e6",
+      "research/2026/hiroshima_gui_stage13e3g36_acceptance_checklist.csv": "5033753488a286f22425f750fe11433587c35913876ff8bdcc51db10b27ed7d0",
+      "research/2026/hiroshima_gui_stage13e3g41_acceptance_checklist.csv": "18ab42758ff5c83aa659675cbde4bfc631480cf2589d7e4da1c759c0dc044968",
+      "research/2026/hiroshima_official_bracket_pdf_access_audit_2026.csv": "9a23bb11e208122896769289e07f4baa1edcc466b9f76f4dbf5b59e0609b445b",
+      "research/2026/hiroshima_west_official_2025_bracket_comparison.csv": "d9eab9aba8777ccb4c815abd99808c81cd26690cc3a1fdb8212512c3f91b000f",
+      "research/2026/hiroshima_west_remaining11_official_name_candidates_stage13e3g39.csv": "02aa84a6a04e8072aeb9fe61e057cd93736db803f3f46bdf3ab5ba37f3f9876d",
+      "research/2026/hiroshima_west_reviewed_official_name_candidates_stage13e3g38.csv": "2cde2eea3f653dbc8bbb7e7e0a6619add5bda1ccd6daf60234343d133091e76c",
+      "research/2026/hiroshima_west_verified_school_master_ids_stage13e3g39.csv": "eed18d3a3d01810f6aaf22a1ac5310788bd0ec1deaf5ce42586edbe1f6e93272",
+      "research/2026/research_pending_queue.csv": "cd76eb81fc43f7970c124b7637d1eed4fe5da026bfc2080f29099e6b136b2380",
+      "schedules/2026/autumn_recheck_calendar.csv": "ab973a9090c5cc35808e0d6c99e49d3d8431c1e443576b21daef50030edd7935",
+      "schedules/2026/competition_stage_calendar.csv": "d6d6d5c03814f79a9c410f63c7aca4d52ff7e91e5dce5ec0f8b7f1bdfc14435d",
+      "schedules/2026/known_same_day_stage_overlaps.csv": "0946effbda07e38723c41e748e4764e9c8fddb195a7a5b98b209a9de039cee58",
+      "schedules/2026/season_calendar.csv": "1d4d7b0df296dd0525c52844dd5c6b0360b40a70bdb749b5e3f9ec5ccd40599b",
+      "schedules/2026/stage12g_chugoku_match_days_20261006.csv": "93e7fa5ef230294d130f7062e8d448cfc8a4dec9a8156fa02576e2124ba935f8",
+      "schedules/2026/stage12g_hokushinetsu_match_days_20261005.csv": "70ac51a91e6c80c7d5ae22c19004894e59edaef1ffcbb8c4e17856ded1a7248d",
+      "schedules/2026/stage12g_kanto_match_days_20261005.csv": "34d8a39383befbc5cf02c927b798ca564e2dbad84254e4c9fde6dd59450d6609",
+      "schedules/2026/stage12g_kinki_match_days_20261005.csv": "3d258ee196dbcb60073c299e3585e41e1e7a6e0d217292cc775b74a1efb10f33",
+      "schedules/2026/stage12g_kyushu_okinawa_match_days_20261006.csv": "2467b23dc678bef348ef2dd6de25a65874dca9140ea0f89b9751f65d70ee2e3a",
+      "schedules/2026/stage12g_shikoku_match_days_20261006.csv": "1fd7625835dfcc415d7953a0952fccffa62cec8cacc1c8f3226617c17337f593",
+      "schedules/2026/stage12g_tohoku_match_days_20261005.csv": "746e3f71d1e3c961c61492630285f232679a587944618c3de47d55eee272a89a",
+      "schedules/2026/stage12g_tokai_match_days_20261005.csv": "d41804875d5da99423762e3cc355e7dc676622caad12b116183b7a4daf4f6c20",
+      "schedules/2026/stage12g_tokyo_spring_match_days_20261006.csv": "da7624c008d13533a912652722b216a4be391433cb9145390d76e0ee149355c6",
+      "sources/phase2_sources.csv": "dba2999849a811f8cc33339dbcd3ee42f93b19dbedab76ad457a1aa181ae1ed5"
+    },
+    "prefectures": 47,
+    "prior_year_rankings_and_combined_team_school_proxies_are_structural": true,
+    "reference_year": 2026,
+    "regional_playoff_resolutions_separate_from_match_rows": 2,
+    "schools": 3746,
+    "seed": 2026101201,
+    "structural_competition_runs": 162,
+    "structural_matches": 18146,
+    "structural_matches_by_segment": {
+      "autumn": 6665,
+      "spring": 5899,
+      "summer": 5582
+    }
+  },
+  "master_csv_files_sha_unchanged": 106,
+  "measured_on": "2026-10-12",
+  "timezone": "Asia/Tokyo"
+}
