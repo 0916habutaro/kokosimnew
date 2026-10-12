@@ -6,6 +6,7 @@ it does NOT simulate every intervening season or 3000 schools.
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import sqlite3
 import unittest
 
@@ -60,6 +61,9 @@ class Stage43G86CenturyShardScaleTests(unittest.TestCase):
         result = measure_v2_century_shard_scale(
             self.source, self.calendar, paths, stage27.FIRST,
         )
+        print("STAGE43G86_BENCHMARK=" + json.dumps(
+            result, ensure_ascii=False, sort_keys=True,
+        ), flush=True)
         self.assertEqual([4, 16, 32], [
             c["shards"] for c in result["cases"]
         ])
