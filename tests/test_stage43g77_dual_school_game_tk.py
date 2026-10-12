@@ -62,6 +62,39 @@ class Stage43G77V2PagerTests(unittest.TestCase):
         ))
         self.assertFalse(self.fixture.legacy_file.exists())
 
+    def test_v2_multiple_year_pages_30_plus_one(self):
+        from phase2_engine.career_calendar_v2 import explicit_sandbox_plan
+        self.fixture.calendar.record(explicit_sandbox_plan(
+            10001, {stage27.COMP: ["04-01", "04-02"]},
+            approved_for_fictional_game=True,
+        ))
+        for i in range(29):
+            self.fixture.sidecar.append(
+                10001, stage27.full_a(10001, f"V2-NEXT-{i:03d}"),
+            )
+        self.fixture.sidecar.seal_year(10001, expected_match_count=29)
+        before = (
+            file_sha256(self.fixture.v2_file),
+            file_sha256(self.fixture.calendar_file),
+        )
+        first = self.pager.apply_filters(10000, 10001)
+        self.assertEqual(31, first["total"])
+        self.assertEqual(30, len(first["records"]))
+        self.assertTrue(self.pager.can_next)
+        tail = self.pager.move(1)
+        self.assertEqual(30, self.pager.offset)
+        self.assertEqual(1, len(tail["records"]))
+        self.assertEqual(10001, tail["records"][0]["year"])
+        self.assertFalse(self.pager.can_next)
+        self.assertEqual(tail, self.pager.move(1))
+        front = self.pager.move(-1)
+        self.assertEqual(0, self.pager.offset)
+        self.assertEqual(30, len(front["records"]))
+        self.assertEqual(before, (
+            file_sha256(self.fixture.v2_file),
+            file_sha256(self.fixture.calendar_file),
+        ))
+
     def test_invalid_filters_preserve_current_page(self):
         before = (
             self.pager.start_year, self.pager.end_year,
