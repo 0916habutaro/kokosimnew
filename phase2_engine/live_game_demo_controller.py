@@ -44,7 +44,7 @@ def pin(saves):
     safe_directory(slot)
     result = {}
     for p in slot.iterdir():
-        if p.is_symlink() or not p.is_file() or p.name not in _FILES:
+        if p.is_symlink() or not p.is_file() or p.name not in _FILES or p.stat().st_nlink != 1:
             raise ValueError('未確認の保存ファイルです')
         result[p.name] = hashlib.sha256(p.read_bytes()).hexdigest()
     if not {'manual.json', 'slot_metadata.json', 'historical_matches.sqlite3'} <= result.keys():

@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from phase2_engine.live_game_demo_controller import DemoController, pin, demo_read_handles
 from phase2_engine.live_game_demo_worker import ROOT, SLOT
+from phase2_engine.live_game_demo_worker import run as private_worker
 from phase2_engine.manual_save_backup import _compatibility
 import stage43g97_acceptance_support as oracle
 
@@ -72,6 +73,14 @@ class Stage43G98ControllerTests(unittest.TestCase):
         self.assertTrue(moved.is_dir())
 
     def test_unknown_slot_sources_overwrite_unsealed_and_double_operation_refused(self):
+        external = Path(self.temp) / 'unconfirmed-save'
+        external.mkdir()
+        sentinel = external / 'personal.txt'
+        sentinel.write_text('保護対象', encoding='utf-8')
+        with self.assertRaises(ValueError):
+            private_worker(dict(saves=str(external), action='new', source='manual'))
+        self.assertEqual(['personal.txt'], [p.name for p in external.iterdir()])
+        self.assertEqual('保護対象', sentinel.read_text(encoding='utf-8'))
         for slot in ('foreign','../save',''):
             with self.assertRaises(ValueError): self.c.execute('new', slot_id=slot)
         self.c.execute('new')

@@ -7,6 +7,7 @@ from dataclasses import replace
 import json
 from pathlib import Path
 import sys
+import tempfile
 
 from game_core.tournament_bridge import AbilityMatchResolver
 from .engine import TournamentEngine
@@ -51,6 +52,12 @@ def services(saves):
 
 def run(request):
     saves = Path(request['saves'])
+    # Private child protocol accepts only the controller's disposable staging
+    # namespace. Accidentally invoking it with a normal save path is refused.
+    if (saves.name != 'saves' or not saves.parent.name.startswith('stage98-work-')
+            or saves.parent.parent != Path(tempfile.gettempdir()).resolve()
+            or saves.resolve() != saves.absolute() or not saves.is_dir()):
+        raise ValueError('隔離作業領域以外は利用できません')
     action, source = request['action'], request['source']
     if action not in ('new', 'load', 'manual', 'today', 'day', 'next_match', 'seal'):
         raise ValueError('未対応の操作です')
