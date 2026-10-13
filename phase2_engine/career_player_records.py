@@ -7,6 +7,7 @@ as gaps, not zero-filled evidence. Career player IDs, not names, are keys.
 from __future__ import annotations
 
 from collections import defaultdict
+from contextlib import closing
 import hashlib
 import json
 import sqlite3
@@ -64,7 +65,7 @@ class CareerPlayerRecordView:
         if not self.rosters.db_path.is_file():
             return {}
         identities = {}
-        with sqlite3.connect(self.rosters.db_path) as conn:
+        with closing(sqlite3.connect(self.rosters.db_path)) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(
                 "SELECT player_id, school_id, entry_year, identity_json, "
@@ -91,72 +92,73 @@ class CareerPlayerRecordView:
         cache = {}
         if not self.matches.db_path.is_file():
             return
-        for row in _iter_school_games(
+        with closing(_iter_school_games(
             self.matches.db_path, school_id, start_year, end_year,
-        ):
-            raw = row["payload_json"]
-            if hashlib.sha256(raw.encode("utf-8")).hexdigest() != row["record_sha256"]:
-                raise CareerHistoryViewConflict("match SHA changed")
-            match = json.loads(raw)
-            if (match.get("year") != row["year"]
-                    or match.get("competition_id") != row["competition_id"]
-                    or match.get("match_id") != row["match_id"]
-                    or match.get("team1_id") != row["team1_id"]
-                    or match.get("team2_id") != row["team2_id"]
-                    or match.get("team1_score") != row["team1_score"]
-                    or match.get("team2_score") != row["team2_score"]
-                    or match.get("winner_id") not in
-                    (row["team1_id"], row["team2_id"])):
-                raise CareerHistoryViewConflict("match identity changed")
-            if school_id not in (match["team1_id"], match["team2_id"]):
-                raise CareerHistoryViewConflict("match school membership changed")
-            scores = (match["team1_score"], match["team2_score"])
-            if (any(type(v) is not int or v < 0 for v in scores)
-                    or scores[0] == scores[1]
-                    or match["winner_id"] != match[
-                        "team1_id" if scores[0] > scores[1] else "team2_id"
-                    ]):
-                raise CareerHistoryViewConflict("match score/winner differs")
-            batters = match.get("batter_stats")
-            pitchers = match.get("pitcher_stats")
-            if batters is None and pitchers is None:
-                yield match["year"], match["match_id"], None, None
-                continue
-            if not isinstance(batters, list) or not isinstance(pitchers, list):
-                raise CareerHistoryViewConflict("partial/inconsistent Option-A box score")
-            year = match["year"]
-            if year not in cache:
-                roster = self.rosters.roster(year, school_id)
-                if roster is None:
-                    raise CareerHistoryViewConflict("school-year roster absent for A stats")
-                cache[year] = {p.player_id for p in roster.players}
-            seen = set()
-            school_rows = {"batting": [], "pitching": []}
-            for kind, values, keys in (
-                ("batting", batters, BATTER), ("pitching", pitchers, PITCHER),
-            ):
-                for item in values:
-                    if not isinstance(item, dict):
-                        raise CareerHistoryViewConflict("invalid player game row")
-                    if item.get("school_id") != school_id:
-                        continue
-                    pid = item.get("player_id")
-                    if (not isinstance(pid, str) or pid not in identities
-                            or pid not in cache[year]
-                            or (kind, pid) in seen):
-                        raise CareerHistoryViewConflict("player game attribution differs")
-                    seen.add((kind, pid))
-                    for field in keys:
-                        v = item.get(field)
-                        if type(v) is not int or v < 0:
-                            raise CareerHistoryViewConflict("invalid nonnegative player stat")
-                    if kind == "batting":
-                        if (item["hits"] > item["at_bats"]
-                                or item["doubles"] + item["triples"] +
-                                item["home_runs"] > item["hits"]):
-                            raise CareerHistoryViewConflict("invalid batting hit breakdown")
-                    school_rows[kind].append(item)
-            yield year, match["match_id"], school_rows["batting"], school_rows["pitching"]
+        )) as rows:
+            for row in rows:
+                raw = row["payload_json"]
+                if hashlib.sha256(raw.encode("utf-8")).hexdigest() != row["record_sha256"]:
+                    raise CareerHistoryViewConflict("match SHA changed")
+                match = json.loads(raw)
+                if (match.get("year") != row["year"]
+                        or match.get("competition_id") != row["competition_id"]
+                        or match.get("match_id") != row["match_id"]
+                        or match.get("team1_id") != row["team1_id"]
+                        or match.get("team2_id") != row["team2_id"]
+                        or match.get("team1_score") != row["team1_score"]
+                        or match.get("team2_score") != row["team2_score"]
+                        or match.get("winner_id") not in
+                        (row["team1_id"], row["team2_id"])):
+                    raise CareerHistoryViewConflict("match identity changed")
+                if school_id not in (match["team1_id"], match["team2_id"]):
+                    raise CareerHistoryViewConflict("match school membership changed")
+                scores = (match["team1_score"], match["team2_score"])
+                if (any(type(v) is not int or v < 0 for v in scores)
+                        or scores[0] == scores[1]
+                        or match["winner_id"] != match[
+                            "team1_id" if scores[0] > scores[1] else "team2_id"
+                        ]):
+                    raise CareerHistoryViewConflict("match score/winner differs")
+                batters = match.get("batter_stats")
+                pitchers = match.get("pitcher_stats")
+                if batters is None and pitchers is None:
+                    yield match["year"], match["match_id"], None, None
+                    continue
+                if not isinstance(batters, list) or not isinstance(pitchers, list):
+                    raise CareerHistoryViewConflict("partial/inconsistent Option-A box score")
+                year = match["year"]
+                if year not in cache:
+                    roster = self.rosters.roster(year, school_id)
+                    if roster is None:
+                        raise CareerHistoryViewConflict("school-year roster absent for A stats")
+                    cache[year] = {p.player_id for p in roster.players}
+                seen = set()
+                school_rows = {"batting": [], "pitching": []}
+                for kind, values, keys in (
+                    ("batting", batters, BATTER), ("pitching", pitchers, PITCHER),
+                ):
+                    for item in values:
+                        if not isinstance(item, dict):
+                            raise CareerHistoryViewConflict("invalid player game row")
+                        if item.get("school_id") != school_id:
+                            continue
+                        pid = item.get("player_id")
+                        if (not isinstance(pid, str) or pid not in identities
+                                or pid not in cache[year]
+                                or (kind, pid) in seen):
+                            raise CareerHistoryViewConflict("player game attribution differs")
+                        seen.add((kind, pid))
+                        for field in keys:
+                            v = item.get(field)
+                            if type(v) is not int or v < 0:
+                                raise CareerHistoryViewConflict("invalid nonnegative player stat")
+                        if kind == "batting":
+                            if (item["hits"] > item["at_bats"]
+                                    or item["doubles"] + item["triples"] +
+                                    item["home_runs"] > item["hits"]):
+                                raise CareerHistoryViewConflict("invalid batting hit breakdown")
+                        school_rows[kind].append(item)
+                yield year, match["match_id"], school_rows["batting"], school_rows["pitching"]
 
     @staticmethod
     def _blank() -> dict:
@@ -209,18 +211,19 @@ class CareerPlayerRecordView:
 
     def _aggregate(self, school_id: str, start_year: int, end_year: int):
         entries = {}
-        for year, _mid, batters, pitchers in self._iterate(
+        with closing(self._iterate(
             school_id, start_year, end_year,
-        ):
-            if batters is None:
-                # Retained Option A may coexist with older score-only games.
-                # Do not fabricate plate appearances for those games.
-                continue
-            for kind, records in (("batting", batters), ("pitching", pitchers)):
-                for row in records:
-                    key = (row["player_id"], year)
-                    target = entries.setdefault(key, self._blank())
-                    self._add(target, kind, row)
+        )) as rows:
+            for year, _mid, batters, pitchers in rows:
+                if batters is None:
+                    # Retained Option A may coexist with older score-only games.
+                    # Do not fabricate plate appearances for those games.
+                    continue
+                for kind, records in (("batting", batters), ("pitching", pitchers)):
+                    for row in records:
+                        key = (row["player_id"], year)
+                        target = entries.setdefault(key, self._blank())
+                        self._add(target, kind, row)
         return entries
 
     def player_seasons(self, player_id: str, *,

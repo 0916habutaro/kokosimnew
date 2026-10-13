@@ -19,7 +19,9 @@ import stat
 from time import perf_counter
 
 from .legacy_backup_oracle import Refused as OracleRefused, TABLES, facts, ro, live_and_membership
-from .legacy_backup_compatibility import CATALOG, CATALOG_VERSION, CATALOG_DIGEST
+from .legacy_backup_compatibility import (
+    CATALOG, CATALOG_VERSION, CATALOG_DIGEST, VERIFIED_CATALOG_DIGESTS,
+)
 from .live_season_save import DEFAULT_RESOLVER_CONTRACT, _validate_save_payload
 from .save_inventory_audit import InventoryRefused, inventory_slot
 from .save_slots import SaveSlotManager
@@ -334,7 +336,9 @@ def verify_candidate(*, candidate):
         if (root / 'COMPLETE').read_text(encoding='utf-8') != VERSION+'\n'+_sha(raw_evidence)+'\n':
             raise BackupRefused('invalid_completion_receipt')
         evidence = _read_json(root / 'evidence.json')
-        if evidence['version'] != VERSION or evidence['catalog_version'] != CATALOG_VERSION:
+        catalog_version = evidence['catalog_version']
+        if (evidence['version'] != VERSION or type(catalog_version) is not str
+                or catalog_version not in VERIFIED_CATALOG_DIGESTS):
             raise BackupRefused('unsupported_candidate_version')
         sid = SaveSlotManager.validate_slot_id(evidence['slot_id'])
         source = evidence['source']
@@ -348,12 +352,43 @@ def verify_candidate(*, candidate):
         if (set(before) != expected or copied != evidence['payload_files']
                 or _logical_digest(raw) != evidence['logical_digest']
                 or compat_pin != evidence['compatibility_files'] or set(compat_pin) != set(CATALOG)
-                or _sha(_encoded(compat_pin)) != CATALOG_DIGEST):
+                or _sha(_encoded(compat_pin)) != VERIFIED_CATALOG_DIGESTS[catalog_version]):
             raise BackupRefused('candidate_content_mismatch')
         if _anchor(root) != before:
             raise BackupRefused('candidate_changed_during_verification')
         result = _summary(live, players)
         result.update(read_only=True, evidence_authenticated=False)
+        return result
+    return _safe_call(run)
+
+
+def diagnose_candidate_compatibility(*, candidate):
+    """Separate candidate consistency from installed inputs and replay authority.
+
+    Never execute candidate Python, load a game, copy a save or approve replay.
+    Even matching catalog bytes do not prove generation provenance, the runtime
+    or all historical inputs. Those need separate review and owned experiments.
+    """
+    def run():
+        root = _path(candidate)
+        before = _anchor(root)
+        result = verify_candidate(candidate=root)
+        evidence = _read_json(root / 'evidence.json')
+        try:
+            installed = _compatibility(Path(__file__).resolve().parents[1])
+        except BackupRefused as error:
+            if str(error) != 'compatibility_missing_or_unknown_version':
+                raise
+            status, match = 'installed_catalog_unrecognized', False
+        else:
+            match = (evidence['catalog_version'] == CATALOG_VERSION
+                     and installed == evidence['compatibility_files'])
+            status = 'separate_replay_review_required' if match else 'catalog_mismatch_refused'
+        if _anchor(root) != before:
+            raise BackupRefused('candidate_changed_during_verification')
+        result.update(candidate_content_verified=True, installed_catalog_match=match,
+                      replay_status=status, current_code_replay_allowed=False,
+                      candidate_code_executed=False, generation_provenance_verified=False)
         return result
     return _safe_call(run)
 
@@ -370,11 +405,13 @@ def main(argv=None):
         if command == 'export':
             p.add_argument('--destination', required=True)
     commands.add_parser('verify').add_argument('--candidate', required=True)
+    commands.add_parser('compatibility').add_argument('--candidate', required=True)
     args = vars(parser.parse_args(argv))
     command = args.pop('command')
     try:
         result = {'diagnose': diagnose_backup, 'export': export_backup,
-                  'verify': verify_candidate}[command](**args)
+                  'verify': verify_candidate,
+                  'compatibility': diagnose_candidate_compatibility}[command](**args)
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
         return 0
     except BackupRefused as error:

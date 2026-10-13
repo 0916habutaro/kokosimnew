@@ -10,6 +10,7 @@ import hashlib
 import json
 from pathlib import Path
 import sqlite3
+from contextlib import closing
 from typing import Literal
 
 from .career_longitudinal_read import CareerLongitudinalReadModel
@@ -115,9 +116,9 @@ class CareerHistoryBrowseModel:
         # connection and must not create the database or any index.
         if not self.history.db_path.is_file():
             return []
-        with sqlite3.connect(
+        with closing(sqlite3.connect(
             self.history.db_path.resolve().as_uri() + "?mode=ro", uri=True
-        ) as conn:
+        )) as conn:
             rows = conn.execute(
                 "SELECT year,status,match_count FROM career_years "
                 "ORDER BY year"
@@ -181,7 +182,7 @@ class CareerHistoryBrowseModel:
                 "limit": limit, "offset": offset,
                 "status_is_graduation_proof": False,
             }
-        with sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True) as conn:
+        with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)) as conn:
             conn.row_factory = sqlite3.Row
             total = conn.execute(
                 "SELECT COUNT(*) FROM career_player_identities "
@@ -297,9 +298,9 @@ class CareerHistoryBrowseModel:
             self._competition(competition_id)
         if not self.history.db_path.is_file():
             return {"rows": [], "total": 0}
-        with sqlite3.connect(
+        with closing(sqlite3.connect(
             self.history.db_path.resolve().as_uri() + "?mode=ro", uri=True
-        ) as conn:
+        )) as conn:
             conn.row_factory = sqlite3.Row
             where = "year=?"
             args: list = [year]
@@ -359,9 +360,9 @@ class CareerHistoryBrowseModel:
             raise ValueError("match ID required")
         if not self.history.db_path.is_file():
             raise ValueError("match archive missing")
-        with sqlite3.connect(
+        with closing(sqlite3.connect(
             self.history.db_path.resolve().as_uri() + "?mode=ro", uri=True
-        ) as conn:
+        )) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT payload_json,record_sha256 FROM historical_matches "

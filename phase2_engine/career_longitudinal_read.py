@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 from .career_roster_archive import CareerRosterArchive, CareerRosterConflictError
@@ -17,7 +18,7 @@ from .historical_match_archive import HistoricalMatchArchive
 def _iter_school_games(path: Path, school_id: str,
                        start_year: int, end_year: int):
     """Single-index school history generator: rows stay in SQLite until read."""
-    with sqlite3.connect(path) as conn:
+    with closing(sqlite3.connect(path)) as conn:
         conn.row_factory = sqlite3.Row
         cursor = conn.execute(
             """
@@ -99,45 +100,46 @@ class CareerLongitudinalReadModel:
                 page.append(group)
             total_groups += 1
 
-        for record in rows:
-            raw = record["payload_json"]
-            if hashlib.sha256(raw.encode("utf-8")).hexdigest() != record["record_sha256"]:
-                raise CareerHistoryViewConflict("archived match digest differs")
-            data = json.loads(raw)
-            if (data["year"] != record["year"]
-                    or data["competition_id"] != record["competition_id"]
-                    or data["match_id"] != record["match_id"]
-                    or data["team1_id"] != record["team1_id"]
-                    or data["team2_id"] != record["team2_id"]
-                    or data["team1_score"] != record["team1_score"]
-                    or data["team2_score"] != record["team2_score"]
-                    or data["winner_id"] not in (
-                        record["team1_id"], record["team2_id"]
-                    )):
-                raise CareerHistoryViewConflict("archived match identity differs")
-            first = school_id == data["team1_id"]
-            a = data["team1_score"] if first else data["team2_score"]
-            b = data["team2_score"] if first else data["team1_score"]
-            if a is None or b is None:
-                raise CareerHistoryViewConflict("archived completed score missing")
-            if ((a > b) != (data["winner_id"] == school_id)):
-                raise CareerHistoryViewConflict("archived winner differs from score")
-            key = (record["year"], record["competition_id"])
-            if key != current_key:
-                flush()
-                current_key = key
-                group = {
-                    "year": record["year"],
-                    "competition_id": record["competition_id"],
-                    "games": 0, "wins": 0, "losses": 0,
-                    "runs_for": 0, "runs_against": 0,
-                    "historical_record_source": "archived_game_scores",
-                }
-            group["games"] += 1
-            group["wins"] += int(a > b)
-            group["losses"] += int(a < b)
-            group["runs_for"] += a
-            group["runs_against"] += b
+        with closing(rows):
+            for record in rows:
+                raw = record["payload_json"]
+                if hashlib.sha256(raw.encode("utf-8")).hexdigest() != record["record_sha256"]:
+                    raise CareerHistoryViewConflict("archived match digest differs")
+                data = json.loads(raw)
+                if (data["year"] != record["year"]
+                        or data["competition_id"] != record["competition_id"]
+                        or data["match_id"] != record["match_id"]
+                        or data["team1_id"] != record["team1_id"]
+                        or data["team2_id"] != record["team2_id"]
+                        or data["team1_score"] != record["team1_score"]
+                        or data["team2_score"] != record["team2_score"]
+                        or data["winner_id"] not in (
+                            record["team1_id"], record["team2_id"]
+                        )):
+                    raise CareerHistoryViewConflict("archived match identity differs")
+                first = school_id == data["team1_id"]
+                a = data["team1_score"] if first else data["team2_score"]
+                b = data["team2_score"] if first else data["team1_score"]
+                if a is None or b is None:
+                    raise CareerHistoryViewConflict("archived completed score missing")
+                if ((a > b) != (data["winner_id"] == school_id)):
+                    raise CareerHistoryViewConflict("archived winner differs from score")
+                key = (record["year"], record["competition_id"])
+                if key != current_key:
+                    flush()
+                    current_key = key
+                    group = {
+                        "year": record["year"],
+                        "competition_id": record["competition_id"],
+                        "games": 0, "wins": 0, "losses": 0,
+                        "runs_for": 0, "runs_against": 0,
+                        "historical_record_source": "archived_game_scores",
+                    }
+                group["games"] += 1
+                group["wins"] += int(a > b)
+                group["losses"] += int(a < b)
+                group["runs_for"] += a
+                group["runs_against"] += b
         flush()
         return {
             "school_id": school_id,
@@ -180,7 +182,7 @@ class CareerLongitudinalReadModel:
         if not self.rosters.db_path.is_file():
             return {"school_id": school_id, "players": [], "total": 0,
                     "limit": limit, "offset": offset}
-        with sqlite3.connect(self.rosters.db_path) as conn:
+        with closing(sqlite3.connect(self.rosters.db_path)) as conn:
             conn.row_factory = sqlite3.Row
             total = conn.execute(
                 "SELECT COUNT(*) FROM career_player_identities WHERE school_id=?",

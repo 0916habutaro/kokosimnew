@@ -5,8 +5,16 @@ integrity evidence. No per-file original/CSV SHA list is published here.
 Backup tooling, user/private files and arbitrary working directories are excluded.
 Regenerate this version only in a reviewed replay dependency change.
 """
-CATALOG_VERSION = 'stage43g94-main-2854ee7-v1'
-CATALOG_DIGEST = 'be823620b3b673a718c2e7c1b28bdb1ddc442ed57575e09af2f78e424d293257'
+LEGACY_CATALOG_VERSION = 'stage43g94-main-2854ee7-v1'
+LEGACY_CATALOG_DIGEST = 'be823620b3b673a718c2e7c1b28bdb1ddc442ed57575e09af2f78e424d293257'
+CATALOG_VERSION = 'stage43g99-explicit-lifetime-v1'
+CATALOG_DIGEST = '30bceb1248e1dab70725b2a6515824f1433f85ffd05ca870bd844d1a19fdfd9b'
+# Content validation only. No old-code execution, runtime/replay allowlist,
+# authenticity claim, migration or restore authority is granted by this map.
+VERIFIED_CATALOG_DIGESTS = {
+    LEGACY_CATALOG_VERSION: LEGACY_CATALOG_DIGEST,
+    CATALOG_VERSION: CATALOG_DIGEST,
+}
 CATALOG = ('config/abilities/ability_catalog_v1.json',
  'config/abilities/ability_scale_v1.json',
  'config/abilities/player_generation_v1.json',
