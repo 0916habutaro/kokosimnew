@@ -1,0 +1,95 @@
+name: Stage43G-98 Windows integrated Tk demo
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage98-game-tk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows_controller:
+    name: Windows Python 3.12 demo controller
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - name: Preserve fixed compatibility catalog bytes
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Generated demo lifecycle and refusal tests
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path audit-results | Out-Null
+          python tests/stage43g98_audit.py --require-windows --json-output audit-results/controller.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: stage43g98-windows-controller
+          path: audit-results/*.json
+          if-no-files-found: error
+          retention-days: 14
+
+  windows_native_tk:
+    name: Windows Python 3.12 native mapped Tk game pilot
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - name: Preserve fixed compatibility catalog bytes
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Actual buttons new progress saves exit restart and history
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path audit-results | Out-Null
+          python tests/stage43g98_audit.py --require-windows --gui --json-output audit-results/native-tk.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: stage43g98-windows-native-tk
+          path: audit-results/*.json
+          if-no-files-found: error
+          retention-days: 14
+
+  linux_auxiliary:
+    name: Auxiliary Linux controller and mapped Tk
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install auxiliary display
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+      - name: Same generated demo and real Tk events
+        run: |
+          mkdir -p audit-results
+          python tests/stage43g98_audit.py --json-output audit-results/controller.json
+          xvfb-run -a python tests/stage43g98_audit.py --gui --json-output audit-results/tk.json
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: stage43g98-linux-auxiliary
+          path: audit-results/*.json
+          if-no-files-found: error
+          retention-days: 14
