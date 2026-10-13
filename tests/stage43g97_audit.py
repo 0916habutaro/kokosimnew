@@ -31,7 +31,7 @@ def main(argv=None):
     report = dict(stage='43G-97', os=platform.system(), python=platform.python_version(),
         tests=result.testsRun, skipped=len(result.skipped), errors=len(result.errors),
         failures=len(result.failures), successful=bool(success), seconds=round(perf_counter()-start,3),
-        fixture_only=True, metrics=metrics, native_windows=sys.platform=='win32',
+        fixture_only=True, fixture_handle_cleanup=True, product_handle_lifetime_proven=False, metrics=metrics, native_windows=sys.platform=='win32',
         real_tk=args.gui, gui_close_restart_cycles=2 if args.gui and success else 0,
         production_restore_added=False, official_game_gui_complete=False,
         real_user_manual_operation_verified=False)

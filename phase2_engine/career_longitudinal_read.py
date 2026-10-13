@@ -6,7 +6,6 @@ result is read-only; no thousands-of-schools full-history JSON is materialized.
 from __future__ import annotations
 
 import hashlib
-from contextlib import closing
 import json
 import sqlite3
 from pathlib import Path
@@ -18,7 +17,7 @@ from .historical_match_archive import HistoricalMatchArchive
 def _iter_school_games(path: Path, school_id: str,
                        start_year: int, end_year: int):
     """Single-index school history generator: rows stay in SQLite until read."""
-    with closing(sqlite3.connect(path)) as conn:
+    with sqlite3.connect(path) as conn:
         conn.row_factory = sqlite3.Row
         cursor = conn.execute(
             """
@@ -181,7 +180,7 @@ class CareerLongitudinalReadModel:
         if not self.rosters.db_path.is_file():
             return {"school_id": school_id, "players": [], "total": 0,
                     "limit": limit, "offset": offset}
-        with closing(sqlite3.connect(self.rosters.db_path)) as conn:
+        with sqlite3.connect(self.rosters.db_path) as conn:
             conn.row_factory = sqlite3.Row
             total = conn.execute(
                 "SELECT COUNT(*) FROM career_player_identities WHERE school_id=?",

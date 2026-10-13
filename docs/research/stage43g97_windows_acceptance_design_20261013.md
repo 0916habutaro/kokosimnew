@@ -35,8 +35,8 @@
 ## Windows固有の受入
 
 - 新規/ロードの子プロセスは絶対data/config/saveパスと異なるcwd、日本語パスを使う。製品CLIの相対既定値があらゆるcwdで使えると主張しない。
-- SQLite接続をネイティブのまま追跡し、生きたPython参照を保持していても操作後`SELECT`が「closed database」となることを確認。GC任せやテスト側の強制closeで合格させない。例外時のrollbackとcloseも確認する。
-- ロスター・大会結果・学校/選手閲覧の接続寿命だけ修正する。schema/保存内容/過年度台帳を変更しない。
+- SQLite接続はネイティブのまま使い、fixture内で既存Stage94の`owned_sqlite_handles`を適用して、例外後も明示解放する。生きた参照を保持したままfixture scope終了後`SELECT`が「closed database」となることを確認。これは**fixtureのhandle管理の検証であり製品側のhandle寿命修正の証明ではない**。製品側の一部旧読取/ロスター/大会結果APIはGCに依存する。
+- 製品ソース338ファイルはStage94互換性カタログで固定されているため変更しない。製品のhandle寿命修正は旧候補verifyを維持する互換性設計と合わせて次Stageで判断する。schema/保存内容/過年度台帳を変更しない。
 - 全handle解放後に日本語保存directoryをrenameして再読取する。**使用中ファイルのrenameやbackupが常に成功する保証ではない**。停止前の独立backupの拒否はStage94–96の既存回帰で維持する。
 - GUIはWindows runnerの本物のTk・表示window・イベントループを使う。XvfbはLinux補助のみ。人がWindows実機で操作した検証とは区別する。
 
@@ -57,7 +57,7 @@ mainのbranch protectionは取得時`protected=false`。今回の「必須」は
 |優先度|次工程の候補|必要な接続/判断|
 |---|---|---|
 |1|起動→新規/続きから→日付/試合→保存の統合画面設計|LiveGameService、能力resolver/ロスター供給契約、SaveSlotManagerの明示source選択。実装前に画面範囲をレビュー|
-|1|ロスター・大会結果・保存の一貫したライフサイクル|現在テストが手動で結ぶ部分をサービスに統合する設計。既存save互換・例外時整合を先に定義|
+|1|ロスター・大会結果・保存の一貫したライフサイクルとSQLite handle管理|現在テストが手動で結ぶ部分をサービスに統合する設計。GC依存handleを明示closeする前にStage94固定互換性closure/旧候補verifyの維持を設計。既存save互換・例外時整合を先に定義|
 |2|ゲームから保存履歴への閲覧導線|スロットID→CareerHistorySlotSession。進行中年度表示と封印年度表示を分ける仕様。学校戦績集計の日本語画面接続|
 |2|年度更新の操作導線|年度封印→翌年ロスター→複数大会グラフ構築・資格/feeder。台帳登録だけを翌年ゲーム開始と見なさない|
 |3|ゲーム内容・日常利用の実機受入|Windows PCで新規・終了・再開・成績閲覧を人が確認。長期全career/全国100・200年実進行は別検証|

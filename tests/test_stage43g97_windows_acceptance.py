@@ -22,6 +22,7 @@ class Stage43G97AcceptanceTests(unittest.TestCase):
         self.addCleanup(game.close)
         return game
 
+    @lab.owned_sqlite_handles()
     def verify_views(self, game, expected):
         before = lab.pin(game.slot)
         session = CareerHistorySlotSession(game.saves, lab.SLOT)
@@ -133,7 +134,7 @@ class Stage43G97AcceptanceTests(unittest.TestCase):
         db.write_bytes(original)
         self.verify_views(game, expected)
 
-    def test_native_connections_closed_even_with_live_references_and_rollback(self):
+    def test_fixture_connections_cleanup_rollback_and_rename(self):
         from phase2_engine.career_roster_archive import CareerRosterArchive
         game = self.game(); expected = game.ready()
         stage96, service, resolver, engine = lab.services(game.root)
@@ -141,7 +142,7 @@ class Stage43G97AcceptanceTests(unittest.TestCase):
         def connect(*args, **kwargs):
             con = original_connect(*args, **kwargs); handles.append(con); return con
         try:
-            with patch.object(sqlite3, 'connect', connect):
+            with patch.object(sqlite3, 'connect', connect), lab.owned_sqlite_handles():
                 self.verify_views(game, expected)
                 resumed = service.load_game(lab.SLOT, source='manual', engine=engine)
                 outcomes = stage96.CareerCompetitionOutcomes(game.slot/'historical_matches.sqlite3')

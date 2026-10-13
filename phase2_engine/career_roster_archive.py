@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-from contextlib import closing, contextmanager
+from contextlib import closing
 from dataclasses import asdict
 from pathlib import Path
 
@@ -89,17 +89,6 @@ class CareerRosterArchive:
         conn.row_factory = sqlite3.Row
         return conn
 
-    @contextmanager
-    def _connection(self):
-        """Finish the transaction and release the Windows file handle."""
-        conn = None
-        try:
-            with self._connect() as conn:
-                yield conn
-        finally:
-            if conn is not None:
-                conn.close()
-
     @staticmethod
     def _get(conn: sqlite3.Connection, year: int, school_id: str):
         row = conn.execute(
@@ -161,7 +150,7 @@ class CareerRosterArchive:
     def save_initial_roster(self, roster: SchoolRoster) -> dict:
         if roster.cohort_policy != "initial_v1":
             raise ValueError("first saved roster must be the initial cohort")
-        with self._connection() as conn:
+        with self._connect() as conn:
             conn.executescript(_SCHEMA)
             with conn:
                 present = conn.execute(
@@ -192,7 +181,7 @@ class CareerRosterArchive:
         The entire operation is transactional; no partial new roster or
         partial identity set survives a collision or validation error.
         """
-        with self._connection() as conn:
+        with self._connect() as conn:
             conn.executescript(_SCHEMA)
             with conn:
                 previous = self._get(conn, next_year - 1, team.school_id)
@@ -210,7 +199,7 @@ class CareerRosterArchive:
     def roster(self, year: int, school_id: str) -> SchoolRoster | None:
         if not self.db_path.is_file():
             return None
-        with closing(sqlite3.connect(self.db_path)) as conn:
+        with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             return self._get(conn, year, school_id)
 
@@ -287,7 +276,7 @@ class CareerRosterArchive:
     def school_years(self, school_id: str) -> list[int]:
         if not self.db_path.is_file():
             return []
-        with closing(sqlite3.connect(self.db_path)) as conn:
+        with sqlite3.connect(self.db_path) as conn:
             return [
                 row[0] for row in conn.execute(
                     "SELECT year FROM career_school_rosters "

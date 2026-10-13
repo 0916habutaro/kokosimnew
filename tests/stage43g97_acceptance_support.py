@@ -9,6 +9,8 @@ import subprocess
 import sys
 import tempfile
 
+from stage43g94_fixture_support import owned_sqlite_handles
+
 ROOT = Path(__file__).resolve().parents[1]
 SLOT = 'owned97'
 DETAILS = ('inning_scores', 'team_stats', 'batter_stats', 'pitcher_stats')
