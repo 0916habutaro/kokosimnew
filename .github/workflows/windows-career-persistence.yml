@@ -1,0 +1,98 @@
+name: Stage43G-100 Windows explicit career persistence
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage43g100-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows_product:
+    name: Windows Python 3.12 service commits rollback and two old candidates
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - name: Preserve reviewed catalog input bytes
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Fourteen product and true pre-post compatibility tests with zero skips
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path audit-results | Out-Null
+          python tests/stage43g100_audit.py --require-windows --json-output audit-results/product.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: stage43g100-windows-product
+          path: audit-results/*.json
+          if-no-files-found: error
+          retention-days: 14
+
+  windows_native_tk:
+    name: Windows Python 3.12 native Tk six-game process restart and sealed history
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - name: Preserve reviewed input bytes
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Mapped Tk both sources and readonly school player ranking
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path audit-results | Out-Null
+          python tests/stage43g100_audit.py --require-windows --gui --json-output audit-results/tk.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: stage43g100-windows-native-tk
+          path: audit-results/*.json
+          if-no-files-found: error
+          retention-days: 14
+
+  linux_auxiliary:
+    name: Auxiliary Linux explicit persistence and mapped Tk
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y xvfb
+      - name: Same disposable fixtures with zero target skips
+        run: |
+          mkdir -p audit-results
+          python tests/stage43g100_audit.py --json-output audit-results/product.json
+          xvfb-run -a python tests/stage43g100_audit.py --gui --json-output audit-results/tk.json
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: stage43g100-linux-auxiliary
+          path: audit-results/*.json
+          if-no-files-found: error
+          retention-days: 14

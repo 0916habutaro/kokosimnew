@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from copy import deepcopy
 from typing import Callable
 
 from phase2_engine.models import MatchResolution
@@ -51,6 +52,67 @@ class AbilityMatchResolver:
             tuple[int, int, str],
             SchoolRoster,
         ] = {}
+        # Explicitly prepared initial sources outlive the performance caches.
+        # Default resolvers never create this persistence authority implicitly.
+        self._initial_roster_source: dict[str, SchoolRoster] = {}
+        self._initial_roster_scope = None
+
+    def prepare_initial_rosters(self, *, reference_year: int,
+                                generation_seed: int, school_ids: tuple[str, ...]) -> None:
+        """Pin deterministic bootstrap inputs BEFORE any game/replay consumes them.
+
+        Historical providers and custom generators are separate contracts. This
+        narrow source is only the reviewed built-in initial generator with a
+        fixed season seed; it is not a snapshot of whichever cache happens to exist.
+        """
+        scope = (reference_year, generation_seed, school_ids)
+        if (type(reference_year) is not int or reference_year < 1
+                or type(generation_seed) is not int
+                or self.roster_provider is not None
+                or type(self.roster_generator) is not PlayerRosterGenerator
+                or self._fixed_team_generation_seed != generation_seed
+                or len(school_ids) != len(set(school_ids)) or not school_ids):
+            raise ValueError("unsupported initial roster source")
+        if self._initial_roster_scope is not None:
+            if self._initial_roster_scope != scope:
+                raise ValueError("initial roster source scope changed")
+            self.initial_roster_snapshot(reference_year=reference_year,
+                generation_seed=generation_seed, school_ids=school_ids)
+            return
+        if self._team_cache or self._roster_cache:
+            raise ValueError("initial roster source must precede match inputs")
+        sources = {sid: self.roster_generator.generate_for_school_id(
+            self.repo, sid, reference_year, generation_seed) for sid in school_ids}
+        self._initial_roster_source = deepcopy(sources)
+        self._initial_roster_scope = scope
+
+    def initial_roster_snapshot(self, *, reference_year: int,
+                               generation_seed: int, school_ids: tuple[str, ...]) -> tuple[SchoolRoster, ...]:
+        """Return detached, provenance-checked inputs, never generate missing sources."""
+        if (self._initial_roster_scope != (reference_year, generation_seed, school_ids)
+                or set(self._initial_roster_source) != set(school_ids)
+                or self.roster_provider is not None
+                or type(self.roster_generator) is not PlayerRosterGenerator
+                or self._fixed_team_generation_seed != generation_seed):
+            raise ValueError("missing or changed initial roster source")
+        for sid in school_ids:
+            roster = self._initial_roster_source[sid]
+            expected = self.roster_generator.generate_for_school_id(
+                self.repo, sid, reference_year, generation_seed)
+            if roster.to_dict() != expected.to_dict():
+                raise ValueError("initial roster source provenance mismatch")
+            key = (reference_year, generation_seed, sid)
+            if key in self._roster_cache and self._roster_cache[key].to_dict() != roster.to_dict():
+                raise ValueError("cached roster disagrees with initial source")
+            if key in self._team_cache:
+                expected_abilities = tuple(self.ability_generator.iter_roster(
+                    roster.players, reference_year, generation_seed))
+                expected_team = TeamMatchInput(school_id=sid,
+                    team_strength=self.team_generator.generate(expected_abilities),
+                    player_abilities=expected_abilities)
+                if self._team_cache[key] != expected_team:
+                    raise ValueError("cached match input disagrees with initial source")
+        return tuple(deepcopy(self._initial_roster_source[sid]) for sid in school_ids)
 
     def clear_cache(self) -> None:
         self._team_cache.clear()
@@ -126,7 +188,12 @@ class AbilityMatchResolver:
         if cached is not None:
             return cached
 
-        if self.roster_provider is None:
+        if self._initial_roster_scope is not None:
+            year, seed, schools = self._initial_roster_scope
+            if (reference_year, team_seed) != (year, seed) or school_id not in schools:
+                raise ValueError("match outside prepared initial roster scope")
+            roster = deepcopy(self._initial_roster_source[school_id])
+        elif self.roster_provider is None:
             roster = self.roster_generator.generate_for_school_id(
                 self.repo, school_id, reference_year, team_seed,
             )

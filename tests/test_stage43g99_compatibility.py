@@ -46,6 +46,10 @@ class Stage43G99CompatibilityTests(unittest.TestCase):
             'phase2_engine/career_history_browse_model.py',
             'phase2_engine/career_longitudinal_read.py',
             'phase2_engine/career_player_records.py',
+            # Stage100 preserves the original five lifetime changes and binds
+            # its two replay dependencies under a separate reviewed version.
+            'phase2_engine/live_game_service.py',
+            'game_core/tournament_bridge.py',
         }, changed)
         with patch.object(LiveGameService, 'load_game', side_effect=AssertionError('writer')):
             verified = product.verify_candidate(candidate=self.old)
