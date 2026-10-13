@@ -10,7 +10,7 @@ LEGACY_CATALOG_DIGEST = 'be823620b3b673a718c2e7c1b28bdb1ddc442ed57575e09af2f78e4
 STAGE99_CATALOG_VERSION = 'stage43g99-explicit-lifetime-v1'
 STAGE99_CATALOG_DIGEST = '30bceb1248e1dab70725b2a6515824f1433f85ffd05ca870bd844d1a19fdfd9b'
 CATALOG_VERSION = 'stage43g100-initial-career-persistence-v1'
-CATALOG_DIGEST = '628c109b0c0f4ce9fd8ac32ed3c326aa711eb84317dcbee30155d54027067e82'
+CATALOG_DIGEST = '8155f4a39d9ee1081845b78c16dc9c5d5a0b6cc6510fce4a20de5d38fb046d46'
 # Content validation only. No old-code execution, runtime/replay allowlist,
 # authenticity claim, migration or restore authority is granted by this map.
 VERIFIED_CATALOG_DIGESTS = {

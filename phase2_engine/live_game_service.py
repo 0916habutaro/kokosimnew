@@ -299,6 +299,9 @@ class InitialCareerPersistence:
 class LiveGameService:
     """Facade used by future GUI/CLI for new/load/save and day progression."""
 
+    # Preserve the opt-out default for existing lightweight facade fixtures too.
+    career_persistence: InitialCareerPersistence | None = None
+
     def __init__(
         self,
         repo: DataRepository,
