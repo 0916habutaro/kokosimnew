@@ -180,7 +180,9 @@ class DemoController:
             if action != 'new' and selected + '.json' not in before['files']:
                 raise ValueError('選択した保存元がありません')
             temp = tempfile.TemporaryDirectory(prefix='stage98-work-')
-            staged = Path(temp.name) / 'saves'
+            # Normalize Windows TEMP short names before the child namespace
+            # comparison; the controller still owns this newly created dir.
+            staged = Path(temp.name).resolve() / 'saves'
             if action == 'new':
                 staged.mkdir()
             else:
