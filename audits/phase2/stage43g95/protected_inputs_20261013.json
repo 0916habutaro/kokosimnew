@@ -1,0 +1,10 @@
+{
+  "stage": "43G-95",
+  "csv_count": 106,
+  "csv_set_and_sha_unchanged": true,
+  "existing_workspace_save_files": 4,
+  "existing_workspace_save_set_and_sha_unchanged": true,
+  "user_saves_used_as_test_inputs": false,
+  "production_save_restore_tests": 0,
+  "production_save_content_validation": "unverified"
+}
