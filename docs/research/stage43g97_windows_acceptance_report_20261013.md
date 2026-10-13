@@ -10,6 +10,8 @@ Issue #249、PR #248マージ後のmainから`stage43g97-windows-acceptance`で�
 
 ## 検証と証拠の見方
 
+Stage96のWindows既存workflowは主要20件・Stage95 20件・Stage94 38件が通過した後、年次回帰中に20分上限で打ち切られた。ログ上は主要回帰約12分14秒、Stage95約4分28秒、Stage94約1分25秒を要していた。限定CI調整としてWindowsだけ上限を30分に延長し、Linuxは20分を維持する。検証を省略せず最新headで全Checksを再確認する。
+
 - `tests/stage43g97_audit.py`のheadless 3件：別プロセス生成/保存/再生、全試合詳細・学校勝敗・代表打者/投手の独立集計、全fileの読取不変、破損拒否と原本bytesからの再試行、native接続をfixture scope終了時に明示解放、rollback/終了後rename。
 - 実Tk 1件：表示window・Tkイベントループ、年度/学校/スコア/イニング/打撃/投手/選手表示、誤slot拒否/再読込、終了とroot再生成2回。Windows CIは`--require-windows`を必須にし、skipが1件でもあれば失敗する。
 - 全Python3.12 unittest、関東17校E2E、影響した既存backup/履歴/保存回帰は既存Checksで維持する。今回の新CIは毎PRにWindows小規模必須受入とLinux補助受入を実行する。Windows全suiteの週次/手動実行は設計提案に留める。

@@ -52,6 +52,8 @@
 
 mainのbranch protectionは取得時`protected=false`。今回の「必須」はPRでWindows新job、Linux補助、全unittest、関東17校、および起動した既存CIがすべて成功する受入条件を指す。管理者のbranch protection設定変更は行わない。PRのChecksは最新headで確認し、成功後も未マージで止める。
 
+既存Stage96 workflowはWindowsの実測で20分上限に到達したため、Windowsのみ30分へ延長する（Linux20分は維持）。主要再生・隔離copy・backup・年次・実Tkの全チェックを残し、skip追加やfail無視は行わない。
+
 ## 正式GUIに進む前の不足・優先度案
 
 |優先度|次工程の候補|必要な接続/判断|
