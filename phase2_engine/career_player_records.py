@@ -7,6 +7,7 @@ as gaps, not zero-filled evidence. Career player IDs, not names, are keys.
 from __future__ import annotations
 
 from collections import defaultdict
+from contextlib import closing
 import hashlib
 import json
 import sqlite3
@@ -64,7 +65,7 @@ class CareerPlayerRecordView:
         if not self.rosters.db_path.is_file():
             return {}
         identities = {}
-        with sqlite3.connect(self.rosters.db_path) as conn:
+        with closing(sqlite3.connect(self.rosters.db_path)) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(
                 "SELECT player_id, school_id, entry_year, identity_json, "
