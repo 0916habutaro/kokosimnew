@@ -183,7 +183,7 @@ class CareerCompetitionOutcomes:
         result, matches = _main_result(run)
         if not self.archive.db_path.is_file():
             raise CareerOutcomeConflictError("sealed match archive does not exist")
-        with self.archive._connect() as conn:
+        with self.archive._connection() as conn:
             conn.executescript(_SCHEMA)
             with conn:
                 year = result["year"]
@@ -227,7 +227,7 @@ class CareerCompetitionOutcomes:
         """
         if not self.archive.db_path.is_file():
             return {}
-        with self.archive._connect() as conn:
+        with self.archive._connection() as conn:
             conn.executescript(_SCHEMA)
             digest = self._check_seal(conn, year)
             output: dict[str, dict] = {}
