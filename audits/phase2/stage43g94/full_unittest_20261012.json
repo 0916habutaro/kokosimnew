@@ -1,0 +1,25 @@
+{
+  "tests": 2143,
+  "successful": true,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 2,
+  "initial_run": {
+    "tests": 2143,
+    "failures": 0,
+    "errors": 25,
+    "skipped": 2,
+    "successful": false,
+    "seconds": 1168.015
+  },
+  "spawn_retest": {
+    "tests": 15,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "successful": true,
+    "seconds": 12.922
+  },
+  "harness_issue": "stdin __main__ cannot be imported by multiprocessing spawn; affected Stage90 rerun from guarded file",
+  "unrelated_tests_repeated": false
+}

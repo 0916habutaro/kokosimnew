@@ -2,6 +2,27 @@
 
 高校野球の大会構造・日程・試合進行を扱うゲーム用データ／エンジンの管理リポジトリ。
 
+## Stage 43G-94：停止済み旧Aの手動独立バックアップ
+
+方式Aの第1段として、単大会の検証済み旧A live slotを、新規の独立directoryへ手動exportできます。[対象・制限と設計](docs/research/stage43g94_manual_backup_design_20261012.md)、[ADR-033](docs/adr/ADR-033-manual-independent-backup-adoption.md)を参照してください。複雑なcareer・multi preview・feeder・架空v2混在・不整合は安全に拒否します。
+
+**ゲームと全writerを本当に停止してから実行してください。停止宣言とファイル監査だけでは排他を保証しません。** 以下は説明用の絶対pathです。自分の保存root・slot ID・manual/autosaveを明示し、出力親は既存、出力自身は未存在の場所を指定します。通常のゲーム保存からは自動実行されません。
+
+```bash
+python -m phase2_engine.manual_save_backup diagnose \
+  --save-root /absolute/save-root --slot-id myslot --source manual \
+  --confirm-game-stopped
+python -m phase2_engine.manual_save_backup export \
+  --save-root /absolute/save-root --slot-id myslot --source manual \
+  --destination /absolute/backups/new-candidate --confirm-game-stopped
+python -m phase2_engine.manual_save_backup verify \
+  --candidate /absolute/backups/new-candidate
+```
+
+Windowsでは例えば `--save-root "C:\KokoSim\saves" --destination "D:\Backups\new-candidate"` とします。save領域・実行repoとの包含、既存出力、`..`、リンク/junction/hardlink、tmp/WAL/SHM/journalを拒否します。副作用なしのdiagnoseで対象を確認した後、exportを明示実行してください。
+
+元セーブを書き換えず、全履歴・存在する両live系列・rolling backupsと固定許可版の互換入力を保全します。完了標識のない途中候補は不完全で、再実行も上書きしません。`verify`成功は候補内整合性であり、生成時の外部入力版・所有者認証・ゲーム再開・他PC移送を証明しません。自動backup/restore、元save復元/上書き、import/activation、履歴削除、保存形式移行は提供しません。
+
 ## Stage 43G-89：SQLite保存と読取snapshotの競合監査
 
 v2の試合追加・年度封印が競合すると封印台帳と原本がずれる実問題を、別thread・別接続の決定論的テストで再現し、状態確認と書込みを同じSQLite transactionにしました。索引生成中の更新と最終監視中のrenameも検出します。新規19件・実Tk付き関連79件を検証し、完全A・SHA・既存保存・年数無制限の方針を維持します。
