@@ -5,6 +5,8 @@ on:
     paths:
       - 'tests/*stage43g103*.py'
       - 'tests/*stage43g104*.py'
+      - 'tests/*stage43g105*.py'
+      - 'phase2_engine/registered_*.py'
       - 'phase2_engine/joint_team_registration*.py'
       - "phase2_engine/save_inventory_audit.py"
       - "phase2_engine/live_season_save.py"
