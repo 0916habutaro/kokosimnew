@@ -71,19 +71,23 @@ class InitialCareerPersistence:
             raise ValueError("未対応の初年度保存条件です。8校単大会の出典を確認してください")
         self.resolver = resolver
         self.year, self.seed = plan.year, plan.rng_seed
+        self.roster_seed = self.seed
+        self.competition_school_ids = {self.COMPETITION_ID: self.SCHOOL_IDS}
+        self.expected_match_count = 7
         self.fingerprint = plan_fingerprint(plan)
 
     def prepare(self, plan, engine, contract):
         from .engine import TournamentEngine
         if (contract != self.RESOLVER_CONTRACT
                 or plan_fingerprint(plan) != self.fingerprint
+                or plan.repo is not self.resolver.repo
                 or type(engine) is not TournamentEngine
                 or engine.repo is not self.resolver.repo
                 or engine.main_match_resolver is not self.resolver
                 or engine.pre_main_match_resolver is not self.resolver):
             raise ValueError("保存plan・engine・resolverの出典が一致しません")
         self.resolver.prepare_initial_rosters(reference_year=self.year,
-            generation_seed=self.seed, school_ids=self.SCHOOL_IDS)
+            generation_seed=self.roster_seed, school_ids=self.SCHOOL_IDS)
 
     def _snapshot(self, session):
         self.prepare(session.plan, session.state.engine, session.resolver_contract)
@@ -96,7 +100,7 @@ class InitialCareerPersistence:
                 m.stage_code != 'MAIN' for m in matches):
             raise ValueError("未対応の試合構造です。8校MAIN単大会を確認してください")
         return self.resolver.initial_roster_snapshot(reference_year=self.year,
-            generation_seed=self.seed, school_ids=self.SCHOOL_IDS)
+            generation_seed=self.roster_seed, school_ids=self.SCHOOL_IDS)
 
     def validate(self, session, slot):
         """Preflight all sources and existing records before replacing JSON.
@@ -113,7 +117,7 @@ class InitialCareerPersistence:
         )
         rosters = self._snapshot(session)
         members = {p.player_id: p for r in rosters for p in r.players}
-        if len(members) != 160:
+        if len(members) != 20 * len(self.SCHOOL_IDS):
             raise ValueError("選手IDの重複・ロスター欠落があります")
         normalized = {}
         for competition in session.state.competitions.values():
@@ -122,11 +126,12 @@ class InitialCareerPersistence:
                     continue
                 row = _history_payload(self.year, match.__dict__)
                 detail = match.ability_detail or {}
-                if (row['competition_id'] != self.COMPETITION_ID
+                cid = row['competition_id']
+                if (cid not in self.competition_school_ids
                         or row['stage_code'] != 'MAIN'
-                        or detail.get('team_generation_seed') != self.seed
+                        or detail.get('team_generation_seed') != self.roster_seed
                         or detail.get('generation_seed')
-                        != session.plan.annual_templates[self.COMPETITION_ID].rng_seed
+                        != session.plan.annual_templates[cid].rng_seed
                         or detail.get('winner_id') != row['winner_id']
                         or detail.get('loser_id') != row['loser_id']
                         or row['score_source'] != 'ability_model_v1'
@@ -134,7 +139,7 @@ class InitialCareerPersistence:
                                                    'batter_stats', 'pitcher_stats'))):
                     raise ValueError("完全Option Aの試合出典が欠落・不一致です")
                 opponents = {row['team1_id'], row['team2_id']}
-                if not opponents.issubset(set(self.SCHOOL_IDS)):
+                if not opponents.issubset(set(self.competition_school_ids[cid])):
                     raise ValueError("対象外の所属校です")
                 for key, model, validator in (
                     ('batter_stats', BatterGameStats, validate_batter_game_stats),
@@ -177,6 +182,8 @@ class InitialCareerPersistence:
                             or sum(s['runs_allowed'] for s in pitchers) != stats['runs']
                             or sum(s['hits_allowed'] for s in pitchers) != stats['hits']):
                         raise ValueError("個人成績とチーム成績が一致しません")
+                if row['match_id'] in normalized:
+                    raise ValueError("大会間で試合IDが衝突しています")
                 normalized[row['match_id']] = row
 
         roster_path = slot / 'career_rosters.sqlite3'
@@ -217,34 +224,43 @@ class InitialCareerPersistence:
                 year = conn.execute('SELECT status FROM career_years WHERE year=?', (self.year,)).fetchone()
                 sealed = year is not None and year[0] == 'sealed'
                 stored = {}
-                for raw, digest in conn.execute('SELECT payload_json,record_sha256 FROM historical_matches'):
+                for record in conn.execute('SELECT * FROM historical_matches'):
+                    raw, digest = record['payload_json'], record['record_sha256']
                     row = json.loads(raw)
                     if (hashlib.sha256(raw.encode()).hexdigest() != digest
+                            or any(record[key] != row.get(key) for key in (
+                                'year', 'competition_id', 'match_id', 'match_date', 'date_source',
+                                'team1_id', 'team2_id', 'team1_score', 'team2_score', 'score_source'))
                             or row != normalized.get(row.get('match_id'))):
                         raise ValueError("保存元と試合履歴が一致しません。進行せず保存元を確認してください")
                     stored[row['match_id']] = row
                 if sealed:
                     CareerCompetitionOutcomes._check_seal(conn, self.year)
-                    if stored != normalized or len(normalized) != 7:
+                    if stored != normalized or len(normalized) != self.expected_match_count:
                         raise ValueError("封印済年度の完全なcheckpointが必要です")
         runs = session.state.completed_runs()
         if runs:
-            if set(runs) != {self.COMPETITION_ID}:
+            if not set(runs).issubset(self.competition_school_ids):
                 raise ValueError("対象外の確定大会です")
-            result, matches = _main_result(runs[self.COMPETITION_ID])
-            if (result['year'] != self.year
-                    or runs[self.COMPETITION_ID].rng_seed
-                    != session.plan.annual_templates[self.COMPETITION_ID].rng_seed
-                    or set(runs[self.COMPETITION_ID].entrant_school_ids) != set(self.SCHOOL_IDS)
-                    or set(result['main_entrant_school_ids']) != set(self.SCHOOL_IDS)
-                    or {m.match_id for m in matches} != set(normalized)):
-                raise ValueError("大会MAIN結果と試合保存出典が一致しません")
-            for m in matches:
-                row = normalized[m.match_id]
-                if ((m.team1, m.team2, m.metadata.get('team1_score'), m.metadata.get('team2_score'), m.winner, m.loser)
-                        != (row['team1_id'], row['team2_id'], row['team1_score'],
-                            row['team2_score'], row['winner_id'], row['loser_id'])):
-                    raise ValueError("大会MAIN結果とスコアが一致しません")
+            for cid, run in runs.items():
+                result, matches = _main_result(run)
+                entrants = set(self.competition_school_ids[cid])
+                if (result['year'] != self.year
+                        or result['competition_id'] != cid
+                        or run.rng_seed != session.plan.annual_templates[cid].rng_seed
+                        or set(run.entrant_school_ids) != entrants
+                        or set(result['main_entrant_school_ids']) != entrants
+                        or {m.match_id for m in matches}
+                        != {mid for mid, row in normalized.items() if row['competition_id'] == cid}):
+                    raise ValueError("大会MAIN結果と試合保存出典が一致しません")
+                for m in matches:
+                    row = normalized[m.match_id]
+                    if ((m.team1, m.team2, m.metadata.get('team1_score'), m.metadata.get('team2_score'), m.winner, m.loser)
+                            != (row['team1_id'], row['team2_id'], row['team1_score'],
+                                row['team2_score'], row['winner_id'], row['loser_id'])):
+                        raise ValueError("大会MAIN結果とスコアが一致しません")
+            if sealed and set(runs) != set(self.competition_school_ids):
+                raise ValueError("封印済年度に未完了の大会があります")
         elif sealed:
             raise ValueError("封印済年度の確定大会結果がありません")
         return rosters, sealed
@@ -294,6 +310,139 @@ class InitialCareerPersistence:
                     or result.get('source_match_sha256') != _sha(_canonical(manifest))):
                 raise ValueError("確定大会順位と封印台帳が一致しません")
             return result
+
+
+class SharedSchoolYearPersistence(InitialCareerPersistence):
+    """Opt-in authority for a labelled, self-generated two-MAIN fixture.
+
+    This is not an entrant/qualification authority for the real competitions.
+    Only the reviewed fixture fingerprint is accepted; no arbitrary plan, feeder,
+    provider, same-day competition or future-year scope can be enabled here.
+    The fixed roster recipe has a seed independent of the season/match seeds.
+    """
+
+    RESOLVER_CONTRACT = "shared_school_year_fixture_v1"
+    SEASON_SEED = 2026101201
+    ROSTER_SEED = 430101
+    COMPETITION_IDS = ("CMP000105", "CMP000041")
+    SCHOOL_IDS = tuple(f"SCH{i:06d}" for i in range(196, 202))
+    FIXTURE_ENTRANTS = (
+        ("SCH000196", "SCH000197", "SCH000198", "SCH000199"),
+        ("SCH000196", "SCH000197", "SCH000200", "SCH000201"),
+    )
+
+    @classmethod
+    def verification_plan(cls, repo, data_dir):
+        """Build only the declared fixture, never imply real cross-prefecture access."""
+        from dataclasses import replace
+        from .live_season_planner import LiveSeasonGraphPlan
+        full = LiveSeasonGraphPlanner(repo, data_dir, cls.SEASON_SEED, year=2026).build_plan()
+        for cid, strategy, status in zip(cls.COMPETITION_IDS,
+                ("structural", "summer_area"),
+                ("structure_pending_verification", "verified_structure")):
+            entry = full.entries[cid]
+            if (entry.dependency_family != "root" or entry.strategy != strategy
+                    or entry.has_pre_main or entry.dependency_source_competition_ids
+                    or entry.external_bootstrap_rule_ids
+                    or repo.competitions[cid]["data_status"] != status
+                    or {s["stage_code"] for s in repo.stages(cid)} != {"MAIN"}):
+                raise ValueError("2大会の独立MAIN出典が変更されています")
+        if (tuple(full.annual_templates[cls.COMPETITION_IDS[0]].entrant_school_ids[:4])
+                != cls.FIXTURE_ENTRANTS[0]
+                or tuple(full.annual_templates[cls.COMPETITION_IDS[1]].entrant_school_ids[:6])
+                != cls.SCHOOL_IDS):
+            raise ValueError("自己生成fixtureの学校出典が変更されています")
+        return LiveSeasonGraphPlan(repo=repo, data_dir=Path(data_dir), year=2026,
+            rng_seed=cls.SEASON_SEED,
+            entries={cid: full.entries[cid] for cid in cls.COMPETITION_IDS},
+            annual_templates={cid: replace(full.annual_templates[cid],
+                entrant_school_ids=list(entrants))
+                for cid, entrants in zip(cls.COMPETITION_IDS, cls.FIXTURE_ENTRANTS)},
+            annual_build_strategies={cid: full.annual_build_strategies[cid] for cid in cls.COMPETITION_IDS},
+            calendar_rows=[r for r in full.calendar_rows if r["competition_id"] in cls.COMPETITION_IDS],
+            # Repository stage coverage validator requires the complete reviewed
+            # stage calendar; runtime still instantiates only these two MAINs.
+            stage_calendar_rows=full.stage_calendar_rows,
+            topological_order=list(cls.COMPETITION_IDS),
+            warnings=["自己生成検証fixture: 山梨春の資格未確認。4校入力は実大会正史ではありません"])
+
+    def __init__(self, plan, resolver):
+        from game_core.tournament_bridge import AbilityMatchResolver
+        if (type(resolver) is not AbilityMatchResolver or plan.repo is not resolver.repo
+                or plan_fingerprint(plan) != plan_fingerprint(
+                    self.verification_plan(plan.repo, plan.data_dir))):
+            raise ValueError("未対応の共有年度ロスター条件です。固定検証fixtureを確認してください")
+        self.resolver = resolver
+        self.year, self.seed, self.roster_seed = 2026, self.SEASON_SEED, self.ROSTER_SEED
+        self.competition_school_ids = dict(zip(self.COMPETITION_IDS, self.FIXTURE_ENTRANTS))
+        self.expected_match_count = 6
+        self.fingerprint = plan_fingerprint(plan)
+
+    def _snapshot(self, session):
+        from dataclasses import asdict
+        self.prepare(session.plan, session.state.engine, session.resolver_contract)
+        state = session.state
+        if ((state.year, state.rng_seed) != (self.year, self.seed)
+                or set(state.competitions) != set(self.COMPETITION_IDS)
+                or set(state.status_by_competition) != set(self.COMPETITION_IDS)
+                or {cid: asdict(a) for cid, a in state.annual_templates.items()}
+                != {cid: asdict(a) for cid, a in session.plan.annual_templates.items()}):
+            raise ValueError("年度・大会・runtime入力が共有保存契約と一致しません")
+        dates = {}
+        for cid, scheduled in state.competitions.items():
+            runtime = scheduled.runtime
+            if (not 0 < len(scheduled.matches) <= 3
+                    or runtime.reference_year != self.year
+                    or runtime.generation_seed != session.plan.annual_templates[cid].rng_seed
+                    or tuple(runtime.entrant_school_ids) != self.competition_school_ids[cid]
+                    or (state.status_by_competition[cid] == "completed") != scheduled.is_complete):
+                raise ValueError("未対応の共有MAIN試合構造です")
+            for match in scheduled.matches.values():
+                if match.competition_id != cid or match.stage_code != "MAIN":
+                    raise ValueError("pre-MAIN・依存大会は共有保存契約外です")
+                if match.match_date:
+                    other = dates.setdefault(match.match_date, cid)
+                    if other != cid:
+                        raise ValueError("複数大会同日の入力は共有保存契約外です")
+        return self.resolver.initial_roster_snapshot(reference_year=self.year,
+            generation_seed=self.roster_seed, school_ids=self.SCHOOL_IDS)
+
+    def validate(self, session, slot):
+        """Preflight existing outcomes too, before JSON or any other commit."""
+        from .career_competition_outcomes import (
+            CareerCompetitionOutcomes, _canonical, _main_result, _sha,
+        )
+        rosters, sealed = super().validate(session, slot)
+        path = slot / "historical_matches.sqlite3"
+        if sealed:
+            require_year_end(session.state)
+        if path.is_file():
+            with closing(_read_only(path)) as conn:
+                conn.row_factory = sqlite3.Row
+                if conn.execute("SELECT name FROM sqlite_master WHERE name="
+                        "'historical_competition_outcomes'").fetchone():
+                    rows = conn.execute("SELECT * FROM historical_competition_outcomes").fetchall()
+                    if rows and not sealed:
+                        raise ValueError("未封印年度に確定大会結果があります")
+                    runs = session.state.completed_runs()
+                    for row in rows:
+                        cid = row["competition_id"]
+                        if row["year"] != self.year or cid not in runs:
+                            raise ValueError("対象外の確定大会結果があります")
+                        result, matches = _main_result(runs[cid])
+                        result["source_year_ledger_sha256"] = CareerCompetitionOutcomes._check_seal(conn, self.year)
+                        result["source_match_sha256"] = _sha(_canonical(
+                            CareerCompetitionOutcomes._check_source_matches(conn, self.year, cid, matches)))
+                        raw = _canonical(result)
+                        if row["payload_json"] != raw or row["record_sha256"] != _sha(raw):
+                            raise ValueError("既存大会結果と確定MAINが衝突しています")
+        return rosters, sealed
+
+    def sync_outcomes(self, session, slot):
+        require_year_end(session.state)
+        if set(session.state.completed_runs()) != set(self.COMPETITION_IDS):
+            raise ValueError("全対象大会のMAIN完了を確認してください")
+        return super().sync_outcomes(session, slot)
 
 
 class LiveGameService:
