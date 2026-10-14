@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'tests/*stage43g103*.py'
+      - 'tests/*stage43g104*.py'
+      - 'phase2_engine/joint_team_registration*.py'
       - 'phase2_engine/legacy_quiescent_export_audit.py'
       - 'phase2_engine/save_inventory_audit.py'
       - 'phase2_engine/historical_match_archive.py'

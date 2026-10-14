@@ -30,6 +30,12 @@ jobs:
           New-Item -ItemType Directory -Path audit-results | Out-Null
           python tests/stage43g103_audit.py --require-windows --json-output audit-results/product.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Stage104 registered team contract and six old versions zero skips
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        run: |
+          python tests/stage43g104_audit.py --require-windows --json-output audit-results/stage104-product.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v6
         if: always()
         with:
@@ -53,6 +59,12 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path audit-results | Out-Null
           python tests/stage43g103_audit.py --require-windows --gui --json-output audit-results/tk.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Stage104 mapped team origin school player and failure close zero skips
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        run: |
+          python tests/stage43g104_audit.py --require-windows --gui --json-output audit-results/stage104-tk.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v6
         if: always()
