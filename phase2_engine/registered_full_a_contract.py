@@ -160,3 +160,36 @@ def decode_result(raw):
         return _record(RegisteredTeamFullAResultV1, data)
     except (KeyError, TypeError, json.JSONDecodeError) as exc:
         raise ValueError('invalid registered full-A JSON') from exc
+
+
+def validate_shape(result):
+    """Validate the versioned type tree without generating or simulating a game."""
+    from types import UnionType
+    from typing import get_args, get_origin
+
+    def check(value, annotation):
+        origin, args = get_origin(annotation), get_args(annotation)
+        if origin is UnionType:
+            if not any(valid(value, option) for option in args):
+                raise ValueError('invalid optional scalar type')
+        elif origin is tuple:
+            if type(value) is not tuple or not all(valid(item, args[0]) for item in value):
+                raise ValueError('immutable typed tuple required')
+        elif hasattr(annotation, '__dataclass_fields__'):
+            if type(value) is not annotation:
+                raise ValueError('exact versioned record type required')
+            for field in fields(annotation):
+                check(getattr(value, field.name), field.type)
+        elif type(value) is not annotation:
+            raise ValueError('exact scalar type required')
+
+    def valid(value, annotation):
+        try:
+            check(value, annotation)
+            return True
+        except ValueError:
+            return False
+
+    check(result, RegisteredTeamFullAResultV1)
+    if result.version != VERSION or result.model != MODEL:
+        raise ValueError('unsupported registered full-A version/model')

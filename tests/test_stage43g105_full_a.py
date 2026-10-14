@@ -106,6 +106,21 @@ class Stage105FullATests(unittest.TestCase):
         for events in (r.events[1:], r.events + (first,), (first, first) + r.events[2:]):
             with self.assertRaises(ValueError):
                 self.validate(replace(r, events=events))
+        for group in ('team_stats', 'inning_scores', 'batter_stats', 'pitcher_stats'):
+            rows = getattr(r, group)
+            for field, value in (('year', 2027), ('competition_id', 'other'), ('match_id', 'other'),
+                                 ('team_id', 'SCH000202')):
+                bad = replace(r, **{group: (replace(rows[0], **{field: value}),) + rows[1:]})
+                with self.subTest(group=group, field=field), self.assertRaises(ValueError):
+                    event_oracle(bad, self.match)
+        for innings in (r.inning_scores[:-1], r.inning_scores + (r.inning_scores[-1],)):
+            with self.assertRaises(ValueError):
+                event_oracle(replace(r, inning_scores=innings), self.match)
+        for group in ('batter_stats', 'pitcher_stats'):
+            rows = getattr(r, group)
+            for key, value in (('player_id', 'outside'), ('origin_school_id', r.team1_id)):
+                with self.assertRaises(ValueError):
+                    event_oracle(replace(r, **{group: (replace(rows[0], **{key: value}),) + rows[1:]}), self.match)
         for changes in (dict(version='legacy'), dict(run_seed=1), dict(year=2027), dict(input_sha256='0'*64),
                 dict(probability_config_sha256='0'*64), dict(team1_id='SCH000202'), dict(team1_score=True),
                 dict(events=list(r.events)), dict(ending_half='top'), dict(last_inning=8)):
@@ -122,6 +137,14 @@ class Stage105FullATests(unittest.TestCase):
                 load_result(value, self.match, self.registry, self.repo, self.rosters)
         with self.assertRaises(ValueError):
             legacy_writer_payload(self.result)
+        from phase2_engine.historical_match_archive import HistoricalMatchArchive
+        with tempfile.TemporaryDirectory(prefix='stage105-writer-refusal-') as temp:
+            path = Path(temp)/'forbidden.sqlite3'
+            with self.assertRaises(ValueError):
+                HistoricalMatchArchive(path).sync(year=2026, rng_seed=430104,
+                    resolver_contract='lab105', plan_fingerprint='self-generated',
+                    completed=[self.result.to_dict()])
+            self.assertFalse(path.exists())
         from game_core.match_contract import validate_match_simulation_result
         with self.assertRaises((ValueError, AttributeError, TypeError)):
             validate_match_simulation_result(self.result, self.match)

@@ -5,14 +5,18 @@ from dataclasses import asdict
 from .joint_team_registration_lab import validate_registered_match_input, _identical
 from .registered_full_a_contract import (
     RegisteredTeamFullAResultV1, RegisteredBatterStatsV1, RegisteredPitcherStatsV1,
-    decode_result,
+    decode_result, validate_shape,
 )
 
 
 def event_oracle(result, match):
     """No random draws, driver advancement or driver stat helpers used here."""
+    validate_shape(result)
     teams = {t.team_id: t for t in (match.team1, match.team2)}
     ids = tuple(teams)
+    if (result.year, result.competition_id, result.match_id, result.team1_id, result.team2_id) != (
+            match.year, match.competition_id, match.match_id, *ids):
+        raise ValueError('result scope/teams differ')
     origin = {p.player_id: (t.team_id, p.origin_school_id)
               for t in teams.values() for p in t.players}
     lineup = {tid: [pid for _, _, pid in t.lineup] for tid, t in teams.items()}
@@ -34,19 +38,33 @@ def event_oracle(result, match):
     hits = dict.fromkeys(ids, 0)
     inning_totals = defaultdict(int)
     half_key, outs, occupied, liability = None, 0, {}, {}
+    played_halves = []
     for number, event in enumerate(result.events, 1):
         e = asdict(event)
         if any(e[name] != value for name, value in scope.items()) or e['event_no'] != number:
             raise ValueError('event scope/sequence differs')
+        if event.half not in ('top', 'bottom') or not 1 <= event.inning <= 30:
+            raise ValueError('invalid inning/half')
         attack = ids[0] if event.half == 'top' else ids[1]
         defend = ids[1] if event.half == 'top' else ids[0]
         if (event.offense_team_id, event.defense_team_id) != (attack, defend):
             raise ValueError('event offense/defense differs')
         key = event.inning, event.half
         if key != half_key:
+            expected_key = (1, 'top') if half_key is None else (
+                (half_key[0], 'bottom') if half_key[1] == 'top' else (half_key[0] + 1, 'top'))
+            if key != expected_key:
+                raise ValueError('inning sequence differs')
             if half_key is not None and outs != 3:
                 raise ValueError('incomplete previous half inning')
+            if key[1] == 'bottom' and key[0] >= 9 and runs[ids[1]] > runs[ids[0]]:
+                raise ValueError('played bottom that must be skipped')
+            if key[1] == 'top' and key[0] > 9 and runs[ids[0]] != runs[ids[1]]:
+                raise ValueError('events after decided regulation/extra inning')
             half_key, outs, occupied, liability = key, 0, {}, {}
+            played_halves.append(key)
+        if outs >= 3:
+            raise ValueError('events after third out')
         if event.outs_before != outs or event.bases_before != tuple(occupied.get(i) for i in (1, 2, 3)):
             raise ValueError('base/out discontinuity')
         index = staff_index[defend]
@@ -104,6 +122,9 @@ def event_oracle(result, match):
         outs += int(is_out)
         if outs > 3:
             raise ValueError('too many outs')
+        if (len(set(occupied.values())) != len(occupied)
+                or any(origin[pid][0] != attack for pid in occupied.values())):
+            raise ValueError('duplicate or foreign baserunner')
         b, p = bat[batter], pitch[current]
         b['plate_appearances'] += 1
         b['at_bats'] += int(kind not in ('walk', 'hit_by_pitch'))
@@ -137,12 +158,35 @@ def event_oracle(result, match):
         raise ValueError('independent event score differs')
     if result.last_inning != half_key[0] or result.last_inning < 9 or runs[ids[0]] == runs[ids[1]]:
         raise ValueError('game not completed')
+    if result.ending_half != half_key[1]:
+        raise ValueError('ending half differs')
+    if half_key[1] == 'top':
+        if outs != 3 or runs[ids[1]] <= runs[ids[0]]:
+            raise ValueError('invalid top ending')
+    elif outs != 3 and runs[ids[1]] <= runs[ids[0]]:
+        raise ValueError('incomplete non-walkoff bottom')
+    winner, loser = sorted(ids, key=lambda tid: runs[tid], reverse=True)
+    if (result.winner_id, result.loser_id) != (winner, loser):
+        raise ValueError('winner/loser differs')
+    for name in ('team_stats', 'inning_scores', 'batter_stats', 'pitcher_stats'):
+        for row in getattr(result, name):
+            if any(getattr(row, key) != value for key, value in scope.items()):
+                raise ValueError('statistic scope differs')
+    if tuple(row.team_id for row in result.team_stats) != ids:
+        raise ValueError('missing or duplicate team totals')
     for row in result.team_stats:
         if (row.runs, row.hits, row.errors) != (runs[row.team_id], hits[row.team_id], 0):
             raise ValueError('team totals differ')
+    expected_halves = [(i, half) for i in range(1, result.last_inning + 1) for half in ('top', 'bottom')]
+    if [(r.inning, r.half) for r in result.inning_scores] != expected_halves:
+        raise ValueError('missing or duplicate inning scores')
     for row in result.inning_scores:
-        if row.was_played and row.runs != inning_totals[row.inning, row.half]:
-            raise ValueError('inning score differs')
+        key = row.inning, row.half
+        tid = ids[0] if row.half == 'top' else ids[1]
+        played = key in played_halves
+        if (row.team_id != tid or row.was_played != played
+                or row.runs != (inning_totals[key] if played else None)):
+            raise ValueError('inning score/played flag differs')
     return dict(events=len(result.events), plate_appearances=sum(r['plate_appearances'] for r in bat.values()),
                 pitching_outs=sum(r['outs_recorded'] for r in pitch.values()),
                 strikeouts=sum(r['strikeouts'] for r in pitch.values()),
@@ -158,13 +202,14 @@ def validate_registered_full_a(result, match, registration, repo, rosters, *, ex
     seed = match.match_seed if expected_seed is None else expected_seed
     if type(seed) is not int or not 0 <= seed < 2**63:
         raise ValueError('invalid expected seed')
+    report = event_oracle(result, match)
     # Exact scalar/container types, full schema and probability provenance, and
     # deterministic execution are checked separately from the statistics oracle.
     from .registered_match_driver import _run
     expected = _run(match, seed)
     if not _identical(result, expected):
         raise ValueError('result differs from seeded execution/versioned contract')
-    return event_oracle(result, match)
+    return report
 
 
 def load_result(raw, match, registration, repo, rosters, *, expected_seed=None):
