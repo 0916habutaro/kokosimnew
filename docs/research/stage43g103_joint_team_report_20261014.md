@@ -14,7 +14,7 @@ Issue #261、最新main `8480dc0`から専用ブランチ `stage43g-103-joint-te
 
 ## 実検証と互換性
 
-Linux補助Python3.12.14で専用headless10件21.063秒、native mapped Tk1件0.500秒が成功、双方skip0（aggregate JSONをaudits/phase2/stage43g103に保存）。Tkは3枠の選択→元学校ID／永久ID／学年／入学年を全20人表示し、callback例外なし、DB bytes不変を確認。製品head `7da5dc4` の[専用Windows CI](https://github.com/0916habutaro/kokosimnew/actions/runs/38583924232)でもPython3.12.10 headless10件・native mapped Tk1件が両方成功・skip0。Tkは1.884秒。最終head全CIはPRの実行結果で確認する。
+Linux補助Python3.12.14で専用headless10件35.207秒、native mapped Tk1件0.500秒が成功、双方skip0（aggregate JSONをaudits/phase2/stage43g103に保存）。Tkは3枠の選択→元学校ID／永久ID／学年／入学年を全20人表示し、callback例外なし、DB bytes不変を確認。製品head `7da5dc4` の[専用Windows CI](https://github.com/0916habutaro/kokosimnew/actions/runs/38583924232)でもPython3.12.10 headless10件・native mapped Tk1件が両方成功・skip0。headlessは73.677秒、Tkは1.884秒。最終head全CIはPRの実行結果で確認する。
 
 |実施した検証|実際の証明範囲|
 |---|---|
@@ -29,7 +29,7 @@ Linux補助Python3.12.14で専用headless10件21.063秒、native mapped Tk1件0.
 
 catalog編集前の真のStage102 main旧候補も別プロセスexport/verify済み。今回catalog対象ソースの編集は0、catalog版更新0。94–101の現行replayは従来通り拒否。102のruntime入力版は同一で、合同replayを新たに許可したのではない。候補内容健全性は真正性証明・本番restore認可ではない。
 
-新専用Windows Python3.12 headless10件・native mapped Tk1件をzero skips CI gateとして追加。既存Stage94–102・Windows SQLite/Tk・全Python・関東17校E2Eは維持し、skip追加や失敗黙殺をしない。Linux関東17校E2Eは2件415.354秒、skip0で成功。Linux全unittestは実行中で、完了結果と最終head CI結果をPRに記録する。個人Windows PCでの目視・手操作は未検証。所定既存save rootの候補0件、内容検証・試験入力利用0。
+新専用Windows Python3.12 headless10件・native mapped Tk1件をzero skips CI gateとして追加。既存Stage94–102・Windows SQLite/Tk・全Python・関東17校E2Eは維持し、skip追加や失敗黙殺をしない。Linux関東17校E2Eは2件415.354秒、skip0で成功。全Python unittestの件数・環境別skip、関東17校CI、全14 workflow／33ジョブの最終head結果は[PR #262の検証記録](https://github.com/0916habutaro/kokosimnew/pull/262)を実検証結果の正本として本報告と併読する。文書や集計を追加した後のheadでも全CI成功を確認するまで完了とは判定しない。個人Windows PCでの目視・手操作は未検証。所定既存save rootの候補0件、内容検証・試験入力利用0。
 
 ## 残る設計と停止条件
 
