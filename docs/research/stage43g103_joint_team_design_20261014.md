@@ -101,4 +101,4 @@ Stage102は33独立校／660人／32実試合／64枠・31BYE。目標の32チ�
 
 catalog対象編集前（今回は対象編集自体なし）に真のStage102 mainをgit archiveし、別Pythonプロセスで自己生成旧候補export/verifyした。変更後は真の94/99/100/101/102の5checkoutから別プロセスで候補を作り、read-only内容verify・bytes不変を検証。338catalogの**全入力bytes不変**、106master CSVを含むdata集合／bytesも不変。Stage102のcatalog版を維持する。94–101の現行replayは既存と同様拒否。102は既存と同一のruntime入力版で、合同モデルを追加したからreplay権限を与えたのではない。真正性・本番restore認可は別。
 
-Windows Python3.12専用のheadless10件とmapped Tk1件をzero skips gateにする。Stage94–102既存Windows CI、SQLite lifetime、全Python unittest、関東8都県17校E2Eを維持。Linuxは補助。既存saveは所定rootの件数だけ調べ、内容を使わない。公開artifactには試験集計だけを出し、秘密／絶対path／個別SHA／旧候補内容を載せない。全最終head CI成功後も未マージ・auto-merge無効でレビュー待ち。
+Windows Python3.12専用のheadless10件とmapped Tk1件をzero skips gateにする。Stage91–96の既存6workflowにStage103試験のPR pathsを追加し、jobやLinux／Windows matrixを削らず再実行する。Stage94–102既存Windows CI、SQLite lifetime、全Python unittest、関東8都県17校E2Eを維持。Linuxは補助。既存saveは所定rootの件数だけ調べ、内容を使わない。公開artifactには試験集計だけを出し、秘密／絶対path／個別SHA／旧候補内容を載せない。全最終head CI成功後も未マージ・auto-merge無効でレビュー待ち。

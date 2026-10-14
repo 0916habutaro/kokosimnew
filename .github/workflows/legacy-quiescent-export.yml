@@ -3,6 +3,7 @@ name: Stage43G-93 legacy quiescent export lab
 on:
   pull_request:
     paths:
+      - 'tests/*stage43g103*.py'
       - 'phase2_engine/legacy_quiescent_export_audit.py'
       - 'phase2_engine/save_inventory_audit.py'
       - 'phase2_engine/historical_match_archive.py'

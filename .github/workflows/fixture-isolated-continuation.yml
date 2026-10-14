@@ -3,6 +3,7 @@ name: Stage43G-96 fixture deterministic continuation
 on:
   pull_request:
     paths:
+      - 'tests/*stage43g103*.py'
       - 'phase2_engine/manual_save_backup*.py'
       - 'phase2_engine/legacy_backup*.py'
       - 'phase2_engine/save_inventory_audit.py'

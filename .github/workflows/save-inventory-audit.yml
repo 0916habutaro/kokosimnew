@@ -3,6 +3,7 @@ name: Stage43G-91 save originals inventory (no adoption)
 on:
   pull_request:
     paths:
+      - 'tests/*stage43g103*.py'
       - "phase2_engine/save_inventory_audit.py"
       - "phase2_engine/live_season_save.py"
       - "phase2_engine/save_slots.py"
