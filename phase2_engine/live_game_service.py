@@ -302,10 +302,11 @@ class InitialCareerPersistence:
             if (_sha(raw) != digest or result.get('year') != 2026
                     or result.get('competition_id') != cls.COMPETITION_ID
                     or result.get('status') != 'completed' or result.get('source') != 'game_result'
-                    or len(ranking) != 8 or set(ranking) != set(cls.SCHOOL_IDS)
+                    or len(ranking) != len(cls.SCHOOL_IDS) or set(ranking) != set(cls.SCHOOL_IDS)
                     or result.get('champion_school_id') != ranking[0]
                     or result.get('runner_up_school_id') != ranking[1]
-                    or len(manifest) != 7 or result.get('main_match_count') != 7
+                    or len(manifest) != len(cls.SCHOOL_IDS) - 1
+                    or result.get('main_match_count') != len(cls.SCHOOL_IDS) - 1
                     or result.get('source_year_ledger_sha256') != ledger
                     or result.get('source_match_sha256') != _sha(_canonical(manifest))):
                 raise ValueError("確定大会順位と封印台帳が一致しません")
@@ -324,6 +325,7 @@ class SharedSchoolYearPersistence(InitialCareerPersistence):
     RESOLVER_CONTRACT = "shared_school_year_fixture_v1"
     SEASON_SEED = 2026101201
     ROSTER_SEED = 430101
+    MAX_MAIN_MATCHES = 3
     COMPETITION_IDS = ("CMP000105", "CMP000041")
     SCHOOL_IDS = tuple(f"SCH{i:06d}" for i in range(196, 202))
     FIXTURE_ENTRANTS = (
@@ -399,7 +401,7 @@ class SharedSchoolYearPersistence(InitialCareerPersistence):
         dates = {}
         for cid, scheduled in state.competitions.items():
             runtime = scheduled.runtime
-            if (not 0 < len(scheduled.matches) <= 3
+            if (not 0 < len(scheduled.matches) <= self.MAX_MAIN_MATCHES
                     or runtime.reference_year != self.year
                     or runtime.generation_seed != session.plan.annual_templates[cid].rng_seed
                     or tuple(runtime.entrant_school_ids) != self.competition_school_ids[cid]
@@ -451,6 +453,89 @@ class SharedSchoolYearPersistence(InitialCareerPersistence):
         if set(session.state.completed_runs()) != set(self.COMPETITION_IDS):
             raise ValueError("全対象大会のMAIN完了を確認してください")
         return super().sync_outcomes(session, slot)
+
+
+class Yamanashi33FixturePersistence(SharedSchoolYearPersistence):
+    """Reviewed master-scale game fixture, NOT the official 32-team event.
+
+    No entrant reduction, official seeding, joint-team identity or advancement
+    rights are inferred. Only this pinned 2026 MAIN plan and input version are
+    allowed. Existing Stage100/101 and unspecified services retain their scope.
+    """
+
+    RESOLVER_CONTRACT = "yamanashi33_game_fixture_v1"
+    COMPETITION_ID = "CMP000041"
+    COMPETITION_IDS = (COMPETITION_ID,)
+    SCHOOL_IDS = tuple(f"SCH{i:06d}" for i in range(196, 229))
+    FIXTURE_ENTRANTS = (SCHOOL_IDS,)
+    ROSTER_SEED = 430102
+    MAX_MAIN_MATCHES = 32
+    APPROVED_PLAN = "0859a698ee2e99096897dbc38b7d7a13c003287be155313c1f3e52a992d717ab"
+    APPROVED_INPUTS = "8db8a2a5a7f202ba3fb012c404d2c9b7dac909bf9c2e502c63f5a63338dc8992"
+    WARNING = "ゲーム内検証用33校大会。公式参加32チーム・合同チーム・公式組合せを再現しません"
+
+    @classmethod
+    def verification_plan(cls, repo, data_dir):
+        from .live_season_planner import LiveSeasonGraphPlan
+        full = LiveSeasonGraphPlanner(repo, data_dir, cls.SEASON_SEED, year=2026).build_plan()
+        cid = cls.COMPETITION_ID
+        plan = LiveSeasonGraphPlan(repo=repo, data_dir=Path(data_dir), year=2026,
+            rng_seed=cls.SEASON_SEED, entries={cid: full.entries[cid]},
+            annual_templates={cid: full.annual_templates[cid]},
+            annual_build_strategies={cid: full.annual_build_strategies[cid]},
+            calendar_rows=[r for r in full.calendar_rows if r["competition_id"] == cid],
+            stage_calendar_rows=full.stage_calendar_rows, topological_order=[cid],
+            warnings=[cls.WARNING])
+        if plan_fingerprint(plan) != cls.APPROVED_PLAN:
+            raise ValueError("33校fixtureの確認済planと一致しません。入力を再監査してください")
+        return plan
+
+    def __init__(self, plan, resolver):
+        super().__init__(plan, resolver)
+        self.expected_match_count = self.MAX_MAIN_MATCHES
+        self._check_input_version(plan)
+
+    def _check_input_version(self, plan):
+        # Aggregate version only; no public per-file digest or private save input.
+        from game_core.tournament_bridge import AbilityMatchResolver
+        data = Path(plan.data_dir).resolve()
+        root = data.parent
+        files = sorted([p for p in data.rglob("*") if p.is_file()]
+            + list((root / "config/abilities").glob("*.json"))
+            + list((root / "config/match").glob("*.json")))
+        manifest = [[p.relative_to(root).as_posix(), hashlib.sha256(p.read_bytes()).hexdigest()]
+                    for p in files]
+        digest = hashlib.sha256(json.dumps(manifest, ensure_ascii=False,
+            separators=(",", ":")).encode()).hexdigest()
+        if digest != self.APPROVED_INPUTS:
+            raise ValueError("33校fixtureの外部データ版が一致しません")
+        # Check the actual in-memory repository and config consumers too.
+        reviewed = DataRepository(data)
+        if self.resolver.repo.__dict__ != reviewed.__dict__:
+            raise ValueError("33校fixtureの読み込み済マスターが変更されています")
+        expected = AbilityMatchResolver(reviewed,
+            ability_config_dir=root / "config/abilities", match_config_dir=root / "config/match",
+            team_generation_seed=self.ROSTER_SEED)
+        for name in ("ability_generator", "team_generator", "simulator"):
+            actual, baseline = getattr(self.resolver, name), getattr(expected, name)
+            if type(actual) is not type(baseline) or Path(actual.config_dir).resolve() != Path(baseline.config_dir).resolve():
+                raise ValueError("未証明の33校fixture生成providerです")
+            if actual.params != baseline.params:
+                raise ValueError("33校fixture生成設定が変更されています")
+            if name != "ability_generator" and (
+                    {k: v for k, v in vars(actual).items() if k != "config_dir"}
+                    != {k: v for k, v in vars(baseline).items() if k != "config_dir"}):
+                raise ValueError("33校fixture試合生成recipeが変更されています")
+        ability = self.resolver.ability_generator
+        if (ability.base_generator.__dict__ != expected.ability_generator.base_generator.__dict__
+                or ability.intake_model.__dict__ != expected.ability_generator.intake_model.__dict__):
+            raise ValueError("33校fixture能力生成recipeが変更されています")
+
+    def prepare(self, plan, engine, contract):
+        if plan_fingerprint(plan) != self.APPROVED_PLAN:
+            raise ValueError("33校fixtureの保存planが変更されています")
+        self._check_input_version(plan)
+        super().prepare(plan, engine, contract)
 
 
 class LiveGameService:
