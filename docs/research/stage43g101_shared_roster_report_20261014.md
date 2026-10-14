@@ -6,6 +6,7 @@ Issue #257、PR #256マージ後main `bd83cec`から`stage43g101-shared-year-ros
 
 - 新しい明示契約`SharedSchoolYearPersistence`は、2026山梨春／夏の**自己生成4校×2大会fixture**だけを受理する。共通2校・union6校120選手・6実試合を既存`LiveGameService`／`TournamentEngine`で処理した。春大会の公式資格・全校構造は未確認であり、一般の実大会向け契約を開放したという意味ではない。
 - 年seed2026101201、大会seed263372546／118436847、学校ロスターseed430101を分離。新規runtime／replay前に学校年度正本を固定し、学校集合unionを初回manualから一度保存する。別大会で新規選手を生成せず、同じ永久ID・所属・入学年・学年で個人成績をjoinした。
+- 組込みgeneratorへの独自name_provider差込みも別recipeとして拒否。初回生成前と保存preflightで固定recipeを確認する。拒否回帰は専用scopeテストに含めた。
 - 既存Stage100の8校・160選手・単大会7試合契約と無指定serviceは維持。共通validatorを対象大会別に照合する最小差分とし、新契約の別plan／別契約名・未証明provider・事後cache・学校不足・identity変化・pre-MAIN・依存／同日大会・翌年度は拒否する。
 - 両大会のスコア・イニング別得点・打撃／投手成績・試合日、学校戦績と個人通算、年度ledger、MAIN順位と元試合manifestを独立raw SQL／JSON／SHA oracleで照合した。片方未完了のyear_end_readinessは全対象2大会を数え、封印／outcome確定を拒否する。
 - JSON、学校別roster、試合、年度封印、大会別outcomeは複数commitで非原子的のまま。同一checkpointのみ再試行し、古いsave・変更identity・SQL索引列／payload不一致・ledger／outcome変更はJSON更新前に拒否する。任意破損の修復、電源断耐性、並行writerの原子性は保証しない。
@@ -25,6 +26,8 @@ Issue #257、PR #256マージ後main `bd83cec`から`stage43g101-shared-year-ros
 |ローカルGUI環境|実行サンドボックスがXサーバーのlistening socket作成を拒否し、Tk起動不可。ローカルTk成功とは報告しない。Windows／Linux専用CIで検証する|
 |全Python unittest／関東17校|ローカルPython3.12全suiteは2236件・失敗0・環境別skip46、1357.769秒。関東8都県17校専用2件は成功・skip0、394.666秒。全suiteで既存規約どおり関東重複実行をskipし、専用E2Eで全処理を検証。環境別skipと専用zero skipsは区別し、最終CI結果はPRで記録|
 |既存save|環境に候補JSON2件をファイル名・件数だけ確認。内容を開かず入力利用0件・未検証。CI自己生成以外の候補を使用しない|
+
+固定recipeの独自name_provider拒否を追加した後、scopeの専用1件をローカルで再実行して成功した。全suite／関東17校／Windowsを含む全workflowは更新後の最終headでCIを再実行し、その結果をPRに記録する。
 
 ## 未対応・次工程
 

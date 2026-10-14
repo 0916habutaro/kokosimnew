@@ -12,7 +12,7 @@ STAGE99_CATALOG_DIGEST = '30bceb1248e1dab70725b2a6515824f1433f85ffd05ca870bd844d
 STAGE100_CATALOG_VERSION = 'stage43g100-initial-career-persistence-v1'
 STAGE100_CATALOG_DIGEST = '8155f4a39d9ee1081845b78c16dc9c5d5a0b6cc6510fce4a20de5d38fb046d46'
 CATALOG_VERSION = 'stage43g101-shared-school-year-fixture-v1'
-CATALOG_DIGEST = 'f120e014b7a178eda6fbb96827c2cacf41431ec3b7fb34af8c78a72609f89a0d'
+CATALOG_DIGEST = '1d96a2adc6112cecef6c50f80faed6573c6f2bb0b7fa98c162d3d07a5561dc59'
 # Content validation only. No old-code execution, runtime/replay allowlist,
 # authenticity claim, migration or restore authority is granted by this map.
 VERIFIED_CATALOG_DIGESTS = {

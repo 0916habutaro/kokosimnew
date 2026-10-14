@@ -130,6 +130,11 @@ class Stage43G101SharedRosterTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.new()
         self.resolver.roster_provider = None
+        original_name_provider = self.resolver.roster_generator.name_provider
+        self.resolver.roster_generator.name_provider = lambda *args: ("検証名", "placeholder_v1")
+        with self.assertRaises(ValueError):
+            self.new()
+        self.resolver.roster_generator.name_provider = original_name_provider
         self.resolver.team_input(school_id=Authority.SCHOOL_IDS[0], reference_year=2026,
             generation_seed=Authority.ROSTER_SEED)
         with self.assertRaises(ValueError):

@@ -378,6 +378,14 @@ class SharedSchoolYearPersistence(InitialCareerPersistence):
         self.expected_match_count = 6
         self.fingerprint = plan_fingerprint(plan)
 
+    def prepare(self, plan, engine, contract):
+        from game_core.players import PlayerRosterGenerator
+        generator = self.resolver.roster_generator
+        if (type(generator) is not PlayerRosterGenerator
+                or generator.name_provider is not PlayerRosterGenerator().name_provider):
+            raise ValueError("未証明の初年度生成recipeは共有保存契約外です")
+        super().prepare(plan, engine, contract)
+
     def _snapshot(self, session):
         from dataclasses import asdict
         self.prepare(session.plan, session.state.engine, session.resolver_contract)

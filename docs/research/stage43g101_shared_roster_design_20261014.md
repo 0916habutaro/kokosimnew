@@ -21,6 +21,8 @@ Issue #257、PR #256マージ後main `bd83cec`から専用ブランチ。Windows
 
 新契約はこの固定fixtureだけを受理し、任意大会の許可集合拡大APIにはしない。年度2026・年seed2026101201、独立roster seed430101、built-in generator、完全一致plan fingerprintを固定。大会seedは既存plannerの値を維持する。学校不足／別seed／別plan／外部roster_provider／事後cache／学年・入学年・所属・ID変化はfail closed。両大会の実試合日は別日になることをruntimeで確認する。複数大会同日を新しく認可しない。stage calendarは既存の全stage coverage validatorのため全行をfingerprintに含めるが、runtime／保存対象はこの2大会だけ。
 
+組込みgeneratorと同じクラスでも独自name_providerを差し込んだ入力は別recipeなので拒否する。prepare／各保存preflightでdefault name providerの同一性も確認する。Stage100の単大会recipe契約は変更しない。
+
 ## 保存順序と故障境界
 
 初回manualも試合0件の全6校を保存。preflight→JSON checkpoint→各校roster commit→match archive transaction→年度readiness→manual checkpoint→ledger seal→各大会outcome commit。JSON・roster・match・outcome・slot metadataは複数commitで**非原子的**。新journal／schema migrationは追加しない。
