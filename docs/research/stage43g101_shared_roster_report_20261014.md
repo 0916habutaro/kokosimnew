@@ -15,6 +15,7 @@ Issue #257、PR #256マージ後main `bd83cec`から`stage43g101-shared-year-ros
 |項目|結果／受入条件|
 |---|---|
 |Stage101製品・旧候補専用headless|Python3.12で12件成功・skip0。初回manual→春autosave/manual→両source別プロセスload→夏3試合→全年度封印→両outcomes→両source再ロード／2回再保存|
+|Stage100専用回帰|製品／旧候補14件成功・skip0。8校160選手・完全A7試合・封印結果の既存契約を維持|
 |故障境界|JSON直後、最初／最後の学校commit後、片方大会の試合archive commit後、seal直前／直後、片方／両outcome commit後の応答前停止を注入。別プロセスreplay後、6 rosters／120 identities／6 games／2 outcomesに一致。native handle／例外frameを保持して製品closeをassert|
 |読み取り境界|両大会の学校戦績・各選手通算をSQLから独立集計。閲覧前後の全bytes不変。同一checkpoint再保存のDB bytes不変を、進行・load修復による書込みと区別|
 |Stage94/99/100旧候補|真の固定Git checkoutを別プロセスでexportして内容verifyを受理。現在replayはcatalog_mismatch_refused／allowed=false。候補内容は変更せず、真正性の証明や候補内code実行は行わない。Stage100候補は製品編集前にも私的一時領域へexport・verify済み|
@@ -22,7 +23,7 @@ Issue #257、PR #256マージ後main `bd83cec`から`stage43g101-shared-year-ros
 |Windows重点CI|専用Python3.12製品12件とnative mapped Tk1件をzero skipsで必須。実SQLite close→終了後rename／再読取／integrity_check。既存Stage94–100 CIも維持。最終headの成功はPRで記録|
 |Tk|自己生成2大会を別プロセスload／seal後、既存read-only Tkで共通校・両大会の完全A・永久ID個人成績を表示し、bytes不変と製品closeを検証する。Stage98/100の8校デモUIは変更なし|
 |ローカルGUI環境|実行サンドボックスがXサーバーのlistening socket作成を拒否し、Tk起動不可。ローカルTk成功とは報告しない。Windows／Linux専用CIで検証する|
-|全Python unittest／関東17校|Python3.12全suiteと関東8都県17校専用2件を実行。全suiteで既存規約どおり関東重複実行をskipし、専用E2Eで全処理を検証。環境別skipと専用zero skipsは区別し、最終結果はPRで記録|
+|全Python unittest／関東17校|ローカルPython3.12全suiteは2236件・失敗0・環境別skip46、1357.769秒。関東8都県17校専用2件は成功・skip0、394.666秒。全suiteで既存規約どおり関東重複実行をskipし、専用E2Eで全処理を検証。環境別skipと専用zero skipsは区別し、最終CI結果はPRで記録|
 |既存save|環境に候補JSON2件をファイル名・件数だけ確認。内容を開かず入力利用0件・未検証。CI自己生成以外の候補を使用しない|
 
 ## 未対応・次工程
