@@ -204,11 +204,13 @@ class RegisteredFullALabStore:
     """
     def __init__(self, owner, *, journal_mode='DELETE', timeout=0.1):
         if (type(owner) is not tempfile.TemporaryDirectory or not Path(owner.name).is_dir()
-                or Path(owner.name).absolute() != Path(owner.name).resolve()):
+                or Path(owner.name).is_symlink() or Path(owner.name).is_junction()):
             raise ValueError('live self-owned TemporaryDirectory required')
         if journal_mode not in ('DELETE', 'WAL'):
             raise ValueError('DELETE or WAL required')
         self.owner = owner
+        owner_stat = Path(owner.name).stat()
+        self._owner_identity = (owner_stat.st_dev, owner_stat.st_ino)
         self.db_path = Path(owner.name).resolve() / FILENAME
         self.timeout = timeout
         # Refuse ALL pre-existing files, including product DBs, without opening.
@@ -228,6 +230,9 @@ class RegisteredFullALabStore:
     def append(self, result, match, registration, repo, rosters, *, fault=None):
         if not Path(self.owner.name).is_dir() or self.db_path.is_symlink():
             raise ValueError('owned lab no longer available')
+        owner_stat = Path(self.owner.name).stat()
+        if (owner_stat.st_dev, owner_stat.st_ino) != self._owner_identity:
+            raise ValueError('owned directory was replaced')
         stat = self.db_path.stat()
         if (stat.st_dev, stat.st_ino) != self._file_identity:
             raise ValueError('owned database was replaced')

@@ -34,7 +34,7 @@ JSON二重キー・再SHA後のscore/seed/version改変・元学校ロスター�
 
 teamは当時の登録簿/構成校と試合完全Aを参照する。農林/塩山のどちらからも同じ合同teamの同一試合へ到達し、合同勝利を各校単独勝敗・優勝へ二重計上しない。永久ID検索は元学校所属と実出場投打statsを返し、ベンチの出場履歴は空。学校順位/勝率/歴代集計は未提供。
 
-保存済みreadonly Tkはteam→構成校→永久IDを選び、当時20枠と元学校・score/全inning/全投打statsを表示する。unknown試合・破損DBでは前の全表示/選択肢を消去。終了・別window再起動・DB bytes不変とnative close/rename/reopenを検証した。Linux補助の初回はsandboxの表示ソケット接続で失敗し、Xvfbへ接続できる実行環境で成功した。個人Windows実機で人が操作したとの主張はしない。
+保存済みreadonly Tkはteam→構成校→永久IDを選び、当時20枠と元学校・score/全inning/全投打statsを表示する。unknown試合・破損DBでは前の全表示/選択肢を消去。終了・別window再起動・DB bytes不変とnative close/rename/reopenを検証した。Linux補助の初回はsandboxの表示ソケット接続で失敗し、Xvfbへ接続できる実行環境で成功した。Windows初回CIではTemporaryDirectoryの短縮パスとresolve後の表記を文字列で比較して誤拒否したため、symlink/junction拒否とディレクトリ実体の識別へ修正した。個人Windows実機で人が操作したとの主張はしない。
 
 ## 互換保護・限界
 
