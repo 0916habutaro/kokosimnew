@@ -1,0 +1,37 @@
+{
+  "stage": "43G-102",
+  "python": "3.12.14",
+  "platform": "Linux auxiliary",
+  "product_tests": {
+    "tests": 14,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 535.373
+  },
+  "stage100_101_regressions": {
+    "tests": 26,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 313.619
+  },
+  "full_unittest": {
+    "tests": 2251,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 47,
+    "seconds": 1822.878
+  },
+  "kanto17_e2e": {
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 684.732
+  },
+  "existing_saves_used": 0,
+  "existing_save_verification": "未検証・入力利用なし",
+  "fixture_only": true,
+  "next_year_gameplay_started": false
+}
