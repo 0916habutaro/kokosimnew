@@ -5,13 +5,24 @@ from tkinter import messagebox, ttk
 
 from .live_game_demo_controller import DemoController, demo_read_handles
 from .career_history_tk_pilot import CareerHistoryTkPilot
+from .live_game_service import InitialCareerPersistence
 
 
 class DemoHistoryTk(CareerHistoryTkPilot):
     """Reuse existing readonly screens with event-scoped demo cleanup."""
     def __init__(self, root, session):
+        # Ranking is stored MAIN evidence, not inferred from school win counts.
+        # This small fixed-pilot display has no gameplay or write action.
+        result = InitialCareerPersistence.sealed_results(session.saves_root / session.slot_id)
         with demo_read_handles():
             super().__init__(root, session.bridge, slot_session=session)
+        from .repository import DataRepository
+        from .live_game_demo_worker import ROOT
+        repo = DataRepository(ROOT / 'data')
+        self.ranking_text = '大会確定順位（封印済MAIN結果・読み取り専用）\n' + '\n'.join(
+            f'{rank}位 {repo.team(sid).display_name} [{sid}]'
+            for rank, sid in enumerate(result['ranked_school_ids'], 1))
+        ttk.Label(root, text=self.ranking_text, padding=8).pack(fill='x')
         # The experiment has one immutable history source, no user entry path.
         self.slot_box.configure(state='disabled')
         self.school_entry.configure(state='disabled')

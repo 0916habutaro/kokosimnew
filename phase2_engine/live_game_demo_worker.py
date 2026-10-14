@@ -1,7 +1,7 @@
-"""Stage98 owned-demo child only. Product services remain unchanged.
+"""Owned-demo child using the explicit Stage100 product persistence contract.
 
 The private JSON protocol has no import/restore API. All connections die with
-this process. Roster/outcome wiring below is explicitly pilot-only.
+this process. The static eight-school planner and staging protocol remain demo-only.
 """
 from dataclasses import replace
 import json
@@ -13,9 +13,7 @@ from game_core.tournament_bridge import AbilityMatchResolver
 from .engine import TournamentEngine
 from .repository import DataRepository
 from .live_season_planner import LiveSeasonGraphPlan, LiveSeasonGraphPlanner
-from .live_game_service import LiveGameService
-from .career_roster_archive import CareerRosterArchive
-from .career_competition_outcomes import CareerCompetitionOutcomes
+from .live_game_service import LiveGameService, InitialCareerPersistence
 from .historical_match_archive import HistoricalMatchArchive
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,7 +21,7 @@ SEED = 2026101201
 YEAR = 2026
 CID = 'CMP000029'
 SLOT = 'demo98'
-CONTRACT = 'stage98_ability_demo_v1'
+CONTRACT = InitialCareerPersistence.RESOLVER_CONTRACT
 
 
 def services(saves):
@@ -42,11 +40,12 @@ def services(saves):
         def build_plan(self):
             return plan
 
-    service = LiveGameService(repo, ROOT / 'data', save_root=saves, max_backups=0,
-        resolver_contract=CONTRACT, planner_factory=lambda *args: DemoPlanner())
     resolver = AbilityMatchResolver(repo, ability_config_dir=ROOT / 'config' / 'abilities',
         match_config_dir=ROOT / 'config' / 'match', team_generation_seed=SEED)
     engine = TournamentEngine(repo, main_match_resolver=resolver, pre_main_match_resolver=resolver)
+    service = LiveGameService(repo, ROOT / 'data', save_root=saves, max_backups=0,
+        resolver_contract=CONTRACT, planner_factory=lambda *args: DemoPlanner(),
+        career_persistence=InitialCareerPersistence(plan, resolver))
     return service, resolver, engine
 
 
@@ -106,13 +105,6 @@ def run(request):
             raise ValueError('全試合が終了していません')
         service.advance_through(session, '2026-12-31')
         service.finalize_season(session)
-        # Pilot-only integration. Not a completed production facade contract.
-        outcomes = CareerCompetitionOutcomes(slot / 'historical_matches.sqlite3')
-        for completed in session.state.completed_runs().values():
-            outcomes.record_completed(completed)
-        rosters = CareerRosterArchive(slot / 'career_rosters.sqlite3')
-        for roster in resolver._roster_cache.values():
-            rosters.save_initial_roster(roster)
         service.save_game(session, kind='manual')
         service.save_game(session, kind='autosave')
         active_source, sealed = 'manual', True

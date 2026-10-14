@@ -4,8 +4,14 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Callable
+from contextlib import closing
+import hashlib
+import json
+import sqlite3
 
-from .historical_match_archive import HistoricalMatchArchive
+from .career_option_a_storage_profile import _read_only
+
+from .historical_match_archive import HistoricalMatchArchive, _history_payload
 from .year_transition import require_year_end, year_end_readiness
 from .live_season_planner import (
     LiveSeasonGraphPlanner,
@@ -40,8 +46,261 @@ class LiveGameSession:
         }
 
 
+class InitialCareerPersistence:
+    """Explicit opt-in for the reviewed 2026 eight-school MAIN pilot only.
+
+    The plan and engine are bound before runtime creation/replay. Independent
+    JSON/DB commits are retryable, not one transaction. No migration, feeder or
+    future-year authority is granted by this contract.
+    """
+
+    RESOLVER_CONTRACT = "initial_ability_career_v1"
+    COMPETITION_ID = "CMP000029"
+    SCHOOL_IDS = tuple(f"SCH{i:06d}" for i in range(1862, 1870))
+
+    def __init__(self, plan, resolver):
+        from game_core.tournament_bridge import AbilityMatchResolver
+        if (type(resolver) is not AbilityMatchResolver
+                or plan.repo is not resolver.repo or plan.year != 2026
+                or set(plan.entries) != {self.COMPETITION_ID}
+                or set(plan.annual_templates) != {self.COMPETITION_ID}
+                or plan.topological_order != [self.COMPETITION_ID]
+                or plan.dependency_edges or plan.external_bootstrap_resolutions
+                or tuple(plan.annual_templates[self.COMPETITION_ID].entrant_school_ids)
+                != self.SCHOOL_IDS):
+            raise ValueError("未対応の初年度保存条件です。8校単大会の出典を確認してください")
+        self.resolver = resolver
+        self.year, self.seed = plan.year, plan.rng_seed
+        self.fingerprint = plan_fingerprint(plan)
+
+    def prepare(self, plan, engine, contract):
+        from .engine import TournamentEngine
+        if (contract != self.RESOLVER_CONTRACT
+                or plan_fingerprint(plan) != self.fingerprint
+                or type(engine) is not TournamentEngine
+                or engine.repo is not self.resolver.repo
+                or engine.main_match_resolver is not self.resolver
+                or engine.pre_main_match_resolver is not self.resolver):
+            raise ValueError("保存plan・engine・resolverの出典が一致しません")
+        self.resolver.prepare_initial_rosters(reference_year=self.year,
+            generation_seed=self.seed, school_ids=self.SCHOOL_IDS)
+
+    def _snapshot(self, session):
+        self.prepare(session.plan, session.state.engine, session.resolver_contract)
+        if ((session.state.year, session.state.rng_seed) != (self.year, self.seed)
+                or set(session.state.competitions) != {self.COMPETITION_ID}):
+            raise ValueError("年度・対象大会が保存契約と一致しません")
+        matches = session.state.competitions[self.COMPETITION_ID].matches.values()
+        # Future rounds are added lazily; initial runtime contains four games.
+        if not 0 < len(session.state.competitions[self.COMPETITION_ID].matches) <= 7 or any(
+                m.stage_code != 'MAIN' for m in matches):
+            raise ValueError("未対応の試合構造です。8校MAIN単大会を確認してください")
+        return self.resolver.initial_roster_snapshot(reference_year=self.year,
+            generation_seed=self.seed, school_ids=self.SCHOOL_IDS)
+
+    def validate(self, session, slot):
+        """Preflight all sources and existing records before replacing JSON.
+
+        Missing commits may be retried from a checkpoint of this contract.
+        Divergent records and stale checkpoints fail closed, never overwrite.
+        """
+        from .career_roster_archive import _identity
+        from .career_competition_outcomes import CareerCompetitionOutcomes, _main_result
+        from game_core.match_contract import (
+            BatterGameStats, PitcherGameStats, TeamGameStats,
+            validate_batter_game_stats, validate_pitcher_game_stats,
+            validate_team_game_stats,
+        )
+        rosters = self._snapshot(session)
+        members = {p.player_id: p for r in rosters for p in r.players}
+        if len(members) != 160:
+            raise ValueError("選手IDの重複・ロスター欠落があります")
+        normalized = {}
+        for competition in session.state.competitions.values():
+            for match in competition.matches.values():
+                if match.status != "completed":
+                    continue
+                row = _history_payload(self.year, match.__dict__)
+                detail = match.ability_detail or {}
+                if (row['competition_id'] != self.COMPETITION_ID
+                        or row['stage_code'] != 'MAIN'
+                        or detail.get('team_generation_seed') != self.seed
+                        or detail.get('generation_seed')
+                        != session.plan.annual_templates[self.COMPETITION_ID].rng_seed
+                        or detail.get('winner_id') != row['winner_id']
+                        or detail.get('loser_id') != row['loser_id']
+                        or row['score_source'] != 'ability_model_v1'
+                        or any(not row[k] for k in ('inning_scores', 'team_stats',
+                                                   'batter_stats', 'pitcher_stats'))):
+                    raise ValueError("完全Option Aの試合出典が欠落・不一致です")
+                opponents = {row['team1_id'], row['team2_id']}
+                if not opponents.issubset(set(self.SCHOOL_IDS)):
+                    raise ValueError("対象外の所属校です")
+                for key, model, validator in (
+                    ('batter_stats', BatterGameStats, validate_batter_game_stats),
+                    ('pitcher_stats', PitcherGameStats, validate_pitcher_game_stats),
+                ):
+                    seen = set()
+                    for stats in row[key]:
+                        player = members.get(stats.get('player_id'))
+                        if (player is None or player.school_id != stats.get('school_id')
+                                or player.school_id not in opponents
+                                or player.player_id in seen):
+                            raise ValueError("個人成績の選手ID・所属が一致しません")
+                        if key == 'pitcher_stats' and player.primary_position != 'P':
+                            raise ValueError("投手成績の選手出典が一致しません")
+                        seen.add(player.player_id)
+                        values = {k: v for k, v in stats.items() if k != 'singles'}
+                        if set(values) != set(model.__dataclass_fields__):
+                            raise ValueError("個人成績の項目が欠落しています")
+                        decoded = model(**values)
+                        validator(decoded)
+                        if decoded.to_dict() != stats:
+                            raise ValueError("個人成績の内容が一致しません")
+                    if {s['school_id'] for s in row[key]} != opponents:
+                        raise ValueError("片方の学校の個人成績が欠落しています")
+                events = detail.get('events')
+                if (not isinstance(events, list) or not events
+                        or not {e['batter_id'] for e in events}.issubset(
+                            {s['player_id'] for s in row['batter_stats']})
+                        or not {e['pitcher_id'] for e in events}.issubset(
+                            {s['player_id'] for s in row['pitcher_stats']})):
+                    raise ValueError("実試合参加選手の個人成績が欠落しています")
+                for stats in row['team_stats']:
+                    validator_team = TeamGameStats(**stats)
+                    validate_team_game_stats(validator_team)
+                    sid = stats['school_id']
+                    batters = [s for s in row['batter_stats'] if s['school_id'] == sid]
+                    pitchers = [s for s in row['pitcher_stats'] if s['school_id'] != sid]
+                    if (sum(s['runs'] for s in batters) != stats['runs']
+                            or sum(s['hits'] for s in batters) != stats['hits']
+                            or sum(s['runs_allowed'] for s in pitchers) != stats['runs']
+                            or sum(s['hits_allowed'] for s in pitchers) != stats['hits']):
+                        raise ValueError("個人成績とチーム成績が一致しません")
+                normalized[row['match_id']] = row
+
+        roster_path = slot / 'career_rosters.sqlite3'
+        if roster_path.is_file():
+            expected = {r.school_id: r.to_dict() for r in rosters}
+            with closing(_read_only(roster_path)) as conn:
+                for year, sid, raw, digest in conn.execute(
+                    'SELECT year,school_id,payload_json,content_sha256 FROM career_school_rosters'
+                ):
+                    if (year != self.year or sid not in expected
+                            or hashlib.sha256(raw.encode()).hexdigest() != digest
+                            or json.loads(raw) != expected[sid]):
+                        raise ValueError("既存ロスターと出典が衝突しています。上書きできません")
+                identities = set()
+                for pid, sid, entry, raw, digest in conn.execute(
+                    'SELECT player_id,school_id,entry_year,identity_json,identity_sha256 '
+                    'FROM career_player_identities'
+                ):
+                    player = members.get(pid)
+                    if (player is None or (sid, entry) != (player.school_id, player.entry_year)
+                            or raw != _identity(player)
+                            or hashlib.sha256(raw.encode()).hexdigest() != digest):
+                        raise ValueError("既存選手履歴と出典が衝突しています")
+                    identities.add(pid)
+                for sid, in conn.execute('SELECT school_id FROM career_school_rosters'):
+                    if not {p.player_id for p in members.values() if p.school_id == sid}.issubset(identities):
+                        raise ValueError("既存選手履歴が欠落しています")
+
+        archive = HistoricalMatchArchive(slot / 'historical_matches.sqlite3')
+        sealed = False
+        if archive.db_path.is_file():
+            with closing(_read_only(archive.db_path)) as conn:
+                conn.row_factory = sqlite3.Row
+                identity = conn.execute('SELECT metadata_json FROM archive_identity WHERE id=1').fetchone()
+                if identity is None or identity[0] != archive._identity(
+                        self.year, self.seed, session.resolver_contract, self.fingerprint):
+                    raise ValueError("既存試合履歴のplan・出典が一致しません")
+                year = conn.execute('SELECT status FROM career_years WHERE year=?', (self.year,)).fetchone()
+                sealed = year is not None and year[0] == 'sealed'
+                stored = {}
+                for raw, digest in conn.execute('SELECT payload_json,record_sha256 FROM historical_matches'):
+                    row = json.loads(raw)
+                    if (hashlib.sha256(raw.encode()).hexdigest() != digest
+                            or row != normalized.get(row.get('match_id'))):
+                        raise ValueError("保存元と試合履歴が一致しません。進行せず保存元を確認してください")
+                    stored[row['match_id']] = row
+                if sealed:
+                    CareerCompetitionOutcomes._check_seal(conn, self.year)
+                    if stored != normalized or len(normalized) != 7:
+                        raise ValueError("封印済年度の完全なcheckpointが必要です")
+        runs = session.state.completed_runs()
+        if runs:
+            if set(runs) != {self.COMPETITION_ID}:
+                raise ValueError("対象外の確定大会です")
+            result, matches = _main_result(runs[self.COMPETITION_ID])
+            if (result['year'] != self.year
+                    or runs[self.COMPETITION_ID].rng_seed
+                    != session.plan.annual_templates[self.COMPETITION_ID].rng_seed
+                    or set(runs[self.COMPETITION_ID].entrant_school_ids) != set(self.SCHOOL_IDS)
+                    or set(result['main_entrant_school_ids']) != set(self.SCHOOL_IDS)
+                    or {m.match_id for m in matches} != set(normalized)):
+                raise ValueError("大会MAIN結果と試合保存出典が一致しません")
+            for m in matches:
+                row = normalized[m.match_id]
+                if ((m.team1, m.team2, m.metadata.get('team1_score'), m.metadata.get('team2_score'), m.winner, m.loser)
+                        != (row['team1_id'], row['team2_id'], row['team1_score'],
+                            row['team2_score'], row['winner_id'], row['loser_id'])):
+                    raise ValueError("大会MAIN結果とスコアが一致しません")
+        elif sealed:
+            raise ValueError("封印済年度の確定大会結果がありません")
+        return rosters, sealed
+
+    def sync_rosters(self, rosters, slot):
+        from .career_roster_archive import CareerRosterArchive
+        archive = CareerRosterArchive(slot / 'career_rosters.sqlite3')
+        return [archive.save_initial_roster(r) for r in rosters]
+
+    def sync_outcomes(self, session, slot):
+        from .career_competition_outcomes import CareerCompetitionOutcomes
+        _, sealed = self.validate(session, slot)
+        if not sealed or not session.state.completed_runs():
+            raise ValueError("年度封印と確定MAIN結果を確認してから大会結果を保存してください")
+        outcomes = CareerCompetitionOutcomes(slot / 'historical_matches.sqlite3')
+        return [outcomes.record_completed(run) for run in session.state.completed_runs().values()]
+
+    @classmethod
+    def sealed_results(cls, slot):
+        """Read the pilot's saved ranking with a native read-only connection."""
+        from .career_competition_outcomes import CareerCompetitionOutcomes, _canonical, _sha
+        with closing(_read_only(Path(slot) / 'historical_matches.sqlite3')) as conn:
+            conn.row_factory = sqlite3.Row
+            ledger = CareerCompetitionOutcomes._check_seal(conn, 2026)
+            rows = conn.execute('SELECT payload_json,record_sha256 FROM historical_competition_outcomes '
+                                'WHERE year=2026 AND competition_id=?', (cls.COMPETITION_ID,)).fetchall()
+            if len(rows) != 1:
+                raise ValueError("確定大会結果が不足しています。保存整合性を確認してください")
+            raw, digest = rows[0]
+            result = json.loads(raw)
+            manifest = []
+            for mid, payload, sha in conn.execute('SELECT match_id,payload_json,record_sha256 '
+                    'FROM historical_matches WHERE year=2026 AND competition_id=? ORDER BY match_id',
+                    (cls.COMPETITION_ID,)):
+                if _sha(payload) != sha:
+                    raise ValueError("大会順位の元試合が変更されています")
+                manifest.append([mid, sha])
+            ranking = result.get('ranked_school_ids', [])
+            if (_sha(raw) != digest or result.get('year') != 2026
+                    or result.get('competition_id') != cls.COMPETITION_ID
+                    or result.get('status') != 'completed' or result.get('source') != 'game_result'
+                    or len(ranking) != 8 or set(ranking) != set(cls.SCHOOL_IDS)
+                    or result.get('champion_school_id') != ranking[0]
+                    or result.get('runner_up_school_id') != ranking[1]
+                    or len(manifest) != 7 or result.get('main_match_count') != 7
+                    or result.get('source_year_ledger_sha256') != ledger
+                    or result.get('source_match_sha256') != _sha(_canonical(manifest))):
+                raise ValueError("確定大会順位と封印台帳が一致しません")
+            return result
+
+
 class LiveGameService:
     """Facade used by future GUI/CLI for new/load/save and day progression."""
+
+    # Preserve the opt-out default for existing lightweight facade fixtures too.
+    career_persistence: InitialCareerPersistence | None = None
 
     def __init__(
         self,
@@ -67,12 +326,14 @@ class LiveGameService:
             ]
             | None
         ) = None,
+        career_persistence: InitialCareerPersistence | None = None,
     ):
         if not resolver_contract:
             raise ValueError(
                 "resolver_contract is required"
             )
         self.repo = repo
+        self.career_persistence = career_persistence
         self.data_dir = Path(data_dir)
         self.year = year
         self.resolver_contract = (
@@ -134,6 +395,10 @@ class LiveGameService:
             year=self.year,
         )
         plan = planner.build_plan()
+        if self.career_persistence is not None:
+            if self.slots.slot_dir(slot).exists():
+                raise ValueError("既存セーブへ新規ゲームを上書きできません")
+            self.career_persistence.prepare(plan, engine, self.resolver_contract)
         state = plan.build_runtime(
             engine=engine,
             start_date=start_date,
@@ -180,6 +445,8 @@ class LiveGameService:
             metadata["rng_seed"],
             year=metadata["year"],
         )
+        if self.career_persistence is not None:
+            self.career_persistence.prepare(planner.build_plan(), engine, self.resolver_contract)
         plan, state = self.slots.load(
             slot_id,
             planner,
@@ -212,19 +479,27 @@ class LiveGameService:
         )
 
     def _sync_history(self, session: LiveGameSession) -> dict:
+        slot = self.slots.slot_dir(session.slot_id)
+        persistence = self.career_persistence
+        rosters, sealed = persistence.validate(session, slot) if persistence else ((), False)
+        roster_result = persistence.sync_rosters(rosters, slot) if persistence else None
         completed = (
             match.__dict__
             for scheduled in session.state.competitions.values()
             for match in scheduled.matches.values()
             if match.status == "completed"
         )
-        return self._history_archive(session.slot_id).sync(
+        result = self._history_archive(session.slot_id).sync(
             year=session.state.year,
             rng_seed=session.state.rng_seed,
             resolver_contract=session.resolver_contract,
             plan_fingerprint=plan_fingerprint(session.plan),
             completed=completed,
         )
+        if persistence:
+            result['career_rosters'] = roster_result
+            result['career_outcomes'] = persistence.sync_outcomes(session, slot) if sealed else []
+        return result
 
     def save_game(
         self,
@@ -234,6 +509,8 @@ class LiveGameService:
     ) -> dict:
         # JSON first: if the archive operation fails or the process exits,
         # a later load deterministically replays and retries the archive.
+        if self.career_persistence is not None:
+            self.career_persistence.validate(session, self.slots.slot_dir(session.slot_id))
         saved = self.slots.save(
             session.slot_id,
             session.plan,
@@ -264,6 +541,10 @@ class LiveGameService:
             session.state.year,
             expected_match_count=readiness["completed_match_count"],
         )
+        career_outcomes = None
+        if self.career_persistence is not None:
+            career_outcomes = self.career_persistence.sync_outcomes(
+                session, self.slots.slot_dir(session.slot_id))
         return {
             "action": "finalize_season",
             "year": session.state.year,
@@ -273,6 +554,7 @@ class LiveGameService:
             "save": saved,
             "archive": sealed,
             "next_year_gameplay_started": False,
+            **({'career_outcomes': career_outcomes} if career_outcomes is not None else {}),
         }
 
     def career_history_years(self, slot_id: str) -> list[dict]:
