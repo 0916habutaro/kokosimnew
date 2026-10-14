@@ -190,8 +190,10 @@ def _team_input(team):
     players = tuple(RegisteredAbility(team.team_id, r.player_id, r.origin_school_id,
                     generator.generate(r.player, YEAR, ROSTER_SEED)) for r in team.players)
     positions = ("P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF")
+    # The starting P must also be the first pitcher; never create two starters.
     chosen = [min((p for p in players if p.snapshot.primary_position == position),
-                  key=lambda p: (-p.snapshot.contact, p.player_id)) for position in positions]
+                  key=lambda p: (-(p.snapshot.control if position == "P"
+                                   else p.snapshot.contact), p.player_id)) for position in positions]
     starters = sorted(chosen, key=lambda p: (-p.snapshot.contact, p.player_id))
     lineup = tuple((i, p.snapshot.primary_position, p.player_id)
                    for i, p in enumerate(starters, 1))

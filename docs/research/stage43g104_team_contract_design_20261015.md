@@ -29,7 +29,7 @@ Issue #263。最新Stage103 mainから専用ブランチ。Windows Python3.12を
 
 20登録枠はゲーム用自己生成仮定。選抜はStage103のPOSITION_SLOTSごとの学校交互・未使用最小roster_noを継続。合同は10人ずつ、投手5人。公式の登録制限・両校の実際の選抜割合とは主張しない。出典はjoint_team_fixture.pyのpreviewとgame_core/players.pyのPOSITION_SLOTS。
 
-新試合入力は明示opt-in、固定match seed430104、学校能力seed430103。個人能力はSchoolAwarePlayerAbilityGeneratorの公開APIを元Playerへ適用し学校値を維持。起用recipeはlab版：各primary positionでcontact最大（同点player_id昇順）を選び、contact順に打順、投手はcontrol順。チーム能力は登録20人のcontact/power/fielding平均と投手control平均。これらは**既存TeamStrengthの代替値ではなく、入力の整合確認用要約**。旧確率モデルで使用したとは主張しない。
+新試合入力は明示opt-in、固定match seed430104、学校能力seed430103。個人能力はSchoolAwarePlayerAbilityGeneratorの公開APIを元Playerへ適用し学校値を維持。起用recipeはlab版：野手は各primary positionでcontact最大（同点player_id昇順）、投手枠はcontrol最大を選び、contact順に打順、投手陣はcontrol順。打順のPと先発投手を一致させる。チーム能力は登録20人のcontact/power/fielding平均と投手control平均。これらは**既存TeamStrengthの代替値ではなく、入力の整合確認用要約**。旧確率モデルで使用したとは主張しない。
 
 検証器は元学校正本から台帳／登録／能力／起用／要約を再構築し厳密型も比較する。recipe・年・seed・membership・欠損・重複・元学校・position・fingerprint・能力・打順の改ざんを拒否。modelはpathやsave/rootを受けず、DB writerも持たない。試験だけがTemporaryDirectoryの学校正本を保存し独立SQL/JSON/SHAで照合する。
 

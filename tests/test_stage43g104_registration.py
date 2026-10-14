@@ -169,10 +169,12 @@ class Stage43G104RegistrationTests(unittest.TestCase):
                 self.assertEqual(team.team_id,p.team_id)
             expected=[]
             for pos in ('P','C','1B','2B','3B','SS','LF','CF','RF'):
-                expected.append(sorted((p for p in abilities.values() if p.primary_position==pos),key=lambda p:(-p.contact,p.player_id))[0])
+                expected.append(sorted((p for p in abilities.values() if p.primary_position==pos),
+                    key=lambda p:(-(p.control if pos=='P' else p.contact),p.player_id))[0])
             self.assertEqual(tuple((i,p.primary_position,p.player_id) for i,p in enumerate(sorted(expected,key=lambda p:(-p.contact,p.player_id)),1)),inp.lineup)
             pitchers=sorted((p for p in abilities.values() if p.primary_position=='P'),key=lambda p:(-p.control,p.player_id))
             self.assertEqual(tuple(p.player_id for p in pitchers),inp.pitching_order)
+            self.assertEqual(inp.pitching_order[0],next(pid for _,pos,pid in inp.lineup if pos=='P'))
             self.assertEqual(5,len(pitchers))
             self.assertEqual(sum(p.contact for p in abilities.values())/20,inp.summary.mean_contact)
             self.assertEqual(sum(p.power for p in abilities.values())/20,inp.summary.mean_power)

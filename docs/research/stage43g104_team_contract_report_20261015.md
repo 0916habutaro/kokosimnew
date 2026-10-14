@@ -6,7 +6,7 @@ Issue #263。Stage103を含む最新mainから`stage43g104-team-registration`を
 
 - 4校80人の学校正本を保持し、3出場チーム・60登録枠を新しいimmutable台帳に分離。農林・塩山合同は20人（各10人）という自己生成の検証規則。永久ID、元学校、入学年、学年、元roster_no、positionを不変参照する。
 - 年・大会・team namespace、recipe/version、各学校正本SHAと集合SHA、team_slot、学校参加の読取索引を持つ。名前をjoinに使わず、同名別永久IDを別人として検証する。
-- 明示opt-inの新入力型・validatorを実装。能力は元学校・入学年の既存SchoolAwarePlayerAbilityGeneratorで生成。学校能力seedと試合seed、登録簿recipe、起用recipeを分ける。labの平均能力と打順／投手順は既存TeamStrengthや確率モデルに採用した値ではない。
+- 明示opt-inの新入力型・validatorを実装。能力は元学校・入学年の既存SchoolAwarePlayerAbilityGeneratorで生成。学校能力seedと試合seed、登録簿recipe、起用recipeを分ける。labの平均能力と打順／投手順は既存TeamStrengthや確率モデルに採用した値ではない。打順のPと投手起用順の先頭は一致させ、先発関係をoracleで検証する。
 - 別の読取Tkで3チーム→構成校→元学校／永久ID／学年／入学年／登録番号を表示。試合結果は未対応と明示し、参照失敗時は前表示を消して拒否する。既存8校・33校GUIへ合同結果を混入させない。
 - **合同実試合0件**。新入力が成立しても、旧simulateは個人成績school_idへ対戦側IDを渡す。完全Aの新result/event/stat型、team辞書を使うdriver、元学校検証と独立再集計が未成立。無理なadapter・school_id置換・validator緩和を実装せず、専用例外で旧変換と試合入口を拒否した。
 - BYE／勝上り／3チーム2試合／山梨32チーム31試合は未実施。製品writer・HistoricalMatchArchive・CareerCompetitionOutcomesの保存schemaと338入力catalogを変更していない。ADR-037および追加ADR-038はProposed・未採用。
