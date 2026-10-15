@@ -24,6 +24,22 @@ Stage109専用auditはheadless 16 tests（新規→独立Pythonプロセス1→1
 
 初期のLinux補助試験で、RO SQL接続に対するDELETEでappend-only triggerを試すテスト前提の誤り、非表示タブへのscroll判定、破棄済みTk参照がworker GCへ残る問題を検出した。trigger拒否の専用RW接続、表示タブ選択、Tk所有スレッドでの終了時参照解放へ修正した。RO診断の制約は緩めていない。
 
+## 実測（最終CI前の独立試験）
+
+Linux Python 3.12.14補助headlessは **16 tests / skip 0、361.807秒、成功**。旧11版生成・故障試験を含む。保存層の追加拒否強化試験（WAL header・既存schemaのままseed改変）は別途1件14.675秒で成功した。全660人通算と実出場、元学校、raw SQL/SHA、原本bytes不変、append-only拒否を照合した。
+
+|独立プロセスの進行|作成/再開・検証・進行の秒|終了時DB bytes|
+|---|---:|---:|
+|新規→1試合|11.718135|1,318,912|
+|1→16試合|72.550131|3,223,552|
+|16→31試合|92.430062|5,124,096|
+
+試合ごとの計算・全prefix検証・commit・検証readは3.748769～6.505074秒。最終DBは登録640・学校roster33・team32・membership33・結果31・学校参加63・進出31・同順位32・固定metadata1行。計算のキャッシュで再開検証を省いていない。測定時は他の独立試験も並行しており、性能保証値ではない。
+
+Linux実Tk補助は **2 tests / skip 0、450.499秒、成功**。完全に終了した3つのGUI Pythonプロセスで1→16→31試合、全660人の選択を確認。Linux関東17校E2Eは **2 tests / skip 0、696.155秒、成功**。集計JSONを`audits/phase2/stage43g109/`へ保存した。
+
+先行head `94aceb3` のWindows Python 3.12.10 native mapped Tkも **2 tests / skip 0、240.653秒、成功**（[run](https://github.com/0916habutaro/kokosimnew/actions/runs/38748564286)）。この後、RO接続前のWAL header拒否を追加し、全660人の画面上の通算値照合と各GUIプロセスの時間/DBサイズ計測を強化した。最終headではWindows専用headless/実Tk、旧11版、全unittest、関東E2E、既存必須CIを再受入し、確定結果をPR本文に記録する。
+
 ## 残課題・高速化案
 
 Windows runnerでの実Tk自動操作と、本人の個人PCでのマウス操作を区別する。個人Windowsの手操作・ログインセッション/OS再起動跨ぎは未実施で、日本語手順を別添した。固定位置の同一実体を再開する狭い試験で、移動/コピーimportやjournal回復手段は提供しない。実体IDを検証できないファイルシステムは拒否する。

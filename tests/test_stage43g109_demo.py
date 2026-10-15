@@ -86,6 +86,11 @@ class Stage109DemoTests(unittest.TestCase):
                 for raw, sha, inp, inp_sha in con.execute('SELECT result_json,result_sha256,input_json,input_sha256 FROM matches'):
                     self.assertEqual(demo.codec.digest(raw),sha)
                     self.assertEqual(demo.codec.digest(inp),inp_sha)
+                    for row in json.loads(raw)['batter_stats']+json.loads(raw)['pitcher_stats']:
+                        origin,team=con.execute('SELECT origin_school_id,team_id FROM registered_players WHERE player_id=?',
+                            (row['player_id'],)).fetchone()
+                        self.assertEqual((origin,team),(row['origin_school_id'],row['team_id']))
+                        self.assertEqual(origin,people[row['player_id']]['origin_school_id'])
             with closing(sqlite3.connect(store.db_path.as_uri()+'?mode=rw', uri=True)) as con:
                 for table in demo.TABLES:
                     with self.assertRaises(sqlite3.IntegrityError):
@@ -98,7 +103,7 @@ class Stage109DemoTests(unittest.TestCase):
 
     def test_exclusive_namespace_and_new_id_never_adopts_existing_product_or_arbitrary_db(self):
         before = anchor(self.root)
-        for path in (self.ns.path, self.root):
+        for path in (self.ns.path, self.root, self.ns.path/'nested'):
             with self.assertRaises((ValueError, FileExistsError)):
                 demo.DemoNamespace.create(path, opt_in=True)
         with self.assertRaises(ValueError): demo.DemoNamespace.create(self.root/'no-optin')
@@ -116,7 +121,7 @@ class Stage109DemoTests(unittest.TestCase):
         self.assertTrue(all(anchor(self.root)[k] == v for k,v in before.items()))
 
     def test_lock_unknown_marker_seed_schema_extra_file_and_ro_refusal_bytes_unchanged(self):
-        store = self.create(); did = store.demo_id
+        store = self.create(); store.play_next(); did = store.demo_id
         with self.assertRaises(ValueError): demo.DemoStore.resume(self.ns,did)
         store.close()
         marker = store.db_path.parent/demo.MARKER
@@ -134,9 +139,28 @@ class Stage109DemoTests(unittest.TestCase):
             with self.assertRaises(ValueError): demo.DemoStore.resume(self.ns,did)
             self.assertEqual(before,anchor(self.ns.path)); side.unlink()  # test-owned injected file only
         with closing(sqlite3.connect(store.db_path)) as con:
+            self.assertEqual(('wal',),con.execute('PRAGMA journal_mode=WAL').fetchone())
+        before=anchor(self.ns.path)
+        with patch.object(demo.sqlite3,'connect',side_effect=AssertionError('do not open WAL DB')):
+            with self.assertRaises(ValueError):demo.DemoStore.resume(self.ns,did)
+        self.assertEqual(before,anchor(self.ns.path))
+        with closing(sqlite3.connect(store.db_path)) as con:
+            con.execute('PRAGMA journal_mode=DELETE')
             con.execute('CREATE INDEX forbidden ON matches(match_id)')
         before=anchor(self.ns.path)
         with self.assertRaises(ValueError): demo.DemoStore.resume(self.ns,did)
+        self.assertEqual(before,anchor(self.ns.path))
+        with closing(sqlite3.connect(store.db_path)) as con, con:
+            con.execute('DROP INDEX forbidden')
+            trigger=con.execute("SELECT sql FROM sqlite_master WHERE name='matches_no_update'").fetchone()[0]
+            con.execute('DROP TRIGGER matches_no_update')
+            raw=con.execute('SELECT result_json FROM matches').fetchone()[0]
+            payload=json.loads(raw);payload['run_seed']+=1
+            raw=demo.codec.canonical(payload)
+            con.execute('UPDATE matches SET result_json=?,result_sha256=?',(raw,demo.codec.digest(raw)))
+            con.execute(trigger)
+        before=anchor(self.ns.path)
+        with self.assertRaises(ValueError):demo.DemoStore.resume(self.ns,did)
         self.assertEqual(before,anchor(self.ns.path))
 
     def test_symlink_hardlink_copy_and_runtime_replacement_refused(self):

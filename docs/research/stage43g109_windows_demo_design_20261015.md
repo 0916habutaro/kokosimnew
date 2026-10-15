@@ -37,7 +37,7 @@ Tk操作と計算を分離し、workerからwidgetを触らず、メインイベ
 
 保存ルートは新規専用namespaceに限定。Git/data・製品save/backup領域との重なり、親経由の`..`、symlink/junction/reparse、hardlink、未知ファイル・版、実体差替を拒否する。固定markerにはnamespace/demo ID、実体identity、year/competition/seed、登録・plan・schema SHAを記録し、DB内にも同じ固定metadataを置く。markerは試合ごとに書き換えない。SHAと実体identityは整合性検査であり、第三者真正性署名ではない。コピーしたDB/markerや任意SQLiteを所有領域へ採用しない。
 
-再開ではRO mode・query_only・全schema/全行比較・verify_prefix・独立event oracle・同seed全再実行・bracket oracle・raw SQL/SHAを通す。RO検査前後のDB bytesを照合し、検証不能は修復しない。journal/WAL等のsidecar、DBロック、未知schema、違うseed/出典、欠損・破損は拒否。プロセス排他はOSが終了時に解放する固定leaseファイルで、stale lock削除や自動recoveryはしない。各操作時も実体を再確認する。Windowsでは開いている実体の置換を防ぐnative handleも保持する。
+再開ではSQLite接続前のDELETE形式header検査・RO mode・query_only・全schema/全行比較・verify_prefix・独立event oracle・同seed全再実行・bracket oracle・raw SQL/SHAを通す。RO検査前後のDB bytesを照合し、検証不能は修復しない。journal/WAL等のsidecar、DBロック、未知schema、違うseed/出典、欠損・破損は拒否。プロセス排他はOSが終了時に解放する固定leaseファイルで、stale lock削除や自動recoveryはしない。各操作時も実体を再確認する。Windowsでは開いている実体の置換を防ぐnative handleも保持する。
 
 ## 検証と未対象
 

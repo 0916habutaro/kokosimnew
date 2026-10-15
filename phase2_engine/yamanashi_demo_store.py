@@ -196,6 +196,9 @@ class _Lease:
     def __init__(self, path):
         self.file = path.open('r+b', buffering=0)
         try:
+            if self.file.read(1) != b'0':
+                raise ValueError('固定leaseが違います')
+            self.file.seek(0)
             if os.name == 'nt':
                 import msvcrt
                 msvcrt.locking(self.file.fileno(), msvcrt.LK_NBLCK, 1)
@@ -272,6 +275,12 @@ class DemoReader(lab.TournamentLabReader):
         if (codec.canonical(_read(root / MARKER)) != codec.canonical(cap.metadata)
                 or (root / LEASE).stat().st_size != 1):
             raise ValueError('固定markerまたはleaseが違います')
+        # A mode=ro WAL connection may create -wal/-shm in a writable folder.
+        # Inspect the plain header before SQLite opens anything; DELETE only.
+        with self.db_path.open('rb') as raw:
+            header = raw.read(100)
+        if len(header) != 100 or header[:16] != b'SQLite format 3\x00' or header[18:20] != b'\x01\x01':
+            raise ValueError('DELETE方式の専用DB以外は読取接続もしません')
 
     def snapshot(self):
         self._guard()

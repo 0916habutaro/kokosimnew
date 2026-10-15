@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-from time import monotonic, sleep
+from time import monotonic, sleep, perf_counter
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -33,6 +33,8 @@ def run_gui(namespace, phase, demo_id=None):
 
 def gui_phase(namespace, phase, demo_id):
     import tkinter as tk
+    import ast
+    began=perf_counter()
     from phase2_engine.yamanashi_demo_tk import YamanashiDemoTk
     from phase2_engine.yamanashi_demo_store import DemoNamespace, DemoStore
     root = tk.Tk()
@@ -84,6 +86,13 @@ def gui_phase(namespace, phase, demo_id):
             gui.history.pickers['team'].current(index)
             gui.history.pickers['team'].event_generate('<<ComboboxSelected>>'); root.update()
             assert team.label in gui.history.pickers['team'].get()
+            for mid in gui.history.pickers['match']['values']:
+                gui.history.pickers['match'].set(mid)
+                gui.history.pickers['match'].event_generate('<<ComboboxSelected>>'); root.update()
+                game=next(r for r in snap.results if r.match_id==mid)
+                values=gui.history.tables['scores'].item(gui.history.tables['scores'].get_children()[0],'values')
+                assert values[0]==mid and (int(values[2]),int(values[4]))==(game.team1_score,game.team2_score)
+                assert len(gui.history.tables['innings'].get_children())==len(game.inning_scores)
             for school_index, sid in enumerate(team.school_ids, 1):
                 gui.history.pickers['school'].current(school_index)
                 gui.history.pickers['school'].event_generate('<<ComboboxSelected>>'); root.update()
@@ -96,6 +105,13 @@ def gui_phase(namespace, phase, demo_id):
                     assert len(rows) == 1
                     values = gui.history.tables['members'].item(rows[0], 'values')
                     assert values[1:3] == (sid, pid)
+                    from phase2_engine.joint_tournament_oracle import player_totals
+                    expected=player_totals(snap.results,pid)
+                    stats=[gui.history.tables['stats'].item(i,'values') for i in gui.history.tables['stats'].get_children()]
+                    actual=[s for s in stats if s[0]!='通算']
+                    assert len(actual)==sum(s.player_id==pid for g in snap.results for s in g.batter_stats+g.pitcher_stats)
+                    for stat in (s for s in stats if s[0]=='通算'):
+                        assert (ast.literal_eval(stat[5]) if stat[5]!='実出場なし' else {})==expected[stat[4]]
                     visited += 1
         assert visited == 660 and not errors
         for i in range(len(gui.history.pickers['match']['values'])):
@@ -103,7 +119,8 @@ def gui_phase(namespace, phase, demo_id):
             gui.history.pickers['match'].event_generate('<<ComboboxSelected>>'); root.update()
             assert len(gui.history.tables['innings'].get_children()) == len(gui.history.result.inning_scores)
     result = dict(demo_id=gui.controller.store.demo_id, committed=len(snap.results),
-        complete=snap.complete, mapped=True, visited_players=visited)
+        complete=snap.complete, mapped=True, visited_players=visited,
+        database_bytes=gui.controller.store.db_path.stat().st_size,seconds=round(perf_counter()-began,6))
     gui.buttons['exit'].invoke()
     assert gui.closed and gui.controller.closed and not gui.controller.busy
     # SQLite connections and native delete-sharing pins must all be released.
