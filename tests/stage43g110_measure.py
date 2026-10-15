@@ -215,7 +215,9 @@ def main():
             timer_categories='inclusive; do not add nested values',successful=True)
         with args.json_output.open('x',encoding='utf-8') as out:
             json.dump(report,out,ensure_ascii=False,indent=2);out.write('\n')
-        print(json.dumps({k:v for k,v in report.items() if k!='paired'}))
+        # Same publication-safe aggregate as the artifact; no private payloads,
+        # original digests, demo IDs or absolute paths enter the job log.
+        print(json.dumps(report,ensure_ascii=False))
 
 
 if __name__=='__main__':main()

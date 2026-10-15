@@ -75,6 +75,7 @@ def gui_phase(namespace, phase, demo_id):
             click('round')
     snap = gui.controller.snapshot
     assert len(snap.results) == (1, 16, 31)[phase]
+    history_bytes = gui.controller.store.db_path.read_bytes()
     tree = gui.history.tables['plan']
     gui.history.book.select(tree.master); root.update()
     tree.yview_moveto(1); root.update(); assert tree.yview()[0] > 0
@@ -119,6 +120,7 @@ def gui_phase(namespace, phase, demo_id):
             gui.history.pickers['match'].current(i)
             gui.history.pickers['match'].event_generate('<<ComboboxSelected>>'); root.update()
             assert len(gui.history.tables['innings'].get_children()) == len(gui.history.result.inning_scores)
+    assert gui.controller.store.db_path.read_bytes() == history_bytes
     result = dict(demo_id=gui.controller.store.demo_id, committed=len(snap.results),
         complete=snap.complete, mapped=True, visited_players=visited,
         database_bytes=gui.controller.store.db_path.stat().st_size,seconds=round(perf_counter()-began,6))

@@ -28,15 +28,33 @@ Python 3.12.14、同じホストで固定Stage109 mainと新版を順次実行�
 
 1/16/31件のDB bytesは両版とも1,318,912 / 3,223,552 / 5,124,096。全31試合の完全A・入力・SQL各行・順位・学校履歴は同値。別namespace固有metadataはcross-namespace比較から除外し、同metadataでの32段階DB bytes同値試験を別に行う。独立reader前後のDB bytes不変も確認した。個人成績を遅延構築する効果は、非表示時の集計呼出し0回として追加Tk試験で確認する。Tk描画全体が一律に速くなったとは主張しない。
 
+初期プロファイル終了後、同じPython/ホストで順次再測定した。31操作合計は **153.206585→141.646908秒（約7.5%減）**、transaction合計 **72.059344→61.836928秒（約14.2%減）**。監査164回と行生成259→228回は同じ。1/16/31件のTk show＋updateは旧0.087063/0.061191/0.413838秒、新0.160976/0.009788/0.432078秒で、一律の描画速度改善はない。新規作成は3.067740→3.058704秒、再開1/16/31件は旧1.680720/1.999633/2.447981秒、新1.565776/2.045901/2.409964秒。旧Stage109の別プロセスが1件保存して完全終了→新版がRO bytes不変を検証→残り30件を保存し、旧版31件とSQL/完全A同値の確認も成功した。初期組とこの組を混ぜて改善率を算出しない。
+
 ## 検証・最終CI証跡
 
 追加controller試験2件はLinux補助で21.190秒、mapped Tk追加2件は28.666秒、いずれも成功・skip0。中断時の再検証拒否、commit直後の中断、各1〜4件の進捗ACK、Tkメインスレッドの反映、多重操作拒否、応答継続、独立reader＋raw SQL/完全A、未登録とタブ切替時の破損拒否を確認した。
+
+先行Windows headlessでは既存16件・旧11版は成功したが、追加controller試験1件のTemporaryDirectory削除でleaseが開いているためWinError32になった。試験が`addCleanup`に登録したcontroller closeより先にwithブロックのTemporaryDirectoryを片付けていたためである。lease/native pinやWindowsの拒否を緩めず、contextの逆順解放でcontrollerを必ず先にcloseする試験へ修正した。エラーを黙殺したりcleanupをskipしたりしない。最終コミットでWindows headless/実Tkと全必須CIを再検証する。
+
+先行実装head `2f63f31` のWindows mapped Tkは既存2件と追加UX2件がskip0で通過し、同じjobのpaired計測stepへ進んだ。関東17校E2Eも2件・495.430秒で成功。最終版はGUI全660人閲覧前後のDB bytes一致も明示照合し、公開可能なpaired集計JSONをartifactとCIログの両方に出す。**最終headのWindows前後実測表・全CI結果の確定報告は[PR #276本文](https://github.com/0916habutaro/kokosimnew/pull/276)と同PRに紐付くCI集計を参照**する。実装コードと最終の資料・試験修正を区別し、先行headの結果を最終headの成功と取り違えない。
 
 既存Stage109 headless16件/実Tk2件と、追加Stage110 headless3件/実Tk2件を同じWindows workflowの2 jobsで実行する。旧11版gateをそのまま保ち、真のStage109 main自己生成候補を追加して12版とする。Windowsのpaired計測には旧Stage109作成・完全終了後の新コードでのRO再開と30試合追記も含める。最終headの全unittest、関東17校E2E、既存Stage91〜109 CI、Windows native mapped Tk、旧12版の結果・秒数はPR本文とCI集計artifactに記録する。未実行の検査を成功とは記載しない。
 
 ## CI時間の観測と別案
 
-Stage109最終headの[Python tests run](https://github.com/0916habutaro/kokosimnew/actions/runs/38752426352)の実stepは、全unittest **3,146秒（52分26秒）**、関東17校E2E **500秒**。job全体は3,154秒/506秒で、主因をcheckoutやsetupの待ち時間とは扱わない。旧候補の真正なcheckout生成・内容verifyが複数Stageとfull suiteで繰り返され、Stage108/109の全prefix再検証・故障・独立プロセス試験も積み上がっている。ただし個別テスト別の52分全体の寄与率は未分解で、原因別秒数を捏造しない。
+Stage109最終headの[Python tests run](https://github.com/0916habutaro/kokosimnew/actions/runs/38752426352)の実stepは、全unittest **3,146秒（52分26秒）**、関東17校E2E **500秒**。job全体は3,154秒/506秒で、主因をcheckoutやsetupの待ち時間とは扱わない。2,350テストの完了ログ行の時刻差をモジュールごとに集計すると、以下の概算になる。隣接テストの終了処理等を含む区間であり、関数のprofiler値ではない。
+
+|既存unittestモジュール|概算秒|
+|---|---:|
+|Stage102 master scale|370.735|
+|Stage109 demo|340.594|
+|Stage96 continuation|318.970|
+|Stage108 store|249.930|
+|Stage53 東海4県→地域|227.868|
+|Stage47 東北4県 feeder|217.165|
+|Stage9 神奈川FMT006|152.834|
+
+上位4モジュールだけで約1,280秒。互換性と名付けられたテストモジュール群は計約127.831秒だが、他のテスト内のfixture生成はこの分類に含まれない。したがって「旧版候補cacheだけで52分を解消できる」とは判断しない。全件検証・大会E2E・故障試験・独立プロセスの蓄積を維持した上で、改善案ごとの追加測定が必要。集計は`audits/phase2/stage43g110/ci_baseline_timing_20261016.json`に保存した。
 
 将来案は同じOS/Python/旧commit/338catalog入力ごとの生成cache。真の旧checkoutからの生成gate、各利用先での全内容verify、RO bytes不変、replay未承認、fault試験の独立所有を残し、cache miss/hitの比較とレビューが必要。今回はcacheも必須CI改廃も行わない。既存19 workflow/43 jobsに新workflow/jobを増やさず、既存デモjobへ必要な検査だけ追加した。
 

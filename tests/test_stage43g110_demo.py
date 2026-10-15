@@ -1,7 +1,7 @@
 """Cancellation is acknowledged only after a fresh full RO verification."""
+from contextlib import closing
 from pathlib import Path
 import tempfile
-import threading
 import time
 import unittest
 
@@ -11,8 +11,7 @@ from phase2_engine.yamanashi_demo_store import MARKER
 
 class Stage110ControllerTests(unittest.TestCase):
     def test_cancel_after_commit_reverifies_and_keeps_committed_game(self):
-        with tempfile.TemporaryDirectory(prefix='stage110-cancel-') as temp:
-            c=DemoController(); self.addCleanup(c.close)
+        with tempfile.TemporaryDirectory(prefix='stage110-cancel-') as temp, closing(DemoController()) as c:
             c.use_namespace(Path(temp)/'dedicated',create=True); c.execute('new')
             def fault(at):
                 if at=='after_commit': c.request_cancel()
@@ -27,8 +26,7 @@ class Stage110ControllerTests(unittest.TestCase):
             self.assertEqual(before,c.store.db_path.read_bytes())
 
     def test_cancel_reverification_failure_clears_untrusted_snapshot(self):
-        with tempfile.TemporaryDirectory(prefix='stage110-refuse-') as temp:
-            c=DemoController(); self.addCleanup(c.close)
+        with tempfile.TemporaryDirectory(prefix='stage110-refuse-') as temp, closing(DemoController()) as c:
             c.use_namespace(Path(temp)/'dedicated',create=True); c.execute('new')
             db=c.store.db_path; before=db.read_bytes()
             marker=db.parent/MARKER
