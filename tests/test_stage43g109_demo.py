@@ -23,9 +23,26 @@ from stage43g99_fixture_support import retained_handles, assert_closed
 MEASUREMENTS = {}
 
 
-def anchor(root):
-    return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).digest()
-            for p in root.rglob('*') if p.is_file()}
+def anchor(root, *, store=None):
+    # Windows byte-range locks also reject reads through a second handle in
+    # the same process. Observe EVERY file, including the live lease, through
+    # its existing locked handle; do not skip it or weaken the OS lock.
+    result = {}
+    for p in root.rglob('*'):
+        if not p.is_file():
+            continue
+        if store is not None and store._lease is not None and p == store.db_path.parent / demo.LEASE:
+            handle = store._lease.file
+            position = handle.tell()
+            try:
+                handle.seek(0)
+                raw = handle.read()
+            finally:
+                handle.seek(position)
+        else:
+            raw = p.read_bytes()
+        result[str(p.relative_to(root))] = hashlib.sha256(raw).digest()
+    return result
 
 
 class Stage109DemoTests(unittest.TestCase):
@@ -118,7 +135,7 @@ class Stage109DemoTests(unittest.TestCase):
         other = demo.DemoStore.create(self.ns,opt_in=True); self.addCleanup(other.close)
         self.assertNotEqual(a,other.demo_id)
         self.assertEqual(2,len(self.ns.demos()))
-        self.assertTrue(all(anchor(self.root)[k] == v for k,v in before.items()))
+        self.assertTrue(all(anchor(self.root, store=other)[k] == v for k,v in before.items()))
 
     def test_lock_unknown_marker_seed_schema_extra_file_and_ro_refusal_bytes_unchanged(self):
         store = self.create(); store.play_next(); did = store.demo_id
@@ -129,27 +146,27 @@ class Stage109DemoTests(unittest.TestCase):
         for field, value in (('version','unknown'),('recipe',{}),('directory_identity',[0,0])):
             data = json.loads(original); data[field]=value
             marker.write_text(demo.codec.canonical(data),encoding='utf-8')
-            before = anchor(self.ns.path)
+            before = anchor(self.ns.path, store=store)
             with self.assertRaises(ValueError): demo.DemoStore.resume(self.ns,did)
-            self.assertEqual(before,anchor(self.ns.path))
+            self.assertEqual(before,anchor(self.ns.path, store=store))
         marker.write_bytes(original)
         for suffix in ('-journal','-wal','-shm'):
             side = Path(str(store.db_path)+suffix); side.write_bytes(b'crash')
-            before=anchor(self.ns.path)
+            before=anchor(self.ns.path, store=store)
             with self.assertRaises(ValueError): demo.DemoStore.resume(self.ns,did)
-            self.assertEqual(before,anchor(self.ns.path)); side.unlink()  # test-owned injected file only
+            self.assertEqual(before,anchor(self.ns.path, store=store)); side.unlink()  # test-owned injected file only
         with closing(sqlite3.connect(store.db_path)) as con:
             self.assertEqual(('wal',),con.execute('PRAGMA journal_mode=WAL').fetchone())
-        before=anchor(self.ns.path)
+        before=anchor(self.ns.path, store=store)
         with patch.object(demo.sqlite3,'connect',side_effect=AssertionError('do not open WAL DB')):
             with self.assertRaises(ValueError):demo.DemoStore.resume(self.ns,did)
-        self.assertEqual(before,anchor(self.ns.path))
+        self.assertEqual(before,anchor(self.ns.path, store=store))
         with closing(sqlite3.connect(store.db_path)) as con:
             con.execute('PRAGMA journal_mode=DELETE')
             con.execute('CREATE INDEX forbidden ON matches(match_id)')
-        before=anchor(self.ns.path)
+        before=anchor(self.ns.path, store=store)
         with self.assertRaises(ValueError): demo.DemoStore.resume(self.ns,did)
-        self.assertEqual(before,anchor(self.ns.path))
+        self.assertEqual(before,anchor(self.ns.path, store=store))
         with closing(sqlite3.connect(store.db_path)) as con, con:
             con.execute('DROP INDEX forbidden')
             trigger=con.execute("SELECT sql FROM sqlite_master WHERE name='matches_no_update'").fetchone()[0]
@@ -159,9 +176,9 @@ class Stage109DemoTests(unittest.TestCase):
             raw=demo.codec.canonical(payload)
             con.execute('UPDATE matches SET result_json=?,result_sha256=?',(raw,demo.codec.digest(raw)))
             con.execute(trigger)
-        before=anchor(self.ns.path)
+        before=anchor(self.ns.path, store=store)
         with self.assertRaises(ValueError):demo.DemoStore.resume(self.ns,did)
-        self.assertEqual(before,anchor(self.ns.path))
+        self.assertEqual(before,anchor(self.ns.path, store=store))
 
     def test_symlink_hardlink_copy_and_runtime_replacement_refused(self):
         store = self.create(); did=store.demo_id; store.close()
@@ -170,9 +187,9 @@ class Stage109DemoTests(unittest.TestCase):
         db=store.db_path; moved=db.with_suffix('.original'); db.rename(moved)
         try:
             os.link(moved,db)
-            before=anchor(self.ns.path)
+            before=anchor(self.ns.path, store=store)
             with self.assertRaises(ValueError): demo.DemoStore.resume(self.ns,did)
-            self.assertEqual(before,anchor(self.ns.path))
+            self.assertEqual(before,anchor(self.ns.path, store=store))
             db.unlink()
         finally: moved.rename(db)
         link=self.root/'linked'
@@ -189,28 +206,28 @@ class Stage109DemoTests(unittest.TestCase):
         marker=db.parent/demo.MARKER
         raw=marker.read_bytes()
         marker.write_bytes(raw+b' ')
-        before=anchor(self.ns.path)
+        before=anchor(self.ns.path, store=store)
         with self.assertRaises(ValueError): store.play_next()
-        self.assertEqual(before,anchor(self.ns.path))
+        self.assertEqual(before,anchor(self.ns.path, store=store))
 
     def test_cancellation_and_mid_transaction_rollback_after_commit_restart(self):
         store=self.create()
-        original=anchor(self.ns.path)
+        original=anchor(self.ns.path, store=store)
         cancelled=threading.Event(); cancelled.set()
         with self.assertRaises(InterruptedError): store.play_next(cancel=cancelled)
-        self.assertEqual(original,anchor(self.ns.path))
+        self.assertEqual(original,anchor(self.ns.path, store=store))
         for boundary in ('before_transaction','matches','advancement','team_ranks','before_commit'):
             def fault(at):
                 if at==boundary: raise RuntimeError('test rollback')
             with self.assertRaises(RuntimeError): store.play_next(fault=fault)
-            self.assertEqual(original,anchor(self.ns.path))
+            self.assertEqual(original,anchor(self.ns.path, store=store))
         def lost(at):
             if at=='after_commit':raise RuntimeError('lost acknowledgement')
         with self.assertRaises(RuntimeError):store.play_next(fault=lost)
         self.assertEqual(1,len(store.snapshot().results))
-        before=anchor(self.ns.path)
+        before=anchor(self.ns.path, store=store)
         with self.assertRaises(ValueError):store.play_next(expected_checkpoint=checkpoint(()))
-        self.assertEqual(before,anchor(self.ns.path))
+        self.assertEqual(before,anchor(self.ns.path, store=store))
         did=store.demo_id;store.close()
         resumed=demo.DemoStore.resume(demo.DemoNamespace(self.ns.path),did);self.addCleanup(resumed.close)
         self.assertEqual(1,len(resumed.snapshot().results))
@@ -219,11 +236,11 @@ class Stage109DemoTests(unittest.TestCase):
         store=self.create();did=store.demo_id;store.close()
         with closing(sqlite3.connect(store.db_path)) as con:
             con.execute('BEGIN EXCLUSIVE')
-            before=anchor(self.ns.path)
+            before=anchor(self.ns.path, store=store)
             with patch.object(demo.sqlite3,'connect',wraps=sqlite3.connect) as connect:
                 with self.assertRaises(sqlite3.OperationalError): demo.DemoStore.resume(self.ns,did)
                 self.assertTrue(all('mode=ro' in str(call.args[0]) for call in connect.call_args_list))
-            self.assertEqual(before,anchor(self.ns.path))
+            self.assertEqual(before,anchor(self.ns.path, store=store))
             con.rollback()
 
     def test_controller_round_same_contract_and_reject_clears_view(self):
@@ -255,7 +272,7 @@ with patch.object(sqlite3,'connect',connect):store.play_next(fault=crash)
         self.assertEqual(73,crashed.returncode)
         journal=Path(str(store.db_path)+'-journal')
         self.assertTrue(journal.exists());self.assertGreater(journal.stat().st_size,512)
-        before=anchor(self.ns.path)
+        before=anchor(self.ns.path, store=store)
         with patch.object(demo.sqlite3,'connect',side_effect=AssertionError('do not open dirty DB')):
             with self.assertRaises(ValueError):demo.DemoStore.resume(self.ns,did)
-        self.assertEqual(before,anchor(self.ns.path))
+        self.assertEqual(before,anchor(self.ns.path, store=store))

@@ -22,7 +22,7 @@ Stage109専用auditはheadless 16 tests（新規→独立Pythonプロセス1→1
 
 真のStage94/99/100/101/102/103/104/105/106/107/108 main checkoutから独立生成した11版候補をreadonly内容verifyする。実ユーザー候補は0件で、実ユーザーsave互換性は未検証。個別原本SHA・秘密の絶対パス・実ユーザーsaveをartifactへ記録しない。
 
-初期のLinux補助試験で、RO SQL接続に対するDELETEでappend-only triggerを試すテスト前提の誤り、非表示タブへのscroll判定、破棄済みTk参照がworker GCへ残る問題を検出した。trigger拒否の専用RW接続、表示タブ選択、Tk所有スレッドでの終了時参照解放へ修正した。RO診断の制約は緩めていない。
+初期のLinux補助試験で、RO SQL接続に対するDELETEでappend-only triggerを試すテスト前提の誤り、非表示タブへのscroll判定、破棄済みTk参照がworker GCへ残る問題を検出した。trigger拒否の専用RW接続、表示タブ選択、Tk所有スレッドでの終了時参照解放へ修正した。RO診断の制約は緩めていない。Windows専用headlessでは、試験の全ファイルbytes照合が排他中leaseを別handleから読んでしまう3件のエラーも検出した。ロックを弱めたりleaseを照合対象から除外せず、保持中の同一handleからbytesを読み、位置を復元する試験へ修正した。新規・31試合完走・旧11版内容verify自体は先行headでも成功していた。
 
 ## 実測（最終CI前の独立試験）
 
