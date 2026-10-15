@@ -3,6 +3,8 @@ name: Stage43G-92 legacy archive writer serialization
 on:
   pull_request:
     paths:
+      - 'phase2_engine/yamanashi_demo*.py'
+      - 'tests/*stage43g109*.py'
       - 'phase2_engine/yamanashi_tournament*.py'
       - 'tests/*stage43g108*.py'
       - 'phase2_engine/joint_tournament*.py'
@@ -26,6 +28,8 @@ on:
   push:
     branches: [main]
     paths:
+      - 'phase2_engine/yamanashi_demo*.py'
+      - 'tests/*stage43g109*.py'
       - "phase2_engine/historical_match_archive.py"
       - "phase2_engine/legacy_archive_concurrency_audit.py"
       - "tests/test_stage43g92_*.py"

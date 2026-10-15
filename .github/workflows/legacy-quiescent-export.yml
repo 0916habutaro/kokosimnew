@@ -3,6 +3,8 @@ name: Stage43G-93 legacy quiescent export lab
 on:
   pull_request:
     paths:
+      - 'phase2_engine/yamanashi_demo*.py'
+      - 'tests/*stage43g109*.py'
       - 'phase2_engine/yamanashi_tournament*.py'
       - 'tests/*stage43g108*.py'
       - 'phase2_engine/joint_tournament*.py'
@@ -28,6 +30,8 @@ on:
   push:
     branches: [main]
     paths:
+      - 'phase2_engine/yamanashi_demo*.py'
+      - 'tests/*stage43g109*.py'
       - 'phase2_engine/legacy_quiescent_export_audit.py'
       - 'tests/*stage43g93*.py'
       - '.github/workflows/legacy-quiescent-export.yml'
