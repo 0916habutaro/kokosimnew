@@ -3,6 +3,8 @@ name: Stage43G-96 fixture deterministic continuation
 on:
   pull_request:
     paths:
+      - 'phase2_engine/yamanashi_demo*.py'
+      - 'tests/*stage43g109*.py'
       - 'phase2_engine/yamanashi_tournament*.py'
       - 'tests/*stage43g108*.py'
       - 'phase2_engine/joint_tournament*.py'
@@ -30,6 +32,8 @@ on:
   push:
     branches: [main]
     paths:
+      - 'phase2_engine/yamanashi_demo*.py'
+      - 'tests/*stage43g109*.py'
       - 'phase2_engine/manual_save_backup*.py'
       - 'phase2_engine/legacy_backup*.py'
       - 'tests/*stage43g9*.py'
