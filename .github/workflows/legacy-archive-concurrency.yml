@@ -3,6 +3,8 @@ name: Stage43G-92 legacy archive writer serialization
 on:
   pull_request:
     paths:
+      - 'phase2_engine/joint_tournament*.py'
+      - 'tests/*stage43g107*.py'
       - 'tests/*stage43g103*.py'
       - 'tests/*stage43g104*.py'
       - 'tests/*stage43g105*.py'
