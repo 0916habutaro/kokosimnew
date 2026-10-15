@@ -36,6 +36,8 @@ Linux Python3.12.14補助測定（全unittest・関東E2Eとの並行実行）�
 
 初回Windows Tkでは表示・ナビゲーション・拒否検証後の共通integrity sweepが、意図的に作った破損fixtureまで検査して失敗した。破損拒否の検証後にそのfixtureを片付け、有効なSQLiteのclose/rename/reopen検証を継続するようテストを修正した。製品／lab readerの破損拒否は維持した。
 
+修正後Windows Python3.12.10のnative mapped Tkは1 test、skip0、21.023秒で成功。添付集計JSONでsuccessful/native_windows/mapped_tk、DB475,136 bytesとRO bytes不変を確認した。Linux全unittestは2,325 tests、1506.737秒、成功（表示環境等によるskip52、既存skip条件は変更なし）。別実行の関東8都県17校E2Eは2 tests、skip0、295.529秒で成功。PR #268の全16workflow一覧とも突合し、Stage91–96の6workflowのpath filterすべてに新labを追加した。新Stage107を加えた17workflowを最終headで再確認する。
+
 Stage94/99/100/101/102/103/104/105/106の9候補は真の各main checkoutから独立プロセスで自己生成exportし、現行readerでread-only内容verify・原本bytes不変を確認。Stage106は変更前にも実候補を確保して再verifyした。338catalog入力・106CSVを含むdata全bytes不変。内容verifyは真正性署名でも新しいreplay/restore承認でもなく、古いcatalogのreplay拒否を維持する。実ユーザー候補・既存save利用0件、実ユーザーsave互換は未検証。
 
 ## 限界と停止条件
