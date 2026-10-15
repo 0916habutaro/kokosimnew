@@ -184,6 +184,7 @@ class YamanashiDemoTk:
         self.namespace_picker = namespace_picker or self._choose_namespace
         self.confirm = confirm or (lambda text: messagebox.askyesno('専用デモの確認', text, parent=root))
         self.closed = self.closing = False
+        self._action = None
         self.last_error = None
         self.buttons = {}
         self.status_var = tk.StringVar(master=root, value='専用保存先を新規作成、または以前作成した専用保存先を開いてください')
@@ -262,7 +263,7 @@ class YamanashiDemoTk:
             if key == 'exit':
                 enabled = not self.closing
             if key == 'cancel':
-                enabled = c.busy and not self.closing
+                enabled = c.busy and not self.closing and self._action in ('one', 'round')
             button.configure(state='normal' if enabled else 'disabled')
         self.demo_box.configure(state='disabled' if c.busy or self.closing else 'readonly')
 
@@ -271,10 +272,11 @@ class YamanashiDemoTk:
             return
         if action == 'exit':
             self.request_close(); return
-        if action == 'cancel' and self.controller.busy:
-            self.controller.request_cancel()
-            self.status_var.set('中断要求中：まだ完了ではありません。未commit計算結果は未保存。保存済み件数を再検証して表示します')
-            self.buttons['cancel'].configure(state='disabled')
+        if action == 'cancel':
+            if self.controller.busy and self._action in ('one', 'round'):
+                self.controller.request_cancel()
+                self.status_var.set('中断要求中：まだ完了ではありません。未commit計算結果は未保存。保存済み件数を再検証して表示します')
+                self.buttons['cancel'].configure(state='disabled')
             return
         if self.controller.busy:
             return
@@ -299,6 +301,7 @@ class YamanashiDemoTk:
             self.history.clear()
             committed = len(self.controller.snapshot.results) if self.controller.snapshot is not None else None
             self.current_var.set('検証・計算中（未commit計算結果は未保存）')
+            self._action = action
             self.controller.begin(action, demo_id=demo_id)
             self.status_var.set('処理中：全保存内容を検証しています。' +
                 (f'開始時点の保存済み {committed}/31試合。' if committed is not None else '') +
@@ -337,7 +340,7 @@ class YamanashiDemoTk:
                 self.current_var.set(f'{len(snap.results)}/31試合 自動保存済み。' + last + self._next(snap))
                 if not update.done:
                     self.status_var.set(('終了要求中：' if self.closing else
-                        '中断要求中：' if self.controller._cancel.is_set() else 'ラウンド進行中：') +
+                        '中断要求中：' if self.controller._cancel.is_set() else '試合進行中：') +
                         update.message + '。計算中の次試合は未保存です。終了応答待ちと保存完了は別です')
                 if update.done and not self.closing:
                     try:
