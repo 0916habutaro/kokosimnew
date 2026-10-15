@@ -12,10 +12,12 @@ def play_phase(capability, start, stop, output):
     store=OwnedTournamentStore.resume(capability,timeout=10)
     if len(TournamentLabReader(store.db_path).snapshot().results)!=start:
         raise ValueError('unexpected committed prefix')
-    for _ in range(start,stop):store.play_next()
+    game_seconds=[]
+    for _ in range(start,stop):
+        tick=perf_counter();store.play_next();game_seconds.append(round(perf_counter()-tick,6))
     checked=TournamentLabReader(store.db_path).snapshot()
     output.put(dict(pid=os.getpid(),start=start,count=len(checked.results),complete=checked.complete,
-        seconds=round(perf_counter()-began,6),database_bytes=store.db_path.stat().st_size))
+        seconds=round(perf_counter()-began,6),calculation_verification_commit_seconds=game_seconds,database_bytes=store.db_path.stat().st_size))
 
 
 def run_phase(capability,start,stop):

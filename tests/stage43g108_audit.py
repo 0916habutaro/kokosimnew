@@ -38,6 +38,11 @@ def main():
         atomicity='single SQLite transaction per game; not 31 games or multiple product DBs',
         scope='fictional 2026 lab, parent-owned TemporaryDirectory lifetime only')
     with args.json_output.open('x',encoding='utf-8') as out:json.dump(report,out,ensure_ascii=False,indent=2);out.write('\n')
+    # Also make aggregate measurements reviewable in CI logs; no payload/ID/SHA.
+    summary={k:report[k] for k in ('stage','os','python','successful','tests','skipped','seconds','native_windows','mapped_tk')}
+    summary['measured_gates']={gate:{k:v for k,v in value.items() if k not in ('games','ranks')}
+                               for gate,value in measurements.items()}
+    print(json.dumps(summary,ensure_ascii=False,sort_keys=True))
     return 0 if success else 1
 
 

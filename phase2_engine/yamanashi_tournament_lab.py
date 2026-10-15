@@ -97,7 +97,7 @@ class AnnualMatchInput:
     def to_dict(self): return asdict(self)
 
 
-def _input(plan, reg, previous, *, teams=None):
+def _input(plan, reg, previous, *, teams=None, prior_sha=None):
     game = plan.games[len(previous)]
     winners = {r.match_id:r.winner_id for r in previous}
     def resolve(source):
@@ -110,8 +110,18 @@ def _input(plan, reg, previous, *, teams=None):
         pair = (resolve(game.team1_source),resolve(game.team2_source))
         teams = {t.team_id:_team_input(t) for t in reg.teams if t.team_id in pair}
     return AnnualMatchInput(VERSION,YEAR,COMPETITION,game.match_id,game.seed,ABILITY_SEED,
-        plan.registration_sha256,True,plan.fingerprint,checkpoint(previous),game.day,
+        plan.registration_sha256,True,plan.fingerprint,
+        checkpoint(previous) if prior_sha is None else prior_sha,game.day,
         teams[resolve(game.team1_source)],teams[resolve(game.team2_source)])
+
+
+def _inputs(plan, reg, results):
+    # Invocation-local reuse only. Every persisted result is still event/seed
+    # replayed on every read. These hashes equal checkpoint(results[:i]).
+    teams = {t.team_id:_team_input(t) for t in reg.teams if t.team_id in plan.entries}
+    fingerprints = tuple((r.match_id,_sha(r.to_dict())) for r in results)
+    return tuple(_input(plan,reg,results[:i],teams=teams,prior_sha=_sha(fingerprints[:i]))
+                 for i in range(len(results)))
 
 
 def verify_prefix(reg, repo, rosters, results, *, plan=None, gate='C'):
@@ -122,9 +132,7 @@ def verify_prefix(reg, repo, rosters, results, *, plan=None, gate='C'):
         raise ValueError('unknown plan/seed/source/date/entries')
     # Independent oracle checks complete prior rounds before factory resolution.
     ledger,ranks = progression_oracle(expected,reg,results)
-    teams = {t.team_id:_team_input(t) for t in reg.teams if t.team_id in expected.entries}
-    for i,result in enumerate(results):
-        match = _input(expected,reg,results[:i],teams=teams)
+    for result,match in zip(results,_inputs(expected,reg,results)):
         event_oracle(result,match)
         if not _identical(result,_run(match,match.match_seed)):
             raise ValueError('Stage108 seeded full-result replay differs')

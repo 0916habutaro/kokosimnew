@@ -38,8 +38,13 @@ class YamanashiTournamentTk:
             frame = ttk.Frame(book)
             book.add(frame, text=title)
             tree = ttk.Treeview(frame, columns=columns, show='headings')
+            headings=dict(rank='同順位',team='出場チームID',wins='勝数',losses='敗数',
+                reached_round='到達ラウンド',sequence='試合順',match='試合ID',source='進出根拠',
+                school='元学校ID',player='永久選手ID',slot='登録枠',team1='先攻',team2='後攻',
+                score1='先攻得点',score2='後攻得点',inning='回',half='表裏',runs='得点',
+                origin='元学校ID',kind='成績種別',stats='全計数成績')
             for col in columns:
-                tree.heading(col, text=col)
+                tree.heading(col, text=headings[col])
                 tree.column(col, width=120)
             scroll = ttk.Scrollbar(frame, orient='horizontal', command=tree.xview)
             tree.configure(xscrollcommand=scroll.set)
@@ -138,7 +143,9 @@ class YamanashiTournamentTk:
                        and (pid == '全登録選手' or p.player_id == pid))
         allowed = {p.player_id for p in people}
         if pid != '全登録選手' and pid not in allowed:
-            original = next(p for roster in snapshot.rosters for p in roster.players if p.player_id == pid)
+            original = next(p for roster in snapshot.rosters if roster.school_id in team.school_ids
+                            for p in roster.players if p.player_id == pid
+                            and (school == '全構成学校' or p.school_id == school))
             self.tables['members'].insert('', 'end', values=(tid,original.school_id,pid,'未登録'))
         for p in people:
             self.tables['members'].insert('', 'end', values=(tid, p.origin_school_id, p.player_id, p.team_slot))

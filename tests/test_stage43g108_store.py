@@ -59,6 +59,7 @@ def audit_sql(test,store,snapshot):
 class Stage108StoreTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.gate_b_verified=False
         cls.fixture=tempfile.TemporaryDirectory(prefix='stage108-B-');cls.addClassCleanup(cls.fixture.cleanup)
         cls.complete=OwnedTournamentStore(cls.fixture,gate='B',opt_in=True)
         cap=cls.complete.resume_capability();phases=[]
@@ -103,11 +104,19 @@ class Stage108StoreTests(unittest.TestCase):
             team=next(t for t in saved.registration.teams if sid in t.school_ids)
             self.assertEqual(tuple(r for r in saved.results if team.team_id in (r.team1_id,r.team2_id)),view['matches'])
             self.assertIsNone(view['school_standalone_outcomes'])
+            result=TournamentLabReader(self.complete.db_path).team(team.team_id)
+            self.assertEqual(sum(r.winner_id==team.team_id for r in view['matches']),result['wins'])
+            self.assertEqual(sum(r.loser_id==team.team_id for r in view['matches']),result['losses'])
+            self.assertEqual(next(r for r in saved.ranks if r.team_id==team.team_id),result['outcome'])
+
+        type(self).gate_b_verified=True
 
     def test_gate_c_after_b_full31_three_processes_round_boundary_complete(self):
+        self.assertTrue(type(self).gate_b_verified,'Gate B SQL/history acceptance required before Gate C')
         self.assertTrue(self.saved.complete)  # Gate C is conditional on successful Gate B.
         owner=tempfile.TemporaryDirectory(prefix='stage108-C-');self.addCleanup(owner.cleanup)
         begin=perf_counter();store=OwnedTournamentStore(owner,opt_in=True)
+        registration_seconds=perf_counter()-begin
         phases=[]
         for start,stop in ((0,1),(1,16),(16,31)):
             phases.append(run_phase(store.resume_capability(),start,stop))
@@ -134,10 +143,14 @@ class Stage108StoreTests(unittest.TestCase):
             games=[r for r in snap.results if team.team_id in (r.team1_id,r.team2_id)]
             self.assertTrue(games)
         MEASUREMENTS['C']=dict(phases=phases,real_matches=31,rounds=5,rows=rows,
-            database_bytes=len(before),verified_read_seconds=round(read_seconds,6),seconds=round(perf_counter()-begin,6),
+            database_bytes=len(before),registration_seconds=round(registration_seconds,6),verified_read_seconds=round(read_seconds,6),seconds=round(perf_counter()-begin,6),
             reader_db_bytes_unchanged=True,ranks=[asdict(r) for r in snap.ranks],
-            games=[dict(match_id=r.match_id,score=[r.team1_score,r.team2_score],winner=r.winner_id,
-                        events=len(r.events),innings=r.last_inning) for r in snap.results])
+            games=[dict(match_id=r.match_id,round_no=g.round_no,slot=g.slot,fictional_day=g.day,
+                seed=r.run_seed,team1=r.team1_id,team2=r.team2_id,
+                team1_label=next(t.label for t in snap.registration.teams if t.team_id==r.team1_id),
+                team2_label=next(t.label for t in snap.registration.teams if t.team_id==r.team2_id),
+                score=[r.team1_score,r.team2_score],winner=r.winner_id,
+                events=len(r.events),innings=r.last_inning) for r,g in zip(snap.results,snap.plan.games)])
 
     def test_fault_boundaries_first_round_end_next_round_and_final_rollback_retry(self):
         for i in range(7):
@@ -167,6 +180,10 @@ class Stage108StoreTests(unittest.TestCase):
             (self.saved.results[4],self.matches[4])):
             with self.assertRaises(ValueError):self.store.append(result,match)
         self.assertEqual(before,self.store.db_path.read_bytes())
+        for i in (1,2):self.append(i)
+        with self.assertRaises(RuntimeError):self.append(3,fault=fault)
+        self.assertEqual(4,len(self.reader.snapshot().results))
+        self.assertFalse(self.append(3))  # committed first-round barrier, response lost
 
     def test_mutated_rehashed_rows_origin_index_plan_rank_or_result_refused_ro(self):
         self.append(0);original=self.store.db_path.read_bytes()
@@ -199,6 +216,18 @@ class Stage108StoreTests(unittest.TestCase):
             raw=json.dumps(plan,ensure_ascii=False,sort_keys=True,separators=(',',':'))
             con.execute('UPDATE tournament_plan SET payload_json=?,sha256=?',(raw,hashlib.sha256(raw.encode()).hexdigest()))
             con.execute(next(t for t in TRIGGERS if t.startswith('CREATE TRIGGER tournament_plan_no_update ')))
+        with self.assertRaises(ValueError):self.reader.snapshot()
+        self.store.db_path.write_bytes(self.complete.db_path.read_bytes())
+        with closing(sqlite3.connect(self.store.db_path)) as con,con:
+            con.execute('DROP TRIGGER team_ranks_no_update')
+            con.execute('UPDATE team_ranks SET wins=99 WHERE rank=1')
+            con.execute(next(t for t in TRIGGERS if t.startswith('CREATE TRIGGER team_ranks_no_update ')))
+        before=self.store.db_path.read_bytes()
+        with self.assertRaises(ValueError):self.reader.tournament()
+        self.assertEqual(before,self.store.db_path.read_bytes())
+        self.store.db_path.write_bytes(original)
+        with closing(sqlite3.connect(self.store.db_path)) as con,con:
+            con.execute('CREATE INDEX unknown_index ON matches(match_id)')
         with self.assertRaises(ValueError):self.reader.snapshot()
 
     def test_append_only_legacy_readers_scope_existing_file_and_capability_identity(self):

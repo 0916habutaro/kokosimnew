@@ -37,6 +37,7 @@ jobs:
           path: audit-results/*.json
           if-no-files-found: error
   windows_native_tk:
+    needs: windows_tournament
     name: Windows Python 3.12 native Tk 32 teams school player totals
     runs-on: windows-latest
     timeout-minutes: 20

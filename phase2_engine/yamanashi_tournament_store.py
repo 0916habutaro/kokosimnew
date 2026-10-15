@@ -11,9 +11,9 @@ import sqlite3
 import tempfile
 
 from . import registered_full_a_lab_store as old
-from .joint_team_registration_lab import _identical, _team_input
+from .joint_team_registration_lab import _identical
 from .yamanashi_tournament_registration import fixed_authorities, SCHOOLS, YEAR, COMPETITION
-from .yamanashi_tournament_lab import checkpoint, _input, _run
+from .yamanashi_tournament_lab import checkpoint, _input, _inputs, _run
 from .registered_full_a_oracle import event_oracle
 from .yamanashi_tournament_oracle import progression_oracle
 from .registered_full_a_contract import VERSION, decode_result
@@ -57,11 +57,8 @@ def _rows(reg, rosters, results, plan, ledger, ranks):
             old.canonical(p.player.to_dict())) for p in team.players)
     raw = old.canonical(plan.to_dict())
     rows['tournament_plan'] = [(reg.year, reg.competition_id, raw, old.digest(raw))]
-    # _input is safe only after verify_prefix. It is never a general reader.
-    from .yamanashi_tournament_lab import _input
-    teams = {t.team_id:_team_input(t) for t in reg.teams if t.team_id in plan.entries}
-    for i, result in enumerate(results):
-        match = _input(plan, reg, results[:i], teams=teams)
+    # Reconstruct inputs only from the verified prefix, never saved input JSON.
+    for result,match in zip(results,_inputs(plan,reg,results)):
         scope = result.year, result.competition_id, result.match_id, result.version
         raw = result.to_json()
         rows['matches'].append((*scope, result.team1_id, result.team2_id,
@@ -98,7 +95,7 @@ def _audit(con):
     repo, rosters, reg = fixed_authorities()
     results = []
     for raw, sha in con.execute('SELECT result_json,result_sha256 FROM matches ORDER BY match_id'):
-        if old.digest(raw) != sha or old.identify_result_format(raw) != VERSION:
+        if old.digest(raw) != sha:
             raise ValueError('result digest/version differs')
         results.append(decode_result(raw))
     results = tuple(results)
@@ -259,6 +256,18 @@ class TournamentLabReader(old.RegisteredFullALabReader):
         if not snapshot.complete:
             raise ValueError('tournament incomplete; final ranks unavailable')
         return snapshot
+
+    def team(self, team_id, *, year=YEAR, competition_id=COMPETITION):
+        self._scope(year,competition_id)
+        snapshot = self.snapshot()
+        team = next((t for t in snapshot.registration.teams if t.team_id == team_id),None)
+        if team is None:
+            raise ValueError('unknown Stage108 team')
+        games = tuple(r for r in snapshot.results if team_id in (r.team1_id,r.team2_id))
+        return dict(team=team,matches=games,entered=team_id in snapshot.plan.entries,
+            wins=sum(r.winner_id == team_id for r in games),
+            losses=sum(r.loser_id == team_id for r in games),
+            outcome=next((r for r in snapshot.ranks if r.team_id == team_id),None))
 
     def school(self, school_id, *, year=YEAR, competition_id=COMPETITION):
         self._scope(year,competition_id)

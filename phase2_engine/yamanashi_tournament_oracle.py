@@ -25,7 +25,9 @@ def progression_oracle(plan, registration, results):
     schools = [s for t in registration.teams for s in t.school_ids]
     if (n not in (8,32) or len(set(entries)) != n or not set(entries) <= known
             or len(set(schools)) != len(schools) or len(plan.games) != n-1
-            or len(results) > n-1):
+            or len(results) > n-1
+            or len({g.match_id for g in plan.games}) != n-1
+            or len({g.seed for g in plan.games}) != n-1):
         raise ValueError('unique entrants/membership and complete bracket required')
     wins, losses = dict.fromkeys(entries,0), dict.fromkeys(entries,0)
     reached = dict.fromkeys(entries,1)
