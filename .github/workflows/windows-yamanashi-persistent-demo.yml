@@ -1,4 +1,4 @@
-name: Stage43G-109 Windows persistent Yamanashi demo
+name: Stage43G-109-110 Windows persistent Yamanashi demo
 on:
   pull_request:
   push:
@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   windows_demo:
-    name: Windows Python 3.12 persistent demo 31 games restart and eleven old exports
+    name: Windows Python 3.12 persistent demo restart and twelve old exports
     runs-on: windows-latest
     timeout-minutes: 30
     env:
@@ -30,6 +30,8 @@ jobs:
           New-Item -ItemType Directory -Path audit-results | Out-Null
           python tests/stage43g109_audit.py --require-windows --json-output audit-results/persistent-demo.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tests/stage43g110_audit.py --require-windows --json-output audit-results/ux-controller.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v6
         if: always()
         with:
@@ -45,6 +47,8 @@ jobs:
     steps:
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -53,6 +57,13 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path audit-results | Out-Null
           python tests/stage43g109_audit.py --require-windows --gui --json-output audit-results/persistent-tk.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tests/stage43g110_audit.py --require-windows --gui --json-output audit-results/ux-tk.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Paired pinned Stage109 and current full31 calculation verification SQLite and mapped Tk timings
+        shell: pwsh
+        run: |
+          python tests/stage43g110_measure.py --require-windows --gui --json-output audit-results/paired-timings.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v6
         if: always()

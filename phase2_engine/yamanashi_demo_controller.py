@@ -61,6 +61,8 @@ class DemoController:
                 raise ValueError('全31試合が完了しています')
             target_round = snap.plan.games[len(snap.results)].round_no
             while not snap.complete:
+                if cancel.is_set():
+                    raise InterruptedError('次試合の開始前に中断')
                 self.store.play_next(expected_checkpoint=checkpoint(snap.results), cancel=cancel, fault=fault)
                 snap = self.store.snapshot()
                 self.snapshot = snap
@@ -86,10 +88,19 @@ class DemoController:
             try:
                 snap = self.execute(action, demo_id=demo_id, cancel=self._cancel,
                                     progress=self._queue.put, fault=fault)
-                self._queue.put(DemoUpdate(snap, f'{len(snap.results)}/31試合 自動保存済み', done=True))
+                self._queue.put(DemoUpdate(snap, f'{len(snap.results)}/31試合 自動保存済み。'
+                    '終了後は同じ保存先・デモIDで続きから再開できます', done=True))
             except InterruptedError:
-                # Cancellation has rolled back before commit. Do not project unverified state.
-                self._queue.put(DemoUpdate(message='未commitの計算結果は未保存です。commit済みだけ再開できます', done=True))
+                # Re-read after rollback; a cancellation request is not a saved ACK.
+                try:
+                    snap = self.store.snapshot()
+                    self.snapshot = snap
+                    self._queue.put(DemoUpdate(snap, f'中断完了：{len(snap.results)}/31試合 自動保存済み。'
+                        '未commitの計算結果は未保存です。保存済みから続行できます', done=True))
+                except Exception:
+                    self._release()
+                    self._queue.put(DemoUpdate(message='中断後の検証拒否。保存件数は未確認です。専用デモを選び直してください',
+                                               done=True, error=True))
             except Exception:
                 self._release()
                 # No private path, raw SHA or arbitrary SQLite error in UI/CI evidence.
