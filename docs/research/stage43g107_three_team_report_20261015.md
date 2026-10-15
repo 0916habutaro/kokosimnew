@@ -34,6 +34,8 @@ Linux Python3.12.14補助測定（全unittest・関東E2Eとの並行実行）�
 
 新Windows Python3.12専用CIはheadless22件とnative mapped Tk1件をskip0必須にする。Tkは2つの実worker終了後に2回新windowを開き、3team・4校・各試合・全イニング・永久IDの試合別／累計、未完了／破損／navigation読取失敗時の全消去、native close/rename/reopenを検証する。ローカルLinux環境は表示サーバー未導入のため新TkはWindows CIで受入する。最終headのWindows CI・全unittest・関東17校E2E・Stage94–106既存ゲートの結果はPR本文に記録する。個人Windows PCの人による目視・手操作は未検証。
 
+初回Windows Tkでは表示・ナビゲーション・拒否検証後の共通integrity sweepが、意図的に作った破損fixtureまで検査して失敗した。破損拒否の検証後にそのfixtureを片付け、有効なSQLiteのclose/rename/reopen検証を継続するようテストを修正した。製品／lab readerの破損拒否は維持した。
+
 Stage94/99/100/101/102/103/104/105/106の9候補は真の各main checkoutから独立プロセスで自己生成exportし、現行readerでread-only内容verify・原本bytes不変を確認。Stage106は変更前にも実候補を確保して再verifyした。338catalog入力・106CSVを含むdata全bytes不変。内容verifyは真正性署名でも新しいreplay/restore承認でもなく、古いcatalogのreplay拒否を維持する。実ユーザー候補・既存save利用0件、実ユーザーsave互換は未検証。
 
 ## 限界と停止条件

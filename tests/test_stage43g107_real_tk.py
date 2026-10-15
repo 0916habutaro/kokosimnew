@@ -81,6 +81,7 @@ class Stage107NativeTkTests(unittest.TestCase):
                     with self.assertRaises(sqlite3.DatabaseError):gui.open_saved(broken)
                     self.assertIsNone(gui.result)
                     self.assertTrue(all(not t.get_children() for t in gui.tables.values()))
+                    broken.unlink()  # The subsequent SQLite integrity sweep covers valid fixtures.
                     gui.open_saved(store.db_path)
                     # Failure during navigation clears a previously complete screen.
                     hidden=store.db_path.with_suffix('.hidden')
