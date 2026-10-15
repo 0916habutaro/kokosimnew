@@ -3,6 +3,8 @@ name: Stage43G-95 fixture isolated relocation
 on:
   pull_request:
     paths:
+      - 'phase2_engine/yamanashi_tournament*.py'
+      - 'tests/*stage43g108*.py'
       - 'phase2_engine/joint_tournament*.py'
       - 'tests/*stage43g107*.py'
       - 'tests/*stage43g103*.py'
