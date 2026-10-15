@@ -1,0 +1,62 @@
+name: Stage43G-106 Windows isolated registered full A store
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: stage43g106-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows_product:
+    name: Windows Python 3.12 append-only store and eight old exports
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Owned SQLite restart oracle and eight old versions zero skips
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path audit-results | Out-Null
+          python tests/stage43g106_audit.py --require-windows --json-output audit-results/product.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: stage43g106-windows-product
+          path: audit-results/*.json
+          if-no-files-found: error
+  windows_native_tk:
+    name: Windows Python 3.12 native Tk saved full A
+    runs-on: windows-latest
+    timeout-minutes: 10
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Mapped saved team school player refusal close rename reopen zero skips
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path audit-results | Out-Null
+          python tests/stage43g106_audit.py --require-windows --gui --json-output audit-results/tk.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: stage43g106-windows-native-tk
+          path: audit-results/*.json
+          if-no-files-found: error
