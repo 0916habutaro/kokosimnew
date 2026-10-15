@@ -17,9 +17,10 @@ jobs:
   unittest:
     name: Python 3.12 unittest
     runs-on: ubuntu-latest
-    # Stage43G-50~53 full A-history E2E exceeds the former 15-minute cap.
-    # Independent target workflows still exercise each feature explicitly.
-    timeout-minutes: 45
+    # Stage108 adds owned 8/32-team full-A restart/fault verification to the
+    # complete suite; Stage107 already measured about 42 minutes in CI.
+    # Keep all checks and existing skips; allow the added staged lab to finish.
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
