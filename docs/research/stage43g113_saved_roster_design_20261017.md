@@ -78,7 +78,9 @@ Windows実測は専用監査JSONとActionsログを正本とする。Linuxは補
 初回source保存、targetコピー、検証/進級/受理、別process再開、全2800人RO履歴検索、DB bytes、
 tracemallocとOS process peak RSS、SQL索引利用を記録する。RSSはPython process全体のhigh-water mark。
 共通検証は各操作で線形走査し、校別commitごとに全100校を再検証するO(N²)方式を採用しない。
-同OSジョブ内の段階別実時間を比較し、将来は同一不変sourceの検証結果共有を検討する。
+同OSジョブでStage111 289.339秒・112 220.427秒・113 513.042秒を実測した。
+初回source保存6.371秒・コピー8.668秒・進級受理12.512秒に対し、監査全体は独立fixtureの再作成と故障注入を含む。
+将来は非破壊ケース間の同一不変source共有を独立比較し、前後SHA・実体ID照合は維持する。
 試験対象・失敗注入・旧版数を減らさず、重複した生成/検証だけを独立比較してから削減する。
 
 個人Windows PCの手操作・サインアウト/再ログイン・OS再起動・既存ユーザーsaveは未検証。
