@@ -3,6 +3,8 @@ name: Stage43G-94 manual stopped legacy backup
 on:
   pull_request:
     paths:
+      - 'phase2_engine/school_roster_*.py'
+      - 'tests/*stage43g112*.py'
       - 'phase2_engine/yamanashi_annual_rosters.py'
       - 'tests/*stage43g111*.py'
       - 'phase2_engine/yamanashi_demo*.py'
@@ -33,6 +35,8 @@ on:
   push:
     branches: [main]
     paths:
+      - 'phase2_engine/school_roster_*.py'
+      - 'tests/*stage43g112*.py'
       - 'phase2_engine/yamanashi_annual_rosters.py'
       - 'tests/*stage43g111*.py'
       - 'phase2_engine/yamanashi_demo*.py'

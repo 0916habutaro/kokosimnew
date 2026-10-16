@@ -12,7 +12,7 @@ import sqlite3
 import tempfile
 import threading
 
-from game_core.career_rosters import advance_school_roster
+from .school_roster_contract import accept_roster_source, stream_school_transitions
 from .career_roster_archive import CareerRosterArchive, _SCHEMA, _decode, _identity
 from . import yamanashi_demo_store as demo
 from . import registered_full_a_lab_store as codec
@@ -143,8 +143,11 @@ def _schema(con):
 
 def _expected(snap):
     """At most 33 school transitions; no historical match generation here."""
-    transitions = tuple(advance_school_roster(r, snap.repo.team(r.school_id),
-                        next_year=NEXT_YEAR, career_seed=ROSTER_SEED) for r in snap.rosters)
+    receipt = accept_roster_source(snap.rosters, snap.repo, year=YEAR,
+        career_seed=ROSTER_SEED, evidence='Stage111 verified saved31 source',
+        source_kind='verified_saved_school_source')
+    transitions = tuple(stream_school_transitions(snap.rosters, snap.repo, receipt,
+                        next_year=NEXT_YEAR, career_seed=ROSTER_SEED))
     old = {p.player_id: p for r in snap.rosters for p in r.players}
     fresh = [p.player_id for t in transitions for p in t.newcomers]
     if len(fresh) != 264 or len(set(fresh)) != 264 or set(fresh) & old.keys():

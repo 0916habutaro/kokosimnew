@@ -17,10 +17,11 @@ jobs:
   unittest:
     name: Python 3.12 unittest
     runs-on: ubuntu-latest
-    # Stage108 adds owned 8/32-team full-A restart/fault verification to the
-    # complete suite; Stage107 already measured about 42 minutes in CI.
-    # Keep all checks and existing skips; allow the added staged lab to finish.
-    timeout-minutes: 60
+    # Stage111 measured 3386.766 seconds for the complete suite. Stage112
+    # adds a real saved31 source, cross-prefecture roster and old111 export
+    # audit (216.876 seconds on Windows); retain every test and existing skip.
+    # Give the full suite room to finish without changing its coverage.
+    timeout-minutes: 75
 
     steps:
       - name: Checkout repository
