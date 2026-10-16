@@ -167,7 +167,7 @@ def _rows(snapshot, metadata):
     return rows
 
 
-def _audit(con, metadata):
+def _audit(con, metadata, *, with_rows=False):
     schema = con.execute("SELECT sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").fetchall()
     if len(schema) != len(SCHEMA) or {r[0] for r in schema} != set(SCHEMA):
         raise ValueError('専用デモのschemaが違います')
@@ -184,11 +184,24 @@ def _audit(con, metadata):
         results.append(decode_result(raw))
     plan, ledger, ranks = verify_prefix(reg, repo, rosters, tuple(results), gate='C')
     snapshot = lab.TournamentSnapshot(reg, rosters, tuple(results), repo, plan, ledger, ranks)
-    for table, values in _rows(snapshot, metadata).items():
+    expected = _rows(snapshot, metadata)
+    for table, values in expected.items():
         if sorted(con.execute(f'SELECT * FROM {table}').fetchall()) != sorted(values):
             raise ValueError('専用デモの登録・入力・結果・進出・順位・metadataが違います: ' + table)
     # Every raw relational row is compared above, including membership-derived participation.
-    return snapshot
+    # Request-local serialization only, returned AFTER every row is verified.
+    # No snapshot/replay/SQL check is skipped, including before each write.
+    return (snapshot, expected) if with_rows else snapshot
+
+
+def _append_rows(con, before, after, boundary):
+    """Preserve table/row insertion order; sets are only membership lookups."""
+    for table, rows in after.items():
+        existing = set(before[table])
+        for row in rows:
+            if row not in existing:
+                con.execute(f'INSERT INTO {table} VALUES ({",".join("?" for _ in row)})', row)
+        boundary(table)
 
 
 class _Lease:
@@ -392,18 +405,14 @@ class DemoStore:
                 con.execute('PRAGMA synchronous=FULL')
                 with con:
                     con.execute('BEGIN IMMEDIATE')
-                    previous = _audit(con, self.capability.metadata)
+                    previous, before = _audit(con, self.capability.metadata, with_rows=True)
                     if checkpoint(previous.results) != checkpoint(snapshot.results):
                         raise ValueError('保存中に進行状況が変わりました')
                     ledger, ranks = progression_oracle(snapshot.plan, snapshot.registration, snapshot.results + (result,))
                     current = lab.TournamentSnapshot(snapshot.registration, snapshot.rosters,
                         snapshot.results + (result,), snapshot.repo, snapshot.plan, ledger, ranks)
-                    before, after = _rows(snapshot, self.capability.metadata), _rows(current, self.capability.metadata)
-                    for table, rows in after.items():
-                        for row in rows:
-                            if row not in before[table]:
-                                con.execute(f'INSERT INTO {table} VALUES ({",".join("?" for _ in row)})', row)
-                        boundary(table)
+                    after = _rows(current, self.capability.metadata)
+                    _append_rows(con, before, after, boundary)
                     _audit(con, self.capability.metadata)
                     boundary('before_commit')
             if fault:

@@ -1,0 +1,19 @@
+{
+  "stage": "43G-110",
+  "os": "Linux",
+  "python": "3.12.14",
+  "successful": true,
+  "seconds": 20.158,
+  "tests": 3,
+  "skipped": 0,
+  "failures": 0,
+  "errors": 0,
+  "native_windows": false,
+  "mapped_tk": false,
+  "additional_true_old_candidate_version": 109,
+  "earlier_eleven_versions": "unchanged Stage109 audit",
+  "catalog_inputs_unchanged": 338,
+  "master_csv_unchanged": 106,
+  "manual_user_windows_operation_verified": false,
+  "os_login_session_restart_verified": false
+}

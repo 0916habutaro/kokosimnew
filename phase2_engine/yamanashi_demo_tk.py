@@ -5,7 +5,6 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .yamanashi_demo_controller import DemoController
-from .yamanashi_tournament_lab import _input
 from .joint_tournament_oracle import player_totals
 
 NOTICE = 'ゲーム内試験用山梨県夏季大会｜2026年・架空選手／架空組合せ／架空結果・Windows個人用／非配布'
@@ -13,11 +12,14 @@ HELP = ('固定2026 seed・33校660永久ID／32チーム640登録・5ラウン�
         '試合間疲労・怪我・犠打・盗塁・失策等は未実装です。新規は毎回別デモID。'
         '保存は試合ごとに自動commit。処理中終了では未commit結果は未保存。'
         '製品セーブ・旧バックアップの読込／移行／復元、翌年度試合、削除は対象外です。')
+STEPS = ('初回：①専用保存先を新規作成（Git・data・save・backup外、未存在の名前）→②新規32チームデモ。'
+         '再開：①専用保存先を開く（demo子フォルダーではなく保存ルート）→②下のデモID→③続きから。')
 
 
 class DemoHistory:
     def __init__(self, parent, *, guard, on_error):
         self.snapshot = self.result = None
+        self._stats_context = None
         self.guard, self.on_error = guard, on_error
         self.pickers, self.tables = {}, {}
         self.status = ttk.Label(parent, text='デモを明示開始／再開してください', wraplength=1050)
@@ -35,6 +37,7 @@ class DemoHistory:
             self.pickers[key] = box
         self.book = ttk.Notebook(parent)
         self.book.pack(fill='both', expand=True)
+        self.book.bind('<<NotebookTabChanged>>', self._stats_tab)
         specs = [
             ('ranks', 'チーム同順位', ('同順位', '参加チーム', '勝', '敗', '到達ラウンド')),
             ('plan', '31試合の予定・結果', ('順', '回戦', '試合ID', '架空日', '対戦', '得点／未実施')),
@@ -59,6 +62,7 @@ class DemoHistory:
 
     def clear(self):
         self.snapshot = self.result = None
+        self._stats_context = None
         for box in self.pickers.values():
             box.set(''); box['values'] = ()
         for tree in self.tables.values():
@@ -127,7 +131,35 @@ class DemoHistory:
             self._put('innings', [] if result is None else ((mid, s.inning,
                 '表' if s.half == 'top' else '裏', self.labels[s.team_id], s.runs if s.was_played else 'X')
                 for s in result.inning_scores))
+            # Only build the expensive counting-stat table when requested.
+            # Context belongs to this verified UI selection; never a persisted cache.
+            self._stats_context = (snapshot, matches, team, chosen)
+            self._put('stats', ())
+            self._stats_tab()
+            if self.snapshot is None:
+                return
+            wins = sum(r.winner_id == team.team_id for r in matches)
+            rank = next((r.rank for r in snapshot.ranks if r.team_id == team.team_id), None)
+            unregistered = sum(p.player_id not in registered for p in chosen)
+            appearances = {s.player_id for g in matches for s in g.batter_stats + g.pitcher_stats}
+            not_played = sum(p.player_id not in appearances for p in chosen)
+            school_names = ', '.join(f'{snapshot.repo.team(s).display_name} [{s}]' for s in schools)
+            self.status.config(text=f'{team.label}：{wins}勝{len(matches)-wins}敗・同順位 {rank or "未確定"}。'
+                f'元学校 {school_names}（学校単独順位ではありません）。選択{len(chosen)}人：'
+                f'未登録{unregistered}人／未出場{not_played}人。IDは「登録・元学校」、成績は「試合別・通算個人成績」タブ。')
+        except Exception:
+            self.clear()
+            self.on_error()
+
+    def _stats_tab(self, event=None):
+        if (self._stats_context is None or 'stats' not in self.tables
+                or self.book.select() != str(self.tables['stats'].master)):
+            return
+        try:
+            self.guard()
+            snapshot, matches, team, chosen = self._stats_context
             ids = {p.player_id for p in chosen}
+            registered = {p.player_id for p in team.players}
             ignored = {'year', 'competition_id', 'match_id', 'team_id', 'origin_school_id', 'player_id'}
             rows = []
             for game in matches:
@@ -138,12 +170,9 @@ class DemoHistory:
                                          str({k:v for k,v in asdict(s).items() if k not in ignored})))
             for p in chosen:
                 for kind, totals in player_totals(snapshot.results, p.player_id).items():
-                    rows.append(('通算', team.label, p.school_id, p.player_id, kind, str(totals) if totals else '実出場なし'))
+                    empty = '未登録・未出場' if p.player_id not in registered else '未出場'
+                    rows.append(('通算', team.label, p.school_id, p.player_id, kind, str(totals) if totals else empty))
             self._put('stats', rows)
-            wins = sum(r.winner_id == team.team_id for r in matches)
-            rank = next((r.rank for r in snapshot.ranks if r.team_id == team.team_id), None)
-            self.status.config(text=f'{team.label}：参加チーム {wins}勝{len(matches)-wins}敗／'
-                f'同順位 {rank if rank else "未確定"}／元学校 {", ".join(schools)}。学校単独順位ではありません。')
         except Exception:
             self.clear()
             self.on_error()
@@ -155,6 +184,7 @@ class YamanashiDemoTk:
         self.namespace_picker = namespace_picker or self._choose_namespace
         self.confirm = confirm or (lambda text: messagebox.askyesno('専用デモの確認', text, parent=root))
         self.closed = self.closing = False
+        self._action = None
         self.last_error = None
         self.buttons = {}
         self.status_var = tk.StringVar(master=root, value='専用保存先を新規作成、または以前作成した専用保存先を開いてください')
@@ -164,15 +194,21 @@ class YamanashiDemoTk:
         root.protocol('WM_DELETE_WINDOW', self.request_close)
         ttk.Label(root, text=NOTICE, wraplength=1180, padding=8).pack(fill='x')
         ttk.Label(root, text=HELP, wraplength=1180, padding=(8,0)).pack(fill='x')
+        ttk.Label(root, text=STEPS, wraplength=1180, padding=(8,4)).pack(fill='x')
         bar = ttk.Frame(root, padding=8); bar.pack(fill='x')
         for key, label in [('namespace_new','専用保存先を新規作成'), ('namespace_open','専用保存先を開く'),
                            ('new','新規32チームデモ'), ('resume','続きから'), ('exit','終了')]:
             self._button(bar, key, label)
+        ttk.Label(root, text='再開するデモID（新規は別IDを追加します。再開したいIDを手元に記録してください）',
+                  padding=(8,0)).pack(fill='x')
         self.demo_box = ttk.Combobox(root, state='readonly', height=12)
         self.demo_box.pack(fill='x', padx=8)
         progress = ttk.Frame(root, padding=8); progress.pack(fill='x')
-        for key, label in [('one','次の1試合'), ('round','このラウンドの残り'), ('reload','保存内容を再検証・履歴閲覧')]:
+        for key, label in [('one','次の1試合'), ('round','このラウンドの残り'), ('cancel','進行を中断'),
+                           ('reload','保存内容を再検証・履歴閲覧')]:
             self._button(progress, key, label)
+        self.progress = ttk.Progressbar(root, maximum=31, mode='determinate')
+        self.progress.pack(fill='x', padx=8)
         ttk.Label(root, textvariable=self.current_var, padding=(8,0), wraplength=1180).pack(fill='x')
         ttk.Label(root, textvariable=self.status_var, padding=8, wraplength=1180).pack(fill='x')
         frame = ttk.Frame(root, padding=8); frame.pack(fill='both', expand=True)
@@ -208,6 +244,7 @@ class YamanashiDemoTk:
         self.last_error = '検証拒否'
         self.controller.snapshot = None
         self.current_var.set('検証済みの表示なし')
+        self.progress['value'] = 0
         self.status_var.set('読取検証拒否：画面を消去しました。原本は修復しません')
         self._states()
 
@@ -217,12 +254,16 @@ class YamanashiDemoTk:
             enabled = not c.busy and not self.closing
             if key in ('new','resume'):
                 enabled = enabled and c.namespace is not None
+                if key == 'resume':
+                    enabled = enabled and bool(self.demo_box['values'])
             elif key in ('one','round'):
                 enabled = enabled and c.snapshot is not None and not c.snapshot.complete
             elif key == 'reload':
                 enabled = enabled and c.store is not None
             if key == 'exit':
                 enabled = not self.closing
+            if key == 'cancel':
+                enabled = c.busy and not self.closing and self._action in ('one', 'round')
             button.configure(state='normal' if enabled else 'disabled')
         self.demo_box.configure(state='disabled' if c.busy or self.closing else 'readonly')
 
@@ -231,6 +272,12 @@ class YamanashiDemoTk:
             return
         if action == 'exit':
             self.request_close(); return
+        if action == 'cancel':
+            if self.controller.busy and self._action in ('one', 'round'):
+                self.controller.request_cancel()
+                self.status_var.set('中断要求中：まだ完了ではありません。未commit計算結果は未保存。保存済み件数を再検証して表示します')
+                self.buttons['cancel'].configure(state='disabled')
+            return
         if self.controller.busy:
             return
         try:
@@ -240,6 +287,7 @@ class YamanashiDemoTk:
                 if path is None:
                     return
                 self.history.clear(); self.current_var.set('未開始・専用デモを選択してください')
+                self.progress['value'] = 0
                 ids = self.controller.use_namespace(path, create=create)
                 self.demo_box['values'] = ids
                 self.demo_box.set('')
@@ -251,9 +299,13 @@ class YamanashiDemoTk:
                 return
             demo_id = self.demo_box.get() if action == 'resume' else None
             self.history.clear()
+            committed = len(self.controller.snapshot.results) if self.controller.snapshot is not None else None
             self.current_var.set('検証・計算中（未commit計算結果は未保存）')
+            self._action = action
             self.controller.begin(action, demo_id=demo_id)
-            self.status_var.set('処理中です。試合ごとに自動保存します。終了時はcommit済みだけ再開できます')
+            self.status_var.set('処理中：全保存内容を検証しています。' +
+                (f'開始時点の保存済み {committed}/31試合。' if committed is not None else '') +
+                '計算中の1試合は未保存です。試合ごとに自動保存し、次戦を更新します')
             self._states()
             self.root.after(30, self._poll)
         except Exception:
@@ -262,6 +314,7 @@ class YamanashiDemoTk:
             self.demo_box.set(''); self.demo_box['values'] = ()
             self.history.clear()
             self.current_var.set('検証済みの表示なし')
+            self.progress['value'] = 0
             self.last_error = '専用保存先・デモの選択を拒否しました'
             self.status_var.set(self.last_error + '。既存フォルダー・製品save・旧backupは使用できません')
             self._states()
@@ -276,9 +329,19 @@ class YamanashiDemoTk:
                 self.last_error = update.message
                 self.history.clear()
                 self.current_var.set('検証済みの表示なし')
+                self.progress['value'] = 0
             elif update.snapshot is not None:
                 snap = update.snapshot
-                self.current_var.set(f'{len(snap.results)}/31試合 自動保存済み。' + self._next(snap))
+                self.progress['value'] = len(snap.results)
+                labels = {t.team_id:t.label for t in snap.registration.teams}
+                previous = snap.results[-1] if snap.results else None
+                last = (f'前試合：{labels[previous.team1_id]} {previous.team1_score}－{previous.team2_score} '
+                        f'{labels[previous.team2_id]}。' if previous else '前試合：まだありません。')
+                self.current_var.set(f'{len(snap.results)}/31試合 自動保存済み。' + last + self._next(snap))
+                if not update.done:
+                    self.status_var.set(('終了要求中：' if self.closing else
+                        '中断要求中：' if self.controller._cancel.is_set() else '試合進行中：') +
+                        update.message + '。計算中の次試合は未保存です。終了応答待ちと保存完了は別です')
                 if update.done and not self.closing:
                     try:
                         self.history.show(snap)
@@ -300,10 +363,14 @@ class YamanashiDemoTk:
     def _next(self, snap):
         if snap.complete:
             return '大会完了。同順位・学校参加・全660人の試合別／通算成績を閲覧できます'
-        m = _input(snap.plan, snap.registration, snap.results)
         labels = {t.team_id:t.label for t in snap.registration.teams}
         game = snap.plan.games[len(snap.results)]
-        return f'次：第{game.round_no}ラウンド {m.day} {labels[m.team1.team_id]} 対 {labels[m.team2.team_id]}'
+        winners = {r.match_id:r.winner_id for r in snap.results}
+        def name(source):
+            return labels[winners[source[7:]]] if source.startswith('winner:') else labels[source]
+        remaining = sum(g.round_no == game.round_no for g in snap.plan.games[len(snap.results):])
+        return (f'次：第{game.round_no}/5ラウンド（残り{remaining}試合） {game.day} '
+                f'{name(game.team1_source)} 対 {name(game.team2_source)}')
 
     def request_close(self):
         if self.closed or self.closing:
@@ -313,7 +380,7 @@ class YamanashiDemoTk:
         self.closing = True
         self.history.clear()
         self.controller.request_cancel()
-        self.status_var.set('終了処理中。未commit結果は未保存です。接続を閉じてから終了します')
+        self.status_var.set('終了要求中（まだ終了していません）。未commit結果は未保存です。保存済みを確認し接続を閉じてから終了します')
         self._states()
         if not self.controller.busy:
             self.close()

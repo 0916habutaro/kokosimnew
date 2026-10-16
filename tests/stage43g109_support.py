@@ -75,6 +75,7 @@ def gui_phase(namespace, phase, demo_id):
             click('round')
     snap = gui.controller.snapshot
     assert len(snap.results) == (1, 16, 31)[phase]
+    history_bytes = gui.controller.store.db_path.read_bytes()
     tree = gui.history.tables['plan']
     gui.history.book.select(tree.master); root.update()
     tree.yview_moveto(1); root.update(); assert tree.yview()[0] > 0
@@ -107,17 +108,19 @@ def gui_phase(namespace, phase, demo_id):
                     assert values[1:3] == (sid, pid)
                     from phase2_engine.joint_tournament_oracle import player_totals
                     expected=player_totals(snap.results,pid)
+                    gui.history.book.select(gui.history.tables['stats'].master); root.update()
                     stats=[gui.history.tables['stats'].item(i,'values') for i in gui.history.tables['stats'].get_children()]
                     actual=[s for s in stats if s[0]!='通算']
                     assert len(actual)==sum(s.player_id==pid for g in snap.results for s in g.batter_stats+g.pitcher_stats)
                     for stat in (s for s in stats if s[0]=='通算'):
-                        assert (ast.literal_eval(stat[5]) if stat[5]!='実出場なし' else {})==expected[stat[4]]
+                        assert (ast.literal_eval(stat[5]) if stat[5] not in ('実出場なし','未出場','未登録・未出場') else {})==expected[stat[4]]
                     visited += 1
         assert visited == 660 and not errors
         for i in range(len(gui.history.pickers['match']['values'])):
             gui.history.pickers['match'].current(i)
             gui.history.pickers['match'].event_generate('<<ComboboxSelected>>'); root.update()
             assert len(gui.history.tables['innings'].get_children()) == len(gui.history.result.inning_scores)
+    assert gui.controller.store.db_path.read_bytes() == history_bytes
     result = dict(demo_id=gui.controller.store.demo_id, committed=len(snap.results),
         complete=snap.complete, mapped=True, visited_players=visited,
         database_bytes=gui.controller.store.db_path.stat().st_size,seconds=round(perf_counter()-began,6))
