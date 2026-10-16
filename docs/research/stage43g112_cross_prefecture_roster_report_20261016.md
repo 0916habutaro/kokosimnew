@@ -57,3 +57,6 @@ Python3.12.14、Linuxの初回実装head `9aadd82` を対象に、新10件/skip0
 公開集計を `audits/phase2/stage43g112/windows_roster_contract_20261016.json` に保存した。元artifactは `stage43g111-windows-annual-rosters`（`annual-rosters.json` と `cross-prefecture-rosters.json`）。後続commitでは同seed37校1036永久IDの追加照合と、既存archiveを直接通す衝突rollback試験を強化した。最終headの新旧gate・全unittest・関東E2Eの結果は [PR #280 checks](https://github.com/0916habutaro/kokosimnew/pull/280/checks) と日本語PR本文に最終集約する。
 
 初回headの関東8都県17校E2Eは2件成功、435.946秒（[ジョブ](https://github.com/0916habutaro/kokosimnew/actions/runs/38905755134/job/116988786039)）。最終headでも同じE2Eと全unittest、Stage109/110/111 native Windows/Tk、保存境界回帰を省略せず確認する。
+
+
+全unittestの前Stage実測3386.766秒（約56分）に新audit約4分が加わるため、時間超過による中断を避ける目的で全unittestジョブのtimeoutだけ60→75分へ変更した。テスト選択・件数・assertion・skip条件・関東E2Eジョブは変更していない。新workflow/jobを追加するものではない。
