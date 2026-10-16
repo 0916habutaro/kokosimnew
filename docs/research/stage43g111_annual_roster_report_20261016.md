@@ -53,11 +53,13 @@ native接続を保持する観測fixtureで操作後のcloseを確認し、DB re
 
 Stage110 mainのコードから`git archive`で別checkoutを作り、別Pythonで模擬旧候補を生成してRO内容verifyした。338catalog入力・106master CSVを含む全data bytesが同じで、候補bytes不変、旧候補コードを実行しないことを確認した。
 既存Stage109/110の12版gateを変更せず、真のStage110を追加して旧13版とする。古いcatalogが一致しない版へのreplay許可は与えない。
-製品writerと既存コードは変更せず、新規年次モジュール/例/試験/資料/専用workflowだけを追加した。
+製品writerと既存実装コードは変更せず、新規年次モジュール/例/試験/資料/専用workflowを追加した。
+既存Stage91〜96保存境界CIの発火pathに新年次モジュール/試験を追加し、Stage110までの回帰gateも最終headで発火するようにした。各gateの内容・件数・skip条件は変えていない。
 
 Windows Python3.12の新headless年次gateは8件/skip0を要求し、自己生成実31試合、年次継承、独立照合、SQLite close/rename、process再開と故障拒否を実行する。
 年次Tkは追加していない。既存Stage109/110のWindows native mapped Tk、save/restart/全660人履歴・Stage100〜110回帰、全unittest、関東8都県17校E2Eの必須CIはそのまま実行する。
 **最終headのWindows実測・全CIのrun/job結果、全unittest件数とskip、関東E2Eの結果は本PR本文に記録する。** 先行Linux測定を最終Windows成功の代わりに扱わない。未完了の検査を成功とは記載しない。
+Linux補助の全unittestは2,363件成功（skip57）・2,375.915秒、関東8都県17校E2Eは2件成功・422.722秒。既存skipを増やしていない。
 Windows新gateの集計は`stage43g111-windows-annual-rosters` artifactとCIログに保存する。DB、capability、private metadata、実ユーザーのSHA/pathを公開artifactへ含めない。
 
 Stage111ではsourceの31試合fixtureを年次試験クラス内で1回だけ共有し、故障ターゲットは独立所有とした。
