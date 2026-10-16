@@ -1,0 +1,73 @@
+{
+  "stage": "43G-111",
+  "os": "Linux",
+  "python": "3.12.14",
+  "successful": true,
+  "tests": 8,
+  "skipped": 0,
+  "errors": 0,
+  "failures": 0,
+  "seconds": 264.925,
+  "native_windows": false,
+  "annual_mapped_tk": false,
+  "measured": {
+    "source": {
+      "seconds": 152.607664,
+      "matches": 31,
+      "schools": 33,
+      "permanent_players": 660,
+      "tournament_teams": 32,
+      "registered_slots": 640,
+      "database_bytes": 5124096,
+      "refused_incomplete_counts": [
+        0,
+        1,
+        16,
+        30
+      ]
+    },
+    "rollover": {
+      "seconds": 1.96778,
+      "database_bytes": 1310720,
+      "graduated": 264,
+      "returning": 396,
+      "newcomers": 264,
+      "active": 660,
+      "browsed_identities": 924,
+      "source_bytes_unchanged": true,
+      "readonly_bytes_unchanged": true,
+      "native_handles_closed": true
+    },
+    "restart": {
+      "exited_worker_resume": true,
+      "crash_after_school_commit": true,
+      "idempotent_bytes_unchanged": true,
+      "hot_journal_refused_without_sqlite_open": true,
+      "os_login_session_restart_verified": false
+    },
+    "roster_only_200_years": {
+      "school_count": 1,
+      "snapshots": 201,
+      "last_year": 2226,
+      "seconds": 0.422959,
+      "database_bytes": 2412544,
+      "permanent_players": 1355,
+      "active_players": 20,
+      "games_generated": 0,
+      "game_years_accepted": 0
+    }
+  },
+  "additional_true_old_candidate_version": 110,
+  "earlier_twelve_versions": "unchanged Stage109 and Stage110 audits",
+  "catalog_inputs_unchanged": 338,
+  "master_csv_unchanged": 106,
+  "existing_user_saves_used": 0,
+  "existing_user_save_compatibility_verified": false,
+  "product_writer_changed": false,
+  "authenticated_provenance": false,
+  "manual_user_windows_operation_verified": false,
+  "os_login_session_restart_verified": false,
+  "matches_2027_generated": 0,
+  "atomicity": "per-school CareerRosterArchive transaction; separate all33 acceptance transaction",
+  "scope": "self-created TemporaryDirectory owners only; 2027 school rosters, no tournament"
+}
