@@ -1,0 +1,39 @@
+name: Stage43G-111 Windows Yamanashi annual roster lineage
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: stage43g111-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows_annual_rosters:
+    name: Windows Python 3.12 full31 seal annual33 lineage and thirteenth old export
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Real saved31 seed event bracket seal all33 annual lineage and restart zero skips
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path audit-results | Out-Null
+          python tests/stage43g111_audit.py --require-windows --json-output audit-results/annual-rosters.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: stage43g111-windows-annual-rosters
+          path: audit-results/*.json
+          if-no-files-found: error
+          retention-days: 14
