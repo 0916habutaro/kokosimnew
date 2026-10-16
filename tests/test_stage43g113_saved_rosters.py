@@ -44,12 +44,16 @@ class SavedRosterTests(unittest.TestCase):
         self.addCleanup(lambda: self.source.close())
         MEASUREMENTS.setdefault('initial_source_seconds', round(perf_counter()-began, 6))
         MEASUREMENTS.setdefault('initial_source_traced_peak_bytes',tracemalloc.get_traced_memory()[1])
+        MEASUREMENTS.setdefault('initial_source_process_peak_rss_bytes',peak_rss_bytes())
+        MEASUREMENTS.setdefault('initial_source_database_bytes',self.source.db_path.stat().st_size)
         tracemalloc.stop()
         self.source_sha = pin(self.source.db_path)
-        began = perf_counter()
+        began = perf_counter();tracemalloc.start()
         self.lab = SavedSchoolRosterTrial(self.source, self.owners[1], next_year=2027, career_seed=SEED, opt_in=True)
         self.addCleanup(lambda: self.lab.close())
         MEASUREMENTS.setdefault('target_initial_copy_seconds', round(perf_counter()-began, 6))
+        MEASUREMENTS.setdefault('target_initial_copy_traced_peak_bytes',tracemalloc.get_traced_memory()[1])
+        tracemalloc.stop()
 
     def test_master_saved_authority_and_strict_opt_in(self):
         self.assertEqual({'19':33,'20':33,'22':34}, self.audit['counts'])
@@ -72,6 +76,7 @@ class SavedRosterTests(unittest.TestCase):
             with retained_handles() as handles:
                 state = self.lab.advance(career_seed=SEED)
                 assert_closed(self, handles)
+            advance_elapsed=perf_counter()-began
             peak = tracemalloc.get_traced_memory()[1]
         finally:
             tracemalloc.stop()
@@ -105,7 +110,7 @@ class SavedRosterTests(unittest.TestCase):
             all_old.update(old); all_new.update(new)
         self.assertEqual(800,len(all_new-all_old)); self.assertEqual(1200,len(all_new&all_old))
         self.assertEqual(self.source_sha,pin(self.source.db_path))
-        mark=perf_counter(); before=pin(self.lab.db_path)
+        mark=perf_counter(); before=pin(self.lab.db_path);tracemalloc.start()
         view=self.lab.browse()
         archive=CareerRosterArchive(self.lab.db_path)
         for pid in sorted(identities):
@@ -117,11 +122,13 @@ class SavedRosterTests(unittest.TestCase):
                              (self.ids[0],2026,2027)).fetchall()
         self.assertTrue(any('INDEX' in str(row) for row in plan))
         self.assertEqual(before,pin(self.lab.db_path))
-        MEASUREMENTS['full100']=dict(advance_accept_seconds=round(mark-began,6), traced_peak_bytes=peak,
+        MEASUREMENTS['full100']=dict(advance_accept_seconds=round(advance_elapsed,6), traced_peak_bytes=peak,
             source_bytes=self.source.db_path.stat().st_size,target_bytes=self.lab.db_path.stat().st_size,
             process_peak_rss_bytes=peak_rss_bytes(),
-            browse_all2800_history_seconds=round(perf_counter()-mark,6),query_plan=plan,
+            browse_all2800_history_seconds=round(perf_counter()-mark,6),
+            browse_traced_peak_bytes=tracemalloc.get_traced_memory()[1],query_plan=plan,
             schools=100,identities=2800,graduated=800,returning=1200,newcomers=800,active=2000)
+        tracemalloc.stop()
 
     def test_hard_exit_after_school1_50_100_then_other_process_resume(self):
         durations={}
@@ -140,7 +147,9 @@ class SavedRosterTests(unittest.TestCase):
                 self.assertEqual(count,self.lab.status()['generated_schools'])
                 with self.assertRaises(ValueError):self.lab.browse()
                 self.lab.close();self.source.close()
-                self.assertTrue(worker(self.source,self.lab,Path(private))['accepted'])
+                resumed=worker(self.source,self.lab,Path(private))
+                self.assertTrue(resumed['accepted'])
+                MEASUREMENTS.setdefault('resume_process_metrics',{})[str(count)]=resumed['resume_metrics']
                 self.source=SavedSchoolRosterSource.resume(scap,self.repo)
                 self.lab=SavedSchoolRosterTrial.resume(cap,self.source)
                 durations[str(count)]=round(perf_counter()-began,6)
@@ -192,14 +201,26 @@ class SavedRosterTests(unittest.TestCase):
 
     def test_files_links_sidecars_source_and_target_replacement_refused_before_sql(self):
         import os
-        for obj in (self.source,self.lab):
+        # Native Windows pins deliberately deny DELETE sharing. Release them
+        # before manufacturing a hard link, and test resume before SQL opens.
+        for is_source in (True,False):
+            obj=self.source if is_source else self.lab
+            cap=obj.capability;obj.close()
             with tempfile.TemporaryDirectory(prefix='stage113-link-') as outside:
                 linked=Path(outside)/'linked.sqlite3'
                 os.link(obj.db_path,linked)
                 try:
                     with patch.object(sqlite3,'connect',side_effect=AssertionError('no linked file')):
-                        with self.assertRaises(ValueError):obj.snapshot() if obj is self.source else obj.status()
+                        with self.assertRaises(ValueError):
+                            if is_source:SavedSchoolRosterSource.resume(cap,self.repo)
+                            else:SavedSchoolRosterTrial.resume(cap,self.source)
                 finally:linked.unlink()
+            if is_source:
+                self.source=SavedSchoolRosterSource.resume(cap,self.repo)
+                self.lab.source=self.source
+            else:
+                self.lab=SavedSchoolRosterTrial.resume(cap,self.source)
+        for obj in (self.source,self.lab):
             side=obj.db_path.parent/'unexpected-wal';side.write_bytes(b'foreign')
             try:
                 with patch.object(sqlite3,'connect',side_effect=AssertionError('no dirty input')):

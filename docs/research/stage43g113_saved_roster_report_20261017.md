@@ -16,19 +16,25 @@
 hot journal拒否、異seed/recipe/source/学校集合拒否、ID衝突rollback、未確定公開拒否、
 ファイルID差替・hardlink・sidecar拒否、close→rename→reopenを含む。
 
-Linux Python3.12.14補助監査は10件成功、失敗0・error0・skip0、32.176秒。
+Linux Python3.12.14補助監査は10件成功、失敗0・error0・skip0、78.464秒。
 
 |Linux補助計測|実測|
 |---|---:|
-|2026 source100校初回保存|0.786秒|
-|targetへの保存正本コピー・照合|0.258秒|
-|100校検証・進級・受理（tracemalloc有効）|3.760秒|
+|2026 source100校初回保存|0.792秒|
+|targetへの保存正本コピー・照合|1.734秒|
+|100校検証・進級・受理（tracemalloc有効）|3.711秒|
 |2026 source DB|1,957,888 bytes|
 |2027 target DB（2026履歴を含む）|3,211,264 bytes|
 |進級時tracemalloc peak|17,798,030 bytes|
-|OS process peak RSS|92,590,080 bytes|
-|RO閲覧＋全2800永久IDの履歴検索|0.768秒|
-|1/50/100校強制終了＋別process再開|2.284 / 2.329 / 2.488秒|
+|OS process peak RSS|91,815,936 bytes|
+|RO閲覧＋全2800永久IDの履歴検索|3.628秒|
+|1/50/100校強制終了＋別process再開|9.738 / 9.963 / 10.028秒|
+
+上記はsource保存・targetコピー・進級・RO検索・再開processでそれぞれtracemallocを有効にした実測。
+RO peakは14,595,123 bytes。1/50/100校後の再開process単独は5.791 / 5.794 / 5.681秒、
+tracemalloc peakは47,064,004 / 47,717,229 / 48,326,269 bytes、OS peak RSSは
+110,366,720 / 111,210,496 / 111,976,448 bytes。再開processにはmodule importとsource/target照合を含む。
+親processの強制終了・再開一連時間とは区別する。
 
 SQLは `idx_career_rosters_school_year` のcovering index検索を使用。
 Windows実測・CIの最終結果は実行完了後に追記する。未実行の計測値は記載しない。
@@ -37,6 +43,6 @@ Windows実測・CIの最終結果は実行完了後に追記する。未実行�
 
 山梨31試合完全A・32team/33学校・過去履歴、Stage111/112、Windows native Tk/SQLite、
 旧15版候補RO verify、全unittest、関東8都県17校E2Eを既存CIで確認する。
-50/100/200年は既存の学校ロスター単独試験であり、200年完全試合履歴の実績ではない。
+50/100/200年は既存Stage112の長野1校の学校ロスター単独試験であり、200年完全試合履歴の実績ではない。
 任意の既存save/backup、製品writer、migration/restore、2027大会進行は対象外。
 個人Windows PC手動操作、ログイン切替・再起動は未検証。

@@ -46,6 +46,9 @@ def peak_rss_bytes():
 
 if __name__ == '__main__':
     from contextlib import ExitStack
+    from time import perf_counter
+    import tracemalloc
+    began=perf_counter();tracemalloc.start()
     from unittest.mock import patch
     import sqlite3
     from phase2_engine.repository import DataRepository
@@ -74,4 +77,8 @@ if __name__ == '__main__':
                 commits += 1
             if at == sys.argv[2] and (at != 'school_committed' or commits == int(sys.argv[3])):
                 os._exit(73)
-        print(json.dumps(trial.advance(career_seed=SEED, fault=fault)))
+        state=trial.advance(career_seed=SEED, fault=fault)
+        state['resume_metrics']=dict(seconds=perf_counter()-began,
+            traced_peak_bytes=tracemalloc.get_traced_memory()[1],process_peak_rss_bytes=peak_rss_bytes(),
+            source_bytes=source.db_path.stat().st_size,target_bytes=trial.db_path.stat().st_size)
+        print(json.dumps(state))

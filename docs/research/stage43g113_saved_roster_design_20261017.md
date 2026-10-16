@@ -68,7 +68,7 @@ close後のrename→復元→SQLite reopenでnative handle解放を確認する�
 
 新規9保存試験＋真の旧Stage112 main由来export1件＝10件をWindows Python3.12でskip0実行。
 既存Windows年次ジョブに追加し、新しいOS行列やジョブは増やさない。
-既存Stage111/112・長期50/100/200年学校ロスター試験・native Tk・全unittest・関東17校E2Eを保持。
+既存Stage111/112・長野1校の長期50/100/200年学校ロスター試験・native Tk・全unittest・関東17校E2Eを保持。
 長期ロスター試験は200年の完全試合履歴実績ではない。
 既存14版＋新規Stage112で旧15版RO内容verify。旧候補の内容一致とreplay/restore許可は別である。
 Stage112候補は変更前のmainから自己生成して固定済み。catalog対象コードを編集しない。

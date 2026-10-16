@@ -24,7 +24,9 @@ def main():
         with args.selection_json.open('x',encoding='utf-8') as out:
             json.dump(audit,out,ensure_ascii=False,indent=2);out.write('\n')
     ids=tuple(r['school_id'] for r in audit['schools'])
-    with tempfile.TemporaryDirectory(prefix='stage113-source-') as source_owner, tempfile.TemporaryDirectory(prefix='stage113-target-') as target_owner:
+    source_owner=tempfile.TemporaryDirectory(prefix='stage113-source-')
+    target_owner=tempfile.TemporaryDirectory(prefix='stage113-target-')
+    with source_owner, target_owner:
         began=perf_counter();tracemalloc.start()
         source=SavedSchoolRosterSource(repo,ids,source_owner,year=2026,career_seed=430113,opt_in=True)
         try:
