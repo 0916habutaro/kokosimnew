@@ -13,7 +13,7 @@ import unittest
 from unittest.mock import patch
 
 from game_core.players import PlayerRosterGenerator
-from phase2_engine.career_roster_archive import CareerRosterArchive
+from phase2_engine.career_roster_archive import CareerRosterArchive, CareerRosterConflictError
 from phase2_engine.school_roster_contract import accept_roster_source, stream_school_transitions, RECIPE
 from phase2_engine.school_roster_trial import SchoolRosterTrial, MasterRosterSandbox, VerifiedSavedSchoolSource
 from phase2_engine import yamanashi_annual_rosters as yama
@@ -181,10 +181,18 @@ class CrossPrefectureRosterTests(unittest.TestCase):
 
     def test_archive_cross_school_collision_rolls_back_and_dirty_crash_refused(self):
         # Newcomer is forced to reuse another school's archived permanent ID.
-        foreign=self.source.snapshot()[0][1].players[0].player_id
+        from game_core.career_rosters import _newcomer_id
+        old=self.source.snapshot()[0]
+        foreign=old[1].players[0].player_id
+        slot=next(p.roster_no for p in old[0].players if p.academic_year==3)
+        def collision(seed,year,sid,number):
+            return foreign if sid==old[0].school_id and number==slot else _newcomer_id(seed,year,sid,number)
         before=pin(self.lab.db_path)
-        with patch('game_core.career_rosters._newcomer_id',return_value=foreign):
+        with patch('game_core.career_rosters._newcomer_id',side_effect=collision):
             with self.assertRaises(ValueError): self.lab.advance(career_seed=SEED,limit=1)
+            with self.assertRaises(CareerRosterConflictError):
+                CareerRosterArchive(self.lab.db_path).advance_and_save(self.source.repo.team(old[0].school_id),
+                    next_year=2027,career_seed=SEED)
         self.assertEqual(before,pin(self.lab.db_path))
         self.assertEqual(80,sql(self.lab.db_path,'SELECT count(*) FROM career_player_identities')[0][0])
         cap=self.lab.capability; self.lab.close()
@@ -269,3 +277,16 @@ class VerifiedYamanashiCommonContractTests(unittest.TestCase):
             self.assertEqual(20,len(view.school(sid,year=2027)['roster']['players']))
         self.assertEqual(before,source._evidence())
         MEASUREMENTS['yamanashi']['saved_matches_preserved']=31
+        # The pure contract also permits a declared multi-prefecture school set;
+        # that set's receipt grants no completion status to Nagano's tournament.
+        nagano=MasterRosterSandbox(snap.repo,NAGANO,year=2026,career_seed=430103)
+        combined=tuple(sorted((*snap.rosters,*nagano.snapshot()[0]),key=lambda r:r.school_id))
+        receipt=accept_roster_source(combined,snap.repo,year=2026,career_seed=430103,
+                                    evidence='mixed-prefecture school-only consistency')
+        all_people={p.player_id for r in combined for p in r.players}
+        for t in stream_school_transitions(combined,snap.repo,receipt,next_year=2027,career_seed=430103):
+            self.assertFalse(all_people & {p.player_id for p in t.newcomers})
+            all_people.update(p.player_id for p in t.newcomers)
+        self.assertEqual(1036,len(all_people))
+        self.assertFalse(receipt.to_dict()['season_start_authorized'])
+        MEASUREMENTS['mixed_prefecture_permanent_ids']=1036

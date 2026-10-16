@@ -1,0 +1,161 @@
+{
+  "head_sha": "9aadd82bada24bac408c2ef8fb99f61a6142b045",
+  "run_id": 38905755234,
+  "job_id": 116988787229,
+  "reports": [
+    {
+      "stage": "43G-111",
+      "os": "Windows",
+      "python": "3.12.10",
+      "successful": true,
+      "tests": 8,
+      "skipped": 0,
+      "errors": 0,
+      "failures": 0,
+      "seconds": 289.458,
+      "native_windows": true,
+      "annual_mapped_tk": false,
+      "measured": {
+        "source": {
+          "seconds": 140.194361,
+          "matches": 31,
+          "schools": 33,
+          "permanent_players": 660,
+          "tournament_teams": 32,
+          "registered_slots": 640,
+          "database_bytes": 5128192,
+          "refused_incomplete_counts": [
+            0,
+            1,
+            16,
+            30
+          ]
+        },
+        "rollover": {
+          "seconds": 3.559365,
+          "database_bytes": 1310720,
+          "graduated": 264,
+          "returning": 396,
+          "newcomers": 264,
+          "active": 660,
+          "browsed_identities": 924,
+          "source_bytes_unchanged": true,
+          "readonly_bytes_unchanged": true,
+          "native_handles_closed": true
+        },
+        "restart": {
+          "exited_worker_resume": true,
+          "crash_after_school_commit": true,
+          "idempotent_bytes_unchanged": true,
+          "hot_journal_refused_without_sqlite_open": true,
+          "os_login_session_restart_verified": false
+        },
+        "roster_only_200_years": {
+          "school_count": 1,
+          "snapshots": 201,
+          "last_year": 2226,
+          "seconds": 8.915709,
+          "database_bytes": 2412544,
+          "permanent_players": 1355,
+          "active_players": 20,
+          "games_generated": 0,
+          "game_years_accepted": 0
+        }
+      },
+      "additional_true_old_candidate_version": 110,
+      "earlier_twelve_versions": "unchanged Stage109 and Stage110 audits",
+      "catalog_inputs_unchanged": 338,
+      "master_csv_unchanged": 106,
+      "existing_user_saves_used": 0,
+      "existing_user_save_compatibility_verified": false,
+      "product_writer_changed": false,
+      "authenticated_provenance": false,
+      "manual_user_windows_operation_verified": false,
+      "os_login_session_restart_verified": false,
+      "matches_2027_generated": 0,
+      "atomicity": "per-school CareerRosterArchive transaction; separate all33 acceptance transaction",
+      "scope": "self-created TemporaryDirectory owners only; 2027 school rosters, no tournament"
+    },
+    {
+      "stage": "43G-112",
+      "os": "Windows",
+      "python": "3.12.10",
+      "successful": true,
+      "tests": 10,
+      "skipped": 0,
+      "errors": 0,
+      "failures": 0,
+      "seconds": 216.876,
+      "native_windows": true,
+      "annual_mapped_tk": false,
+      "measured": {
+        "long_50": {
+          "seconds": 2.38881,
+          "snapshots": 51,
+          "database_bytes": 638976,
+          "identities": 355,
+          "traced_peak_bytes": 118107,
+          "matches_generated": 0
+        },
+        "long_100": {
+          "seconds": 6.104458,
+          "snapshots": 101,
+          "database_bytes": 1228800,
+          "identities": 688,
+          "traced_peak_bytes": 142523,
+          "matches_generated": 0
+        },
+        "long_200": {
+          "seconds": 11.778237,
+          "snapshots": 201,
+          "database_bytes": 2408448,
+          "identities": 1355,
+          "traced_peak_bytes": 191213,
+          "matches_generated": 0
+        },
+        "nagano": {
+          "seconds": 0.32025,
+          "schools": 4,
+          "identities": 112,
+          "active": 80,
+          "database_bytes": 167936,
+          "graduated": 32,
+          "returning": 48,
+          "newcomers": 32,
+          "read_only_bytes_unchanged": true,
+          "native_handles_closed": true
+        },
+        "same_name_master_ids": [
+          "SCH000342",
+          "SCH000398"
+        ],
+        "yamanashi": {
+          "seconds": 24.620172,
+          "schools": 33,
+          "identities": 924,
+          "active": 660,
+          "database_bytes": 1085440,
+          "graduated": 264,
+          "returning": 396,
+          "newcomers": 264,
+          "read_only_bytes_unchanged": true,
+          "native_handles_closed": true,
+          "saved_matches_preserved": 31
+        }
+      },
+      "additional_true_old_candidate_version": 111,
+      "earlier_thirteen_versions": "unchanged Stage109/110/111 audits",
+      "catalog_inputs_unchanged": 338,
+      "master_csv_unchanged": 106,
+      "existing_user_saves_used": 0,
+      "existing_user_save_compatibility_verified": false,
+      "product_writer_changed": false,
+      "authenticated_provenance": false,
+      "manual_user_windows_operation_verified": false,
+      "os_login_session_restart_verified": false,
+      "matches_2027_generated": 0,
+      "atomicity": "per-school CareerRosterArchive transaction; separate declared-school-set acceptance",
+      "scope": "roster-only trial; Yamanashi33 and Nagano4; season_start_authorized=False"
+    }
+  ]
+}
