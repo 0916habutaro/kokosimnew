@@ -138,6 +138,9 @@ class SavedRosterTests(unittest.TestCase):
                 if count != 1:
                     self.lab.close()
                     owner=tempfile.TemporaryDirectory(prefix='stage113-target-');self.addCleanup(owner.cleanup)
+                    # LIFO cleanup: close the final resumed lab before deleting
+                    # its root. Windows must not rely on GC or delete sharing.
+                    self.addCleanup(lambda:self.lab.close())
                     self.lab=SavedSchoolRosterTrial(self.source,owner,next_year=2027,career_seed=SEED,opt_in=True)
                 cap,scap=self.lab.capability,self.source.capability
                 self.lab.close();self.source.close()
