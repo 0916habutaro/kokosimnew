@@ -1,4 +1,4 @@
-name: Stage43G-111 Windows Yamanashi annual roster lineage
+name: Stage43G-111 Windows annual roster lineage and cross-prefecture contract
 on:
   pull_request:
   push:
@@ -11,9 +11,9 @@ concurrency:
   cancel-in-progress: true
 jobs:
   windows_annual_rosters:
-    name: Windows Python 3.12 full31 seal annual33 lineage and thirteenth old export
+    name: Windows Python 3.12 full31 annual33 Nagano4 common contract and fourteen old exports
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       PYTHONUTF8: '1'
     steps:
@@ -29,6 +29,11 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path audit-results | Out-Null
           python tests/stage43g111_audit.py --require-windows --json-output audit-results/annual-rosters.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Cross-prefecture common contract real master Nagano4 Yamanashi33 zero skips
+        shell: pwsh
+        run: |
+          python tests/stage43g112_audit.py --require-windows --json-output audit-results/cross-prefecture-rosters.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v6
         if: always()
