@@ -120,9 +120,13 @@ class SavedSchoolRosterSource(AnnualRosterLab):
             self._guard()
             if _sha(self.db_path) != self.capability.database_sha256:
                 raise ValueError('source changed during read')
-            # Explicit saved-byte evidence carried into target contract.
+            # Bind both bytes and the owned physical authority. A separately
+            # created SQLite file with identical content is a different source.
+            authority=_digest(_json(dict(root=self.capability.root_identity,
+                file=self.capability.file_identity,lease=self.capability.lease_identity)))
             saved_receipt = accept_roster_source(rosters, self.repo, year=receipt.year,
-                career_seed=receipt.career_seed, evidence='saved roster-only SQLite sha256:' + self.capability.database_sha256)
+                career_seed=receipt.career_seed, evidence='saved roster-only SQLite sha256:' + self.capability.database_sha256
+                    + '/owned-authority-sha256:' + authority)
             return tuple(rosters), saved_receipt
 
 

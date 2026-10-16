@@ -13,27 +13,27 @@
 
 専用監査は保存9件＋真の旧Stage112 export1件の10件を要求し、skipがあれば失敗する。
 1/50/100校commit直後のprocess強制終了・別process再開、acceptance前rollback・後強制終了、
-hot journal拒否、異seed/recipe/source/学校集合拒否、ID衝突rollback、未確定公開拒否、
+hot journal拒否、異seed/recipe/source（同一bytesの別所有実体も拒否）/学校集合拒否、ID衝突rollback、未確定公開拒否、
 ファイルID差替・hardlink・sidecar拒否、close→rename→reopenを含む。
 
-Linux Python3.12.14補助監査は10件成功、失敗0・error0・skip0、78.464秒。
+Linux Python3.12.14補助監査は10件成功、失敗0・error0・skip0、79.648秒。
 
 |Linux補助計測|実測|
 |---|---:|
-|2026 source100校初回保存|0.792秒|
-|targetへの保存正本コピー・照合|1.734秒|
-|100校検証・進級・受理（tracemalloc有効）|3.711秒|
+|2026 source100校初回保存|0.777秒|
+|targetへの保存正本コピー・照合|1.753秒|
+|100校検証・進級・受理（tracemalloc有効）|3.703秒|
 |2026 source DB|1,957,888 bytes|
 |2027 target DB（2026履歴を含む）|3,211,264 bytes|
-|進級時tracemalloc peak|17,798,030 bytes|
-|OS process peak RSS|91,815,936 bytes|
-|RO閲覧＋全2800永久IDの履歴検索|3.628秒|
-|1/50/100校強制終了＋別process再開|9.738 / 9.963 / 10.028秒|
+|進級時tracemalloc peak|17,798,566 bytes|
+|OS process peak RSS|90,746,880 bytes|
+|RO閲覧＋全2800永久IDの履歴検索|3.505秒|
+|1/50/100校強制終了＋別process再開|9.940 / 10.090 / 10.264秒|
 
 上記はsource保存・targetコピー・進級・RO検索・再開processでそれぞれtracemallocを有効にした実測。
-RO peakは14,595,123 bytes。1/50/100校後の再開process単独は5.791 / 5.794 / 5.681秒、
-tracemalloc peakは47,064,004 / 47,717,229 / 48,326,269 bytes、OS peak RSSは
-110,366,720 / 111,210,496 / 111,976,448 bytes。再開processにはmodule importとsource/target照合を含む。
+RO peakは14,595,451 bytes。1/50/100校後の再開process単独は5.966 / 5.871 / 5.876秒、
+tracemalloc peakは47,065,587 / 47,718,877 / 48,327,634 bytes、OS peak RSSは
+110,366,720 / 111,321,088 / 112,050,176 bytes。再開processにはmodule importとsource/target照合を含む。
 親processの強制終了・再開一連時間とは区別する。
 
 SQLは `idx_career_rosters_school_year` のcovering index検索を使用。

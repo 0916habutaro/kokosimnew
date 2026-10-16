@@ -7,24 +7,24 @@
   "skipped": 0,
   "errors": 0,
   "failures": 0,
-  "seconds": 78.464,
+  "seconds": 79.648,
   "native_windows": false,
   "annual_mapped_tk": false,
   "measured": {
-    "initial_source_seconds": 0.791741,
+    "initial_source_seconds": 0.777181,
     "initial_source_traced_peak_bytes": 7738440,
-    "initial_source_process_peak_rss_bytes": 62959616,
+    "initial_source_process_peak_rss_bytes": 62955520,
     "initial_source_database_bytes": 1957888,
-    "target_initial_copy_seconds": 1.733591,
-    "target_initial_copy_traced_peak_bytes": 12646157,
+    "target_initial_copy_seconds": 1.753384,
+    "target_initial_copy_traced_peak_bytes": 12646901,
     "full100": {
-      "advance_accept_seconds": 3.711426,
-      "traced_peak_bytes": 17798030,
+      "advance_accept_seconds": 3.702568,
+      "traced_peak_bytes": 17798566,
       "source_bytes": 1957888,
       "target_bytes": 3211264,
-      "process_peak_rss_bytes": 91815936,
-      "browse_all2800_history_seconds": 3.627542,
-      "browse_traced_peak_bytes": 14595123,
+      "process_peak_rss_bytes": 90746880,
+      "browse_all2800_history_seconds": 3.504607,
+      "browse_traced_peak_bytes": 14595451,
       "query_plan": [
         [
           2,
@@ -42,31 +42,31 @@
     },
     "resume_process_metrics": {
       "1": {
-        "seconds": 5.791296441999975,
-        "traced_peak_bytes": 47064004,
+        "seconds": 5.965866854000069,
+        "traced_peak_bytes": 47065587,
         "process_peak_rss_bytes": 110366720,
         "source_bytes": 1957888,
         "target_bytes": 3211264
       },
       "50": {
-        "seconds": 5.794296013000007,
-        "traced_peak_bytes": 47717229,
-        "process_peak_rss_bytes": 111210496,
+        "seconds": 5.871062771999959,
+        "traced_peak_bytes": 47718877,
+        "process_peak_rss_bytes": 111321088,
         "source_bytes": 1957888,
         "target_bytes": 3211264
       },
       "100": {
-        "seconds": 5.6811780660000295,
-        "traced_peak_bytes": 48326269,
-        "process_peak_rss_bytes": 111976448,
+        "seconds": 5.876337102999969,
+        "traced_peak_bytes": 48327634,
+        "process_peak_rss_bytes": 112050176,
         "source_bytes": 1957888,
         "target_bytes": 3211264
       }
     },
     "hard_exit_and_resume_seconds": {
-      "1": 9.738362,
-      "50": 9.963381,
-      "100": 10.02802
+      "1": 9.939624,
+      "50": 10.090159,
+      "100": 10.263883
     },
     "master_audit": {
       "counts": {

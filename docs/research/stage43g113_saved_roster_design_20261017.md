@@ -37,6 +37,7 @@ area/scheme所属、学校/program/所属/地区の出典IDとURLを再照合す
 
 1. 独立した空の自己所有source領域で2026初期20人×100校を実際にSQLiteへ保存する。
 2. root/file/lease identityとSQLite最終bytes SHAをcapabilityに固定する。source全行と永久profileをRO照合する。
+   targetの出典receiptにも所有実体identityのdigestを結び付け、内容が同じ別SQLiteも異sourceとして拒否する。
 3. 別の自己所有target領域へ保存正本をコピーする。同じルート・親子領域を拒否する。
 4. 保存済みtarget前年度行からのみ校別transactionで2027を追記する。永久ID衝突時は校全体をrollback。
 5. 中断状態は学校ID順prefixのみ。1/50/100校commit直後にos._exitし、親が所有するcapabilityを私有JSONで別processへ渡す。

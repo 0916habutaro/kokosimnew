@@ -189,11 +189,13 @@ class SavedRosterTests(unittest.TestCase):
         for kwargs in (dict(career_seed=SEED+1),dict(career_seed=SEED,recipe='unknown')):
             with self.assertRaises(ValueError):self.lab.advance(**kwargs)
         cap=self.lab.capability;self.lab.close()
-        for ids,seed in ((self.ids[:-1],SEED),(self.ids+('SCH001669',),SEED),(self.ids,SEED+1)):
+        for ids,seed in ((self.ids[:-1],SEED),(self.ids+('SCH001669',),SEED),(self.ids,SEED+1),(self.ids,SEED)):
             owner=tempfile.TemporaryDirectory(prefix='stage113-other-source-')
             self.addCleanup(owner.cleanup)
             other=SavedSchoolRosterSource(self.repo,ids,owner,year=2026,career_seed=seed,opt_in=True)
             try:
+                if ids==self.ids and seed==SEED:
+                    self.assertEqual(self.source_sha,pin(other.db_path))
                 with self.assertRaises(ValueError):SavedSchoolRosterTrial.resume(cap,other)
             finally:other.close()
         self.assertEqual(before,pin(self.lab.db_path))
@@ -245,12 +247,17 @@ class SavedRosterTests(unittest.TestCase):
         from game_core.career_rosters import _newcomer_id
         old=self.source.snapshot()[0]
         foreign=old[1].players[0].player_id
-        slot=next(p.roster_no for p in old[0].players if p.academic_year==3)
+        slot=[p.roster_no for p in old[0].players if p.academic_year==3][-1]
         def collide(seed,year,sid,number):
             return foreign if sid==old[0].school_id and number==slot else _newcomer_id(seed,year,sid,number)
         before=pin(self.lab.db_path)
         with patch('game_core.career_rosters._newcomer_id',side_effect=collide):
             with self.assertRaises(ValueError):self.lab.advance(career_seed=SEED,limit=1)
+            # Bypass the trial's preflight to test the shared writer transaction
+            # itself: earlier newcomers insert before the last-slot collision.
+            with self.assertRaises(ValueError):
+                CareerRosterArchive(self.lab.db_path).advance_and_save(
+                    self.repo.team(old[0].school_id),next_year=2027,career_seed=SEED)
         self.assertEqual(before,pin(self.lab.db_path))
         self.lab.advance(career_seed=SEED,limit=50)
         with self.assertRaises(ValueError):self.lab.school(self.ids[0],year=2027)
