@@ -11,9 +11,9 @@ concurrency:
   cancel-in-progress: true
 jobs:
   windows_annual_rosters:
-    name: Windows Python 3.12 full31 annual33 Nagano4 common contract and fourteen old exports
+    name: Windows Python 3.12 full31 annual33 Nagano4 common contract and fifteen old exports
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       PYTHONUTF8: '1'
     steps:
@@ -34,6 +34,11 @@ jobs:
         shell: pwsh
         run: |
           python tests/stage43g112_audit.py --require-windows --json-output audit-results/cross-prefecture-rosters.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Saved SQLite cross-prefecture100 hard exit resume independent tournament gate zero skips
+        shell: pwsh
+        run: |
+          python tests/stage43g113_audit.py --require-windows --json-output audit-results/saved-cross-prefecture100.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v6
         if: always()
