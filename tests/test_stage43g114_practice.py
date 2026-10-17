@@ -151,12 +151,13 @@ class PracticeTests(unittest.TestCase):
             altered=replace(team.players[0],**changes)
             bad=replace(self.match,team1=replace(team,players=(altered,)+team.players[1:]))
             with self.assertRaises(ValueError):practice.simulate_practice(bad,self.lab)
-        for result in (replace(self.game,run_seed=practice.SEED+1),_run(self.match,practice.SEED+1),
+        alternate = _run(self.match,practice.SEED+1)
+        for result in (replace(self.game,run_seed=practice.SEED+1),alternate,
                        replace(self.game,team1_score=self.game.team1_score+1),
                        replace(self.game,batter_stats=(replace(self.game.batter_stats[0],hits=99),)+self.game.batter_stats[1:]),
                        replace(self.game,events=(replace(self.game.events[0],batter_origin_school_id='unknown'),)+self.game.events[1:])):
             with self.assertRaises(ValueError):self.store.append(self.match,result)
-        self.assertNotEqual(self.game.to_json(),_run(self.match,practice.SEED+1).to_json())
+        self.assertNotEqual(self.game.events,alternate.events)
         self.assertFalse(self.store.snapshot().results)
 
     def test_rollback_lost_ack_idempotence_conflict_and_append_only(self):

@@ -18,7 +18,7 @@ Linux / Python3.12.14 / SQLite3.53.1。
 |練習試合・履歴・保存/再開の正例全体|0–3、9回、71打席、打者22行/投手6行|14.718秒|217,088|
 |別process再読込・再実行|独立oracle一致、同seed一致、RO bytes不変|4.816秒|同上|
 
-学校IDは `SCH000196` と `SCH000197`。保存2026登録で単独teamであること、masterの学校/program/名称を照合した。
+学校は帝京第三 `SCH000196` と北杜 `SCH000197`。保存2026登録で単独teamであること、masterの学校/program/名称を照合した。
 2027公式出場資格を確認したという意味ではない。
 イニング表・得点・個人成績は実イベントから計算。71打席、投手51アウト、奪三振12、得点/打点/投手失点はいずれも合計3でoracleと一致。
 進級者11人・新入生10人に実打席があり、7人は2026/2027両年度に実登場。打者22行には交代時に有効化された未打席行も含む。
@@ -47,8 +47,32 @@ roster-only source、未受理2027、異source/年/seed、未知選手/学校は
 
 Windows Python3.12専用fixtureを既存年度jobの先頭へ追加し、測定JSONを早期artifactとして公開する。
 既存Stage111/112/113の順序と回帰は保持し、job/OS行列は増やしていない。
-Windows実測と最終headのCI結果は、実行完了後に本節・PR本文へ追記する。
-全unittest、関東17校E2E、Stage100–113 native Tk/SQLite/履歴、既存旧版gateも成功確認の対象。
+
+Windows hosted / Python3.12.10 / SQLite3.49.1、専用8件成功・skip0・failure/error0、286.825秒。
+[実測run](https://github.com/0916habutaro/kokosimnew/actions/runs/38996889048)、測定対象commit
+`6ea7110efb14e23f60199e02a53b3fe0d91d8df6`。
+正本は `audits/phase2/stage43g114/windows_practice_20261017.json`。
+
+|Windows工程|時間|DB bytes|
+|---|---:|---:|
+|保存2026全31試合・完了検証|109.322秒|5,128,192|
+|保存2027全33校受理|9.181秒|1,310,720|
+|入力構築・計算・検証|2.948秒|—|
+|練習試合・履歴・保存/再開の正例全体|18.287秒|217,088|
+|別process再読込・oracle/seed再実行|5.944秒|同上|
+
+Windowsでも9回0–3、71打席、進級者11/新入生10実打席、2年度実登場7人、投手51アウト/12奪三振で一致した。
+Windows native junction/hardlink/lease、sidecar/hot journal、明示close/rename/reopenもskipなしで成功。
+計測値は独立fixtureを含む全audit時間と正例工程時間を区別している。全auditには故障注入と旧候補生成も含む。
+
+掲載CLIもLinux補助環境で実行し、別process再開後の学校/選手表示まで成功した。
+例：永久ID `PLY13A6F6783162911F2838` は元学校SCH000196のまま、2026大会3試合（2年）と2027練習試合1件（3年）の投打成績を参照できた。
+2027公式資格・日程・順位の全値はNoneであることも確認した。
+
+測定後の変更はこの証拠/報告の追加と、異seed試験でmetadataだけでなくイベント列も異なることを検証するassertion強化。
+最終headの全workflow/job成功、全unittestの件数/時間、関東17校E2E、Stage100–113 native Tk/SQLite/履歴と旧16版gateの結果は
+[PR #284本文とChecks](https://github.com/0916habutaro/kokosimnew/pull/284/checks)を正本とする。
+測定commitの成功を最終headのCI成功に読み替えず、最終headで全必須CIを再確認する。
 
 個人Windows PCの目視、サインアウト→再ログイン、PC再起動は未検証。
 hosted CIのnative Windows/SQLiteと別process再開を、個人PCのOS再起動実証と呼ばない。
