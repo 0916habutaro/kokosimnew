@@ -14,15 +14,23 @@
 
 ## 補助Linux計測
 
-Python3.12.14。以下はhosted Windowsとは別の結果で、同時実行の負荷を含む。
+Python3.12.14 / SQLite3.53.1。以下はhosted Windowsとは別の結果で、同時実行の負荷を含む。
 
 |検査|実測結果|
 |---|---|
 |旧94/99/100/101/102、103–113の計16版RO互換性|13試験成功、skip0、85.367秒|
 |追加する真の旧114候補RO内容verify|1試験成功、skip0、4.167秒|
 |catalog／master／候補|338入力・106CSV bytes一致、候補bytes不変、restore/replayなし|
-|新規Stage115独立ゲート監査|`tests/stage43g115_audit.py` の測定JSONとPR最終Checksに記録|
-|関東8都県17校E2E|PR最終Checksの独立jobで確認|
+|新規Stage115独立ゲート監査|12試験成功、skip0、failure/error0、183.853秒|
+|不変fixture準備（保存31→受理2027→練習試合1）|103.140秒。全拒否caseで共有|
+|正例検査全体（再照合・冪等性・履歴／master確認含む）|3.616秒|
+|関東8都県17校E2E|2試験成功、skip0、328.446秒。最終headの独立CI jobでも再確認|
+
+全12件の測定JSONは `stage43g115_linux_measurement_20261017.json` に保存。
+架空正例は登録・合同・資格・地区・seed・draw・schedule全trueだが、official／製品開始はfalse。
+公式欠落入力では学校年・前年保存監査だけtrue、7契約はmissing、架空ready／official／製品開始false。
+試験fixtureの所有オブジェクトを誤ってパス文字列で渡した初回1errorは修正し、
+上記12件の全再実行で成功を確認した。製品の安全ガードは変更していない。
 
 ## Windows専用CIと全回帰
 
