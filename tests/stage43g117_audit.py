@@ -6,7 +6,7 @@ from pathlib import Path
 import platform
 import sqlite3
 import sys
-from time import perf_counter
+from time import perf_counter, process_time
 import unittest
 
 
@@ -49,7 +49,8 @@ def main():
     report = dict(stage='43G-117', os=platform.system(), python=platform.python_version(),
         sqlite=sqlite3.sqlite_version, successful=success, tests=result.testsRun,
         skipped=len(result.skipped), errors=len(result.errors), failures=len(result.failures),
-        seconds=round(perf_counter()-began, 3), native_windows=sys.platform == 'win32',
+        seconds=round(perf_counter()-began, 3), parent_cpu_seconds=round(process_time(), 3),
+        native_windows=sys.platform == 'win32',
         test_seconds=getattr(result, 'timings', {}),
         measured=module.MEASUREMENTS if module else {}, old_additional_version=116,
         code_sha256=after, code_immutable_during_audit=before == after,
