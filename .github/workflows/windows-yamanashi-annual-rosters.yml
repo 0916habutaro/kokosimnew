@@ -11,9 +11,9 @@ concurrency:
   cancel-in-progress: true
 jobs:
   windows_annual_rosters:
-    name: Windows Python 3.12 full31 annual33 Nagano4 common contract and fifteen old exports
+    name: Windows Python 3.12 full31 annual33 practice2027 and sixteen old exports
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     env:
       PYTHONUTF8: '1'
     steps:
@@ -24,10 +24,22 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
+      - name: Saved2027 direct SQL actual practice1 independent oracle restart and true old113 zero skips
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path audit-results | Out-Null
+          python tests/stage43g114_audit.py --require-windows --json-output audit-results/practice2027.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v6
+        with:
+          name: stage43g114-windows-practice
+          path: audit-results/practice2027.json
+          if-no-files-found: error
+          retention-days: 14
       - name: Real saved31 seed event bracket seal all33 annual lineage and restart zero skips
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path audit-results | Out-Null
+          New-Item -ItemType Directory -Force -Path audit-results | Out-Null
           python tests/stage43g111_audit.py --require-windows --json-output audit-results/annual-rosters.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Cross-prefecture common contract real master Nagano4 Yamanashi33 zero skips
