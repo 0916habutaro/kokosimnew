@@ -11,9 +11,9 @@ concurrency:
   cancel-in-progress: true
 jobs:
   windows_annual_rosters:
-    name: Windows Python 3.12 full31 annual33 practice2027 and seventeen old exports
+    name: Windows Python 3.12 full31 annual33 practice2027 fictional tournament2 and eighteen old exports
     runs-on: windows-latest
-    timeout-minutes: 50
+    timeout-minutes: 60
     env:
       PYTHONUTF8: '1'
     steps:
@@ -56,6 +56,11 @@ jobs:
         shell: pwsh
         run: |
           python tests/stage43g115_audit.py --require-windows --json-output audit-results/competition-evidence2027.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Fictional2027 three teams two games incremental hard-exit resume full-A and true old115 zero skips
+        shell: pwsh
+        run: |
+          python tests/stage43g116_audit.py --require-windows --json-output audit-results/fictional-tournament2027.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v6
         if: always()
