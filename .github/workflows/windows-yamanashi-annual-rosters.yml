@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   windows_annual_rosters:
-    name: Windows Python 3.12 full31 annual33 practice2027 and sixteen old exports
+    name: Windows Python 3.12 full31 annual33 practice2027 and seventeen old exports
     runs-on: windows-latest
     timeout-minutes: 50
     env:
@@ -51,6 +51,11 @@ jobs:
         shell: pwsh
         run: |
           python tests/stage43g113_audit.py --require-windows --json-output audit-results/saved-cross-prefecture100.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Independent2027 entry joint qualification district seed draw schedule dry-run and true old114 zero skips
+        shell: pwsh
+        run: |
+          python tests/stage43g115_audit.py --require-windows --json-output audit-results/competition-evidence2027.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v6
         if: always()
