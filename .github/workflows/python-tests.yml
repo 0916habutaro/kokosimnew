@@ -21,7 +21,10 @@ jobs:
     # but the 75-minute job was cancelled during completion. Stage115 adds
     # a saved31/2027 evidence fixture and independent refusal cases. Retain
     # every test/skip and allow the existing checks plus new audit to finish.
-    timeout-minutes: 95
+    # Stage116 measured 4659.444 seconds (2416 tests). Stage117 adds a real
+    # eight-team seven-game bracket fixture with four hard-exit resumes; its
+    # measured cost is recorded in the Stage117 report. No test is removed.
+    timeout-minutes: 120
 
     steps:
       - name: Checkout repository
