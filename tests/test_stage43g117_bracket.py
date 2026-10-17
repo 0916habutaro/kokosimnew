@@ -754,7 +754,7 @@ class FictionalBracketTests(unittest.TestCase):
              'record_kind, namespace, match_id FROM bracket_players LIMIT 1',),
             ('DROP TRIGGER bracket_players_delete', 'DELETE FROM bracket_players WHERE rowid IN (SELECT rowid FROM bracket_players LIMIT 1)'),
             ('DROP TRIGGER bracket_matches_update', 'UPDATE bracket_matches SET result_sha256="tampered" WHERE sequence=7'),
-            ('DROP TRIGGER bracket_matches_update', 'UPDATE bracket_matches SET sequence=27 WHERE sequence=7')  # in CHECK range, gap,
+            ('DROP TRIGGER bracket_matches_update', 'UPDATE bracket_matches SET sequence=27 WHERE sequence=7'),  # in CHECK range, leaves a gap
             ('DROP TRIGGER bracket_checkpoints_update', 'UPDATE bracket_checkpoints SET source_receipt_sha256="copied" WHERE sequence=4'),
             ('DROP TRIGGER bracket_ranks_update', 'UPDATE bracket_ranks SET rank=1'),
             ('DROP TRIGGER bracket_ranks_delete', 'DELETE FROM bracket_ranks'),
