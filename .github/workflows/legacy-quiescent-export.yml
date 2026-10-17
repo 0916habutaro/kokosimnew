@@ -5,6 +5,9 @@ on:
     paths:
       - 'phase2_engine/school_roster_*.py'
       - 'tests/*stage43g112*.py'
+      - 'tests/*stage43g113*.py'
+      - 'phase2_engine/saved_school_roster_source.py'
+      - 'phase2_engine/cross_prefecture_roster_selection.py'
       - 'phase2_engine/yamanashi_annual_rosters.py'
       - 'tests/*stage43g111*.py'
       - 'phase2_engine/yamanashi_demo*.py'
@@ -36,6 +39,9 @@ on:
     paths:
       - 'phase2_engine/school_roster_*.py'
       - 'tests/*stage43g112*.py'
+      - 'tests/*stage43g113*.py'
+      - 'phase2_engine/saved_school_roster_source.py'
+      - 'phase2_engine/cross_prefecture_roster_selection.py'
       - 'phase2_engine/yamanashi_annual_rosters.py'
       - 'tests/*stage43g111*.py'
       - 'phase2_engine/yamanashi_demo*.py'
