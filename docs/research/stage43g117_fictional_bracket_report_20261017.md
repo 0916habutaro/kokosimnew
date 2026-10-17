@@ -101,7 +101,7 @@ Stage116 v1の3team配置（seed1にBYE）と同じ配置になることも確�
 
 旧Stage94/99/100–116の19版について、各main commitから自己生成した候補の内容をverifyした
 （今回、Stage116 main `df91f06` のexportを追加した）。新コードで旧版ラベルを付け直していない。
-結果は [旧19版実測JSON](stage43g117_old19_linux_20261017.json) に記録した。
+[旧19版実測JSON](stage43g117_old19_linux_20261017.json)：28試験・skip0・failure/error0、298.687秒。
 catalog338・master106CSV・候補bytesは不変で、restore／replayは非許可。
 
 `git diff df91f06` で、変更・追加の対象が次のとおりであることを確認した。
