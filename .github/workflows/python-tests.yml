@@ -17,11 +17,11 @@ jobs:
   unittest:
     name: Python 3.12 unittest
     runs-on: ubuntu-latest
-    # Stage111 measured 3386.766 seconds for the complete suite. Stage112
-    # adds a real saved31 source, cross-prefecture roster and old111 export
-    # audit (216.876 seconds on Windows); retain every test and existing skip.
-    # Give the full suite room to finish without changing its coverage.
-    timeout-minutes: 75
+    # Stage114's complete suite measured 4489.878 seconds: all tests passed,
+    # but the 75-minute job was cancelled during completion. Stage115 adds
+    # a saved31/2027 evidence fixture and independent refusal cases. Retain
+    # every test/skip and allow the existing checks plus new audit to finish.
+    timeout-minutes: 95
 
     steps:
       - name: Checkout repository
