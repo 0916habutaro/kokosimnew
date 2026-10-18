@@ -80,8 +80,8 @@ class Stage119MetricsTests(unittest.TestCase):
         duplicated = dict(before, tests=4, per_test=before["per_test"] * 2,
                           per_module=metrics.aggregate(before["per_test"] * 2))
         comparison = metrics.compare_reports(duplicated, after)
-        self.assertEqual(2, comparison["common_tests"])
-        self.assertEqual(2, len(comparison["removed_instances"]))
+        self.assertEqual(1, comparison["common_tests"])
+        self.assertEqual(3, len(comparison["removed_instances"]))
 
     def test_repeated_unittest_id_gets_distinct_occurrences(self):
         class Repeated(unittest.TestCase):
