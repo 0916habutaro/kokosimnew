@@ -1,0 +1,49 @@
+name: Stage43G-118 fictional 2027 thirty-two team real-scale bracket
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: stage43g118-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  real_scale_bracket:
+    # A dedicated job, in parallel with the existing Windows annual job (about
+    # 66 minutes of 90) and the full unittest job (about 77 of 120). Appending
+    # this real 16+32 team run serially to either would approach its limit.
+    # The real-scale cases are not in `unittest discover`; this job is their
+    # only runner, and test_stage43g118_contract guards that wiring.
+    name: ${{ matrix.os }} Python 3.12 fictional32 games31 sixteen15 hard-exit resume full-A history and twenty old exports
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 120 || 90 }}
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Real 16 and 32 team brackets, refusals, history, true old117 and all twenty old exports zero skips
+        shell: bash
+        run: |
+          mkdir -p audit-results
+          extra=""
+          if [ "$RUNNER_OS" = "Windows" ]; then extra="--require-windows"; fi
+          python tests/stage43g118_audit.py $extra --old-versions --json-output audit-results/fictional-bracket32-${{ matrix.os }}.json
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: stage43g118-fictional-bracket32-${{ matrix.os }}
+          path: audit-results/*.json
+          if-no-files-found: error
+          retention-days: 14
