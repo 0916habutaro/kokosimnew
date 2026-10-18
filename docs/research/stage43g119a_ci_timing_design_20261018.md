@@ -60,3 +60,17 @@ python tests/stage43g119_ci_metrics.py --compare-base before.json --compare-curr
 ## 次Stageの課題
 
 Stage119-B/CでStage117-v2の既存prefix再導出（保存回数×N、合計O(N²)）をv3差分検証に置き換える**設計・実装・故障時監査**を別PRで行う。先に長期年数を実測したり公式2027参加・順位・日付を確定したりしない。
+
+## 2026-10-18：実CIで発見した重複IDへの対応
+
+PR #294の初回head `c066538` の全unittestは **2,443件・skip 57・約6,087秒・エラー0**で成功し、JSON artifact `stage119a-full-unittest-timings` も保存された。ただし、実計測データに**同一 `unittest.TestCase.id()` を複数回使う行が75件**存在することが判明した。これは実行インスタンスの反復であり、Python unittestの成功判定と矛盾しない。初版 `compare_reports` は重複を一律拒否するため、そのままではこのJSONを比較できなかった。
+
+修正方針：
+- 各テスト終了時、同一 `id` について出現順に **1始まりの `occurrence`** を付与し、`(id, occurrence)` を一意な比較キーにする。テスト数、skip・成功、元の実行順・実行回数は変えない。
+- 初回CIの **schema=1、`occurrence` フィールドなし**のJSONでは、格納された `per_test` の行順から `occurrence` を再構築できる。初版のartifactは破棄・書換え・再取得不要。
+- 不正な `occurrence`（重複、0、欠番、真偽値、非整数）やレポート `tests` と記録行数の不一致は拒否する。
+- `test_deltas` は `id` と `occurrence` を分離して返し、`added_instances`／`removed_instances` にも同じ構造を保存する。従来の文字列 `added_tests`／`removed_tests` は初回出現時そのまま、2回目以降は `#2` 等の接尾辞で区別する。
+- 出現順が異なる場合に同じ名称のn回目同士を対応させるため、**同一IDの実行順が比較対象の間で安定していることが前提**。独立したテストの一意IDを推測する仕組みではない。異なる順序での比較は因果・同一インスタンス同定を保証しない。
+- 合成テストで同じIDの反復実行、初回artifact互換、追加・削除された発生回、重複ordinal／欠番／型不正拒否を検証する。エンジン・旧テスト内容・全unittestのtimeoutは変更しない。
+
+**受入条件**：最終headの全CIが成功し、最終JSONを初版の重複ID付きJSONと `compare_reports` で比較できることを確認した後にのみマージを判断する。今回の修正はCIの速度そのものを改善するものではない。
