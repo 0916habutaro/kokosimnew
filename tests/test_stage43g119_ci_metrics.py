@@ -76,8 +76,69 @@ class Stage119MetricsTests(unittest.TestCase):
         self.assertTrue(result["cause_not_inferable_from_single_comparison"])
         with self.assertRaises(ValueError):
             metrics.compare_reports(dict(before, schema=100), after)
-        with self.assertRaises(ValueError):
-            metrics.compare_reports(dict(before, per_test=before["per_test"] * 2), after)
+        # The first CI schema=1 artifacts lack occurrence but support repeated IDs.
+        duplicated = dict(before, tests=4, per_test=before["per_test"] * 2,
+                          per_module=metrics.aggregate(before["per_test"] * 2))
+        comparison = metrics.compare_reports(duplicated, after)
+        self.assertEqual(2, comparison["common_tests"])
+        self.assertEqual(2, len(comparison["removed_instances"]))
+
+    def test_repeated_unittest_id_gets_distinct_occurrences(self):
+        class Repeated(unittest.TestCase):
+            def test_same(self):
+                self.assertTrue(True)
+
+        suite = unittest.TestSuite([Repeated("test_same"), Repeated("test_same"),
+                                    Repeated("test_same")])
+        result = unittest.TextTestRunner(
+            stream=io.StringIO(), verbosity=0,
+            resultclass=metrics.TimedTextResult).run(suite)
+        self.assertTrue(result.wasSuccessful())
+        self.assertEqual([1, 2, 3], [r["occurrence"] for r in result.timings])
+        self.assertEqual(1, len({r["id"] for r in result.timings}))
+        report = metrics.make_report(result, elapsed_seconds=0.3,
+                                     process_cpu_seconds=0.1,
+                                     env={"python": "synthetic"})
+        self.assertEqual(3, report["tests"])
+        self.assertEqual(3, len(report["per_test"]))
+        self.assertEqual(3, sum(v["count"] for v in report["per_module"].values()))
+
+    def test_actual_legacy_duplicate_ids_and_new_occurrences_compare(self):
+        test_id = "test_stage43g117_bracket.BracketTest.test_duplicate_fixture"
+
+        def row(seconds, occurrence=None):
+            value = dict(id=test_id, module="test_stage43g117_bracket",
+                         status="success", seconds=seconds,
+                         process_cpu_seconds=seconds / 2)
+            if occurrence is not None:
+                value["occurrence"] = occurrence
+            return value
+
+        def report(rows):
+            return dict(schema=1, tests=len(rows),
+                        elapsed_seconds=sum(r["seconds"] for r in rows),
+                        per_test=rows, per_module=metrics.aggregate(rows),
+                        environment={"github": {"GITHUB_SHA": "synthetic"}})
+
+        old = report([row(10.0), row(20.0)])
+        new = report([row(14.0, 1), row(18.0, 2), row(3.0, 3)])
+        comparison = metrics.compare_reports(old, new)
+        self.assertEqual(2, comparison["common_tests"])
+        self.assertEqual([test_id + "#3"], comparison["added_tests"])
+        self.assertEqual([dict(id=test_id, occurrence=3)], comparison["added_instances"])
+        self.assertEqual([], comparison["removed_instances"])
+        self.assertEqual([1, 2], sorted(r["occurrence"] for r in comparison["test_deltas"]))
+        self.assertEqual(2, len(comparison["test_deltas"]))
+        self.assertEqual([], metrics.compare_reports(old, report([row(10.0), row(20.0)]))["added_tests"])
+
+        for rows in (
+            [row(1, 1), row(2, 1)],
+            [row(1, 1), row(2, 3)],
+            [row(1, 0)],
+            [row(1, True)],
+        ):
+            with self.subTest(rows=rows), self.assertRaises(ValueError):
+                metrics.compare_reports(report(rows), new)
 
     def test_environment_is_whitelisted_not_secret_or_host_name(self):
         with patch.dict(metrics.os.environ, {"RUNNER_OS": "Linux",
