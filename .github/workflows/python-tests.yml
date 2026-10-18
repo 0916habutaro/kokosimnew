@@ -37,10 +37,21 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run full unittest suite
+      - name: Run full unittest suite and capture timings
         env:
           KOKOSIM_SKIP_STAGE43G10_E2E: "1"
-        run: python -m unittest discover -s tests -v
+        run: |
+          mkdir -p audit-results
+          python tests/stage43g119_ci_metrics.py --json-output audit-results/unittest-timings.json
+
+      - name: Upload per-test timings
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: stage119a-full-unittest-timings
+          path: audit-results/unittest-timings.json
+          if-no-files-found: warn
+          retention-days: 14
 
   kanto17_e2e:
     name: Kanto 8-prefecture 17-school E2E
