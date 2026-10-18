@@ -126,6 +126,7 @@ def _index_instances(rows):
     positive, unique and contiguous for each ID to reject corrupted reports.
     """
     count = defaultdict(int)
+    ordinals = defaultdict(set)
     indexed = {}
     for row in rows:
         test_id = row["id"]
@@ -139,9 +140,9 @@ def _index_instances(rows):
         if key in indexed:
             raise ValueError("duplicate test instance ID and occurrence")
         indexed[key] = row
+        ordinals[test_id].add(ordinal)
     for test_id, total in count.items():
-        observed = {occ for tid, occ in indexed if tid == test_id}
-        if observed != set(range(1, total + 1)):
+        if ordinals[test_id] != set(range(1, total + 1)):
             raise ValueError("noncontiguous test occurrences")
     return indexed
 
