@@ -30,6 +30,7 @@ class TimedTextResult(unittest.TextTestResult):
     def __init__(self, stream, descriptions, verbosity):
         super().__init__(stream, descriptions, verbosity)
         self.timings, self._starts, self._statuses = [], {}, {}
+        self._id_occurrences = defaultdict(int)
 
     def startTest(self, test):
         self._starts[test] = time.perf_counter(), time.process_time()
@@ -66,8 +67,10 @@ class TimedTextResult(unittest.TextTestResult):
 
     def stopTest(self, test):
         before_wall, before_cpu = self._starts.pop(test)
+        self._id_occurrences[test.id()] += 1
         self.timings.append(dict(
-            id=test.id(), module=module_of(test.id()),
+            id=test.id(), occurrence=self._id_occurrences[test.id()],
+            module=module_of(test.id()),
             status=self._statuses.pop(test, "success"),
             seconds=round(time.perf_counter() - before_wall, 6),
             process_cpu_seconds=round(time.process_time() - before_cpu, 6)))
@@ -97,6 +100,9 @@ def make_report(result, *, elapsed_seconds, process_cpu_seconds, env=None):
     cases = sorted(result.timings, key=lambda row: row["id"])
     if len(cases) != result.testsRun:
         raise RuntimeError("all discovered tests must have a timing")
+    # TestCase.id() is not necessarily unique across an entire suite.
+    # Every executed instance must retain its own stable (id, occurrence) key.
+    _index_instances(cases)
     return dict(schema=FORMAT_VERSION, stage="43G-119-A",
                 captured_at_utc=datetime.now(timezone.utc).isoformat(),
                 discovery="python -m unittest discover -s tests -v",
@@ -111,19 +117,55 @@ def make_report(result, *, elapsed_seconds, process_cpu_seconds, env=None):
                 per_module=aggregate(cases), per_test=cases)
 
 
+def _index_instances(rows):
+    """Map (unittest ID, 1-based occurrence) to each execution.
+
+    Stage119-A's first CI artifact has schema=1 and no occurrence field.
+    Derive occurrence from its stored per_test order to keep it comparable.
+    A newer artifact explicitly records occurrence; validate that it is
+    positive, unique and contiguous for each ID to reject corrupted reports.
+    """
+    count = defaultdict(int)
+    indexed = {}
+    for row in rows:
+        test_id = row["id"]
+        if not isinstance(test_id, str) or not test_id:
+            raise ValueError("nonempty test ID required")
+        count[test_id] += 1
+        ordinal = row.get("occurrence", count[test_id])
+        if type(ordinal) is not int or ordinal < 1:
+            raise ValueError("positive integer occurrence required")
+        key = test_id, ordinal
+        if key in indexed:
+            raise ValueError("duplicate test instance ID and occurrence")
+        indexed[key] = row
+    for test_id, total in count.items():
+        observed = {occ for tid, occ in indexed if tid == test_id}
+        if observed != set(range(1, total + 1)):
+            raise ValueError("noncontiguous test occurrences")
+    return indexed
+
+
+def _instance_label(key):
+    test_id, ordinal = key
+    return test_id if ordinal == 1 else f"{test_id}#{ordinal}"
+
+
 def compare_reports(before, after):
     if before.get("schema") != FORMAT_VERSION or after.get("schema") != FORMAT_VERSION:
         raise ValueError("incompatible report schema")
-    old = {row["id"]: row for row in before["per_test"]}
-    new = {row["id"]: row for row in after["per_test"]}
-    if len(old) != len(before["per_test"]) or len(new) != len(after["per_test"]):
-        raise ValueError("duplicate test ID")
+    old = _index_instances(before["per_test"])
+    new = _index_instances(after["per_test"])
+    if before["tests"] != len(old) or after["tests"] != len(new):
+        raise ValueError("reported test count differs from recorded instances")
     common = sorted(old.keys() & new.keys())
-    changes = sorted((dict(id=key, module=new[key]["module"],
+    changes = sorted((dict(id=key[0], occurrence=key[1],
+                           module=new[key]["module"],
                            before_seconds=old[key]["seconds"],
                            after_seconds=new[key]["seconds"],
                            delta_seconds=round(new[key]["seconds"]-old[key]["seconds"], 4))
-                      for key in common), key=lambda row: row["delta_seconds"], reverse=True)
+                      for key in common),
+                     key=lambda row: row["delta_seconds"], reverse=True)
     modules = sorted((dict(module=name,
                            before_seconds=before["per_module"].get(name, {}).get("seconds", 0),
                            after_seconds=after["per_module"].get(name, {}).get("seconds", 0),
@@ -132,10 +174,14 @@ def compare_reports(before, after):
                                before["per_module"].get(name, {}).get("seconds", 0), 4))
                       for name in before["per_module"].keys() | after["per_module"].keys()),
                      key=lambda row: row["delta_seconds"], reverse=True)
+    added, removed = sorted(new.keys()-old.keys()), sorted(old.keys()-new.keys())
     return dict(schema=FORMAT_VERSION, stage="43G-119-A-comparison",
                 before_tests=before["tests"], after_tests=after["tests"],
-                common_tests=len(common), added_tests=sorted(new.keys()-old.keys()),
-                removed_tests=sorted(old.keys()-new.keys()),
+                common_tests=len(common),
+                added_tests=[_instance_label(key) for key in added],
+                removed_tests=[_instance_label(key) for key in removed],
+                added_instances=[dict(id=key[0], occurrence=key[1]) for key in added],
+                removed_instances=[dict(id=key[0], occurrence=key[1]) for key in removed],
                 before_elapsed_seconds=before["elapsed_seconds"],
                 after_elapsed_seconds=after["elapsed_seconds"],
                 elapsed_delta_seconds=round(after["elapsed_seconds"]-before["elapsed_seconds"], 4),
