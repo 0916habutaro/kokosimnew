@@ -165,7 +165,7 @@ class Stage119MetricsTests(unittest.TestCase):
         self.assertEqual(1, workflow.count("python tests/stage43g119_ci_metrics.py"))
         self.assertIn("unittest-timings.json", workflow)
         self.assertIn("actions/upload-artifact@", workflow)
-        self.assertIn("if: always()", workflow)
+        self.assertIn("if: always() && steps.scope.outputs.docs_only != 'true'", workflow)
         self.assertIn('KOKOSIM_SKIP_STAGE43G10_E2E: "1"', workflow)
         audit = (ROOT / "tests/stage43g119_ci_metrics.py").read_text(encoding="utf-8")
         self.assertIn('pattern="test*.py"', audit)

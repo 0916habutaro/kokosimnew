@@ -37,7 +37,19 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Classify CI workload (fail closed)
+        id: scope
+        env:
+          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: python tests/ci_change_scope.py
+
+      - name: Verify documentation-only routing
+        if: steps.scope.outputs.docs_only == 'true'
+        run: python -m unittest discover -s tests -p 'test_ci_change_scope.py' -v
+
       - name: Run full unittest suite and capture timings
+        if: steps.scope.outputs.docs_only != 'true'
         env:
           KOKOSIM_SKIP_STAGE43G10_E2E: "1"
         run: |
@@ -45,7 +57,7 @@ jobs:
           python tests/stage43g119_ci_metrics.py --json-output audit-results/unittest-timings.json
 
       - name: Upload per-test timings
-        if: always()
+        if: always() && steps.scope.outputs.docs_only != 'true'
         uses: actions/upload-artifact@v6
         with:
           name: stage119a-full-unittest-timings
@@ -61,11 +73,25 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
+      - name: Classify CI workload (fail closed)
+        id: scope
+        env:
+          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: python tests/ci_change_scope.py
+
+      - name: Verify documentation-only routing
+        if: steps.scope.outputs.docs_only == 'true'
+        run: python -m unittest discover -s tests -p 'test_ci_change_scope.py' -v
+
       - name: Run complete Kanto qualifier-to-regional simulation
+        if: steps.scope.outputs.docs_only != 'true'
         run: python -m unittest discover -s tests -p 'test_stage43g10_full_kanto17_e2e.py' -v
