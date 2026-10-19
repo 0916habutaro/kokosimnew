@@ -123,3 +123,13 @@ class Stage119CContractTests(unittest.TestCase):
             v3._validate_anchor(v3.AppendReceipt(True, heads[1], 'e' * 64), (object(),), heads[:2])
         with self.assertRaises(ValueError):
             v3._validate_anchor(v3.AppendReceipt(1, 'a' * 64, 'e' * 64), (object(),), heads[:2])
+
+    def test_dedicated_workflow_and_heavy_cases_are_outside_auto_discovery(self):
+        workflow=(ROOT/'.github/workflows/stage119c-fictional-bracket-v3.yml').read_text(encoding='utf-8')
+        for needle in ('ubuntu-latest','windows-latest','fail-fast: false','tests/stage43g119c_audit.py',
+                       '--require-windows','--old-versions','pull_request','branches: [main]','if: always()'):
+            self.assertIn(needle,workflow)
+        self.assertFalse(Path('stage43g119c_cases.py').match('test*.py'))
+        audit=(ROOT/'tests/stage43g119c_audit.py').read_text(encoding='utf-8')
+        self.assertIn('loader.loadTestsFromModule(cases)',audit)
+        self.assertEqual(20,len(list((ROOT/'tests').glob('test_stage43g*_compatibility.py'))))

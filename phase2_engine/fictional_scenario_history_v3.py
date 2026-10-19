@@ -112,6 +112,11 @@ class FictionalBracketView:
             product_season_start_authorized=False)
 
 
+OFFICIAL_2027 = dict(official_2027_entry=None, official_2027_qualification=None,
+    official_2027_joint_continuation=None, official_2027_schedule=None,
+    official_2027_ranking=None, official_2027_outcomes=None)
+
+
 def scenario_history(bracket_stores, *, practice_store=None, v1_store=None):
     """Snapshot every store now; the first store also audits practice/v1 links."""
     stores = tuple(bracket_stores)
