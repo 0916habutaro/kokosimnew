@@ -62,3 +62,50 @@ class Stage119CContractTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     obj._guard()
                 self.assertEqual(before, path.read_bytes())
+
+    def test_all_public_exceptions_revoke_and_explicit_audit_is_required(self):
+        import threading
+        from unittest.mock import patch
+        obj = v3.FictionalBracketStore.__new__(v3.FictionalBracketStore)
+        obj._mutex, obj.closed, obj.state = threading.RLock(), False, 'TRUSTED'
+        @v3._public
+        def reject(store):
+            raise ValueError('bad input')
+        with self.assertRaises(ValueError):
+            reject(obj)
+        self.assertEqual('REVOKED', obj.state)
+        with patch.object(obj, '_check_pid'):
+            with self.assertRaises(ValueError):
+                obj._check_trust()
+        obj.invalidate()
+        self.assertEqual('REVOKED', obj.state)
+
+    def test_manifest_detects_config_master_additions_missing_and_external_reads(self):
+        from types import SimpleNamespace
+        from phase2_engine import fictional_v3_dependencies as deps
+        with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+            lab = SimpleNamespace(capability=SimpleNamespace(root=a),
+                                  source=SimpleNamespace(capability=SimpleNamespace(root=b)))
+            path = Path(a) / 'source'
+            path.write_bytes(b'original')
+            manifest = deps.capture(lab)
+            paths = {Path(row.path) for row in manifest}
+            self.assertTrue(any(p.is_relative_to(ROOT / 'config/match') for p in paths))
+            self.assertTrue(any(p.is_relative_to(ROOT / 'data') and p.suffix == '.csv' for p in paths))
+            with deps.read_boundary(manifest):
+                self.assertEqual(b'original', path.read_bytes())
+                with self.assertRaises(ValueError):
+                    (ROOT / 'README.md').read_bytes()
+            path.write_bytes(b'changed!')
+            with self.assertRaises(ValueError):
+                deps.check(lab, manifest)
+            path.write_bytes(b'original')
+            deps.check(lab, manifest)
+            unknown = Path(b) / 'new-reference'
+            unknown.write_bytes(b'x')
+            with self.assertRaises(ValueError):
+                deps.check(lab, manifest)
+            unknown.unlink()
+            with deps.read_boundary(manifest[:-1]):
+                with self.assertRaises(ValueError):
+                    Path(manifest[-1].path).read_bytes()
