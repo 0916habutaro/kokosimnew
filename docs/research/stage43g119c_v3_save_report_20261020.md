@@ -70,9 +70,56 @@ KOKOSIM_SKIP_STAGE43G10_E2E=1 python tests/stage43g119_ci_metrics.py --json-outp
 
 ## 検証と実測
 
-以下は最終測定後に実際のJSONとCI URLで確定する。開発中の予備実行では15件・skip 0および
-全20旧export 29件・skip 0が成功したが、最終コードの受入は別の固定コード実行で判定する。
-ハーネスの計測項目・反例を増やす間にfixture構築段階で中断した予備実行は受入・速度評価に使わない。
-個人Windows PC・OSログイン/再起動試験は未実施。
+固定コードの専用監査は **18件・skip 0・failure 0・error 0** で成功。監査中のcode SHAは不変。所要1092.536秒。
+環境はmanaged cloud Linux（GitHub Actionsではない）、Python 3.12.14 / SQLite 3.53.1、`os.cpu_count=3`。
+正本は [Linux実測JSON](stage43g119c_linux_measurement_20261020.json)。本物の16/32teamの全試合、全イベント・投打成績A・永久ID・進出/順位・合同勝敗を検査した。
+全20旧exportは別の独立監査で29件・skip 0成功。[旧export JSON](stage43g119c_old_exports_linux_20261020.json)。
 
-<!-- FINAL_MEASUREMENTS -->
+### 同一runner・出典・要求・環境のv2/v3対照
+
+|team/版|作成 s|play合計 s|最初 s|中間 s|決勝 s|再開 s|snapshot s|DB bytes|子最大RSS KiB|
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+|16/v2|2.677|95.554|5.408|6.887|7.863|3.239|3.110|2744320|123772|
+|16/v3|5.318|11.231|0.174|3.078|6.166|3.405|0.069|2760704|127588|
+|32/v2|2.941|259.493|5.953|7.716|12.239|5.013|4.881|5541888|130228|
+|32/v3|5.789|20.719|0.135|3.217|6.911|3.386|0.082|5644288|184680|
+
+16teamのplay合計の実測改善率は **88.25%**（`(v2−v3)/v2`）。
+
+32teamのplay合計の実測改善率は **92.02%**（`(v2−v3)/v2`）。
+
+中間は16teamの試合8、32teamの試合16で、v3はいずれもK境界の完全監査を含む。決勝はcommit前後の完全監査を含む。
+作成時間はv3の方が長い。32teamのDBは102,400 bytes、子最大RSSは54,452 KiB増加した。実大会の結果列は別であり、RSSには独立oracle等も含むため、保存エンジン単独のメモリ差をこの測定から分離しない。
+
+各ケースは新しい子process。最大RSSはその子のsource受理・再開・独立oracleを含むhigh-water値で、playだけの値ではない。親CPU・子CPU・試合ごとのCPUはJSONで区別する。
+層別時間はinclusive。guard、source manifest、DB SHA、入力/新試合検証、progression/差分行、INSERT、commit、SELECT/読戻しを含み、重複する値を足して内訳比率を作らない。
+実v2/v3大会ではdraw/scope/match_idが異なる。内容の乱数同値を主張せず、制御fixtureの一致と実v3の独立E2Eを別の証拠とする。単回の同条件測定であり、すべてのPCへの倍率保証ではない。
+
+### K・失効・決勝と残余窓
+
+16teamの自動完全監査位置は `[8, 14, 15]`、所要秒は `[2.931, 2.934, 2.812]`。
+未保存0試合の不正入力で失効した後の明示的再監査は2.937秒。32teamのK/決勝コストは試合ごとのlayers/full_auditに記録する。
+暫定K=8をこの規模の実測と境界試験に基づいて維持する。Kの最適値を網羅探索したとは主張しない。
+最新anchorによる同inode rollback拒否、anchorなし/古いanchorでの検出不能、commit後ACK/読戻し失敗からの冪等確定を検証した。
+commit/読戻し間の旧行改変が新行の検査を通る残余窓も反例として実行し、決勝前完全監査が完了受理を阻止した。
+
+### 計測専用の決定的合成ハーネス
+
+|N|新規導出中央値 µs|DB SHA中央値 µs|全件監査 ms|DB bytes|
+|---:|---:|---:|---:|---:|
+|31|51.057|38.047|0.097|73728|
+|64|50.931|57.476|0.168|139264|
+|128|55.499|99.335|0.457|270336|
+|256|55.909|188.624|0.753|532480|
+
+合成ハーネスは試合runner/Bracketを呼ばない。各appendは当該recordだけを直列化し、全監査はN行を1回ずつ走査する。全ケースでprefix list直列化0回。短時間の単回計測のノイズを含むため、時間値だけから一般的な漸近性能を証明したとは扱わない。実大会の上限は32team/31試合のまま。
+
+### CI・全unittest・開発中の失敗
+
+新設 [Linux/Windows専用workflow](../../.github/workflows/stage119c-fictional-bracket-v3.yml) は実規模・故障・旧20export・性能JSONを両OSで実行する。
+GitHub Actionsの最終job/JSON artifact、Windows固有のhandle/junction/lease結果、既存全unittestのStage119-A計時とmain比は、[PR #301](https://github.com/0916habutaro/kokosimnew/pull/301)の最終検証欄を正本とする。managed Linuxの結果をGitHub CIや個人Windows PCの結果として報告しない。
+全unittestへ追加するのは高速契約9件のみ。main基準JSONはPR #298のrun `39244344431`（2,453件、skip 57、5,797.1555秒）。重い新ケースはdiscover対象外であり、既存のskip条件・timeout・CI-1/CI-2の扱いは変更しない。
+開発中には読取境界の補強とnative Windowsのbyte-range lease/合成接続closeの不具合を修正した。実行中のsource更新を検出した2 errorの予備監査、Windows初回失敗、ハーネス更新で中断した予備実行を[監査メモJSON](stage43g119c_preliminary_audit_notes_20261020.json)に記録し、受入・速度評価へ混ぜない。
+個人Windows PC、OSログイン/再起動、電源断、製品セーブ/GUI統合、50/100/200年、実大会64team以上は未実施。
+
+提出は未マージ・auto-merge無効・レビュー待ち。ユーザーの明示承認なしにmainへマージしない。
