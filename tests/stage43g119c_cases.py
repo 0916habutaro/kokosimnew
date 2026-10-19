@@ -185,6 +185,17 @@ class Stage119CCases(unittest.TestCase):
         self.assertEqual(before,files(store.db_path.parent, stores=(store,)))
         store=v3.FictionalBracketStore.resume(capability,self.lab,fictional_opt_in=True)
         self.stores.append(store)
+        mutable_request=replace(self.request8,seeds=replace(self.request8.seeds,
+            seeds=tuple([team,rank] for team,rank in self.request8.seeds.seeds)))
+        mutable=v3.FictionalBracketStore(self.lab,self.owner(),mutable_request,fictional_opt_in=True)
+        self.stores.append(mutable);unchanged=mutable.db_path.read_bytes()
+        old_rank=mutable_request.seeds.seeds[0][1]
+        mutable_request.seeds.seeds[0][1]=old_rank+1
+        with self.assertRaises(ValueError):mutable.next_input()
+        self.assertEqual('REVOKED',mutable.state);self.assertEqual(unchanged,mutable.db_path.read_bytes())
+        mutable_request.seeds.seeds[0][1]=old_rank
+        with self.assertRaises(ValueError):mutable.snapshot()
+        mutable.full_audit()
         store.play_next(); receipt1 = store.receipt(); prefix1 = store.db_path.read_bytes()
         store.play_next(); latest = store.receipt()
         store.close(); store.db_path.write_bytes(prefix1)

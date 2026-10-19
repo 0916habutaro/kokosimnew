@@ -21,7 +21,8 @@
     "work/cases119.log",
     "work/audit119-final.log",
     "work/audit119-final2.log",
-    "work/audit119-final4.log (benchmark stopped for native-Windows fixes; not accepted)"
+    "work/audit119-final4.log (benchmark stopped for native-Windows fixes; not accepted)",
+    "work/audit119-final5.log (stopped before acceptance to add mutable-request binding; no timing claims reused)"
   ],
   "fixture_interrupt_reason": "Harness and contract proof updates before benchmark acceptance; no timing claims reused.",
   "final_audit": "separate fixed-code run; see final measurement report",

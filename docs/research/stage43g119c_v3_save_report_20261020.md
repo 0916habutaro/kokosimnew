@@ -27,6 +27,7 @@ masterおよび互換catalogの338入力は変更しない。Stage119-A以前の
 
 ## 信頼境界・保存と復旧
 
+- 要求はオブジェクト参照の一致に加え、保存契約の正規化JSONと各公開操作で照合する。入れ子の可変コンテナを同じ参照のまま変更しても検出し、再監査途中の要求変更も拒否する。
 - 状態はTRUSTED / REVOKED / COMPLETE / CLOSED。入力不正も信頼を失効させる。復元したbytesが同じでも、明示的な`full_audit()`なしに再利用しない。
 - manifestは最小集合の推測を避け、`phase2_engine`・`game_core`・`config`・`data`と所有された年次/source領域を保守的に列挙する。ディレクトリidentityも記録し、元ファイルinodeを移しただけのディレクトリ交換も拒否する。
 - `config/match`・ability/stats設定・学校masterを含め、ファイル追加/欠落/変更でfast pathを拒否する。スレッド内の明示的なread boundaryで一覧外の`open`/SQLite接続を拒否し、出典へのwriteも拒否する。SQLite出典接続は明示的な`mode=ro`に限定する。

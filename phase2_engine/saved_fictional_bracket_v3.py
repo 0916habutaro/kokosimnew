@@ -324,7 +324,8 @@ class FictionalBracketStore:
         self.lab._guard()
         self.lab.source.store.reader._guard()
         dependencies.check(self.lab, self._manifest)
-        if self.request != self._request or self.scenario_seed != self._seed:
+        if (self.request != self._request or self.scenario_seed != self._seed
+                or codec.canonical(gates._payload(self.request)) != self._request_json):
             raise ValueError('request/seed changed after audit')
 
     @_public
@@ -372,6 +373,10 @@ class FictionalBracketStore:
         dependencies.check(self.lab, manifest)
         if digest != annual._sha(self.db_path):
             raise ValueError('v3 bytes changed after audit')
+        request_json = codec.canonical(codec.strict_json(prepared[4])['request'])
+        if codec.canonical(gates._payload(self.request)) != request_json:
+            raise ValueError('request changed during full audit')
+        self._request_json = request_json
         self._prepared, self._results, self._heads = prepared, results, heads
         self._manifest, self._digest, self._fast_count = manifest, digest, 0
         self._request, self._seed = self.request, self.scenario_seed
