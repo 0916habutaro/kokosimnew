@@ -127,6 +127,12 @@ SHARED lock中はSQLiteの書き手はcommitできない。生の書き手がcom
 trusted source digestとして記録し、fast pathではこのbytes照合だけを行う。出典検証は（bytes・コード）の決定的関数なので、bytesが同一なら再検証結果も同一である。
 照合対象のファイル一覧は `annual._sha`・`_evidence()`・`saved_authority` が実際に読むファイルから119-Cで確定し、一覧外のファイルを読む経路が無いことを試験で確認する。
 
+### 3.3-A fast pathの依存ファイル閉包（最終レビューで追加）
+
+trusted source digestの対象は `saved_authority`・`dry_run` が開く保存SQLiteだけではない。 `registered_match_driver.probability_model()` が実行時に読む `config/match` の設定ファイル、学校master、依存する全設定・データファイル、及び関係する決定性前提を **transitive read-dependency manifest**（推移的な読取依存集合）として列挙する。
+
+Stage119-Cでは読み取り経路を調査し、manifestで全依存がカバーされることをテストで証明する。manifestにないファイルを動的に読む、manifestが不完全、configのみ変更、学校masterのみ変更、未知の参照ファイルを増やす、といった場合、**fast pathをfail-closedで拒否し、REVOKEDに遷移する**。full audit成功後に初めてtrustを復帰できる。manifest中のidentity・サイズ・bytes SHAをすべて照合する。読み取りコードが環境依存の不確定入力を持つ場合もfast pathは有効化しない。
+
 ### 3.4 rollback対策の外部anchor（W1）
 
 `append` は `AppendReceipt(sequence, chain_head, db_sha256)` を返す。呼出側は最新のreceiptを保持し、`resume(capability, lab, anchor=receipt)` に渡す。
@@ -198,6 +204,10 @@ v2との違い：保存済み試合の再計算・出典の全再検証・全表
 新しい1試合だけの検証、`progression`（再計算を含まない純関数、O(N)）による進出・順位の導出を行う。
 **この見込みは未計測であり、v3がv2より速いという数値は119-Cの実測まで主張しない。**
 
+### 4.5 全公開読み取りAPIの再照合（レビューで追加）
+
+`snapshot()` と `next_input()` は、TRUSTEDメモリに保持された結果を返す前に、毎回 `guard()`、DBのidentity・サイズ・bytes digest、trusted source manifest全体のdigest、PID、sidecar一覧、SQLiteヘッダを再照合する。`COMPLETE`での読み取り、冪等再送の早期returnも同じ境界検査を通る。どれかひとつでも異なれば **REVOKED・結果を返さない**。明示的なfull audit成功まで信頼を復活させない。append成功時のチェックだけでsnapshotに検査省略を認めない。
+
 ## 5. データモデル（schema案）[設計]
 
 ### 5.1 識別
@@ -232,7 +242,7 @@ CREATE TABLE v3_acceptance (singleton INTEGER PRIMARY KEY CHECK(singleton=1),
 ```
 
 - chain：`chain_i = SHA-256("kokosim-v3-chain\0" ‖ chain_{i-1} ‖ input_sha256_i ‖ result_sha256_i)`、`chain_0 = SHA-256("kokosim-v3-chain\0" ‖ contract_sha256)`。
-  入力の `previous_results_sha256` は `chain_{i-1}` とする。1試合あたりO(1)で、v2のO(i)直列化（§1.2）を除く。
+  v3入力には `previous_chain_sha256` として `chain_{i-1}` を格納し、**v2の `previous_results_sha256`（過去全結果リストのSHA）とは別名・別意味**として厳格に区別する。v1/v2入力の意味とコードは変更しない。1試合あたりO(1)で、v2のO(i)直列化（§1.2）を除く。
   v2と同じ「全結果listのSHA」を残したい場合は、`'[' + ','.join(各結果の正規化JSON) + ']'` を逐次ハッシュしてO(1)で同値を得られる
   （[補助計測] 合成50件で各prefixのSHAが `_sha(list)` と一致）。どちらを採るかはレビュー論点とする（§13）。
 - chainは整合性の検査値であり真正性の根拠ではない（W2）。
@@ -282,9 +292,12 @@ Stage119-Cのv3は `fictional_bracket.MAX_SIZE=32`（変更しない）に合わ
 ### 8.2 v2との内容比較（oracle）
 
 結果の `input_sha256` は入力（契約SHA・前結果値・版名）に依存するので、v2とv3の結果JSONはbytes一致しない（[ソース] `registered_match_driver._run` 188行）。
-そこで同じ2teamと同じmatch seedを与えた試合について、`input_sha256` を除く内容（全event・イニング・得点・勝敗・打撃/投手個人成績・`run_seed`・確率設定SHA）が
-v2経路とv3経路で一致することを確認する。scope・match_idが異なると乱数ラベル（`lab105:{match_id}:pa:{n}`）が変わるため、
-この比較はv3の計画を介さず、同一の `BracketMatchInput` 相当を両経路の検証関数へ与える単体比較として行う。
+v2とv3でscope／match_idを別にすると、`registered_match_driver._run` の乱数ラベル `lab105:{match_id}:pa:{number}` が変わる。したがって同じseedとチームでも、**実v2大会と実v3大会の全イベント・スコア一致は保証されない**。Stage119-Cでは次の2つの比較を混同しない。
+
+1. **実v3大会E2Eの独立監査**：実際のv3独自scope・match_id・seedで31試合を実行し、独立 `full_audit`／イベントoracleが同じv3入力から得点・イニング・全イベント・投打個人成績A・永久選手ID・勝上り・合同勝敗分離を再導出して検証する。
+2. **v2/v3保存エンジンの制御比較**：一時ディレクトリ上の合成fixtureで、チーム・match_id・scope・seed・確率設定を両経路で意図的に同一にしたときだけ、保存メタデータ（version、chain、入力SHAなど）を除いた得点・イニング・イベント・個人成績Aが一致するか比較する。この制御試験は実v3大会E2Eの結果一致を意味しない。
+
+実大会のnamespace分離、入力SHA、バージョン管理は変えず、比較のために実データを旧形式へ改変しない。
 
 ## 9. 性能・容量の計測計画 [設計]（値は[119-C]）
 
@@ -359,10 +372,17 @@ Stage119-Aの計時JSON（`stage43g119_ci_metrics.py`）で、全unittestの所�
 |C9|計測：v2/v3同条件、合成ハーネス|監査CLI・JSON・報告書|§9の全指標、改善率は実測のみ|
 |C10|CI：専用workflow（Linux/Windows並行）、契約テスト|workflow・`test_stage43g119c_contract.py`|全unittest所要の増加なしをStage119-A計時JSONで確認|
 
-## 13. レビューで決めてほしい論点
+## 13. 設計レビュー決定事項（PR #296、Stage119-Cへの実装契約）
 
-1. chainの定義：v3独自chain（推奨）か、v2互換の「全結果listのSHA」を逐次ハッシュで保つか。
-2. 失効条件1：入力拒否の例外でもtrustを失効させる（推奨・単純）か、DBに触れない拒否は失効させないか。
-3. 上限 `K`（fast path appendの連続数）の初期値。暫定8、119-Cの計測後に固定。
-4. anchor（`AppendReceipt`）の保持を呼出側の責務にしてよいか。製品統合時にどこへ置くかは後続Stage。
-5. 決勝前のfull auditに加え、各ラウンド境界でもfull auditを強制するか。
+1. **v3専用hash chainを採用**。`previous_chain_sha256` を使用し、v2の `previous_results_sha256` をchainへ流用しない。
+2. **公開操作での入力拒否を含む例外時はTRUSTED失効**。明示的な `full_audit` 成功まではfail-closedとする。
+3. **fast path連続上限Kは暫定8**。Stage119-Cの実測・失効テストで妥当性を検証して固定する。K到達時は必ず再監査が必要。
+4. **AppendReceiptの外部anchorは暫定的に呼出側責務**。anchorがない／古い場合はrollbackを検出できないことをAPIと報告書に明記。製品統合前にanchorの独立した永続化先と復旧手順を別途確定する。anchor無しで完全なrollback防止を主張しない。
+5. **各ラウンド境界の追加full auditは現時点で採用しない**。K到達、再開、信頼失効、決勝直前、完了時のfull auditは維持。追加の有効性と所要はStage119-Cの測定で再検討する。
+
+### 13.1 マージ後Stage119-Cへの追加受入条件
+
+- §3.3-A：`config/match`・学校master・すべての間接依存ファイルを含むmanifest閉包と、欠落・変更時のfail-closed検証が完了するまでfast pathを有効化しない。
+- §4.5：`snapshot`・`next_input`・冪等再送・COMPLETE読み取りでDBと出典のdigest再照合を義務化し、未照合のTRUSTED結果は外部に返さない。
+- §8.2：実v3 31試合の独立oracleと、同一入力の合成制御比較を分け、それぞれの検査対象を証拠として記録する。
+- すべての安全上の条件は実装・テスト・CIで確認する。本文の案は未実装であり、v3の性能向上やセキュリティ保証を達成したものとは扱わない。
