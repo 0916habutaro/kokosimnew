@@ -169,11 +169,14 @@ class Stage119CCases(unittest.TestCase):
         foreign=v3.FictionalBracketStore(self.lab,self.owner(),self.request8,
             scenario_seed=v3.SEED+1,fictional_opt_in=True)
         self.stores.append(foreign)
+        capability=store.capability;store.close()
         before=files(store.db_path.parent)
         with self.assertRaises(ValueError):
-            v3.FictionalBracketStore.resume(replace(store.capability,contract_json=foreign.capability.contract_json),
+            v3.FictionalBracketStore.resume(replace(capability,contract_json=foreign.capability.contract_json),
                 self.lab,fictional_opt_in=True)
         self.assertEqual(before,files(store.db_path.parent))
+        store=v3.FictionalBracketStore.resume(capability,self.lab,fictional_opt_in=True)
+        self.stores.append(store)
         store.play_next(); receipt1 = store.receipt(); prefix1 = store.db_path.read_bytes()
         store.play_next(); latest = store.receipt()
         store.close(); store.db_path.write_bytes(prefix1)
