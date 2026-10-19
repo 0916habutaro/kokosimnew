@@ -138,6 +138,24 @@ class Stage119CContractTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     Path(manifest[-1].path).read_bytes()
 
+            # Model Windows' locked lease: hashing must use the already owned descriptor.
+            with tempfile.TemporaryDirectory() as c:
+                lease_path=Path(c)/'session.lease';lease_path.write_bytes(b'0')
+                with lease_path.open('r+b',buffering=0) as stream:
+                    owned=SimpleNamespace(capability=SimpleNamespace(root=c),source=lab.source,
+                        _lease=SimpleNamespace(file=stream),_mutex=threading.RLock(),closed=False)
+                    original_sha=deps.annual._sha
+                    def no_reopen(p):
+                        if p==lease_path:raise AssertionError('locked lease reopened')
+                        return original_sha(p)
+                    with patch.object(deps.annual,'_sha',no_reopen):
+                        captured=deps.capture(owned)
+                    self.assertTrue(any(row.path==str(lease_path) for row in captured))
+                    self.assertEqual(b'0',deps.lease_bytes(owned))
+                    stream.seek(0);stream.write(b'1');stream.seek(0)
+                    with self.assertRaises(ValueError):deps.lease_bytes(owned)
+                    self.assertEqual(b'1',deps.lease_bytes(owned,require_valid=False))
+
     def test_anchor_requires_latest_ack_and_chain(self):
         heads = ('0' * 64, '1' * 64, '2' * 64)
         latest = v3.AppendReceipt(2, heads[2], 'f' * 64)

@@ -7,6 +7,7 @@ consistency guard, not a sandbox against hostile process-memory modification.
 """
 from contextlib import contextmanager
 from dataclasses import dataclass
+import hashlib
 import os
 from pathlib import Path
 import sys
@@ -46,12 +47,52 @@ def _files(lab, extra_roots=()):
     return tuple(sorted(files))
 
 
-def capture(lab, *, extra_roots=()):
+def lease_bytes(store, *, require_valid=True):
+    """Read the owned locked handle (Windows forbids a second handle's read).
+
+    Identity still binds that handle to the guarded path. Never unlock or reopen
+    a lease to hash it. Restore the shared file position under its owner's mutex.
+    """
+    lease = getattr(store, '_lease', None)
+    if lease is None or lease.file.closed or getattr(store, 'closed', False):
+        raise ValueError('active owned source lease required')
+    with store._mutex:
+        stream = lease.file
+        actual = os.fstat(stream.fileno())
+        if (actual.st_dev, actual.st_ino) != tuple(guards._identity(Path(stream.name))):
+            raise ValueError('lease handle/path identity differs')
+        position = stream.tell()
+        try:
+            stream.seek(0)
+            raw = stream.read(2)
+        finally:
+            stream.seek(position)
+        if require_valid and raw != b'0':
+            raise ValueError('fixed owned lease bytes differ')
+        return raw
+
+
+def capture(lab, *, extra_stores=()):
     values = []
-    for path in _files(lab, extra_roots):
+    leases = {}
+    source_store = getattr(lab.source, 'store', None)
+    for store in (lab, source_store, *extra_stores):
+        if store is None or not hasattr(store, '_lease'):
+            continue
+        lease = store._lease
+        if lease is None or lease.file.closed or getattr(store, 'closed', False):
+            raise ValueError('active source lease required for manifest')
+        leases[Path(lease.file.name).absolute()] = store
+    roots = tuple(store.db_path.parent for store in extra_stores)
+    for path in _files(lab, roots):
         before = path.stat()
         directory = path.is_dir()
-        digest = 'directory' if directory else annual._sha(path)
+        if directory:
+            digest = 'directory'
+        elif path in leases:
+            digest = hashlib.sha256(lease_bytes(leases[path])).hexdigest()
+        else:
+            digest = annual._sha(path)
         after = path.stat()
         if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
                 after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns):
@@ -60,8 +101,8 @@ def capture(lab, *, extra_roots=()):
     return tuple(values)
 
 
-def check(lab, manifest, *, extra_roots=()):
-    if capture(lab, extra_roots=extra_roots) != manifest:
+def check(lab, manifest, *, extra_stores=()):
+    if capture(lab, extra_stores=extra_stores) != manifest:
         raise ValueError('transitive source/code/config/master manifest changed or grew')
 
 

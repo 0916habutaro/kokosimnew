@@ -30,10 +30,13 @@ masterおよび互換catalogの338入力は変更しない。Stage119-A以前の
 - 状態はTRUSTED / REVOKED / COMPLETE / CLOSED。入力不正も信頼を失効させる。復元したbytesが同じでも、明示的な`full_audit()`なしに再利用しない。
 - manifestは最小集合の推測を避け、`phase2_engine`・`game_core`・`config`・`data`と所有された年次/source領域を保守的に列挙する。ディレクトリidentityも記録し、元ファイルinodeを移しただけのディレクトリ交換も拒否する。
 - `config/match`・ability/stats設定・学校masterを含め、ファイル追加/欠落/変更でfast pathを拒否する。スレッド内の明示的なread boundaryで一覧外の`open`/SQLite接続を拒否し、出典へのwriteも拒否する。SQLite出典接続は明示的な`mode=ro`に限定する。
+- 入力生成・新試合検証・差分行導出・履歴組立をread boundary内に揃える。練習/v1履歴を指定したsnapshotは、その所有rootも呼出時manifestへ追加し、旧版の完全監査と前後digest照合を行う。履歴classはTRUSTED確立前に読み込み、fast pathでのlazy importを行わない。
 - `__pycache__`は出典に使わない。境界内の未列挙bytecode読取もfail-closed。実行中のPython標準ライブラリcodeとprocess memoryは実行環境の信頼境界とする。再開時には必ず結果を再計算する。
+- chainは`kokosim-v3-chain`にNULを付けたdomain separatorと、64桁lowercase ASCII hexの前chain・入力SHA・結果SHAを連結してSHA-256する。入力は`previous_chain_sha256`であり、v2の`previous_results_sha256`を流用しない。
 - 書込みは`BEGIN IMMEDIATE`、`synchronous=FULL`、DELETE journal。commit後はSELECTでSHARED lockを取得してから新行を主キーで読み戻し、前後のDB SHAを比較する。
 - ACK消失またはcommit後読戻し失敗では、DBに結果が入っている場合がある。REVOKEDから完全監査し、同一入力/結果を再送すると`False`。暗黙の再試行・自動監査による失効解除はしない。
 - hot journal・WAL・SHM・未知sidecarは接続前に拒否し、ファイルを変更しない。自動復旧APIは設けない。テストによるjournal削除とbytes復元は、破壊試験の所有者によるfixtureの後処理である。
+- Windowsのbyte-range leaseは再openした別handleから読まない。保持中の所有handleをmutex内で読み、pathとhandleのidentity、固定bytesを照合し、seek位置を戻す。出典・optional履歴のmanifestも同じ方式でleaseをSHA化する。ロックの一時解除は行わない。
 - `snapshot()`が渡す履歴は検査時点のdetached snapshot。外部への受渡し前にDB/出典を再照合し、liveなDB閲覧キャッシュにはしない。
 
 ### anchorと残余リスク

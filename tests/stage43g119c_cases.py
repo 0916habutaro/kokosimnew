@@ -35,12 +35,20 @@ ROOT = Path(__file__).resolve().parents[1]
 MEASUREMENTS = {}
 
 
-def pin(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+def owned_bytes(path, stores=()):
+    for store in stores:
+        lease=getattr(store,'_lease',None)
+        if lease is not None and not lease.file.closed and Path(lease.file.name)==path:
+            return deps.lease_bytes(store,require_valid=False)
+    return path.read_bytes()
 
 
-def files(root):
-    return {str(p.relative_to(root)): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+def pin(path, *, stores=()):
+    return hashlib.sha256(owned_bytes(path,stores)).hexdigest()
+
+
+def files(root, *, stores=()):
+    return {str(p.relative_to(root)):owned_bytes(p,stores) for p in root.rglob('*') if p.is_file()}
 
 
 class Stage119CCases(unittest.TestCase):
@@ -67,7 +75,7 @@ class Stage119CCases(unittest.TestCase):
         cls.request8 = scenario8(cls.lab, namespace='fictional:stage119c-eight')
         cls.requests = {16: scenario16(cls.lab, namespace='fictional:stage119c-sixteen'),
                         32: scenario32(cls.lab, namespace='fictional:stage119c-thirty-two')}
-        cls.source_pins = {str(p): pin(p) for root in (Path(cls.lab.capability.root),
+        cls.source_pins = {str(p): pin(p,stores=(cls.lab,cls.source.store)) for root in (Path(cls.lab.capability.root),
             Path(cls.source.capability.root)) for p in root.rglob('*') if p.is_file()}
         cls.legacy_pins = {str(s.db_path): pin(s.db_path) for s in cls.stores}
         cls.catalog = _compatibility(ROOT)
@@ -170,20 +178,20 @@ class Stage119CCases(unittest.TestCase):
             scenario_seed=v3.SEED+1,fictional_opt_in=True)
         self.stores.append(foreign)
         capability=store.capability;store.close()
-        before=files(store.db_path.parent)
+        before=files(store.db_path.parent, stores=(store,))
         with self.assertRaises(ValueError):
             v3.FictionalBracketStore.resume(replace(capability,contract_json=foreign.capability.contract_json),
                 self.lab,fictional_opt_in=True)
-        self.assertEqual(before,files(store.db_path.parent))
+        self.assertEqual(before,files(store.db_path.parent, stores=(store,)))
         store=v3.FictionalBracketStore.resume(capability,self.lab,fictional_opt_in=True)
         self.stores.append(store)
         store.play_next(); receipt1 = store.receipt(); prefix1 = store.db_path.read_bytes()
         store.play_next(); latest = store.receipt()
         store.close(); store.db_path.write_bytes(prefix1)
-        before = files(store.db_path.parent)
+        before = files(store.db_path.parent, stores=(store,))
         with self.assertRaises(ValueError):
             v3.FictionalBracketStore.resume(store.capability, self.lab, fictional_opt_in=True, anchor=latest)
-        self.assertEqual(before, files(store.db_path.parent))
+        self.assertEqual(before, files(store.db_path.parent, stores=(store,)))
         for anchor in (None, receipt1):
             reopened = v3.FictionalBracketStore.resume(store.capability, self.lab,
                 fictional_opt_in=True, anchor=anchor)
@@ -244,14 +252,14 @@ class Stage119CCases(unittest.TestCase):
         }
         for name, mutate in cases.items():
             with self.subTest(name=name):
-                mutate(); before = files(store.db_path.parent)
+                mutate(); before = files(store.db_path.parent, stores=(store,))
                 with self.assertRaises((ValueError, sqlite3.DatabaseError)):
                     store.snapshot()
                 self.assertEqual('REVOKED', store.state)
-                self.assertEqual(before, files(store.db_path.parent))
+                self.assertEqual(before, files(store.db_path.parent, stores=(store,)))
                 with self.assertRaises((ValueError, sqlite3.DatabaseError, KeyError, TypeError)):
                     store.full_audit()
-                self.assertEqual(before, files(store.db_path.parent))
+                self.assertEqual(before, files(store.db_path.parent, stores=(store,)))
                 store.db_path.write_bytes(original); store.full_audit(); refused.append(name)
         # New final-only rows are not exempt from full-table rederivation.
         complete = self.completed[16]
@@ -263,10 +271,10 @@ class Stage119CCases(unittest.TestCase):
                 con.execute(f'UPDATE {table} SET {column}={column}+1')
                 con.execute(next(s for s in v3.DDL if s.startswith('CREATE TRIGGER '+trigger+' ')))
                 con.commit()
-            before = files(complete.db_path.parent)
+            before = files(complete.db_path.parent, stores=(complete,))
             with self.assertRaises(ValueError): complete.snapshot()
             with self.assertRaises(ValueError): complete.full_audit()
-            self.assertEqual(before, files(complete.db_path.parent))
+            self.assertEqual(before, files(complete.db_path.parent, stores=(complete,)))
             complete.db_path.write_bytes(complete_bytes); complete.full_audit(); refused.append(table)
         # Raw write while the read transaction holds a SHARED lock must fail too.
         def raw(at):
@@ -281,15 +289,16 @@ class Stage119CCases(unittest.TestCase):
         store = self.fresh()
         for name in (v3.DATABASE+'-journal', v3.DATABASE+'-wal', v3.DATABASE+'-shm', v2.DATABASE, v1.DATABASE, 'unknown'):
             path=store.db_path.parent/name; path.write_bytes(b'not recovered')
-            before=files(store.db_path.parent)
+            before=files(store.db_path.parent, stores=(store,))
             with self.assertRaises(ValueError): store.next_input()
-            self.assertEqual(before,files(store.db_path.parent)); path.unlink(); store.full_audit()
+            self.assertEqual(before,files(store.db_path.parent, stores=(store,))); path.unlink(); store.full_audit()
         lease=store.db_path.parent/v3.LEASE
-        lease.write_bytes(b'1')
-        before=files(store.db_path.parent)
+        stream=store._lease.file
+        stream.seek(0);stream.write(b'1');stream.seek(0)
+        before=files(store.db_path.parent, stores=(store,))
         with self.assertRaises(ValueError): store.snapshot()
-        self.assertEqual(before,files(store.db_path.parent))
-        lease.write_bytes(b'0'); store.full_audit()
+        self.assertEqual(before,files(store.db_path.parent, stores=(store,)))
+        stream.seek(0);stream.write(b'0');stream.seek(0);store.full_audit()
         old_v2=next(s for s in self.stores if type(s) is v2.FictionalBracketStore)
         with self.assertRaises(ValueError):
             v3.FictionalBracketStore.resume(old_v2.capability,self.lab,fictional_opt_in=True)
@@ -302,18 +311,18 @@ class Stage119CCases(unittest.TestCase):
         modern_copy=self.fresh();modern_bytes=modern_copy.db_path.read_bytes();modern_copy.close()
         for legacy in (self.old,old_v2):
             modern_copy.db_path.write_bytes(legacy.db_path.read_bytes())
-            before=files(modern_copy.db_path.parent)
+            before=files(modern_copy.db_path.parent, stores=(modern_copy,))
             with self.assertRaises(ValueError):
                 v3.FictionalBracketStore.resume(modern_copy.capability,self.lab,fictional_opt_in=True)
-            self.assertEqual(before,files(modern_copy.db_path.parent))
+            self.assertEqual(before,files(modern_copy.db_path.parent, stores=(modern_copy,)))
         for module,cls,request in ((v1,v1.FictionalTournamentStore,self.old.request),
                                    (v2,v2.FictionalBracketStore,self.request8)):
             legacy_copy=cls(self.lab,self.owner(),request,fictional_opt_in=True)
             self.stores.append(legacy_copy);legacy_copy.close()
-            legacy_copy.db_path.write_bytes(modern_bytes);before=files(legacy_copy.db_path.parent)
+            legacy_copy.db_path.write_bytes(modern_bytes);before=files(legacy_copy.db_path.parent, stores=(legacy_copy,))
             with self.assertRaises(ValueError):
                 cls.resume(legacy_copy.capability,self.lab,fictional_opt_in=True)
-            self.assertEqual(before,files(legacy_copy.db_path.parent))
+            self.assertEqual(before,files(legacy_copy.db_path.parent, stores=(legacy_copy,)))
         with self.assertRaises(ValueError):
             v3.FictionalBracketStore.resume(store.capability,self.lab,fictional_opt_in=True)
         with tempfile.TemporaryDirectory() as temp:
@@ -421,7 +430,7 @@ class Stage119CCases(unittest.TestCase):
 
     def test_07_legacy_saved_db_master_and_catalog_bytes_unchanged(self):
         for path,digest in {**self.source_pins,**self.legacy_pins,**self.master}.items():
-            self.assertEqual(digest,pin(Path(path)),path)
+            self.assertEqual(digest,pin(Path(path),stores=(self.lab,self.source.store,*self.stores)),path)
         self.assertEqual(self.catalog,_compatibility(ROOT))
         self.assertEqual(338,len(self.catalog))
         self.assertEqual(106,sum(Path(p).suffix=='.csv' for p in self.master))
@@ -455,12 +464,12 @@ class Stage119CCases(unittest.TestCase):
                 outcomes['before_commit']=support.worker(data,private,'crash_before_commit')
                 sidecar=store.db_path.parent/(v3.DATABASE+'-journal')
                 self.assertTrue(sidecar.exists())
-                before=files(store.db_path.parent)
+                before=files(store.db_path.parent, stores=(store,))
                 stack,source,lab=support.source_resume(data)
                 with stack:
                     with self.assertRaises(ValueError):
                         v3.FictionalBracketStore.resume(capability,lab,fictional_opt_in=True)
-                self.assertEqual(before,files(store.db_path.parent))
+                self.assertEqual(before,files(store.db_path.parent, stores=(store,)))
                 # This deletion/restoration belongs to the destructive test owner, never the API.
                 sidecar.unlink(); store.db_path.write_bytes(original)
                 outcomes['after_commit']=support.worker(data,private,'crash_after_commit')
@@ -489,9 +498,9 @@ class Stage119CCases(unittest.TestCase):
         damaged=original[:-1]+bytes((original[-1]^1,))
         for label,operation in (('snapshot',store.snapshot),('next_input',store.next_input),
                                 ('receipt',store.receipt),('idempotent',lambda:store.append(match,result))):
-            store.db_path.write_bytes(damaged);before=files(store.db_path.parent)
+            store.db_path.write_bytes(damaged);before=files(store.db_path.parent, stores=(store,))
             with self.assertRaises(ValueError):operation()
-            self.assertEqual('REVOKED',store.state);self.assertEqual(before,files(store.db_path.parent))
+            self.assertEqual('REVOKED',store.state);self.assertEqual(before,files(store.db_path.parent, stores=(store,)))
             store.db_path.write_bytes(original)
             with self.assertRaises(ValueError):store.snapshot()  # Restoration alone cannot reinstate trust.
             store.full_audit()
@@ -523,8 +532,8 @@ class Stage119CCases(unittest.TestCase):
         store.play_next(fault=gap)
         for _ in range(4):store.play_next()
         self.assertEqual(6,len(store.snapshot().results))
-        before=files(store.db_path.parent)
+        before=files(store.db_path.parent, stores=(store,))
         with self.assertRaises(ValueError):store.play_next()
-        self.assertEqual('REVOKED',store.state);self.assertEqual(before,files(store.db_path.parent))
+        self.assertEqual('REVOKED',store.state);self.assertEqual(before,files(store.db_path.parent, stores=(store,)))
         MEASUREMENTS['residual_window']=dict(old_row_write_can_pass_new_row_readback=True,
             final_acceptance_prevented_by_full_audit=True,absolute_cryptographic_authenticity_claimed=False)

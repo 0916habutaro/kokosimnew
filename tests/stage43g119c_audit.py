@@ -37,16 +37,23 @@ def main():
         old=dict(tests=old_result.testsRun,skipped=len(old_result.skipped),failures=len(old_result.failures),
             errors=len(old_result.errors),files=names,file_count=len(names),seconds=perf_counter()-t,
             successful=old_result.wasSuccessful() and not old_result.skipped and len(names)==20)
+    harness_errors=[]
+    try:
+        synthetic_report=synthetic()
+    except Exception:
+        import traceback
+        harness_errors.append(traceback.format_exc())
+        synthetic_report=dict(successful=False,errors=harness_errors)
     after_hashes=hashes()
     expected_tests=18
-    success=result.wasSuccessful() and not result.skipped and result.testsRun==expected_tests and before_hashes==after_hashes and (old is None or old['successful'])
+    success=not harness_errors and result.wasSuccessful() and not result.skipped and result.testsRun==expected_tests and before_hashes==after_hashes and (old is None or old['successful'])
     report=dict(stage='43G-119-C',successful=success,tests=result.testsRun,expected_tests=expected_tests,skipped=len(result.skipped),
         failures=len(result.failures),errors=len(result.errors),failure_details=result.failures+result.errors,
         seconds=perf_counter()-began,parent_cpu_seconds=process_time()-cpu,os=platform.system(),
         python=platform.python_version(),sqlite=sqlite3.sqlite_version,native_windows=sys.platform=='win32',
         cpu_count=__import__('os').cpu_count(),peak_rss_kib=cases.peak_rss_kib(),
         test_seconds=getattr(result,'timings',{}),measured=cases.MEASUREMENTS,old_versions=old,
-        synthetic=synthetic(),personal_windows_pc_verified=False,official_year_verified=False,
+        synthetic=synthetic_report,harness_errors=harness_errors,personal_windows_pc_verified=False,official_year_verified=False,
         product_season_start_authorized=False,real_max_teams=32,real_max_games=31,
         anchor_without_latest_receipt_prevents_rollback=False,
         code_sha256=after_hashes,code_immutable_during_audit=before_hashes==after_hashes)

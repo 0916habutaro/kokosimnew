@@ -3,6 +3,7 @@
 31/64/128/256 records exceed real v3's 31-game scope only in this isolated
 harness. Bytes digest is measured separately; full replay is a single pass.
 """
+from contextlib import closing
 import hashlib
 import json
 from pathlib import Path
@@ -18,7 +19,7 @@ def run():
             path=Path(temp)/'synthetic-only.sqlite3'
             chain=hashlib.sha256(b'synthetic-only-genesis').hexdigest()
             genesis=chain
-            with sqlite3.connect(path) as con:
+            with closing(sqlite3.connect(path)) as con:
                 con.execute('PRAGMA journal_mode=DELETE')
                 con.execute('PRAGMA synchronous=FULL')
                 con.execute('CREATE TABLE synthetic (n INTEGER PRIMARY KEY, payload TEXT, sha TEXT, chain TEXT) STRICT')

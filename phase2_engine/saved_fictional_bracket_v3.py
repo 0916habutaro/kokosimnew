@@ -393,8 +393,10 @@ class FictionalBracketStore:
             guards._safe(path, directory=path == root)
             if tuple(guards._identity(path)) != identity:
                 raise ValueError('fictional file/root/lease authority replaced')
-        if (root / LEASE).read_bytes() != b'0':
+        if (root / LEASE).stat().st_size != 1:
             raise ValueError('fictional lease differs')
+        if getattr(self, '_lease', None) is not None:
+            dependencies.lease_bytes(self)
         with self.db_path.open('rb') as inp:
             header = inp.read(100)
         if len(header) != 100 or header[:16] != b'SQLite format 3\0' or header[18:20] != b'\x01\x01':
@@ -408,23 +410,23 @@ class FictionalBracketStore:
     def snapshot(self, *, practice_store=None, v1_store=None):
         self._check_trust()
         links = ((practice_store, practice.PracticeStore), (v1_store, v1.FictionalTournamentStore))
-        roots = []
+        linked_stores = []
         for store, cls in links:
             if store is not None:
                 if type(store) is not cls or store.lab is not self.lab:
                     raise ValueError('same owned practice/v1 source required')
                 store._guard()
-                roots.append(store.db_path.parent)
+                linked_stores.append(store)
         # Linked histories are independently audited on every call, never cached as trusted sources.
-        manifest = dependencies.capture(self.lab, extra_roots=roots) if roots else self._manifest
+        manifest = dependencies.capture(self.lab, extra_stores=linked_stores) if linked_stores else self._manifest
         with dependencies.read_boundary(manifest):
             practice_view = practice_store.snapshot() if practice_store is not None else None
             v1_view = v1_store.snapshot() if v1_store is not None else None
             if v1_view is not None and v1_view.plan.namespace == self.request.namespace:
                 raise ValueError('separate scenario namespace required')
             view = self._view_class(self._prepared, self.request, self._results, practice_view, v1_view)
-        if roots:
-            dependencies.check(self.lab, manifest, extra_roots=roots)
+        if linked_stores:
+            dependencies.check(self.lab, manifest, extra_stores=linked_stores)
         self._check_trust()
         return view
 
