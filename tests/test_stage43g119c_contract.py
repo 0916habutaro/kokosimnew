@@ -109,6 +109,21 @@ class Stage119CContractTests(unittest.TestCase):
                 self.assertEqual(b'original',path.read_bytes())
                 with self.assertRaises(ValueError):
                     (ROOT / 'README.md').read_bytes()
+            import threading
+            from unittest.mock import Mock,patch
+            obj=v3.FictionalBracketStore.__new__(v3.FictionalBracketStore)
+            obj._mutex,obj.closed,obj.state=threading.RLock(),False,'TRUSTED'
+            obj.lab,obj._manifest=lab,manifest
+            obj._check_trust=Mock()
+            obj._prepared,obj.request,obj._results,obj._heads=(),None,(),('0'*64,)
+            def unexpected(*args):return (ROOT/'README.md').read_bytes()
+            obj._view_class=unexpected
+            with self.assertRaises(ValueError):obj.snapshot()
+            self.assertEqual('REVOKED',obj.state)
+            obj.state='TRUSTED'
+            with patch.object(v3,'_input',unexpected):
+                with self.assertRaises(ValueError):obj.next_input()
+            self.assertEqual('REVOKED',obj.state)
             path.write_bytes(b'changed!')
             with self.assertRaises(ValueError):
                 deps.check(lab, manifest)

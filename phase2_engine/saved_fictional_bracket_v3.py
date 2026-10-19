@@ -332,6 +332,9 @@ class FictionalBracketStore:
         """Read-only independent replay; failure leaves bytes untouched and trust revoked."""
         self._check_pid()
         self.state = 'REVOKED'
+        # Load the detached view before establishing trust; no lazy imports on the fast path.
+        from .fictional_scenario_history_v3 import FictionalBracketView
+        self._view_class = FictionalBracketView
         self._guard()
         before = annual._sha(self.db_path)
         manifest = dependencies.capture(self.lab)
@@ -404,26 +407,32 @@ class FictionalBracketStore:
     @_public
     def snapshot(self, *, practice_store=None, v1_store=None):
         self._check_trust()
-        practice_view = v1_view = None
-        if practice_store is not None:
-            if type(practice_store) is not practice.PracticeStore or practice_store.lab is not self.lab:
-                raise ValueError('same owned practice source required')
-            practice_view = practice_store.snapshot()
-        if v1_store is not None:
-            if type(v1_store) is not v1.FictionalTournamentStore or v1_store.lab is not self.lab:
-                raise ValueError('same owned v1 source required')
-            v1_view = v1_store.snapshot()
-            if v1_view.plan.namespace == self.request.namespace:
+        links = ((practice_store, practice.PracticeStore), (v1_store, v1.FictionalTournamentStore))
+        roots = []
+        for store, cls in links:
+            if store is not None:
+                if type(store) is not cls or store.lab is not self.lab:
+                    raise ValueError('same owned practice/v1 source required')
+                store._guard()
+                roots.append(store.db_path.parent)
+        # Linked histories are independently audited on every call, never cached as trusted sources.
+        manifest = dependencies.capture(self.lab, extra_roots=roots) if roots else self._manifest
+        with dependencies.read_boundary(manifest):
+            practice_view = practice_store.snapshot() if practice_store is not None else None
+            v1_view = v1_store.snapshot() if v1_store is not None else None
+            if v1_view is not None and v1_view.plan.namespace == self.request.namespace:
                 raise ValueError('separate scenario namespace required')
-        from .fictional_scenario_history_v3 import FictionalBracketView
-        view = FictionalBracketView(self._prepared, self.request, self._results, practice_view, v1_view)
+            view = self._view_class(self._prepared, self.request, self._results, practice_view, v1_view)
+        if roots:
+            dependencies.check(self.lab, manifest, extra_roots=roots)
         self._check_trust()
         return view
 
     @_public
     def next_input(self):
         self._check_trust()
-        return _input(self._prepared, self._results, self._heads[-1])
+        with dependencies.read_boundary(self._manifest):
+            return _input(self._prepared, self._results, self._heads[-1])
 
     @_public
     def receipt(self):
@@ -439,8 +448,8 @@ class FictionalBracketStore:
     @_public
     def play_next(self, *, fault=None):
         self._check_trust()
-        match = _input(self._prepared, self._results, self._heads[-1])
         with dependencies.read_boundary(self._manifest):
+            match = _input(self._prepared, self._results, self._heads[-1])
             result = _run(match, match.match_seed)
         self._append(match, result, fault)
         return result
@@ -452,10 +461,10 @@ class FictionalBracketStore:
         index = match.sequence - 1
         if index > len(self._results):
             raise ValueError('skipped v3 game')
-        expected = _input(self._prepared, self._results[:index], self._heads[index])
-        if not _identical(match, expected):
-            raise ValueError('exact v3 input required')
         with dependencies.read_boundary(self._manifest):
+            expected = _input(self._prepared, self._results[:index], self._heads[index])
+            if not _identical(match, expected):
+                raise ValueError('exact v3 input required')
             v1._validate(result, match)
         if index < len(self._results):
             if not _identical(self._results[index], result):
@@ -466,7 +475,8 @@ class FictionalBracketStore:
         if final:
             self.full_audit()  # explicit final pre-commit trust boundary
         self._check_trust()
-        additions, head = _incremental_rows(self._prepared, self.request, self._results, match, result)
+        with dependencies.read_boundary(self._manifest):
+            additions, head = _incremental_rows(self._prepared, self.request, self._results, match, result)
         with closing(sqlite3.connect(self.db_path.as_uri() + '?mode=rw', uri=True, timeout=.1)) as con:
             con.execute('PRAGMA foreign_keys=ON')
             con.execute('PRAGMA synchronous=FULL')

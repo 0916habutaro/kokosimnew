@@ -28,9 +28,9 @@ class FileDigest:
     sha256: str
 
 
-def _files(lab):
+def _files(lab, extra_roots=()):
     roots = tuple(ROOT / name for name in ('phase2_engine', 'game_core', 'config', 'data')) + (
-        Path(lab.capability.root), Path(lab.source.capability.root))
+        Path(lab.capability.root), Path(lab.source.capability.root)) + tuple(Path(p) for p in extra_roots)
     files = set(roots)
     for root in roots:
         guards._safe(root)
@@ -46,9 +46,9 @@ def _files(lab):
     return tuple(sorted(files))
 
 
-def capture(lab):
+def capture(lab, *, extra_roots=()):
     values = []
-    for path in _files(lab):
+    for path in _files(lab, extra_roots):
         before = path.stat()
         directory = path.is_dir()
         digest = 'directory' if directory else annual._sha(path)
@@ -60,8 +60,8 @@ def capture(lab):
     return tuple(values)
 
 
-def check(lab, manifest):
-    if capture(lab) != manifest:
+def check(lab, manifest, *, extra_roots=()):
+    if capture(lab, extra_roots=extra_roots) != manifest:
         raise ValueError('transitive source/code/config/master manifest changed or grew')
 
 
