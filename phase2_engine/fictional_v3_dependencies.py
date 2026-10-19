@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 import sys
 import threading
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from . import yamanashi_annual_rosters as annual
 from . import yamanashi_demo_store as guards
@@ -31,7 +31,7 @@ class FileDigest:
 def _files(lab):
     roots = tuple(ROOT / name for name in ('phase2_engine', 'game_core', 'config', 'data')) + (
         Path(lab.capability.root), Path(lab.source.capability.root))
-    files = set()
+    files = set(roots)
     for root in roots:
         guards._safe(root)
         for path in root.rglob('*'):
@@ -39,6 +39,7 @@ def _files(lab):
                 continue
             if path.is_dir():
                 guards._safe(path)
+                files.add(path.absolute())
             else:
                 guards._safe(path, directory=False)
                 files.add(path.absolute())
@@ -49,12 +50,13 @@ def capture(lab):
     values = []
     for path in _files(lab):
         before = path.stat()
-        digest = annual._sha(path)
+        directory = path.is_dir()
+        digest = 'directory' if directory else annual._sha(path)
         after = path.stat()
         if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
                 after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns):
             raise ValueError('source changed while building dependency manifest')
-        values.append(FileDigest(str(path), (after.st_dev, after.st_ino), after.st_size, digest))
+        values.append(FileDigest(str(path), (after.st_dev, after.st_ino), 0 if directory else after.st_size, digest))
     return tuple(values)
 
 
@@ -72,9 +74,16 @@ def _audit(event, args):
         # File descriptors cannot establish a manifested path.
         raise ValueError('unmanifested file descriptor read')
     raw = os.fsdecode(raw)
+    if event == 'open':
+        mode, flags = args[1], args[2]
+        if (isinstance(mode,str) and any(c in mode for c in 'wax+')
+                or isinstance(flags,int) and flags & (os.O_WRONLY|os.O_RDWR|os.O_CREAT|os.O_TRUNC|os.O_APPEND)):
+            raise ValueError('writes forbidden inside v3 dependency read boundary')
     if event == 'sqlite3.connect':
         if raw == ':memory:':
             return
+        if not raw.startswith('file:') or parse_qs(urlsplit(raw).query).get('mode') != ['ro']:
+            raise ValueError('dependency SQLite connections must explicitly use mode=ro')
         if raw.startswith('file:'):
             parsed = urlsplit(raw)
             raw = unquote(parsed.path)

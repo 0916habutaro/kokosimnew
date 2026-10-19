@@ -18,6 +18,9 @@ def main():
     args=parser.parse_args()
     if args.require_windows and sys.platform!='win32':parser.error('native Windows required')
     root=Path(__file__).resolve().parents[1];tests=root/'tests';sys.path[:0]=[str(root),str(tests)]
+    inputs=sorted((root/'phase2_engine').glob('*v3*.py'))+sorted(tests.glob('stage43g119c*.py'))+ [tests/'test_stage43g119c_contract.py',root/'.github/workflows/stage119c-fictional-bracket-v3.yml']
+    def hashes():return {str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}
+    before_hashes=hashes()
     from stage43g117_audit import TimedResult
     from stage43g119c_synthetic import run as synthetic
     import stage43g119c_cases as cases
@@ -34,8 +37,10 @@ def main():
         old=dict(tests=old_result.testsRun,skipped=len(old_result.skipped),failures=len(old_result.failures),
             errors=len(old_result.errors),files=names,file_count=len(names),seconds=perf_counter()-t,
             successful=old_result.wasSuccessful() and not old_result.skipped and len(names)==20)
-    success=result.wasSuccessful() and not result.skipped and (old is None or old['successful'])
-    report=dict(stage='43G-119-C',successful=success,tests=result.testsRun,skipped=len(result.skipped),
+    after_hashes=hashes()
+    expected_tests=18
+    success=result.wasSuccessful() and not result.skipped and result.testsRun==expected_tests and before_hashes==after_hashes and (old is None or old['successful'])
+    report=dict(stage='43G-119-C',successful=success,tests=result.testsRun,expected_tests=expected_tests,skipped=len(result.skipped),
         failures=len(result.failures),errors=len(result.errors),failure_details=result.failures+result.errors,
         seconds=perf_counter()-began,parent_cpu_seconds=process_time()-cpu,os=platform.system(),
         python=platform.python_version(),sqlite=sqlite3.sqlite_version,native_windows=sys.platform=='win32',
@@ -44,8 +49,7 @@ def main():
         synthetic=synthetic(),personal_windows_pc_verified=False,official_year_verified=False,
         product_season_start_authorized=False,real_max_teams=32,real_max_games=31,
         anchor_without_latest_receipt_prevents_rollback=False,
-        code_sha256={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest()
-            for p in (root/'phase2_engine').glob('*v3*.py')})
+        code_sha256=after_hashes,code_immutable_during_audit=before_hashes==after_hashes)
     report['failure_details']=[(str(test),trace) for test,trace in report['failure_details']]
     args.json_output.parent.mkdir(parents=True,exist_ok=True)
     with args.json_output.open('x',encoding='utf-8') as out:json.dump(report,out,ensure_ascii=False,indent=2);out.write('\n')

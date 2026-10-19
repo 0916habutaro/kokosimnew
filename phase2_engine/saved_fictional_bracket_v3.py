@@ -31,7 +31,7 @@ INPUT_VERSION = 'stage43g119_fictional_bracket_match_input_v3'
 KIND, YEAR, SEED, ABILITY_SEED = 'fictional_bracket_tournament', 2027, 430119, v1.ABILITY_SEED
 DATABASE, LEASE = 'fictional_bracket_v3.sqlite3', 'fictional_bracket_v3.lease'
 APPLICATION_ID, USER_VERSION, K = 0x4B563303, 3, 8
-TABLES = ('v3_contract', 'v3_matches', 'v3_advancement', 
+TABLES = ('v3_contract', 'v3_matches', 'v3_advancement',
           'v3_players', 'v3_ranks', 'v3_acceptance')
 DDL = (
     'CREATE TABLE v3_contract (singleton INTEGER PRIMARY KEY CHECK(singleton=1), payload TEXT NOT NULL, payload_sha256 TEXT NOT NULL) STRICT',
@@ -294,12 +294,16 @@ class FictionalBracketStore:
 
     def close(self):
         with self._mutex:
-            if self._lease is not None:
-                self._lease.close()
-                self._lease = None
-            if self._pins is not None:
-                self._pins.close()
-                self._pins = None
+            try:
+                if self._lease is not None:
+                    self._lease.close()
+                    self._lease = None
+                if self._pins is not None:
+                    self._pins.close()
+                    self._pins = None
+            except BaseException:
+                self.state = 'REVOKED'
+                raise
             self.closed, self.state = True, 'CLOSED'
 
     @_public
@@ -317,6 +321,8 @@ class FictionalBracketStore:
         self._guard()
         if annual._sha(self.db_path) != self._digest:
             raise ValueError('v3 DB bytes changed since trusted boundary')
+        self.lab._guard()
+        self.lab.source.store.reader._guard()
         dependencies.check(self.lab, self._manifest)
         if self.request != self._request or self.scenario_seed != self._seed:
             raise ValueError('request/seed changed after audit')
@@ -384,7 +390,7 @@ class FictionalBracketStore:
             guards._safe(path, directory=path == root)
             if tuple(guards._identity(path)) != identity:
                 raise ValueError('fictional file/root/lease authority replaced')
-        if (root / LEASE).stat().st_size != 1:
+        if (root / LEASE).read_bytes() != b'0':
             raise ValueError('fictional lease differs')
         with self.db_path.open('rb') as inp:
             header = inp.read(100)

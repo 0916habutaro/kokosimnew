@@ -116,70 +116,32 @@ class Stage119CCases(unittest.TestCase):
                     scenario_seed=430119 + size, fictional_opt_in=True)
                 self.stores.append(store)
                 created = perf_counter() - began
-                games, old = [], None
-                if module is v2:
-                    meter = Meter()
-                else:
-                    meter = Meter()
-                with __import__('contextlib').ExitStack() as stack:
-                    if module is v2:
-                        meter.install(stack)
-                    else:
-                        for name in ('_guard', '_check_trust', 'full_audit', '_readback'):
-                            meter.wrap(stack, store, name, name)
-                        meter.wrap(stack, deps, 'check', 'source_manifest')
-                        meter.wrap(stack, annual, '_sha', 'file_digest_inclusive')
-                        meter.wrap(stack, v3, '_incremental_rows', 'incremental_rows')
-                        meter.wrap(stack, v1, '_validate', 'new_or_audit_validation')
-                        meter.wrap(stack, v3, '_run', 'new_game_compute')
-                    for sequence in range(1, size):
-                        match = store.next_input()
-                        meter.take()
-                        t, c = perf_counter(), process_time()
-                        result = store.play_next()
-                        games.append(dict(sequence=sequence, seconds=perf_counter() - t,
-                            cpu_seconds=process_time() - c, db_bytes=store.db_path.stat().st_size,
-                            layers=meter.take()))
-                        self.assertEqual(result, _run(match, match.match_seed))
-                        event_oracle(result, match)
-                        if module is v3:
-                            self.verify_rows(store)  # independent derivation after every append, without resetting K
-                            if sequence == 1:
-                                old = store.db_path.read_bytes()
-                        if sequence == 1:
-                            self.assertIs(False, store.append(match, result))
-                t = perf_counter()
-                view = store.snapshot()
-                snapshot = perf_counter() - t
-                self.assertTrue(view.complete)
-                self.assertEqual(size - 1, len(view.results))
-                self.assertEqual(size, len(view.ranks))
-                self.assertEqual(size - 1, sum(row[2] for row in view.ranks))
-                self.assertFalse(view.official_year_verified)
-                self.assertFalse(view.product_season_start_authorized)
-                cap = store.capability
-                anchor = store.receipt() if module is v3 else None
-                store.close()
-                t = perf_counter()
-                options = dict(anchor=anchor) if module is v3 else {}
-                reopened = module.FictionalBracketStore.resume(cap, self.lab, fictional_opt_in=True, **options)
+                capability=store.capability
+                data=dict(source=asdict(self.source.capability),annual=asdict(self.lab.capability),
+                          v3=asdict(capability),version=2 if module is v2 else 3)
+                store.close();self.lab.close();self.source.close()
+                try:
+                    with tempfile.TemporaryDirectory(prefix='stage119c-benchmark-') as private:
+                        summary=support.worker(data,Path(private),'benchmark')
+                finally:
+                    stack,source,lab=support.source_resume(data)
+                    type(self).source,type(self).lab=source,lab
+                    stack.pop_all()
+                    for existing in self.stores:existing.lab=lab
+                summary['create_seconds']=created
+                summary['parent_cpu_seconds']=process_time()-cpu
+                reopened=module.FictionalBracketStore.resume(capability,self.lab,fictional_opt_in=True)
                 self.stores.append(reopened)
-                resumed = perf_counter() - t
-                with closing(sqlite3.connect(reopened.db_path)) as con:
-                    capacity = dict(page_count=con.execute('PRAGMA page_count').fetchone()[0],
-                        page_size=con.execute('PRAGMA page_size').fetchone()[0],
-                        rows={table: con.execute(f'SELECT count(*) FROM {table}').fetchone()[0]
-                              for table in module.TABLES})
-                summary = dict(create_seconds=created, games=games, play_seconds=sum(g['seconds'] for g in games),
-                    snapshot_seconds=snapshot, resume_seconds=resumed, db_bytes=reopened.db_path.stat().st_size,
-                    capacity=capacity, parent_cpu_seconds=process_time() - cpu, peak_rss_kib=peak_rss_kib(),
-                    first_seconds=games[0]['seconds'], middle_seconds=games[(size - 1)//2]['seconds'],
-                    final_seconds=games[-1]['seconds'], source_fixture='same owned source', runner='registered_match_driver._run')
+                view=reopened.snapshot()
+                self.assertTrue(view.complete)
+                self.assertEqual(size-1,len(view.results));self.assertEqual(size,len(view.ranks))
+                self.assertEqual(size-1,sum(row[2] for row in view.ranks))
+                self.assertFalse(view.official_year_verified);self.assertFalse(view.product_season_start_authorized)
+                if module is v2:
+                    self.legacy_pins[str(reopened.db_path)]=pin(reopened.db_path)
                 self.bench[label] = summary
                 if module is v3:
                     self.completed[size] = reopened
-                    if size == 16:
-                        self.prefix1 = old
                     self.assertEqual('COMPLETE', reopened.state)
             before, after = self.bench[f'v2_{size}']['play_seconds'], self.bench[f'v3_{size}']['play_seconds']
             self.bench[f'improvement_{size}'] = dict(measured_percent=(before - after) / before * 100,
@@ -238,6 +200,17 @@ class Stage119CCases(unittest.TestCase):
             trigger = table + '_update'
             definition = next(s for s in v3.DDL if s.startswith('CREATE TRIGGER ' + trigger + ' '))
             sql_change([(f'DROP TRIGGER {trigger}', ()), (sql, params), (definition, ())])
+        def forge_result():
+            match=v3._input(store._prepared,(),store._heads[0])
+            other=_run(match,match.match_seed+1)
+            forged=replace(other,run_seed=match.match_seed)
+            event_oracle(forged,match)  # Valid events/full-A, but not the fixed seeded execution.
+            raw=forged.to_json()
+            row=store._heads[0]
+            head=v3._chain(row,codec.digest(codec.canonical(match.to_dict())),codec.digest(raw))
+            edit('v3_matches','UPDATE v3_matches SET result_json=?,result_sha256=?,chain_sha256=?',
+                 (raw,codec.digest(raw),head))
+            edit('v3_advancement','UPDATE v3_advancement SET team_id=?',(forged.winner_id,))
         cases = {
             'header_magic': lambda: store.db_path.write_bytes(b'BROKEN' + original[6:]),
             'header_journal': lambda: store.db_path.write_bytes(original[:18] + b'\x02\x02' + original[20:]),
@@ -245,6 +218,7 @@ class Stage119CCases(unittest.TestCase):
             'user_version': lambda: sql_change([('PRAGMA user_version=2', ())]),
             'drop_trigger': lambda: sql_change([('DROP TRIGGER v3_matches_update', ())]),
             'unknown_table': lambda: sql_change([('CREATE TABLE external_records (x)', ())]),
+            'valid_events_result_rehashed_chain': forge_result,
             'chain_forgery': lambda: edit('v3_matches', "UPDATE v3_matches SET chain_sha256=?", ('a'*64,)),
             'input_forgery': lambda: edit('v3_matches', "UPDATE v3_matches SET input_json='{}',input_sha256=?", (codec.digest('{}'),)),
             'result_and_sha': lambda: edit('v3_matches', "UPDATE v3_matches SET result_json='{}',result_sha256=?", (codec.digest('{}'),)),
@@ -288,18 +262,56 @@ class Stage119CCases(unittest.TestCase):
 
     def test_04_sidecars_identity_hardlinks_lease_and_version_capabilities(self):
         store = self.fresh()
-        for name in (v3.DATABASE+'-journal', v3.DATABASE+'-wal', v3.DATABASE+'-shm', v2.DATABASE, 'unknown'):
+        for name in (v3.DATABASE+'-journal', v3.DATABASE+'-wal', v3.DATABASE+'-shm', v2.DATABASE, v1.DATABASE, 'unknown'):
             path=store.db_path.parent/name; path.write_bytes(b'not recovered')
             before=files(store.db_path.parent)
             with self.assertRaises(ValueError): store.next_input()
             self.assertEqual(before,files(store.db_path.parent)); path.unlink(); store.full_audit()
+        lease=store.db_path.parent/v3.LEASE
+        lease.write_bytes(b'1')
+        before=files(store.db_path.parent)
+        with self.assertRaises(ValueError): store.snapshot()
+        self.assertEqual(before,files(store.db_path.parent))
+        lease.write_bytes(b'0'); store.full_audit()
+        old_v2=next(s for s in self.stores if type(s) is v2.FictionalBracketStore)
+        with self.assertRaises(ValueError):
+            v3.FictionalBracketStore.resume(old_v2.capability,self.lab,fictional_opt_in=True)
         for module in (v1, v2):
             with self.assertRaises(ValueError):
                 module.FictionalTournamentStore.resume(store.capability,self.lab,fictional_opt_in=True) if module is v1 else module.FictionalBracketStore.resume(store.capability,self.lab,fictional_opt_in=True)
         with self.assertRaises(ValueError):
             v3.FictionalBracketStore.resume(self.old.capability,self.lab,fictional_opt_in=True)
+        # Test actual wrong-format bytes under the expected filename, not only capability types.
+        modern_copy=self.fresh();modern_bytes=modern_copy.db_path.read_bytes();modern_copy.close()
+        for legacy in (self.old,old_v2):
+            modern_copy.db_path.write_bytes(legacy.db_path.read_bytes())
+            before=files(modern_copy.db_path.parent)
+            with self.assertRaises(ValueError):
+                v3.FictionalBracketStore.resume(modern_copy.capability,self.lab,fictional_opt_in=True)
+            self.assertEqual(before,files(modern_copy.db_path.parent))
+        for module,cls,request in ((v1,v1.FictionalTournamentStore,self.old.request),
+                                   (v2,v2.FictionalBracketStore,self.request8)):
+            legacy_copy=cls(self.lab,self.owner(),request,fictional_opt_in=True)
+            self.stores.append(legacy_copy);legacy_copy.close()
+            legacy_copy.db_path.write_bytes(modern_bytes);before=files(legacy_copy.db_path.parent)
+            with self.assertRaises(ValueError):
+                cls.resume(legacy_copy.capability,self.lab,fictional_opt_in=True)
+            self.assertEqual(before,files(legacy_copy.db_path.parent))
         with self.assertRaises(ValueError):
             v3.FictionalBracketStore.resume(store.capability,self.lab,fictional_opt_in=True)
+        with tempfile.TemporaryDirectory() as temp:
+            alias=Path(temp)/'alias'
+            if os.name=='nt':
+                subprocess.run(['cmd','/c','mklink','/J',str(alias),str(store.db_path.parent)],check=True,capture_output=True)
+            else:
+                alias.symlink_to(store.db_path.parent,target_is_directory=True)
+            fake=v3.FictionalBracketStore.__new__(v3.FictionalBracketStore)
+            fake.db_path=alias/v3.DATABASE
+            fake.capability=replace(store.capability,root=str(alias))
+            try:
+                with self.assertRaises(ValueError): fake._guard()
+            finally:
+                alias.rmdir() if os.name=='nt' else alias.unlink()
         with tempfile.TemporaryDirectory() as temp:
             linked=Path(temp)/'linked'
             os.link(store.db_path,linked)
@@ -312,7 +324,10 @@ class Stage119CCases(unittest.TestCase):
             pid=os.fork()
             if pid==0:
                 try: store.snapshot()
-                except ValueError: os._exit(0 if store.state=='REVOKED' else 2)
+                except ValueError:
+                    try: store.full_audit()
+                    except ValueError: os._exit(0 if store.state=='REVOKED' else 2)
+                    os._exit(4)
                 os._exit(3)
             _, status=os.waitpid(pid,0); self.assertEqual(0,os.waitstatus_to_exitcode(status))
             fork='native fork refused'
@@ -375,6 +390,12 @@ class Stage119CCases(unittest.TestCase):
             for pid in entry.player_ids:
                 person=view.player(pid)
                 self.assertEqual(pid,person['player_id']); self.assertIn(person['origin_school_id'],[s for s,_ in entry.programs])
+        from phase2_engine.fictional_scenario_history_v3 import scenario_history
+        history=scenario_history((self.completed[16],complete),practice_store=self.practice,v1_store=self.old)
+        self.assertEqual([31,1,2,15,31],[row['matches'] for row in history.stream_summary()])
+        for entry in view.request.entries.teams:
+            for sid,_ in entry.programs: history.school(sid)
+        history.player(view.request.entries.teams[0].player_ids[0])
         self.assertEqual(before,pin(complete.db_path))
         MEASUREMENTS['comparison_oracles']=dict(controlled_fixture_content_equal=True,
             real_v2_v3_random_equivalence_claimed=False, real_v3_sizes=[16,32],
@@ -389,7 +410,22 @@ class Stage119CCases(unittest.TestCase):
         self.assertEqual(106,sum(Path(p).suffix=='.csv' for p in self.master))
         self.assertEqual(2,len(self.old.snapshot().results))
         self.assertEqual(1,len(self.practice.snapshot().results))
+        for store in self.stores:
+            if type(store) is v2.FictionalBracketStore and not store.closed:
+                before=pin(store.db_path);self.assertTrue(store.snapshot().complete)
+                self.assertEqual(before,pin(store.db_path))
         MEASUREMENTS['legacy_bytes']=dict(catalog_files=338,master_csv=106,source_v1_db_bytes_unchanged=True)
+        manifest=[]
+        for row in self.completed[32]._manifest:
+            path=Path(row.path)
+            if path.is_relative_to(ROOT):label='project/'+str(path.relative_to(ROOT))
+            elif path.is_relative_to(Path(self.lab.capability.root)):
+                label='annual/'+str(path.relative_to(Path(self.lab.capability.root)))
+            else:label='saved2026/'+str(path.relative_to(Path(self.source.capability.root)))
+            manifest.append(dict(path=label,identity=row.identity,size=row.size,sha256=row.sha256))
+        MEASUREMENTS['dependency_manifest']=dict(strategy='conservative closed inventory + reject undeclared open/sqlite reads',
+            roots=['phase2_engine','game_core','config','data','owned annual','owned saved2026'],entries=manifest)
+
 
     def test_08_child_kill_hot_journal_ack_and_isolated_source_dependency_changes(self):
         store=self.fresh(); original=store.db_path.read_bytes(); capability=store.capability
@@ -429,3 +465,49 @@ class Stage119CCases(unittest.TestCase):
             self.practice.lab,self.old.lab=lab,lab
             for s in self.completed.values(): s.lab=lab
         MEASUREMENTS['child_faults']=outcomes
+
+    def test_09_every_public_read_idempotency_and_source_bytes_recheck(self):
+        store=self.fresh();match=store.next_input();result=store.play_next()
+        original=store.db_path.read_bytes()
+        damaged=original[:-1]+bytes((original[-1]^1,))
+        for label,operation in (('snapshot',store.snapshot),('next_input',store.next_input),
+                                ('receipt',store.receipt),('idempotent',lambda:store.append(match,result))):
+            store.db_path.write_bytes(damaged);before=files(store.db_path.parent)
+            with self.assertRaises(ValueError):operation()
+            self.assertEqual('REVOKED',store.state);self.assertEqual(before,files(store.db_path.parent))
+            store.db_path.write_bytes(original)
+            with self.assertRaises(ValueError):store.snapshot()  # Restoration alone cannot reinstate trust.
+            store.full_audit()
+        source_path=self.lab.db_path;source_bytes=source_path.read_bytes()
+        source_path.write_bytes(source_bytes[:-1]+bytes((source_bytes[-1]^1,)))
+        before=source_path.read_bytes()
+        try:
+            with self.assertRaises(ValueError):store.snapshot()
+            self.assertEqual('REVOKED',store.state);self.assertEqual(before,source_path.read_bytes())
+        finally:source_path.write_bytes(source_bytes)
+        store.full_audit()
+        complete=self.completed[32]
+        saved=complete.db_path.read_bytes()
+        complete.db_path.write_bytes(saved[:-1]+bytes((saved[-1]^1,)))
+        try:
+            with self.assertRaises(ValueError):complete.snapshot()
+            self.assertEqual('REVOKED',complete.state)
+        finally:complete.db_path.write_bytes(saved)
+        complete.full_audit()
+        # Documented commit/readback gap: an old row can be changed before the read lock.
+        # A pre-final full audit must prevent completion even if the new rows read back correctly.
+        def gap(at):
+            if at=='after_commit':
+                with closing(sqlite3.connect(store.db_path)) as con:
+                    con.execute('DROP TRIGGER v3_players_update')
+                    con.execute("UPDATE v3_players SET origin_school_id='gap-forgery' WHERE match_id=?",(match.match_id,))
+                    con.execute(next(sql for sql in v3.DDL if sql.startswith('CREATE TRIGGER v3_players_update ')))
+                    con.commit()
+        store.play_next(fault=gap)
+        for _ in range(4):store.play_next()
+        self.assertEqual(6,len(store.snapshot().results))
+        before=files(store.db_path.parent)
+        with self.assertRaises(ValueError):store.play_next()
+        self.assertEqual('REVOKED',store.state);self.assertEqual(before,files(store.db_path.parent))
+        MEASUREMENTS['residual_window']=dict(old_row_write_can_pass_new_row_readback=True,
+            final_acceptance_prevented_by_full_audit=True,absolute_cryptographic_authenticity_claimed=False)

@@ -20,8 +20,13 @@ class Stage119CContractTests(unittest.TestCase):
                      'fictional_scenario_history.py', 'fictional_bracket.py',
                      'fictional_bracket_oracle.py', 'registered_match_driver.py'):
             path = 'phase2_engine/' + name
-            self.assertEqual(subprocess.check_output(['git', 'show', BASE + ':' + path], cwd=ROOT),
-                             (ROOT / path).read_bytes(), path)
+            for base in (BASE,'86dee10e90b9224fa53ed43110945a11a6af5546'):
+                self.assertEqual(subprocess.check_output(['git','show',base+':'+path],cwd=ROOT),
+                                 (ROOT/path).read_bytes(),path)
+
+    def test_only_new_files_are_changed_from_main(self):
+        diff=subprocess.check_output(['git','diff','--name-status',BASE],cwd=ROOT,text=True)
+        self.assertTrue(all(line.startswith('A\t') for line in diff.splitlines()),diff)
 
     def test_ddl_is_strict_append_only_and_indexes_queries(self):
         with closing(sqlite3.connect(':memory:')) as con:
@@ -79,6 +84,11 @@ class Stage119CContractTests(unittest.TestCase):
                 obj._check_trust()
         obj.invalidate()
         self.assertEqual('REVOKED', obj.state)
+        from unittest.mock import Mock
+        obj._lease=Mock();obj._lease.close.side_effect=OSError('close fault');obj._pins=None
+        with self.assertRaises(OSError):obj.close()
+        self.assertEqual('REVOKED',obj.state)
+        obj._lease=None;obj.close();self.assertEqual('CLOSED',obj.state)
 
     def test_manifest_detects_config_master_additions_missing_and_external_reads(self):
         from types import SimpleNamespace
@@ -94,6 +104,9 @@ class Stage119CContractTests(unittest.TestCase):
             self.assertTrue(any(p.is_relative_to(ROOT / 'data') and p.suffix == '.csv' for p in paths))
             with deps.read_boundary(manifest):
                 self.assertEqual(b'original', path.read_bytes())
+                with self.assertRaises(ValueError):path.write_bytes(b'forbidden')
+                with self.assertRaises(ValueError):sqlite3.connect(path)
+                self.assertEqual(b'original',path.read_bytes())
                 with self.assertRaises(ValueError):
                     (ROOT / 'README.md').read_bytes()
             path.write_bytes(b'changed!')
@@ -133,3 +146,17 @@ class Stage119CContractTests(unittest.TestCase):
         audit=(ROOT/'tests/stage43g119c_audit.py').read_text(encoding='utf-8')
         self.assertIn('loader.loadTestsFromModule(cases)',audit)
         self.assertEqual(20,len(list((ROOT/'tests').glob('test_stage43g*_compatibility.py'))))
+
+    def test_manifest_binds_directories_even_if_original_file_inodes_are_preserved(self):
+        from types import SimpleNamespace
+        from phase2_engine import fictional_v3_dependencies as deps
+        with tempfile.TemporaryDirectory() as temp:
+            parent=Path(temp);a=parent/'a';b=parent/'b';a.mkdir();b.mkdir()
+            path=a/'source';path.write_bytes(b'fixed')
+            identity=tuple(guards._identity(path))
+            lab=SimpleNamespace(capability=SimpleNamespace(root=str(a)),
+                                source=SimpleNamespace(capability=SimpleNamespace(root=str(b))))
+            manifest=deps.capture(lab)
+            a.rename(parent/'old');a.mkdir();(parent/'old/source').rename(path)
+            self.assertEqual(identity,tuple(guards._identity(path)))
+            with self.assertRaises(ValueError):deps.check(lab,manifest)
