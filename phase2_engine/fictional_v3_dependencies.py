@@ -133,6 +133,13 @@ def _audit(event, args):
     path = Path(raw).absolute()
     if path in allowed:
         return
+    if os.name == 'nt':
+        # Temp paths can arrive as RUNNER~1 while __file__.resolve() uses the
+        # long spelling. Resolve only after rejecting reparse/link aliases.
+        guards._safe(path, directory=False)
+        path = path.resolve(strict=True)
+        if path in allowed:
+            return
     # Lazy standard-library imports are runtime code, not scenario inputs.
     if path.is_relative_to(Path(sys.base_prefix)):
         if path.suffix in ('.py', '.pyc', '.so', '.pyd'):
@@ -147,6 +154,8 @@ sys.addaudithook(_audit)
 def read_boundary(manifest, extra=()):
     previous = getattr(_LOCAL, 'allowed', None)
     allowed = frozenset(Path(item.path) for item in manifest) | frozenset(Path(p).absolute() for p in extra)
+    if os.name == 'nt':
+        allowed |= frozenset(path.resolve(strict=True) for path in allowed)
     _LOCAL.allowed = allowed if previous is None else previous & allowed
     try:
         yield

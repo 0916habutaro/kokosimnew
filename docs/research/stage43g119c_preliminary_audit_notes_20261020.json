@@ -44,5 +44,24 @@
       "explicitly close synthetic connection",
       "always write audit JSON even if synthetic harness fails"
     ]
+  },
+  "windows_short_path_ci": {
+    "run_id": 39293572674,
+    "job_id": 118200377628,
+    "commit": "b864725a985c76b6e2b70ffb3cd1352e9e66a992",
+    "successful": false,
+    "tests": 18,
+    "failures": 1,
+    "errors": 0,
+    "skipped": 0,
+    "old_exports": {
+      "files": 20,
+      "tests": 29,
+      "skipped": 0,
+      "successful": true
+    },
+    "cause": "Isolated subprocess config opens use Windows RUNNER~1 TEMP alias, while __file__.resolve() inventory uses the long directory spelling. The same file was rejected as undeclared.",
+    "correction": "On Windows, reject link/junction/reparse/hardlink before resolving alternate path spelling, compare with original and canonical manifested paths. Native GetShortPathNameW read is added to the fast contract test. Linux path resolution and benchmark implementation are unchanged.",
+    "artifact_id": 12210795236
   }
 }

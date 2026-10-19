@@ -99,6 +99,17 @@ class Stage119CContractTests(unittest.TestCase):
             path = Path(a) / 'source'
             path.write_bytes(b'original')
             manifest = deps.capture(lab)
+            import os
+            if os.name == 'nt':
+                import ctypes
+                short = ctypes.create_unicode_buffer(32768)
+                get_short_path = ctypes.windll.kernel32.GetShortPathNameW
+                get_short_path.argtypes = (ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32)
+                get_short_path.restype = ctypes.c_uint32
+                self.assertTrue(get_short_path(str(path), short, len(short)))
+                # Exercise the native spelling used by subprocess TEMP paths.
+                with deps.read_boundary(manifest):
+                    self.assertEqual(b'original', Path(short.value).read_bytes())
             paths = {Path(row.path) for row in manifest}
             self.assertTrue(any(p.is_relative_to(ROOT / 'config/match') for p in paths))
             self.assertTrue(any(p.is_relative_to(ROOT / 'data') and p.suffix == '.csv' for p in paths))

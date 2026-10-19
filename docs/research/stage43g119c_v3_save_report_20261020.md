@@ -32,6 +32,7 @@ masterおよび互換catalogの338入力は変更しない。Stage119-A以前の
 - manifestは最小集合の推測を避け、`phase2_engine`・`game_core`・`config`・`data`と所有された年次/source領域を保守的に列挙する。ディレクトリidentityも記録し、元ファイルinodeを移しただけのディレクトリ交換も拒否する。
 - `config/match`・ability/stats設定・学校masterを含め、ファイル追加/欠落/変更でfast pathを拒否する。スレッド内の明示的なread boundaryで一覧外の`open`/SQLite接続を拒否し、出典へのwriteも拒否する。SQLite出典接続は明示的な`mode=ro`に限定する。
 - 入力生成・新試合検証・差分行導出・履歴組立をread boundary内に揃える。練習/v1履歴を指定したsnapshotは、その所有rootも呼出時manifestへ追加し、旧版の完全監査と前後digest照合を行う。履歴classはTRUSTED確立前に読み込み、fast pathでのlazy importを行わない。
+- Windows TEMPの`RUNNER~1`短縮名と長い実体パスは、link/junction/reparse/hardlink拒否後に同じmanifest実体として照合する。通常表記も維持し、GetShortPathNameWと隔離子processで検証する。Linuxの照合経路は変更しない。
 - `__pycache__`は出典に使わない。境界内の未列挙bytecode読取もfail-closed。実行中のPython標準ライブラリcodeとprocess memoryは実行環境の信頼境界とする。再開時には必ず結果を再計算する。
 - chainは`kokosim-v3-chain`にNULを付けたdomain separatorと、64桁lowercase ASCII hexの前chain・入力SHA・結果SHAを連結してSHA-256する。入力は`previous_chain_sha256`であり、v2の`previous_results_sha256`を流用しない。
 - 書込みは`BEGIN IMMEDIATE`、`synchronous=FULL`、DELETE journal。commit後はSELECTでSHARED lockを取得してから新行を主キーで読み戻し、前後のDB SHAを比較する。
@@ -95,6 +96,8 @@ KOKOSIM_SKIP_STAGE43G10_E2E=1 python tests/stage43g119_ci_metrics.py --json-outp
 層別時間はinclusive。guard、source manifest、DB SHA、入力/新試合検証、progression/差分行、INSERT、commit、SELECT/読戻しを含み、重複する値を足して内訳比率を作らない。
 実v2/v3大会ではdraw/scope/match_idが異なる。内容の乱数同値を主張せず、制御fixtureの一致と実v3の独立E2Eを別の証拠とする。単回の同条件測定であり、すべてのPCへの倍率保証ではない。
 
+上記の管理Linux原始計測はWindows短縮パス修正前の固定codeである。修正は`os.name == nt`の分岐とWindows用契約試験に限定し、原始JSONのcode SHAを上書きしない。最終headの両OS再計測は専用CI artifactを参照する。
+
 ### K・失効・決勝と残余窓
 
 16teamの自動完全監査位置は `[8, 14, 15]`、所要秒は `[2.931, 2.934, 2.812]`。
@@ -119,7 +122,7 @@ commit/読戻し間の旧行改変が新行の検査を通る残余窓も反例�
 新設 [Linux/Windows専用workflow](../../.github/workflows/stage119c-fictional-bracket-v3.yml) は実規模・故障・旧20export・性能JSONを両OSで実行する。
 GitHub Actionsの最終job/JSON artifact、Windows固有のhandle/junction/lease結果、既存全unittestのStage119-A計時とmain比は、[PR #301](https://github.com/0916habutaro/kokosimnew/pull/301)の最終検証欄を正本とする。managed Linuxの結果をGitHub CIや個人Windows PCの結果として報告しない。
 全unittestへ追加するのは高速契約9件のみ。main基準JSONはPR #298のrun `39244344431`（2,453件、skip 57、5,797.1555秒）。重い新ケースはdiscover対象外であり、既存のskip条件・timeout・CI-1/CI-2の扱いは変更しない。
-開発中には読取境界の補強とnative Windowsのbyte-range lease/合成接続closeの不具合を修正した。実行中のsource更新を検出した2 errorの予備監査、Windows初回失敗、ハーネス更新で中断した予備実行を[監査メモJSON](stage43g119c_preliminary_audit_notes_20261020.json)に記録し、受入・速度評価へ混ぜない。
+開発中には読取境界の補強とnative Windowsのbyte-range lease/合成接続closeの不具合を修正した。実行中のsource更新を検出した2 errorの予備監査、Windows初回失敗、短縮TEMPパス表記差による隔離試験1 failure（18件/skip 0・旧29件成功）、ハーネス更新で中断した予備実行を[監査メモJSON](stage43g119c_preliminary_audit_notes_20261020.json)に記録し、受入・速度評価へ混ぜない。
 個人Windows PC、OSログイン/再起動、電源断、製品セーブ/GUI統合、50/100/200年、実大会64team以上は未実施。
 
 提出は未マージ・auto-merge無効・レビュー待ち。ユーザーの明示承認なしにmainへマージしない。
