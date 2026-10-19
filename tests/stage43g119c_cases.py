@@ -160,6 +160,20 @@ class Stage119CCases(unittest.TestCase):
                 operation()
         self.assertEqual(first, store.db_path.read_bytes())
         t = perf_counter(); store.full_audit(); revoked_cost = perf_counter() - t
+        for bad in (replace(match,sequence=2),replace(match,namespace='fictional:foreign'),
+                    replace(match,competition_id='LAB119:foreign'),replace(match,match_seed=match.match_seed+1),
+                    replace(match,previous_chain_sha256='f'*64),replace(match,version=v2.INPUT_VERSION)):
+            with self.assertRaises(ValueError):store.append(bad,_run(match,match.match_seed))
+            self.assertEqual('REVOKED',store.state);self.assertEqual(first,store.db_path.read_bytes())
+            store.full_audit()
+        foreign=v3.FictionalBracketStore(self.lab,self.owner(),self.request8,
+            scenario_seed=v3.SEED+1,fictional_opt_in=True)
+        self.stores.append(foreign)
+        before=files(store.db_path.parent)
+        with self.assertRaises(ValueError):
+            v3.FictionalBracketStore.resume(replace(store.capability,contract_json=foreign.capability.contract_json),
+                self.lab,fictional_opt_in=True)
+        self.assertEqual(before,files(store.db_path.parent))
         store.play_next(); receipt1 = store.receipt(); prefix1 = store.db_path.read_bytes()
         store.play_next(); latest = store.receipt()
         store.close(); store.db_path.write_bytes(prefix1)
