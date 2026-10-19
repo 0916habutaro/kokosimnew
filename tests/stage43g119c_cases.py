@@ -189,6 +189,9 @@ class Stage119CCases(unittest.TestCase):
             seeds=tuple([team,rank] for team,rank in self.request8.seeds.seeds)))
         mutable=v3.FictionalBracketStore(self.lab,self.owner(),mutable_request,fictional_opt_in=True)
         self.stores.append(mutable);unchanged=mutable.db_path.read_bytes()
+        detached=mutable.snapshot()
+        with self.assertRaises(TypeError):detached.request.seeds.seeds[0][1]=99
+        mutable.next_input()
         old_rank=mutable_request.seeds.seeds[0][1]
         mutable_request.seeds.seeds[0][1]=old_rank+1
         with self.assertRaises(ValueError):mutable.next_input()
@@ -407,6 +410,8 @@ class Stage119CCases(unittest.TestCase):
 
     def test_06_controlled_fixture_content_comparison_and_readonly_history(self):
         store=self.fresh()
+        wanted=store.next_input();detached=store.snapshot();detached.bracket.games=()
+        self.assertEqual(wanted,store.next_input())
         controlled=v2.BracketMatchInput(v2.INPUT_VERSION,**{k:v for k,v in asdict(store.next_input()).items()
             if k not in ('version','previous_chain_sha256','team1','team2')},
             previous_results_sha256='controlled',team1=store.next_input().team1,team2=store.next_input().team2)

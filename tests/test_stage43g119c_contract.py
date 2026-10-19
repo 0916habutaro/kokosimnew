@@ -115,10 +115,13 @@ class Stage119CContractTests(unittest.TestCase):
             obj._mutex,obj.closed,obj.state=threading.RLock(),False,'TRUSTED'
             obj.lab,obj._manifest=lab,manifest
             obj._check_trust=Mock()
-            obj._prepared,obj.request,obj._results,obj._heads=(),None,(),('0'*64,)
+            obj._prepared=(None,SimpleNamespace(slots=('a','b','c','d')),None,(),'{}')
+            obj.request,obj._results,obj._heads=None,(),('0'*64,)
+            obj._request_json='{}'
             def unexpected(*args):return (ROOT/'README.md').read_bytes()
             obj._view_class=unexpected
-            with self.assertRaises(ValueError):obj.snapshot()
+            with patch.object(v3.v1,'decode_request',return_value=None):
+                with self.assertRaisesRegex(ValueError,'missing from v3 manifest'):obj.snapshot()
             self.assertEqual('REVOKED',obj.state)
             obj.state='TRUSTED'
             with patch.object(v3,'_input',unexpected):

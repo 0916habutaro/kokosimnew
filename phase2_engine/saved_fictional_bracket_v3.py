@@ -429,7 +429,10 @@ class FictionalBracketStore:
             v1_view = v1_store.snapshot() if v1_store is not None else None
             if v1_view is not None and v1_view.plan.namespace == self.request.namespace:
                 raise ValueError('separate scenario namespace required')
-            view = self._view_class(self._prepared, self.request, self._results, practice_view, v1_view)
+            authority, plan, _, teams, contract = self._prepared
+            detached = (authority, plan, Bracket(plan.slots), teams, contract)
+            request = v1.decode_request(codec.strict_json(self._request_json))
+            view = self._view_class(detached, request, self._results, practice_view, v1_view)
         if linked_stores:
             dependencies.check(self.lab, manifest, extra_stores=linked_stores)
         self._check_trust()

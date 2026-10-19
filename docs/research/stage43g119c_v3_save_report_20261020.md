@@ -38,7 +38,7 @@ masterおよび互換catalogの338入力は変更しない。Stage119-A以前の
 - ACK消失またはcommit後読戻し失敗では、DBに結果が入っている場合がある。REVOKEDから完全監査し、同一入力/結果を再送すると`False`。暗黙の再試行・自動監査による失効解除はしない。
 - hot journal・WAL・SHM・未知sidecarは接続前に拒否し、ファイルを変更しない。自動復旧APIは設けない。テストによるjournal削除とbytes復元は、破壊試験の所有者によるfixtureの後処理である。
 - Windowsのbyte-range leaseは再openした別handleから読まない。保持中の所有handleをmutex内で読み、pathとhandleのidentity、固定bytesを照合し、seek位置を戻す。出典・optional履歴のmanifestも同じ方式でleaseをSHA化する。ロックの一時解除は行わない。
-- `snapshot()`が渡す履歴は検査時点のdetached snapshot。外部への受渡し前にDB/出典を再照合し、liveなDB閲覧キャッシュにはしない。
+- `snapshot()`が渡す履歴は検査時点のdetached snapshot。要求と可変なbracket graphを複製し、閲覧側の変更がtrusted cacheへ戻らないようにする。外部への受渡し前にDB/出典を再照合し、liveなDB閲覧キャッシュにはしない。
 
 ### anchorと残余リスク
 
