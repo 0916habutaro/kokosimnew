@@ -109,3 +109,17 @@ class Stage119CContractTests(unittest.TestCase):
             with deps.read_boundary(manifest[:-1]):
                 with self.assertRaises(ValueError):
                     Path(manifest[-1].path).read_bytes()
+
+    def test_anchor_requires_latest_ack_and_chain(self):
+        heads = ('0' * 64, '1' * 64, '2' * 64)
+        latest = v3.AppendReceipt(2, heads[2], 'f' * 64)
+        v3._validate_anchor(latest, (object(), object()), heads)
+        with self.assertRaises(ValueError):
+            v3._validate_anchor(latest, (object(),), heads[:2])
+        # A stale/no anchor cannot reject a valid older prefix.
+        v3._validate_anchor(v3.AppendReceipt(1, heads[1], 'e' * 64), (object(),), heads[:2])
+        v3._validate_anchor(None, (), heads[:1])
+        with self.assertRaises(ValueError):
+            v3._validate_anchor(v3.AppendReceipt(True, heads[1], 'e' * 64), (object(),), heads[:2])
+        with self.assertRaises(ValueError):
+            v3._validate_anchor(v3.AppendReceipt(1, 'a' * 64, 'e' * 64), (object(),), heads[:2])

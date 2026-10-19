@@ -272,7 +272,7 @@ class FictionalBracketStore:
             raise
 
     @classmethod
-    def resume(cls, capability, lab, *, fictional_opt_in=False):
+    def resume(cls, capability, lab, *, fictional_opt_in=False, anchor=None):
         if type(capability) is not BracketCapability or fictional_opt_in is not True:
             raise ValueError('owned v3 capability and explicit opt-in required')
         obj = cls.__new__(cls)
@@ -286,6 +286,7 @@ class FictionalBracketStore:
         obj._setup_handles()
         try:
             obj.full_audit()
+            _validate_anchor(anchor, obj._results, obj._heads)
         except BaseException:
             obj.close()
             raise
@@ -393,3 +394,181 @@ class FictionalBracketStore:
         if (int.from_bytes(header[68:72], 'big') != APPLICATION_ID
                 or int.from_bytes(header[60:64], 'big') != USER_VERSION):
             raise ValueError('v3 application_id/user_version required')
+
+    @_public
+    def snapshot(self, *, practice_store=None, v1_store=None):
+        self._check_trust()
+        practice_view = v1_view = None
+        if practice_store is not None:
+            if type(practice_store) is not practice.PracticeStore or practice_store.lab is not self.lab:
+                raise ValueError('same owned practice source required')
+            practice_view = practice_store.snapshot()
+        if v1_store is not None:
+            if type(v1_store) is not v1.FictionalTournamentStore or v1_store.lab is not self.lab:
+                raise ValueError('same owned v1 source required')
+            v1_view = v1_store.snapshot()
+            if v1_view.plan.namespace == self.request.namespace:
+                raise ValueError('separate scenario namespace required')
+        from .fictional_scenario_history_v3 import FictionalBracketView
+        view = FictionalBracketView(self._prepared, self.request, self._results, practice_view, v1_view)
+        self._check_trust()
+        return view
+
+    @_public
+    def next_input(self):
+        self._check_trust()
+        return _input(self._prepared, self._results, self._heads[-1])
+
+    @_public
+    def receipt(self):
+        """Caller must retain the latest receipt outside the DB for rollback checks."""
+        self._check_trust()
+        return AppendReceipt(len(self._results), self._heads[-1], self._digest)
+
+    @_public
+    def append(self, match, result, *, fault=None):
+        self._check_trust()
+        return self._append(match, result, fault)
+
+    @_public
+    def play_next(self, *, fault=None):
+        self._check_trust()
+        match = _input(self._prepared, self._results, self._heads[-1])
+        with dependencies.read_boundary(self._manifest):
+            result = _run(match, match.match_seed)
+        self._append(match, result, fault)
+        return result
+
+    def _append(self, match, result, fault):
+        if (type(match) is not BracketMatchInput or type(match.sequence) is not int
+                or not 1 <= match.sequence <= len(self._prepared[1].games)):
+            raise ValueError('typed bound v3 match required')
+        index = match.sequence - 1
+        if index > len(self._results):
+            raise ValueError('skipped v3 game')
+        expected = _input(self._prepared, self._results[:index], self._heads[index])
+        if not _identical(match, expected):
+            raise ValueError('exact v3 input required')
+        with dependencies.read_boundary(self._manifest):
+            v1._validate(result, match)
+        if index < len(self._results):
+            if not _identical(self._results[index], result):
+                raise ValueError('conflicting v3 retransmission')
+            self._check_trust()
+            return False
+        final = index + 1 == len(self._prepared[1].games)
+        if final:
+            self.full_audit()  # explicit final pre-commit trust boundary
+        self._check_trust()
+        additions, head = _incremental_rows(self._prepared, self.request, self._results, match, result)
+        with closing(sqlite3.connect(self.db_path.as_uri() + '?mode=rw', uri=True, timeout=.1)) as con:
+            con.execute('PRAGMA foreign_keys=ON')
+            con.execute('PRAGMA synchronous=FULL')
+            con.execute('BEGIN IMMEDIATE')
+            try:
+                self._guard()
+                if annual._sha(self.db_path) != self._digest:
+                    raise ValueError('v3 bytes changed before write under lock')
+                count, maximum = con.execute('SELECT count(*),max(sequence) FROM v3_matches').fetchone()
+                if (count, maximum) != (index, index or None):
+                    raise ValueError('concurrent v3 append')
+                for table, rows in additions.items():
+                    if rows:
+                        placeholders = ','.join('?' for _ in rows[0])
+                        con.executemany(f'INSERT INTO {table} VALUES ({placeholders})', rows)
+                if fault:
+                    fault('before_commit')
+                con.commit()
+            except BaseException:
+                con.rollback()
+                raise
+        if fault:
+            fault('after_commit')
+        digest = self._readback(additions, match, fault)
+        self._guard()
+        dependencies.check(self.lab, self._manifest)
+        self._results += (result,)
+        self._heads += (head,)
+        self._digest, self._fast_count = digest, self._fast_count + 1
+        if final or self._fast_count >= K:
+            self.full_audit()
+        return AppendReceipt(len(self._results), head, self._digest)
+
+    def _readback(self, additions, match, fault):
+        """Verify new primary-key rows and digest while holding a SHARED lock."""
+        self._guard()
+        with closing(sqlite3.connect(self.db_path.as_uri() + '?mode=ro', uri=True, timeout=.1)) as con:
+            con.execute('PRAGMA query_only=ON')
+            con.execute('BEGIN')
+            # A SELECT is needed: BEGIN alone does not yet take a SHARED lock.
+            con.execute('SELECT count(*) FROM v3_matches').fetchone()
+            before = annual._sha(self.db_path)
+            if fault:
+                fault('during_readback')
+            for table, rows in additions.items():
+                if not rows:
+                    continue
+                if table == 'v3_matches':
+                    query, params = 'SELECT * FROM v3_matches WHERE sequence=?', (match.sequence,)
+                elif table == 'v3_players':
+                    query, params = 'SELECT * FROM v3_players WHERE match_id=?', (match.match_id,)
+                elif table == 'v3_advancement':
+                    query, params = 'SELECT * FROM v3_advancement WHERE step=?', (match.sequence,)
+                else:
+                    query, params = f'SELECT * FROM {table}', ()
+                if sorted(con.execute(query, params).fetchall()) != sorted(rows):
+                    raise ValueError('v3 post-commit readback differs: ' + table)
+            after = annual._sha(self.db_path)
+            if before != after:
+                raise ValueError('v3 raw write during shared readback')
+            return after
+
+
+@dataclass(frozen=True)
+class AppendReceipt:
+    """Consistency anchor, not authenticity. No/old anchor cannot detect rollback.
+
+    db_sha256 records ACK bytes; resume checks the acknowledged sequence/chain
+    within the independently replayed prefix (later valid appends change bytes).
+    """
+    sequence: int
+    chain_head: str
+    db_sha256: str
+
+
+def _validate_anchor(anchor, results, heads):
+    if anchor is None:
+        return
+    if (type(anchor) is not AppendReceipt or type(anchor.sequence) is not int
+            or not 0 <= anchor.sequence <= 31
+            or any(type(value) is not str or len(value) != 64
+                   or any(c not in '0123456789abcdef' for c in value)
+                   for value in (anchor.chain_head, anchor.db_sha256))):
+        raise ValueError('typed v3 receipt anchor required')
+    if len(results) < anchor.sequence or heads[anchor.sequence] != anchor.chain_head:
+        raise ValueError('v3 acknowledged prefix rolled back or anchor belongs to another scenario')
+
+
+def _incremental_rows(prepared, request, results, match, result):
+    """Only one new game is serialized; pure progression contains no rerun."""
+    _, plan, bracket, _, _ = prepared
+    raw, input_raw = result.to_json(), codec.canonical(match.to_dict())
+    input_sha, result_sha = codec.digest(input_raw), codec.digest(raw)
+    head = _chain(match.previous_chain_sha256, input_sha, result_sha)
+    rows = {table: [] for table in TABLES if table != 'v3_contract'}
+    rows['v3_matches'] = [(match.sequence, result.match_id, match.round_no, YEAR, KIND, plan.namespace,
+        match.day, input_raw, input_sha, raw, result_sha, match.previous_chain_sha256, head)]
+    rows['v3_players'] = sorted({(e.batter_id, e.batter_origin_school_id, e.offense_team_id,
+        YEAR, KIND, plan.namespace, result.match_id) for e in result.events} |
+        {(e.pitcher_id, e.pitcher_origin_school_id, e.defense_team_id,
+        YEAR, KIND, plan.namespace, result.match_id) for e in result.events})
+    ledger, ranks = progression(plan, request, results + (result,))
+    if [(rank, tid) for rank, tid, _, _ in ranks] != bracket.ranks(results + (result,)):
+        raise ValueError('incremental graph/progression ranks differ')
+    rows['v3_advancement'] = [row for row in ledger if row[0] == match.sequence]
+    if len(rows['v3_advancement']) != 1:
+        raise ValueError('one actual winner advancement required')
+    if ranks:
+        rows['v3_ranks'] = [(tid, rank, w, l) for rank, tid, w, l in ranks]
+        rows['v3_acceptance'] = [(1, ranks[0][1], len(results) + 1, head)]
+    return rows, head
