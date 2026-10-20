@@ -86,6 +86,10 @@ class HistoricalResultsContractTests(unittest.TestCase):
         self.rows["sources"][0]["url"] = "http://example.invalid"
         self.assertTrue({"NONFINAL_SCORE", "SOURCE_URL"} <= self.codes())
 
+    def test_malformed_url_is_reported_not_crash(self):
+        self.rows["sources"][0]["url"] = "https://[invalid"
+        self.assertIn("SOURCE_URL", self.codes())
+
     def test_missing_file_fails_closed(self):
         self.write()
         (self.data / "matches.csv").unlink()

@@ -126,8 +126,12 @@ def validate(
     for line, row in enumerate(tables["sources"], 2):
         if not row["publisher"] or not row["document_title"]:
             error("sources", line, "SOURCE_METADATA", "発行主体・資料名は必須")
-        parts = urlsplit(row["url"])
-        if parts.scheme != "https" or not parts.netloc:
+        try:
+            parts = urlsplit(row["url"])
+            valid_url = parts.scheme == "https" and bool(parts.netloc)
+        except ValueError:
+            valid_url = False
+        if not valid_url:
             error("sources", line, "SOURCE_URL", "https URLが必須")
         if not _valid_date(row["retrieved_at"]):
             error("sources", line, "SOURCE_DATE", row["retrieved_at"])
