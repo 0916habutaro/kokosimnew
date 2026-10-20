@@ -52,7 +52,7 @@ statusは `design_default_not_tuned`。実在高校野球へ校正済みでは�
 
 正本:
 
-`audits/phase3/stage13c2/stage13c2_match_distribution_20261007.csv`
+`audits/phase3/stage13c2/stage13c2_match_distribution_20261007.csv`（段階0で削除。ブランチ `archive/pre-cleanup-20261020` に残っている）
 
 3seed × 各1,000試合。
 
