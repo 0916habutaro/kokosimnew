@@ -103,7 +103,7 @@ class CiChangeScopeTests(unittest.TestCase):
                       workflows[WORKFLOWS[0]])
         self.assertIn("test_stage43g10_full_kanto17_e2e.py",
                       workflows[WORKFLOWS[0]])
-        self.assertIn("tests/stage43g97_audit.py --require-windows",
+        self.assertIn("test_stage13e3e1_full_season_save_load.py",
                       workflows[WORKFLOWS[1]])
         self.assertIn("windows-latest", workflows[WORKFLOWS[1]])
 
