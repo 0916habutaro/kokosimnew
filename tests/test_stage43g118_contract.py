@@ -15,7 +15,6 @@ from test_stage43g117_bracket import synthetic, play_fake
 import stage43g118_support as support
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = ROOT / '.github' / 'workflows' / 'stage118-fictional-bracket32.yml'
 
 
 class Stage118ContractTests(unittest.TestCase):
@@ -61,10 +60,7 @@ class Stage118ContractTests(unittest.TestCase):
         self.assertEqual(2, len(support.JOINT))
 
     def test_dedicated_parallel_workflow_runs_real_scale_cases_on_linux_and_windows(self):
-        text = WORKFLOW.read_text(encoding='utf-8')
-        for needle in ('ubuntu-latest', 'windows-latest', 'tests/stage43g118_audit.py', 'pull_request',
-                       'branches: [main]', '--old-versions'):
-            self.assertIn(needle, text)
+        # 専用workflowは段階0のCI整理で削除（重いケースは自動探索外のまま）
         audit = (ROOT / 'tests' / 'stage43g118_audit.py').read_text(encoding='utf-8')
         self.assertIn("'stage43g118_scale_cases.py'", audit)
         self.assertFalse(Path('stage43g118_scale_cases.py').match('test*.py'))
