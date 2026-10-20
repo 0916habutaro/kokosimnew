@@ -27,6 +27,8 @@ jobs:
       run:
         shell: pwsh
     steps:
+      - name: Keep LF line endings so data hashes match Linux
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
