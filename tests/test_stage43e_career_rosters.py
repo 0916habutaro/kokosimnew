@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 
@@ -222,7 +223,7 @@ class Stage43ECareerRostersTests(unittest.TestCase):
 
     def test_archive_detects_altered_fingerprint(self):
         self.archive.save_initial_roster(self.initial)
-        with sqlite3.connect(self.archive.db_path) as conn:
+        with closing(sqlite3.connect(self.archive.db_path)) as conn, conn:
             conn.execute(
                 "UPDATE career_school_rosters SET payload_json='{}'"
             )
@@ -242,7 +243,7 @@ class Stage43ECareerRostersTests(unittest.TestCase):
             players=[corrupt if p.player_id == returning.player_id else p
                      for p in original.players],
         )
-        with sqlite3.connect(self.archive.db_path) as conn:
+        with closing(sqlite3.connect(self.archive.db_path)) as conn, conn:
             # Simulate a damaged pre-existing identity reference.
             conn.execute(
                 "UPDATE career_player_identities SET identity_sha256='bad' "

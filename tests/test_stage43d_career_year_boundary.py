@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 from pathlib import Path
@@ -208,14 +209,14 @@ class Stage43DCareerYearBoundaryTests(unittest.TestCase):
 
     def test_old_stage43c_archive_without_year_table_migrates_non_destructively(self):
         self._sync(rows=[completed_record()])
-        with sqlite3.connect(self.db) as conn:
+        with closing(sqlite3.connect(self.db)) as conn, conn:
             conn.execute("DROP TABLE career_years")
             original = conn.execute(
                 "SELECT record_sha256 FROM historical_matches"
             ).fetchone()[0]
         self._sync(rows=[completed_record()])
         self.assertEqual("active", self.archive.list_years()[0]["status"])
-        with sqlite3.connect(self.db) as conn:
+        with closing(sqlite3.connect(self.db)) as conn, conn:
             self.assertEqual(
                 original,
                 conn.execute(
