@@ -60,7 +60,16 @@ jobs:
             'test_stage12u_gui_home_filters.py',
             'test_stage13d3_readonly_gui_player_stats.py'
           )
+          $ErrorActionPreference = 'Continue'
           foreach ($p in $patterns) {
-            python -m unittest discover -s tests -t tests -p $p -v
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $out = python -m unittest discover -s tests -t tests -p $p -v 2>&1 | Out-String
+            $code = $LASTEXITCODE
+            Write-Output $out
+            if ($code -ne 0) {
+              # 失敗時は末尾を注記に残す（ログを取得できない環境からも原因を読めるようにする）
+              $tail = ($out -split "`r?`n" | Select-Object -Last 40) -join "`n"
+              $msg = $tail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+              Write-Output "::error title=$p failed::$msg"
+              exit $code
+            }
           }
