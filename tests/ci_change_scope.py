@@ -12,7 +12,8 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 _SHA = re.compile(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}")
-_ROOT_DOCS = frozenset({"README.md", "CHANGELOG.md", "CONTRIBUTING.md"})
+_ROOT_DOCS = frozenset({"README.md", "CHANGELOG.md", "CONTRIBUTING.md",
+                        "AGENTS.md", "CLAUDE.md"})
 _DOC_EXT = frozenset({".md", ".markdown", ".rst"})
 
 

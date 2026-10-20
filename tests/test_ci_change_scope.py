@@ -20,7 +20,8 @@ WORKFLOWS = (
 class CiChangeScopeTests(unittest.TestCase):
     def test_allowlisted_prose_only(self):
         good = ("docs/research/stage43g119b_v3_save_design_20261018.md",
-                "docs/guide/intro.rst", "README.md", "CHANGELOG.md", "CONTRIBUTING.md")
+                "docs/guide/intro.rst", "README.md", "CHANGELOG.md", "CONTRIBUTING.md",
+                "AGENTS.md", "CLAUDE.md")
         for name in good:
             with self.subTest(name=name):
                 self.assertTrue(scope.is_documentation_path(name))
