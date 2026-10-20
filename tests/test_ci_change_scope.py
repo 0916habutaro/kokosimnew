@@ -12,8 +12,7 @@ HEAD = "2" * 40
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = (
     ".github/workflows/python-tests.yml",
-    ".github/workflows/stage118-fictional-bracket32.yml",
-    ".github/workflows/windows-yamanashi-annual-rosters.yml",
+    ".github/workflows/windows-game-acceptance.yml",
 )
 
 
@@ -104,11 +103,14 @@ class CiChangeScopeTests(unittest.TestCase):
                       workflows[WORKFLOWS[0]])
         self.assertIn("test_stage43g10_full_kanto17_e2e.py",
                       workflows[WORKFLOWS[0]])
-        self.assertIn("tests/stage43g118_audit.py",
+        self.assertIn("tests/stage43g97_audit.py --require-windows",
                       workflows[WORKFLOWS[1]])
-        for stage in (111, 112, 113, 114, 115, 116, 117):
-            self.assertIn(f"tests/stage43g{stage}_audit.py",
-                          workflows[WORKFLOWS[2]])
+        self.assertIn("windows-latest", workflows[WORKFLOWS[1]])
+
+    def test_only_kept_workflows_exist(self):
+        # 段階0でCIを2本に整理した。増やす場合はこのテストと方針を見直す
+        present = {p.name for p in (ROOT / ".github/workflows").glob("*.yml")}
+        self.assertEqual({Path(name).name for name in WORKFLOWS}, present)
 
 
 if __name__ == "__main__":
