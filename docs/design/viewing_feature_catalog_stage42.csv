@@ -68,5 +68,5 @@ feature_id,name_ja,category,current_state,priority_draft,data_readiness,referenc
 "VIEW-EXPORT-001","試合・学校・選手一覧のCSV出力","export","future_candidate","P2","partial","phase2_engine/browse_views.py","シーズンのCSV書出は別に存在。GUI任意抽出は未整備"
 "VIEW-EXPORT-002","閲覧条件付きレポート保存","export","future_candidate","P2","needs_new_data","phase2_engine/browse_gui_model.py","スナップショットと出典の固定が必要"
 "VIEW-UX-001","日本語ラベルと成績の欠損時表示","ux","gui_prototype","P0","partial","phase2_engine/browse_gui_stage13d3.py","長い正式校名と未出場選手"
-"VIEW-UX-002","Windows実機フォント・DPI・キー操作","ux","future_candidate","P1","needs_new_data","docs/research/stage13d3_gui_manual_checklist_20261008.md","実機受入未実施。headless CIの合格とは別"
+"VIEW-UX-002","Windows実機フォント・DPI・キー操作","ux","future_candidate","P1","needs_new_data","docs/design/viewing_features.md","実機受入未実施。headless CIの合格とは別"
 "VIEW-UX-003","正式GUIの画面レイアウト・色・画像","ux","future_candidate","P2","needs_new_data","docs/design/stage13d3_readonly_gui_player_stats.md","正式GUI自体はまだ設計確定しない"
