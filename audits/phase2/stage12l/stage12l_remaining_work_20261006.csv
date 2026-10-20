@@ -1,0 +1,5 @@
+﻿remaining_id,scope,count,status,next_check_date,owner_stage,detail
+REM001,summer_local_game_date_detail,49,known_detail_gap,,Stage12M_candidate,49夏地方大会はstart/end会期のみ。個別試合日未構造化
+REM002,jingu_game_date_detail,1,future_pending,2026-10-17,Stage12K,明治神宮高校の部は組み合わせ抽選後にgame_date_list確定
+REM003,autumn_prefectural_actualization,19,ongoing,2026-10-06,Stage12I,秋季県大会の予定日を終了後に実績化
+REM004,autumn_regional_actualization,9,ongoing,2026-10-07,Stage12J,東京秋はStage12Iへ委譲。残る9地区を開始日以後に実績化

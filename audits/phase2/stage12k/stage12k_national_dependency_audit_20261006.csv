@@ -1,0 +1,4 @@
+﻿destination_competition_id,dependency_type,rule_count,expected_entrant_count,source_scope,resolution_mode,current_status,notes
+CMP000001,committee_selection,12,32,2025秋季地区大会結果等,selection_rules + structural_senbatsu_bootstrap,PASS,一般選考30校＋21世紀枠2校。ゲーム上は選考枠構造を再現し実在2026出場校の固定はしない
+CMP000002,automatic_qualification,49,49,CMP000023-CMP000071 winners,qualification_rules,PASS,49地方大会優勝校を全国大会へ接続
+CMP000003,automatic_qualification,10,10,CMP000013-CMP000022 winners,qualification_rules,PASS,秋季地区大会優勝9校＋東京都秋季大会優勝1校。実大会は未来だが構造シミュレーション上10/10解決可能
