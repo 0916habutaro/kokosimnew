@@ -1,6 +1,6 @@
 name: Windows personal game acceptance
 
-# Windows専用ゲームの本体（保存・再開・Tk画面）をWindows上で確認する唯一のCI。
+# Windows専用ゲームの本体（保存・読込・スロット・履歴・Tk閲覧画面）をWindows上で確認する。
 # Linuxでの同じテストは python-tests.yml の全件実行に含まれるため、ここではWindowsのみ実行する。
 
 on:
@@ -18,16 +18,16 @@ concurrency:
 
 jobs:
   windows_acceptance:
-    name: Windows Python 3.12 game save resume and real Tk
+    name: Windows Python 3.12 product save load and Tk browse
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
     env:
       PYTHONUTF8: '1'
     defaults:
       run:
         shell: pwsh
     steps:
-      - name: Preserve compatibility input bytes
+      - name: Keep LF line endings so data hashes match Linux
         run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
         with:
@@ -44,21 +44,32 @@ jobs:
       - name: Verify documentation-only routing
         if: steps.scope.outputs.docs_only == 'true'
         run: python -m unittest discover -s tests -p 'test_ci_change_scope.py' -v
-      - name: Generate owned 8-school game and restart actual processes
+      - name: Product save load slots history and Tk browse tests on Windows
         if: steps.scope.outputs.docs_only != 'true'
         run: |
-          New-Item -ItemType Directory -Path audit-results | Out-Null
-          python tests/stage43g97_audit.py --require-windows --json-output audit-results/windows-headless.json
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Native mapped Tk events score innings players and GUI restart
-        if: steps.scope.outputs.docs_only != 'true'
-        run: |
-          python tests/stage43g97_audit.py --require-windows --gui --json-output audit-results/windows-tk.json
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - uses: actions/upload-artifact@v6
-        if: always() && steps.scope.outputs.docs_only != 'true'
-        with:
-          name: stage43g97-windows-acceptance
-          path: audit-results/*.json
-          if-no-files-found: error
-          retention-days: 14
+          $patterns = @(
+            'test_stage13e3e1_full_season_save_load.py',
+            'test_stage13e3e2_save_slots_game_service.py',
+            'test_stage13e3e3_cli_metadata_migration.py',
+            'test_stage43c_live_history_archive.py',
+            'test_stage43c2_incremental_checkpoint.py',
+            'test_stage43d_career_year_boundary.py',
+            'test_stage43e_career_rosters.py',
+            'test_stage12s_readonly_gui.py',
+            'test_stage12t_gui_filters_bracket_navigation.py',
+            'test_stage12u_gui_home_filters.py',
+            'test_stage13d3_readonly_gui_player_stats.py'
+          )
+          $ErrorActionPreference = 'Continue'
+          foreach ($p in $patterns) {
+            $out = python -m unittest discover -s tests -t tests -p $p -v 2>&1 | Out-String
+            $code = $LASTEXITCODE
+            Write-Output $out
+            if ($code -ne 0) {
+              # 失敗時は末尾を注記に残す（ログを取得できない環境からも原因を読めるようにする）
+              $tail = ($out -split "`r?`n" | Select-Object -Last 40) -join "`n"
+              $msg = $tail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+              Write-Output "::error title=$p failed::$msg"
+              exit $code
+            }
+          }

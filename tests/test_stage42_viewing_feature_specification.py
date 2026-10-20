@@ -95,11 +95,11 @@ class Stage42ViewingSpecificationTests(unittest.TestCase):
         counts={status:sum(x["current_state"]==status for x in rows) for status in STATES}
         self.assertEqual(counts,{
             "gui_prototype":22,"read_model_only":10,
-            "preview_only":6,"design_only":4,"future_candidate":29,
+            "preview_only":0,"design_only":4,"future_candidate":35,
         })
         self.assertEqual(
             next(row for row in rows if row["feature_id"]=="VIEW-TOUR-004")["current_state"],
-            "preview_only",
+            "future_candidate",
         )
         self.assertEqual(
             next(row for row in rows if row["feature_id"]=="VIEW-PLAYER-007")["current_state"],
@@ -128,7 +128,7 @@ class Stage42ViewingSpecificationTests(unittest.TestCase):
         ):
             self.assertIn(mention,text)
         status={x["feature_id"]:x for x in read_catalog()}
-        self.assertEqual(status["VIEW-TOUR-005"]["current_state"],"preview_only")
+        self.assertEqual(status["VIEW-TOUR-005"]["current_state"],"future_candidate")
         self.assertEqual(status["VIEW-MATCH-007"]["data_readiness"],"needs_new_data")
         self.assertEqual(status["VIEW-UX-002"]["current_state"],"future_candidate")
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 from pathlib import Path
@@ -89,7 +90,7 @@ class Stage43CHistoricalArchiveTests(unittest.TestCase):
         self.assertEqual(2, payload["batter_stats"][0]["hits"])
         self.assertEqual(3, payload["pitcher_stats"][0]["outs_recorded"])
         self.assertNotIn("events", payload)
-        with sqlite3.connect(self.path) as conn:
+        with closing(sqlite3.connect(self.path)) as conn, conn:
             raw = conn.execute(
                 "SELECT payload_json FROM historical_matches"
             ).fetchone()[0]
