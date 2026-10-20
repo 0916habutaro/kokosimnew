@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import contextmanager
 from dataclasses import asdict
 from datetime import date
 from pathlib import Path
-from typing import Iterable, Mapping
+from typing import Iterable, Iterator, Mapping
 
 from .browse_views import (
     SeasonBrowseViews,
@@ -350,12 +351,22 @@ class BrowseRepository:
     def __init__(self, db_path: str | Path):
         self.db_path = Path(db_path)
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        """Open, commit/rollback, and always close one connection.
+
+        ``with sqlite3.connect(...)`` alone never closes the connection; on
+        Windows a lingering handle keeps the database file locked.
+        """
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
-        return conn
+        try:
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA foreign_keys = ON")
+            with conn:
+                yield conn
+        finally:
+            conn.close()
 
     @staticmethod
     def _initialize_schema_conn(conn: sqlite3.Connection) -> None:
