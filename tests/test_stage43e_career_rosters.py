@@ -250,7 +250,7 @@ class Stage43ECareerRostersTests(unittest.TestCase):
                 "WHERE player_id=?", (corrupt.player_id,),
             )
         with self.assertRaises(CareerRosterConflictError):
-            with self.archive._connect() as conn:
+            with closing(self.archive._connect()) as conn:
                 conn.executescript(
                     "CREATE TABLE IF NOT EXISTS _noop(x INTEGER);"
                 )
