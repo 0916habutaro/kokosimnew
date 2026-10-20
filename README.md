@@ -2,6 +2,8 @@
 
 高校野球の大会構造・日程・試合進行を扱うゲーム用データ／エンジンの管理リポジトリ。
 
+> **ゲームの目的・仕様・進め方は [`docs/design/game_definition.md`](docs/design/game_definition.md)、作業ルールは [`AGENTS.md`](AGENTS.md) が正本です。** 以下の工程別の記述は過去の記録で、段階0の整理で書き直す予定です。
+
 ## Stage 43G-94：停止済み旧Aの手動独立バックアップ
 
 方式Aの第1段として、単大会の検証済み旧A live slotを、新規の独立directoryへ手動exportできます。[対象・制限と設計](docs/research/stage43g94_manual_backup_design_20261012.md)、[ADR-033](docs/adr/ADR-033-manual-independent-backup-adoption.md)を参照してください。複雑なcareer・multi preview・feeder・架空v2混在・不整合は安全に拒否します。
