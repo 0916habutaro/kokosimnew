@@ -97,6 +97,22 @@ class HistoricalResultsContractTests(unittest.TestCase):
         self.assertFalse(report.ok)
         self.assertIn("READ_ERROR", {issue.code for issue in report.issues})
 
+    def test_prefecture_code_is_two_digit_zero_padded(self):
+        for code in ("02", "19", "47"):
+            self.rows["tournaments"][0]["prefecture_code"] = code
+            self.assertNotIn("PREFECTURE", self.codes(), code)
+        for code in ("2", "0", "00", "48", "019", ""):
+            self.rows["tournaments"][0]["prefecture_code"] = code
+            self.assertIn("PREFECTURE", self.codes(), code)
+
+    def test_repository_csvs_live_outside_data_directory(self):
+        # data/ 以下はstage43g99〜の互換性テストでファイル一覧が固定されている
+        root = Path(__file__).resolve().parents[1]
+        self.assertFalse((root / "data" / "historical_results").exists())
+        report = validate(root / "historical_data")
+        self.assertTrue(report.ok, report.issues)
+        self.assertEqual(set(report.counts), set(COLUMNS))
+
     def test_wrong_header_fails_closed(self):
         self.write()
         (self.data / "matches.csv").write_text("wrong,header\n", encoding="utf-8")

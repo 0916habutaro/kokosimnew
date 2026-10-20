@@ -18,6 +18,8 @@ COLUMNS = {
     "team_members": ("team_id", "school_id", "observed_name", "mapping_status", "source_id"),
     "matches": ("match_id", "tournament_id", "game_date", "round_label", "home_team_id", "away_team_id", "home_score", "away_score", "result_status", "source_id"),
 }
+# data/master/prefectures.csv と同じ2桁ゼロ埋め（01〜47）
+PREFECTURE_CODES = frozenset(f"{i:02d}" for i in range(1, 48))
 IDS = {"sources": "source_id", "tournaments": "tournament_id", "teams": "team_id", "matches": "match_id"}
 
 
@@ -148,7 +150,7 @@ def validate(
             error("tournaments", line, "LEVEL", row["level"])
         if not row["competition_name"]:
             error("tournaments", line, "EMPTY_NAME", "大会名")
-        if row["level"] == "prefectural" and row["prefecture_code"] not in {str(i) for i in range(1, 48)}:
+        if row["level"] == "prefectural" and row["prefecture_code"] not in PREFECTURE_CODES:
             error("tournaments", line, "PREFECTURE", row["prefecture_code"])
         if row["competition_id"] and row["competition_id"] not in competitions:
             error("tournaments", line, "UNKNOWN_COMPETITION", row["competition_id"])
@@ -234,7 +236,7 @@ def validate(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="実在試合結果CSVのread-only検証")
-    parser.add_argument("--data-dir", type=Path, default=ROOT / "data/historical_results")
+    parser.add_argument("--data-dir", type=Path, default=ROOT / "historical_data")
     parser.add_argument("--school-master", type=Path, default=ROOT / "data/master/schools.csv")
     parser.add_argument("--competition-master", type=Path, default=ROOT / "data/competitions/competitions.csv")
     args = parser.parse_args()

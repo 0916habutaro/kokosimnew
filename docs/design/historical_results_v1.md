@@ -12,7 +12,9 @@
 
 ## ファイル形式（UTF-8 / CSV / ヘッダー厳密一致）
 
-data/historical_results 以下に以下の5ファイルを置く。
+リポジトリ直下の historical_data/ に以下の5ファイルを置く。
+
+`data/` 以下には置かない。既存の互換性テスト（stage43g99〜の compatibility）は `data/` 以下のファイル一覧が旧版と一致することを確認しており、ファイルを追加すると失敗するため。
 
 | ファイル | ID・主要フィールド | 役割 |
 | --- | --- | --- |
@@ -24,6 +26,7 @@ data/historical_results 以下に以下の5ファイルを置く。
 
 - IDは文字列で一意に保持する。年度をまたいだ同名校・同名大会を表示名で紐付けない。
 - sources.url は https URL、retrieved_at と game_date は YYYY-MM-DD。
+- prefecture_code は data/master/prefectures.csv と同じ2桁ゼロ埋め（01〜47）。`2` のような1桁表記は拒否する。
 - verified とする校名対応には既存school_idが必要。unresolved の場合school_idは空欄とし、自動類推で埋めない。
 - joint のチームには2校以上、singleには1校の team_members を記録する。
 - final の試合は正規の試合日と非負整数の両得点が必須。同点スコアは大会規則により引き分け・再試合の可能性があるため直ちには拒否しない。
