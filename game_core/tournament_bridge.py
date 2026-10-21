@@ -9,6 +9,7 @@ from phase2_engine.repository import DataRepository
 
 from .match_contract import MatchSimulationInput, TeamMatchInput
 from .match_simulator import MatchSimulator
+from .membership import CompetitionMembers
 from .players import PlayerRosterGenerator, SchoolRoster, validate_school_roster
 from .school_intake import SchoolAwarePlayerAbilityGenerator
 from .team_strength import TeamStrengthGenerator
@@ -30,12 +31,15 @@ class AbilityMatchResolver:
         match_config_dir: str | Path = "config/match",
         team_generation_seed: int | None = None,
         roster_provider: Callable[[int, str], SchoolRoster | None] | None = None,
+        member_provider: Callable[[str, str], CompetitionMembers] | None = None,
     ):
         self.repo = repo
         self.roster_generator = PlayerRosterGenerator()
         # Explicit opt-in. Prevent future-year seasons from silently
         # creating entirely new identities for existing school members.
         self.roster_provider = roster_provider
+        # 大会ごとの出場メンバー（大会開始時点の部員）。指定すると名簿より優先する。
+        self.member_provider = member_provider
         self.ability_generator = SchoolAwarePlayerAbilityGenerator(
             ability_config_dir
         )
@@ -55,6 +59,10 @@ class AbilityMatchResolver:
         # Explicitly prepared initial sources outlive the performance caches.
         # Default resolvers never create this persistence authority implicitly.
         self._initial_roster_source: dict[str, SchoolRoster] = {}
+        self._competition_teams: dict[
+            tuple[str, int, str],
+            TeamMatchInput,
+        ] = {}
         self._initial_roster_scope = None
 
     def prepare_initial_rosters(self, *, reference_year: int,
@@ -117,6 +125,7 @@ class AbilityMatchResolver:
     def clear_cache(self) -> None:
         self._team_cache.clear()
         self._roster_cache.clear()
+        self._competition_teams.clear()
 
     def begin_season(
         self,
@@ -178,11 +187,16 @@ class AbilityMatchResolver:
         school_id: str,
         reference_year: int,
         generation_seed: int,
+        competition_id: str = "",
     ) -> TeamMatchInput:
         team_seed = self._effective_team_generation_seed(
             reference_year=reference_year,
             match_generation_seed=generation_seed,
         )
+        if self.member_provider is not None:
+            return self._competition_team_input(
+                competition_id, school_id, reference_year, team_seed
+            )
         key = (reference_year, team_seed, school_id)
         cached = self._team_cache.get(key)
         if cached is not None:
@@ -223,6 +237,34 @@ class AbilityMatchResolver:
         self._team_cache[key] = team
         return team
 
+    def _competition_team_input(
+        self,
+        competition_id: str,
+        school_id: str,
+        reference_year: int,
+        team_seed: int,
+    ) -> TeamMatchInput:
+        key = (competition_id, team_seed, school_id)
+        cached = self._competition_teams.get(key)
+        if cached is not None:
+            return cached
+        members = self.member_provider(competition_id, school_id)
+        # 能力はその大会の年度のもの（3月に始まる大会も、大会の年度で揃える）
+        abilities = tuple(
+            self.ability_generator.iter_roster(
+                members.players,
+                reference_year,
+                team_seed,
+            )
+        )
+        team = TeamMatchInput(
+            school_id=school_id,
+            team_strength=self.team_generator.generate(abilities),
+            player_abilities=abilities,
+        )
+        self._competition_teams[key] = team
+        return team
+
     def __call__(
         self,
         *,
@@ -246,11 +288,13 @@ class AbilityMatchResolver:
             school_id=team1,
             reference_year=reference_year,
             generation_seed=generation_seed,
+            competition_id=competition_id,
         )
         team2_input = self.team_input(
             school_id=team2,
             reference_year=reference_year,
             generation_seed=generation_seed,
+            competition_id=competition_id,
         )
         team_generation_seed = team1_input.team_strength.generation_seed
         if (

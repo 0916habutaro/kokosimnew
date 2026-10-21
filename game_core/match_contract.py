@@ -245,6 +245,14 @@ def match_contract_provenance(
     )
 
 
+def _staff_ids(team) -> set[str]:
+    """投手陣の選手（投手がいない学校では野手が入る。team_strength 参照）。"""
+    return {
+        entry.player_id
+        for entry in team.team_strength.pitching_staff.entries
+    }
+
+
 def _player_map(team: TeamMatchInput) -> dict[str, PlayerAbilitySnapshot]:
     return {
         player.player_id: player
@@ -262,9 +270,9 @@ def validate_team_match_input(team: TeamMatchInput) -> None:
         )
 
     players = list(team.player_abilities)
-    if len(players) < 12:
+    if len(players) < 9:
         raise ValueError(
-            f"{team.school_id}: at least 12 player abilities required"
+            f"{team.school_id}: at least 9 player abilities required"
         )
     ids = [player.player_id for player in players]
     if len(ids) != len(set(ids)):
@@ -546,9 +554,9 @@ def validate_match_event(
         raise ValueError(
             f"match event {event.event_no}: pitcher not on defense team"
         )
-    if pitcher.primary_position != "P":
+    if event.pitcher_id not in _staff_ids(defense_team):
         raise ValueError(
-            f"match event {event.event_no}: pitcher_id must reference P"
+            f"match event {event.event_no}: pitcher_id must be on the staff"
         )
 
     if event.runs_scored < 0:
@@ -749,9 +757,14 @@ def validate_match_simulation_result(
             raise ValueError(
                 f"pitcher stats: unknown player {row.player_id}"
             )
-        if known[row.school_id][row.player_id].primary_position != "P":
+        team = (
+            match_input.team1
+            if row.school_id == match_input.team1.school_id
+            else match_input.team2
+        )
+        if row.player_id not in _staff_ids(team):
             raise ValueError(
-                f"pitcher stats: player {row.player_id} is not P"
+                f"pitcher stats: player {row.player_id} is not on the staff"
             )
 
     batter_ids = {row.player_id for row in batters}

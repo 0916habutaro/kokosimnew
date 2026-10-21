@@ -131,7 +131,7 @@ class Stage13B3TeamStrengthTests(unittest.TestCase):
 
     def test_config_provenance_is_embedded(self):
         self.assertEqual("team_strength_v1", self.snapshot.team_config_id)
-        self.assertEqual(2, self.snapshot.team_config_revision)
+        self.assertEqual(3, self.snapshot.team_config_revision)
         self.assertEqual(64, len(self.snapshot.team_config_sha256))
         self.assertEqual(64, len(self.snapshot.player_generation_sha256))
 

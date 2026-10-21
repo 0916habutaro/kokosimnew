@@ -34,3 +34,8 @@ def competition_school_year(competition: Mapping[str, str]) -> int:
     if competition.get("competition_type") == INVITATIONAL_TYPE:
         return year - 1
     return year
+
+
+def school_year_of(value: date) -> int:
+    """日付が属する年度（4月1日〜翌年3月31日）。"""
+    return value.year if value.month >= 4 else value.year - 1
