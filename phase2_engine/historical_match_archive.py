@@ -138,7 +138,13 @@ def _history_payload(year: int, record: Mapping[str, object]) -> dict:
     teams = None
     batters = None
     pitchers = None
+    highlights = None
     if has_a_detail:
+        highlights = detail.get("highlights")
+        if highlights is not None:
+            from game_core.highlights import validate_highlights
+
+            validate_highlights(highlights)
         innings = detail.get("inning_scores")
         teams = detail.get("team_stats")
         batters = detail.get("batter_stats")
@@ -233,6 +239,8 @@ def _history_payload(year: int, record: Mapping[str, object]) -> dict:
         "team_stats": teams,
         "batter_stats": batters,
         "pitcher_stats": pitchers,
+        # 試合経過の要点（得点が入った打席・投手交代。game_core/highlights.py）
+        "highlights": highlights,
     }
 
 

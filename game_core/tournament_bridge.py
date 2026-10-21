@@ -9,6 +9,7 @@ from phase2_engine.models import MatchResolution
 from phase2_engine.repository import DataRepository
 
 from .match_contract import MatchSimulationInput, TeamMatchInput
+from .highlights import game_highlights
 from .match_simulator import MatchSimulator
 from .membership import CompetitionMembers
 from .players import PlayerRosterGenerator, SchoolRoster, validate_school_roster
@@ -329,14 +330,17 @@ class AbilityMatchResolver:
             team_generation_seed=team_generation_seed,
         )
         result = self.simulator.simulate(match_input)
+        highlights = game_highlights(result.events)
         if self.detail_sink is not None:
             full = replace(result, events=()).to_dict()
             full["team_generation_seed"] = team_generation_seed
+            full["highlights"] = highlights
             self.detail_sink[f"{competition_id}:{match_id}"] = full
             detail = {"team_generation_seed": team_generation_seed}
         else:
             detail = result.to_dict()
             detail["team_generation_seed"] = team_generation_seed
+            detail["highlights"] = highlights
         return MatchResolution(
             winner_id=result.winner_id,
             loser_id=result.loser_id,
