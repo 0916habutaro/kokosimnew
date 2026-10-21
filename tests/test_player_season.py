@@ -40,6 +40,14 @@ class PlayerSeasonServiceTests(unittest.TestCase):
             )
             self.assertTrue(archived["batter_stats"])
             self.assertTrue(archived["pitcher_stats"])
+            # 試合経過の要点は履歴に残り、セーブには残らない
+            self.assertIsInstance(archived["highlights"], list)
+            self.assertTrue(any(
+                service.historical_match(
+                    "players", 2026, *key.split(":", 1)
+                )["highlights"]
+                for key in session.state.completed_results()
+            ))
 
             # セーブには試合の決め方や名簿を入れない
             save = Path(tmp) / "players" / "manual.json"
