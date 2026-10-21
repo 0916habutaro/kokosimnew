@@ -147,12 +147,10 @@ class Stage43G92LegacyConcurrencyTests(unittest.TestCase):
                     results, errors = ordered_pair(self, a,
                         seal if seal_first else reg, reg if seal_first else seal,
                         SEAL_READ if seal_first else REGISTER_READ)
-                    if seal_first:
-                        self.assertEqual({}, errors)
-                        self.assertTrue(results['second']['registered'])
-                    else:
-                        self.conflict(errors, 'first')
-                        register(a)
+                    # 年度の重なり：どちらの順でも登録できる
+                    self.assertEqual({}, errors)
+                    registered = results['second' if seal_first else 'first']
+                    self.assertTrue(registered['registered'])
                     self.assertEqual([2026, 2027], [r[0] for r in oracle(self, a)[1]])
 
     def test_registration_same_or_conflicting_identity(self):
@@ -193,13 +191,15 @@ class Stage43G92LegacyConcurrencyTests(unittest.TestCase):
                     self.assertEqual(old, [r for r in oracle(self, a)[0] if r[0] == 2026])
                     self.assertEqual(2, len(oracle(self, a)[0]))
 
-    def test_nonadjacent_or_active_previous_registration_refuses(self):
+    def test_nonadjacent_registration_refuses(self):
+        # 年度の重なりで、前の年度が封印前でも翌年度は登録できる。
+        # 年度を飛ばした登録は封印の前後どちらでも断る。
         for mode in MODES:
             with self.subTest(mode=mode):
                 a = self.fixture(mode)
                 before = snapshot(a)
                 with self.assertRaises(HistoricalMatchConflictError):
-                    register(a)
+                    register(a, year=2028)
                 self.assertEqual(before, snapshot(a))
                 a.seal_year(2026, expected_match_count=1)
                 before = snapshot(a)

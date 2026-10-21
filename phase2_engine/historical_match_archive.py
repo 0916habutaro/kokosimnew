@@ -353,10 +353,10 @@ class HistoricalMatchArchive:
         self, *, year: int, rng_seed: int,
         resolver_contract: str, plan_fingerprint: str,
     ) -> dict:
-        """Register only an adjacent year after the preceding one is sealed.
+        """Register only the year after the latest registered year.
 
-        This is an archive-contract operation, not a 2027 competition or
-        roster generator and not a full gameplay year rollover.
+        年度の重なりで、前の年度を封印する前（3月）に翌年度の試合が始まる
+        ので、前の年度は封印前でもよい。
         """
         metadata = self._year_metadata(
             year, rng_seed, resolver_contract, plan_fingerprint
@@ -381,10 +381,9 @@ class HistoricalMatchArchive:
                     "SELECT year, status FROM career_years "
                     "ORDER BY year DESC LIMIT 1"
                 ).fetchone()
-                if (prev is None or prev["year"] != year - 1
-                        or prev["status"] != "sealed"):
+                if prev is None or prev["year"] != year - 1:
                     raise HistoricalMatchConflictError(
-                        "adjacent previous year must be sealed"
+                        "adjacent previous year must be registered"
                     )
                 conn.execute(
                     "INSERT INTO career_years(year, metadata_json, status) "

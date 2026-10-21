@@ -17,6 +17,7 @@ from .runtime_snapshot import (
     RuntimeSnapshotError,
     dump_runtime_state,
     load_runtime_state,
+    snapshot_years,
 )
 
 
@@ -227,7 +228,19 @@ def create_live_season_save(
     resolver_contract: str = (
         DEFAULT_RESOLVER_CONTRACT
     ),
+    plans: Mapping[int, LiveSeasonGraphPlan] | None = None,
 ) -> dict:
+    """``plan`` は今の年度の計画。年度の重なりでは ``plans`` に全年度の計画。"""
+    plans = dict(
+        plans
+        or getattr(state, "plans", None)
+        or {plan.year: plan}
+    )
+    years = snapshot_years(state)
+    if sorted(plans) != years:
+        raise LiveSeasonSaveSchemaError(
+            "plans do not match the seasons in the runtime"
+        )
     if state.year != plan.year:
         raise LiveSeasonSaveSchemaError(
             "plan/runtime year mismatch"
@@ -266,6 +279,11 @@ def create_live_season_save(
         "plan_fingerprint": (
             plan_fingerprint(plan)
         ),
+        "season_years": years,
+        "plan_fingerprints": {
+            str(year): plan_fingerprint(plans[year])
+            for year in years
+        },
         "start_date": start_date,
         "current_date": current_date,
         "processed_dates": processed_dates,
@@ -286,6 +304,8 @@ def create_live_season_save(
 
 
 REQUIRED_FIELDS = frozenset({
+    "season_years",
+    "plan_fingerprints",
     "year",
     "rng_seed",
     "resolver_contract",
@@ -359,8 +379,14 @@ def restore_live_season_save(
     resolver_contract: str = (
         DEFAULT_RESOLVER_CONTRACT
     ),
+    planner_for_year=None,
+    engine_for_plan=None,
 ):
-    """保存した状態をそのまま戻す。試合を最初からやり直さない。"""
+    """保存した状態をそのまま戻す。試合を最初からやり直さない。
+
+    年度の重なりで複数の年度があるときは、``planner_for_year(year)`` で
+    ほかの年度の計画を、``engine_for_plan(plan)`` で年度ごとの engine をつくる。
+    """
     data = _validate_save_payload(payload)
     if data["year"] != planner.year:
         raise LiveSeasonSaveCompatibilityError(
@@ -379,28 +405,49 @@ def restore_live_season_save(
             f"load={resolver_contract}"
         )
 
-    plan = planner.build_plan()
-    if data["plan_fingerprint"] != (
-        plan_fingerprint(plan)
-    ):
-        raise LiveSeasonSaveCompatibilityError(
-            "season plan fingerprint mismatch; "
-            "repository masters or planner output "
-            "changed since the save was created"
+    plans = {}
+    for year in data["season_years"]:
+        if year == planner.year:
+            source = planner
+        elif planner_for_year is not None:
+            source = planner_for_year(year)
+        else:
+            raise LiveSeasonSaveCompatibilityError(
+                f"no planner for season {year}"
+            )
+        plans[year] = source.build_plan()
+        if data["plan_fingerprints"].get(str(year)) != (
+            plan_fingerprint(plans[year])
+        ):
+            raise LiveSeasonSaveCompatibilityError(
+                "season plan fingerprint mismatch; "
+                "repository masters or planner output "
+                "changed since the save was created"
+            )
+    plan = plans[planner.year]
+    engines = {
+        year: (
+            engine_for_plan(season_plan)
+            if engine_for_plan is not None
+            else (engine if year == planner.year else None)
         )
+        for year, season_plan in plans.items()
+    }
 
     try:
         state = load_runtime_state(
             base64.b64decode(
                 data["runtime_state"]
             ),
-            plan,
-            engine=engine,
+            plans,
+            engines=engines,
         )
     except RuntimeSnapshotError as exc:
         raise LiveSeasonSaveStateError(
             str(exc)
         ) from exc
+    if isinstance(getattr(state, "__dict__", {}).get("plans"), dict):
+        state.plans = plans
     if (
         state.year != data["year"]
         or state.rng_seed != data["rng_seed"]
@@ -509,10 +556,14 @@ def read_live_season_save(
     resolver_contract: str = (
         DEFAULT_RESOLVER_CONTRACT
     ),
+    **season_builders,
 ):
+    """``season_builders`` は ``restore_live_season_save`` の
+    ``planner_for_year`` と ``engine_for_plan``（年度の重なり）。"""
     return restore_live_season_save(
         planner,
         _read_payload(path),
         engine=engine,
         resolver_contract=resolver_contract,
+        **season_builders,
     )

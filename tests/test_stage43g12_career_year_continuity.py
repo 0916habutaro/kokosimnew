@@ -57,6 +57,8 @@ def legacy_save(year=2026):
         "start_date": f"{year}-01-01",
         "current_date": f"{year}-01-01",
         "processed_dates": [],
+        "season_years": [year],
+        "plan_fingerprints": {str(year): "not-equivalent-to-career-plan"},
         "completed_match_count": 0,
         "runtime_summary": {"scope": "legacy_fixture_only"},
         "runtime_state": "",

@@ -12,6 +12,7 @@ import sqlite3
 from .career_option_a_storage_profile import _read_only
 
 from .historical_match_archive import HistoricalMatchArchive, _history_payload
+from .career_state import CareerState
 from .school_year import in_school_year
 from .year_transition import require_year_end, year_end_readiness
 from .live_season_planner import (
@@ -30,12 +31,19 @@ from .save_slots import (
 )
 
 
-@dataclass
 class LiveGameSession:
-    slot_id: str
-    plan: object
-    state: object
-    resolver_contract: str
+    def __init__(self, slot_id: str, plan, state, resolver_contract: str):
+        self.slot_id = slot_id
+        self._plan = plan
+        self.state = state
+        self.resolver_contract = resolver_contract
+
+    @property
+    def plan(self):
+        """今の年度の計画（年度の重なりでは日付が属する年度）。"""
+        if isinstance(self.state, CareerState):
+            return self.state.plans[self.state.year]
+        return self._plan
 
     def summary(self) -> dict:
         return {
@@ -656,12 +664,18 @@ class LiveGameService:
                 raise ValueError("既存セーブへ新規ゲームを上書きできません")
             self.career_persistence.prepare(plan, engine, self.resolver_contract)
         engine, season = self._engine(plan, engine)
-        state = plan.build_runtime(
+        first = plan.build_runtime(
             engine=engine,
             start_date=start_date,
         )
         if season is not None:
-            season.attach(state)
+            season.attach(first)
+        state = CareerState(
+            {plan.year: first},
+            current_date=first.current_date,
+            open_season=self._season_opener(int(rng_seed)),
+            plans={plan.year: plan},
+        )
         session = LiveGameSession(
             slot_id=slot,
             plan=plan,
@@ -707,7 +721,17 @@ class LiveGameService:
         built = planner.build_plan()
         if self.career_persistence is not None:
             self.career_persistence.prepare(built, engine, self.resolver_contract)
-        engine, season = self._engine(built, engine)
+        rng_seed = int(metadata["rng_seed"])
+        seasons = {}
+
+        def engine_for_plan(season_plan):
+            season_engine, season = self._engine(
+                season_plan,
+                engine if season_plan.year == built.year else None,
+            )
+            seasons[season_plan.year] = season
+            return season_engine
+
         plan, state = self.slots.load(
             slot_id,
             _BuiltPlanner(planner, built),
@@ -716,9 +740,16 @@ class LiveGameService:
             resolver_contract=(
                 self.resolver_contract
             ),
+            planner_for_year=lambda year: self._planner(
+                rng_seed, year=year,
+            ),
+            engine_for_plan=engine_for_plan,
         )
-        if season is not None:
-            season.attach(state)
+        if isinstance(state, CareerState):
+            state.open_season = self._season_opener(rng_seed)
+            for year, season in seasons.items():
+                if season is not None:
+                    season.attach(state.seasons[year])
         session = LiveGameSession(
             slot_id=(
                 self.slots.validate_slot_id(
@@ -735,6 +766,41 @@ class LiveGameService:
         # Older backup loads never delete matches written by newer saves.
         self._sync_history(session)
         return session
+
+    def _season_opener(self, rng_seed: int):
+        """秋の大会の後に翌年度の大会表をつくって開く（年度の重なり）。"""
+
+        def open_season(year: int, day: date, school_days: dict):
+            plan = self._planner(rng_seed, year=year).build_plan()
+            engine, season = self._engine(plan, None)
+            state = plan.build_runtime(
+                engine=engine,
+                start_date=day.isoformat(),
+                open_before_school_year=True,
+                school_days=school_days,
+            )
+            if season is not None:
+                season.attach(state)
+            return plan, state
+
+        return open_season
+
+    def _close_finished_seasons(self, session: LiveGameSession) -> list[dict]:
+        """3月31日まで進めた年度の履歴を保存・封印し、進行中から外す。"""
+        state = session.state
+        if not isinstance(state, CareerState):
+            return []
+        closed = []
+        for year in state.finished_years():
+            self._sync_history(session)
+            season = state.seasons[year]
+            sealed = self._history_archive(session.slot_id).seal_year(
+                year,
+                expected_match_count=len(season.completed_results()),
+            )
+            state.drop(year)
+            closed.append(sealed)
+        return closed
 
     def _engine(self, plan, engine):
         """選手で試合をする契約なら、その engine（と状態につなぐ部品）をつくる。"""
@@ -758,12 +824,43 @@ class LiveGameService:
         persistence = self.career_persistence
         rosters, sealed = persistence.validate(session, slot) if persistence else ((), False)
         roster_result = persistence.sync_rosters(rosters, slot) if persistence else None
+        state = session.state
+        if isinstance(state, CareerState):
+            seasons = [
+                (year, season, state.plans[year])
+                for year, season in state.seasons.items()
+            ]
+        else:
+            seasons = [(state.year, state, session.plan)]
+        archive = self._history_archive(session.slot_id)
+        result = {"inserted": 0, "already_archived": 0}
+        for year, season, season_plan in seasons:
+            fingerprint = plan_fingerprint(season_plan)
+            if year != seasons[0][0]:
+                archive.register_next_year(
+                    year=year,
+                    rng_seed=season.rng_seed,
+                    resolver_contract=session.resolver_contract,
+                    plan_fingerprint=fingerprint,
+                )
+            counts = self._sync_season_history(
+                archive, session, season, fingerprint,
+            )
+            for key in result:
+                result[key] += counts.get(key, 0)
+        if persistence:
+            result['career_rosters'] = roster_result
+            result['career_outcomes'] = persistence.sync_outcomes(session, slot) if sealed else []
+        return result
+
+    @staticmethod
+    def _sync_season_history(archive, session, season, fingerprint) -> dict:
         # まだ履歴に保存していない試合だけを送る。選手で試合をするときの
         # スコア・個人成績は状態の pending_match_details にあり、保存したら消す。
-        details = getattr(session.state, "pending_match_details", {})
+        details = getattr(season, "pending_match_details", {})
         new = [
             (cid, match)
-            for cid, scheduled in session.state.competitions.items()
+            for cid, scheduled in season.competitions.items()
             for match in scheduled.matches.values()
             if match.status == "completed"
             and not getattr(match, "archived", False)
@@ -775,19 +872,16 @@ class LiveGameService:
             if detail is not None:
                 row["ability_detail"] = detail
             completed.append(row)
-        result = self._history_archive(session.slot_id).sync(
-            year=session.state.year,
-            rng_seed=session.state.rng_seed,
+        result = archive.sync(
+            year=season.year,
+            rng_seed=season.rng_seed,
             resolver_contract=session.resolver_contract,
-            plan_fingerprint=plan_fingerprint(session.plan),
+            plan_fingerprint=fingerprint,
             completed=completed,
         )
         for cid, match in new:
             match.archived = True
             details.pop(f"{cid}:{match.match_id}", None)
-        if persistence:
-            result['career_rosters'] = roster_result
-            result['career_outcomes'] = persistence.sync_outcomes(session, slot) if sealed else []
         return result
 
     def save_game(
@@ -916,6 +1010,7 @@ class LiveGameService:
         result = (
             session.state.next_day()
         )
+        result["closed_seasons"] = self._close_finished_seasons(session)
         save = self._maybe_autosave(
             session,
             autosave,
@@ -954,13 +1049,17 @@ class LiveGameService:
                 session.state.advance_through(target)
                 if through else session.state.advance_to(target)
             )
+            self._close_finished_seasons(session)
             return {"action": action, **result, "autosave": None}
 
         target_date = (
             target if isinstance(target, date)
             else date.fromisoformat(target)
         )
-        if not in_school_year(session.state.year, target_date):
+        if (
+            not isinstance(session.state, CareerState)
+            and not in_school_year(session.state.year, target_date)
+        ):
             raise ValueError("target_date must be inside school year")
         if target_date < session.state.current_date:
             raise ValueError("season runtime cannot move backward")
@@ -971,6 +1070,7 @@ class LiveGameService:
         checkpoint_date = None
         while session.state.current_date < target_date:
             step = session.state.next_day()
+            self._close_finished_seasons(session)
             advanced_days += 1
             new_matches = int(step["played_match_count"])
             played_match_count += new_matches

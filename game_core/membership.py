@@ -7,8 +7,8 @@ game_definition.md §8：
 - 3年生は自分の学校の夏の大会が終わった時点で引退する
 - 各大会の出場メンバーは、その大会が始まった時点の部員から選び、途中で
   入れ替えない。3月に始まる大会は前の年度の名簿（新入生は入らない）
-- 秋の大会は新チーム（1・2年生）で戦う。甲子園に出ている学校の秋の
-  県大会が甲子園の途中で始まっても、3年生は出ない
+- 秋の大会と1〜3月に始まる大会は新チーム（1・2年生）で戦う。甲子園に
+  出ている学校の秋の県大会が甲子園の途中で始まっても、3年生は出ない
 """
 from __future__ import annotations
 
@@ -132,7 +132,12 @@ class SchoolMembers:
         season_segment: str,
     ) -> CompetitionMembers:
         players = self.members_on(school_id, start_date)
-        if season_segment in NEW_TEAM_SEGMENTS:
+        # 秋の大会と、1〜3月に始まる大会（選抜・新しい年度の春季県大会）は
+        # 新チーム。夏が終わった3年生は出ない。
+        if (
+            season_segment in NEW_TEAM_SEGMENTS
+            or start_date.month <= 3
+        ):
             players = tuple(p for p in players if p.academic_year != 3)
         return CompetitionMembers(
             competition_id=competition_id,
