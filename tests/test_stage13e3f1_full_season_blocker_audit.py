@@ -55,7 +55,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
         summary = self.audit.summary()
 
         self.assertEqual(
-            "2026-12-31",
+            "2027-03-31",
             summary["processed_through"],
         )
         self.assertEqual(

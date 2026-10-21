@@ -180,8 +180,8 @@ class Stage43C2IncrementalCheckpointTests(unittest.TestCase):
 
     def test_invalid_target_must_not_create_archive(self):
         with patch.object(self.service, "autosave_game") as save:
-            with self.assertRaisesRegex(ValueError, "inside season"):
-                self.service.advance_to(self.session, "2027-01-01")
+            with self.assertRaisesRegex(ValueError, "inside school year"):
+                self.service.advance_to(self.session, "2027-04-01")
             with self.assertRaisesRegex(ValueError, "backward"):
                 self.service.advance_to(self.session, "2026-07-09")
             save.assert_not_called()
