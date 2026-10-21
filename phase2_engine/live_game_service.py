@@ -12,6 +12,7 @@ import sqlite3
 from .career_option_a_storage_profile import _read_only
 
 from .historical_match_archive import HistoricalMatchArchive, _history_payload
+from .school_year import in_school_year
 from .year_transition import require_year_end, year_end_readiness
 from .live_season_planner import (
     LiveSeasonGraphPlanner,
@@ -912,8 +913,8 @@ class LiveGameService:
             target if isinstance(target, date)
             else date.fromisoformat(target)
         )
-        if target_date.year != session.state.year:
-            raise ValueError("target_date must be inside season year")
+        if not in_school_year(session.state.year, target_date):
+            raise ValueError("target_date must be inside school year")
         if target_date < session.state.current_date:
             raise ValueError("season runtime cannot move backward")
 

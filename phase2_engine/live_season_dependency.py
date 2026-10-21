@@ -14,6 +14,11 @@ from .models import AnnualCompetitionInput
 from .paths import resolve_data_file
 from .randomness import shuffled
 from .repository import DataRepository
+from .school_year import (
+    in_school_year,
+    school_year_end,
+    school_year_start,
+)
 from .stage_calendar import (
     stage_date_lists_by_competition,
     validate_competition_stage_calendar,
@@ -151,9 +156,9 @@ class LiveSeasonDependencyRuntimeState:
     repo: DataRepository = field(repr=False)
     year: int = 2026
     rng_seed: int = 0
-    current_date: date = date(2026, 1, 1)
-    start_date: date = date(2026, 1, 1)
-    end_date: date = date(2026, 12, 31)
+    current_date: date = date(2026, 4, 1)
+    start_date: date = date(2026, 4, 1)
+    end_date: date = date(2027, 3, 31)
     annual_templates: dict[str, AnnualCompetitionInput] = field(
         default_factory=dict,
         repr=False,
@@ -352,12 +357,12 @@ class LiveSeasonDependencyRuntimeState:
                     )
                 )
                 if start_date is not None
-                else date(year, 1, 1)
+                else school_year_start(year)
             )
         )
-        if initial.year != year:
+        if not in_school_year(year, initial):
             raise ValueError(
-                "start_date must be inside season year"
+                "start_date must be inside school year"
             )
 
         rules: dict[str, list[dict]] = {}
@@ -491,12 +496,19 @@ class LiveSeasonDependencyRuntimeState:
         for mapping in stage_dates.values():
             for values in mapping.values():
                 all_dates.extend(values)
+        scheduled_dates = [
+            date.fromisoformat(value)
+            for value in all_dates
+        ]
         end = max(
-            [date(year, 12, 31)]
-            + [
-                date.fromisoformat(value)
-                for value in all_dates
-            ]
+            [school_year_end(year)]
+            + scheduled_dates
+        )
+        # Games scheduled before the start date (e.g. March games before an
+        # April start) are processed as pre-start games when the runtime is
+        # built, so the clock begins at the earliest scheduled date.
+        clock_start = min(
+            [initial] + scheduled_dates
         )
 
         state = cls(
@@ -504,7 +516,7 @@ class LiveSeasonDependencyRuntimeState:
             repo=repo,
             year=year,
             rng_seed=rng_seed,
-            current_date=initial,
+            current_date=clock_start,
             start_date=initial,
             end_date=end,
             annual_templates=templates,
@@ -523,9 +535,14 @@ class LiveSeasonDependencyRuntimeState:
         state._activate_roots()
         state._activate_ready_destinations(
             activation_date=(
-                initial - timedelta(days=1)
+                clock_start - timedelta(days=1)
             ).isoformat()
         )
+        while state.current_date < initial:
+            state._play_current_date(
+                action="play_prestart"
+            )
+            state.current_date += timedelta(days=1)
         return state
 
     @staticmethod
@@ -1636,6 +1653,15 @@ class LiveSeasonDependencyRuntimeState:
         )
 
     def play_today(self) -> list[dict]:
+        return self._play_current_date(
+            action="play_today"
+        )
+
+    def _play_current_date(
+        self,
+        *,
+        action: str,
+    ) -> list[dict]:
         target = self.current_date.isoformat()
         before = set(self.completed_results())
         for cid, scheduled in sorted(
@@ -1660,7 +1686,7 @@ class LiveSeasonDependencyRuntimeState:
             set(completed) - before
         )
         self.history.append({
-            "action": "play_today",
+            "action": action,
             "date": target,
             "match_keys": new_keys,
             "match_count": len(new_keys),
@@ -1671,13 +1697,11 @@ class LiveSeasonDependencyRuntimeState:
         ]
 
     def next_day(self) -> dict:
-        if self.current_date >= date(
-            self.year,
-            12,
-            31,
+        if self.current_date >= school_year_end(
+            self.year
         ):
             raise ValueError(
-                "season runtime cannot advance beyond season year"
+                "season runtime cannot advance beyond school year"
             )
         results = self.play_today()
         previous = self.current_date
@@ -1704,9 +1728,12 @@ class LiveSeasonDependencyRuntimeState:
                 )
             )
         )
-        if target_date.year != self.year:
+        if not in_school_year(
+            self.year,
+            target_date,
+        ):
             raise ValueError(
-                "target_date must be inside season year"
+                "target_date must be inside school year"
             )
         if target_date < self.current_date:
             raise ValueError(

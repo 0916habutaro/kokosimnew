@@ -291,12 +291,10 @@ class Stage13E3D3FullSeasonPlannerTests(
             regional.entrant_school_ids,
         )
 
-    def test_full_plan_builds_runtime_with_131_roots_and_31_waiting_destinations(
+    def test_full_plan_builds_runtime_with_135_roots_and_27_waiting_destinations(
         self,
     ):
-        state = self.plan.build_runtime(
-            start_date="2026-01-01"
-        )
+        state = self.plan.build_runtime()
         summary = state.summary()
 
         self.assertEqual(
@@ -309,9 +307,11 @@ class Stage13E3D3FullSeasonPlannerTests(
             135,
             summary["active_runtime_count"],
         )
+        # March competitions (e.g. Senbatsu) finish before the April start.
         self.assertEqual(
             {
-                "active": 135,
+                "active": 123,
+                "completed": 12,
                 "waiting_dependencies": 27,
             },
             summary["status_counts"],
@@ -350,9 +350,7 @@ class Stage13E3D3FullSeasonPlannerTests(
     def test_full_plan_automatically_materializes_summer_national_and_tokyo_autumn(
         self,
     ):
-        state = self.plan.build_runtime(
-            start_date="2026-01-01"
-        )
+        state = self.plan.build_runtime()
         state.advance_through(
             "2026-08-05"
         )

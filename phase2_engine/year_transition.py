@@ -1,7 +1,7 @@
 """Stage 43D: validate a year-end boundary without inventing future seasons."""
 from __future__ import annotations
 
-from datetime import date
+from .school_year import school_year_end
 
 
 class YearTransitionBlockedError(ValueError):
@@ -19,7 +19,7 @@ def year_end_readiness(state) -> dict:
         raise ValueError("invalid runtime year")
     summary = state.summary()
     blockers: list[str] = []
-    if state.current_date != date(year, 12, 31):
+    if state.current_date != school_year_end(year):
         blockers.append("current_date_not_year_end")
 
     status_by_competition = getattr(state, "status_by_competition", None)

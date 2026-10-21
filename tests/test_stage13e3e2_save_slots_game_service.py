@@ -453,7 +453,8 @@ class Stage13E3E2SaveSlotsGameServiceTests(
             )
             self.assertEqual(
                 {
-                    "active": 135,
+                    "active": 123,
+                    "completed": 12,
                     "waiting_dependencies": 27,
                 },
                 runtime[
@@ -467,7 +468,7 @@ class Stage13E3E2SaveSlotsGameServiceTests(
                 slot.manual.exists
             )
             self.assertEqual(
-                "2026-01-01",
+                "2026-04-01",
                 slot.manual.metadata[
                     "current_date"
                 ],

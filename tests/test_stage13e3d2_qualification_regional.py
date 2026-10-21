@@ -317,7 +317,6 @@ class Stage13E3D2QualificationRegionalTests(
                 annual_templates=templates,
                 calendar_rows=calendars,
                 rng_seed=self.seed,
-                start_date="2026-03-20",
             )
         )
 

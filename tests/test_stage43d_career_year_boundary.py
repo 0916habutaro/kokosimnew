@@ -39,7 +39,7 @@ class YearEndState:
     def __init__(self, year=2026, at_end=True, statuses=None, pending=0, gaps=0, matches=1):
         self.year = year
         self.rng_seed = 1405
-        self.current_date = date(year, 12, 31) if at_end else date(year, 12, 30)
+        self.current_date = date(year + 1, 3, 31) if at_end else date(year + 1, 3, 30)
         self.status_by_competition = (
             {"CMP-A": "completed"} if statuses is None else statuses
         )
@@ -162,7 +162,7 @@ class Stage43DCareerYearBoundaryTests(unittest.TestCase):
         with self.assertRaises(YearTransitionBlockedError):
             require_year_end(state)
 
-    def test_all_competitions_complete_on_dec31_passes_seal_gate(self):
+    def test_all_competitions_complete_on_march31_passes_seal_gate(self):
         state = YearEndState()
         status = require_year_end(state)
         self.assertTrue(status["eligible_to_seal"])

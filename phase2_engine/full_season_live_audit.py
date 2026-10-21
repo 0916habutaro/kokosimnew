@@ -14,6 +14,7 @@ from .live_season_dependency import (
 from .live_season_planner import (
     LiveSeasonGraphPlan,
 )
+from .school_year import school_year_end
 
 
 BLOCKER_COMPLETE = "complete"
@@ -550,7 +551,7 @@ def audit_full_season_live_runtime(
         start_date=start_date,
     )
     progress = state.advance_through(
-        f"{plan.year}-12-31"
+        school_year_end(plan.year).isoformat()
     )
 
     pending_by_comp: dict[
