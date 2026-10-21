@@ -1,6 +1,6 @@
 {
   "config_id": "team_strength_v1",
-  "revision": 2,
+  "revision": 3,
   "status": "design_default_not_tuned",
   "notes_ja": "学校能力は選手能力から導出する。Stage 13B-3でStartingLineup / PitchingStaff / TeamStrengthSnapshotを実装し、選抜重みもconfig管理する。現値は実在校正前の初期baseline。",
   "source_contract": {
@@ -102,6 +102,12 @@
     "match_simulation_should_use_components_not_single_overall": true,
     "team_strength_is_snapshot_not_school_master": true,
     "fatigue_and_condition_applied_after_base_strength": true
+  },
+  "small_roster": {
+    "notes_ja": "引退などで部員が少ないときの扱い。その守備位置の選手がいなければ適性で回し、投手がいなければ野手が投げる。本職でない選手の捕手能力などは untrained_ability_value とする。",
+    "emergency_pitcher_quality": 20,
+    "untrained_ability_value": 20,
+    "missing_bench_value": 1
   },
   "selection": {
     "position_player_weights": {

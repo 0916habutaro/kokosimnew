@@ -192,9 +192,14 @@ class TeamStrengthGenerator:
             else:
                 value = player.ability(ability_id)
                 if value is None:
-                    raise ValueError(
-                        f"{player.player_id}: {ability_id} required for {position}"
-                    )
+                    if player.primary_position == position:
+                        raise ValueError(
+                            f"{player.player_id}: {ability_id} required for {position}"
+                        )
+                    # 部員が少なく本職でない守備位置に回った選手
+                    value = self.params["small_roster"][
+                        "untrained_ability_value"
+                    ]
                 values[ability_id] = float(value)
         return _weighted(values, weights)
 
@@ -209,7 +214,10 @@ class TeamStrengthGenerator:
 
     def _pitcher_quality(self, player: PlayerAbilitySnapshot) -> float:
         if player.primary_position != "P":
-            raise ValueError(f"{player.player_id}: pitcher quality requires P")
+            # 投手がいないときに投げる野手。
+            return float(
+                self.params["small_roster"]["emergency_pitcher_quality"]
+            )
         weights = self.params["pitching"]["pitcher_quality_weights"]
         values: dict[str, float] = {
             "velocity_component": self._velocity_component(player.velocity_kmh)
@@ -265,39 +273,59 @@ class TeamStrengthGenerator:
         players = list(snapshots)
         school_id, reference_year, *_ = self._validate_source(players)
 
-        by_position = {
-            position: [
-                player
-                for player in players
-                if player.primary_position == position
-            ]
-            for position in STARTING_POSITIONS
-        }
-        missing = [
-            position for position, pool in by_position.items() if not pool
-        ]
-        if missing:
-            raise ValueError(
-                f"{school_id}: missing primary-position candidates {missing}"
-            )
-
-        chosen: list[tuple[str, PlayerAbilitySnapshot, float]] = []
-        for position in STARTING_POSITIONS:
-            ranked = sorted(
-                by_position[position],
+        def best(position, pool):
+            return min(
+                pool,
                 key=lambda player: (
                     -self._selection_score(player, position),
                     player.player_id,
                 ),
             )
-            player = ranked[0]
-            chosen.append(
-                (
-                    position,
-                    player,
-                    self._selection_score(player, position),
+
+        # 本職の選手がいる守備位置から決め、いない位置は残りの選手から
+        # 適性で回す（部員が少ないとき）。投手がいなければ肩の強い野手が投げる。
+        picked: dict[str, PlayerAbilitySnapshot] = {}
+        used: set[str] = set()
+        for position in STARTING_POSITIONS:
+            pool = [
+                player for player in players
+                if player.primary_position == position
+            ]
+            if pool:
+                player = best(position, pool)
+                picked[position] = player
+                used.add(player.player_id)
+        for position in STARTING_POSITIONS:
+            if position in picked:
+                continue
+            pool = [
+                player for player in players
+                if player.player_id not in used
+            ]
+            if not pool:
+                raise ValueError(
+                    f"{school_id}: not enough players for {position}"
                 )
+            if position == "P":
+                player = min(
+                    pool,
+                    key=lambda p: (-p.arm_strength, p.player_id),
+                )
+            else:
+                nonpitchers = [
+                    p for p in pool if p.primary_position != "P"
+                ]
+                player = best(position, nonpitchers or pool)
+            picked[position] = player
+            used.add(player.player_id)
+        chosen: list[tuple[str, PlayerAbilitySnapshot, float]] = [
+            (
+                position,
+                picked[position],
+                self._selection_score(picked[position], position),
             )
+            for position in STARTING_POSITIONS
+        ]
 
         ordered = sorted(
             chosen,
@@ -336,8 +364,11 @@ class TeamStrengthGenerator:
         pitchers = [
             player for player in players if player.primary_position == "P"
         ]
-        if len(pitchers) < 3:
-            raise ValueError(f"{school_id}: at least three pitchers are required")
+        if not pitchers:
+            # 投手がいなければ、先発で投げる野手だけで投手陣をつくる。
+            lineup = self.select_starting_lineup(players)
+            by_id = {player.player_id: player for player in players}
+            pitchers = [by_id[lineup.player_for_position("P")]]
 
         ranked = sorted(
             pitchers,
@@ -428,11 +459,8 @@ class TeamStrengthGenerator:
                 player.player_id,
             ),
         )
-        if len(bench_ranked) < 3:
-            raise ValueError(
-                f"{school_id}: at least three bench players are required"
-            )
-        bench_depth = fmean(
+        # 控えが3人に満たない分は最低値として数える。
+        bench_values = [
             _weighted(
                 {
                     ability_id: float(player.ability(ability_id))
@@ -441,7 +469,11 @@ class TeamStrengthGenerator:
                 bench_weights,
             )
             for player in bench_ranked[:3]
-        )
+        ]
+        bench_values += [
+            float(self.params["small_roster"]["missing_bench_value"])
+        ] * (3 - len(bench_values))
+        bench_depth = fmean(bench_values)
 
         batting_values = {
             "contact": contact_strength,
@@ -483,6 +515,11 @@ class TeamStrengthGenerator:
         defense_strength = defense_numerator / defense_denominator
 
         qualities = [entry.quality for entry in staff.entries]
+        # 投手が3人に満たない分は、野手が投げるものとして扱う。
+        emergency = float(
+            self.params["small_roster"]["emergency_pitcher_quality"]
+        )
+        qualities += [emergency] * max(0, 3 - len(qualities))
         remaining_depth = (
             fmean(qualities[3:])
             if len(qualities) > 3
@@ -566,9 +603,9 @@ class TeamStrengthGenerator:
         int | None,
         str | None,
     ]:
-        if len(players) < 12:
+        if len(players) < 9:
             raise ValueError(
-                "team strength requires at least 12 player snapshots"
+                "team strength requires at least 9 player snapshots"
             )
         school_ids = {player.school_id for player in players}
         years = {player.reference_year for player in players}
@@ -687,9 +724,9 @@ def validate_starting_lineup(lineup: StartingLineup) -> None:
 
 
 def validate_pitching_staff(staff: PitchingStaff) -> None:
-    if len(staff.entries) < 3:
+    if not staff.entries:
         raise ValueError(
-            f"{staff.school_id}: pitching staff requires at least 3 pitchers"
+            f"{staff.school_id}: pitching staff requires a pitcher"
         )
     orders = [entry.order for entry in staff.entries]
     if orders != list(range(1, len(staff.entries) + 1)):
@@ -722,7 +759,7 @@ def validate_pitching_staff(staff: PitchingStaff) -> None:
 def validate_team_strength_snapshot(
     snapshot: TeamStrengthSnapshot,
 ) -> None:
-    if snapshot.roster_size < 12:
+    if snapshot.roster_size < 9:
         raise ValueError(
             f"{snapshot.school_id}: roster_size too small"
         )
