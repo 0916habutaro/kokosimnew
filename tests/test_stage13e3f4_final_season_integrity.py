@@ -215,13 +215,15 @@ class Stage13E3F4FinalSeasonIntegrityRuntimeTests(unittest.TestCase):
             DATA, year=YEAR, live_audit=cls.audit
         )
 
-    def test_complete_runtime_with_only_jingu_deferred(self):
+    def test_complete_runtime_with_jingu_played_in_its_period(self):
+        # 神宮大会の試合ごとの日付は公表待ちのまま（データは空）だが、
+        # 開催期間の各日を試合日の候補にして行う
         self.assertTrue(self.report["ok"], self.report["checks"])
         self.assertEqual(
-            161, self.report["summary"]["simulated_completed_competition_count"]
+            162, self.report["summary"]["simulated_completed_competition_count"]
         )
         self.assertEqual(
-            ["CMP000003"],
+            [],
             self.report["summary"]["simulated_incomplete_competition_ids"],
         )
         self.assertGreater(
@@ -234,7 +236,7 @@ class Stage13E3F4FinalSeasonIntegrityRuntimeTests(unittest.TestCase):
         self.assertEqual(0, runtime["dependency_wait_competition_count"])
         self.assertEqual(0, runtime["unique_downstream_blocked_competition_count"])
         self.assertEqual([], self.audit.stage_priority_rows)
-        self.assertEqual(["CMP000003"], [
+        self.assertEqual([], [
             r.competition_id for r in self.audit.competition_rows
             if r.blocker_kind != "complete"
         ])

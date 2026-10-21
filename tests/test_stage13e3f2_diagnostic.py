@@ -26,20 +26,14 @@ class Stage13E3F2DiagnosticTests(unittest.TestCase):
         ).build_plan()
         cls.audit = audit_full_season_live_runtime(plan)
 
-    def test_autumn_p0_chain_is_resolved_to_jingu_calendar_only(self):
+    def test_autumn_chain_including_jingu_completes(self):
         summary = self.audit.summary()
 
-        self.assertEqual(161, summary["completed_competition_count"])
+        self.assertEqual(162, summary["completed_competition_count"])
         self.assertGreater(summary["completed_match_count"], 10308)
+        self.assertEqual({"complete": 162}, summary["blocker_counts"])
         self.assertEqual(
-            {
-                "calendar_gap": 1,
-                "complete": 161,
-            },
-            summary["blocker_counts"],
-        )
-        self.assertEqual(
-            ["CMP000003"],
+            [],
             summary[
                 "calendar_gap_without_pending_stage_competition_ids"
             ],
@@ -72,30 +66,19 @@ class Stage13E3F2DiagnosticTests(unittest.TestCase):
                 self.assertEqual("complete", row.blocker_kind)
                 self.assertEqual(0, row.calendar_gap_count)
 
-    def test_jingu_is_materialized_and_only_missing_its_game_dates(self):
+    def test_jingu_is_played_within_its_event_period(self):
+        # 試合ごとの日付がデータにないので、開催期間の各日を試合日の候補にする
         jingu = next(
             row
             for row in self.audit.competition_rows
             if row.competition_id == "CMP000003"
         )
-        self.assertEqual("calendar_gap", jingu.blocker_kind)
-        self.assertEqual(
-            "calendar_gap_without_pending_stage",
-            jingu.blocker_origin,
+        self.assertEqual("complete", jingu.blocker_kind)
+        self.assertEqual(0, jingu.calendar_gap_count)
+        self.assertNotIn(
+            "structure:CMP000003",
+            {row.action_id for row in self.audit.action_rows},
         )
-        self.assertEqual(2, jingu.calendar_gap_count)
-        self.assertEqual((), jingu.unresolved_source_competition_ids)
-
-        actions = {
-            row.action_id: row
-            for row in self.audit.action_rows
-        }
-        self.assertIn("structure:CMP000003", actions)
-        self.assertEqual(
-            "review_unmodeled_pre_main_structure",
-            actions["structure:CMP000003"].action_type,
-        )
-
 
 if __name__ == "__main__":
     unittest.main()
