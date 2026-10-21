@@ -21,8 +21,13 @@ class SchoolOwnershipTests(unittest.TestCase):
                 self.assertIn(row["ownership_type"], ALLOWED)
 
     def test_public_university_corporation_counts_as_public(self):
-        from phase2_engine.senbatsu_selection import PUBLIC_OWNERSHIP_TYPES
+        from phase2_engine.senbatsu_selection import load_selection_config
 
+        PUBLIC_OWNERSHIP_TYPES = set(
+            load_selection_config(ROOT / "config")["century"][
+                "public_ownership_types"
+            ]
+        )
         self.assertIn("public_university_corporation", PUBLIC_OWNERSHIP_TYPES)
         self.assertNotIn("private", PUBLIC_OWNERSHIP_TYPES)
         self.assertNotIn("national", PUBLIC_OWNERSHIP_TYPES)

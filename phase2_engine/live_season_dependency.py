@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import csv
+from pathlib import Path
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Mapping, Sequence
@@ -15,7 +16,7 @@ from .paths import resolve_data_file
 from .randomness import shuffled
 from .repository import DataRepository
 from .senbatsu_selection import (
-    PUBLIC_OWNERSHIP_TYPES,
+    load_selection_config,
     select_invitational,
     selection_region_ids,
 )
@@ -749,11 +750,42 @@ class LiveSeasonDependencyRuntimeState:
             )
         }
 
-    def _public_school_ids(self) -> frozenset[str]:
+    def _public_school_ids(self, century: Mapping) -> frozenset[str]:
+        types = set(century["public_ownership_types"])
         return frozenset(
             school_id
             for school_id, row in self.repo.schools.items()
-            if row.get("ownership_type") in PUBLIC_OWNERSHIP_TYPES
+            if row.get("ownership_type") in types
+        )
+
+    def _autumn_strength_of(self, sources: Mapping[str, str]):
+        """学校 → 秋の県大会の出場メンバーでのチームの強さ。
+
+        選手で試合をしないとき（試合の決め方が選手を使わない）は None。"""
+        resolver = getattr(self.engine, "main_match_resolver", None)
+        if getattr(resolver, "member_provider", None) is None:
+            return None
+        components = self._selection_config()["century"][
+            "strength_components"
+        ]
+
+        def strength_of(school_id: str) -> float:
+            team = resolver.team_input(
+                school_id=school_id,
+                reference_year=self.year,
+                generation_seed=self.rng_seed,
+                competition_id=sources[school_id],
+            ).team_strength
+            return sum(
+                getattr(team, name) * float(weight)
+                for name, weight in components.items()
+            )
+
+        return strength_of
+
+    def _selection_config(self) -> dict:
+        return load_selection_config(
+            Path(self.repo.data_dir).parent / "config"
         )
 
     def _autumn_region_of(self, school_id: str) -> str:
@@ -1634,15 +1666,26 @@ class LiveSeasonDependencyRuntimeState:
         }
         jingu_champion = rankings.pop(JINGU)[0]
         jingu_region = self._autumn_region_of(jingu_champion)
+        sources = self._selection_sources(competition_id)
+        # 21世紀枠：地区 → 秋の県大会の順位。学校 → 強さを見る大会
         prefectural: dict[str, list[list[str]]] = {}
+        prefectural_sources: dict[str, str] = {}
         for key in [k for k in rankings if k.startswith(PREFECTURAL)]:
             ranking = rankings.pop(key)
             prefectural.setdefault(
                 self._autumn_region_of(ranking[0]), []
             ).append(ranking)
+            prefectural_sources.update(
+                dict.fromkeys(ranking, sources[key])
+            )
         # 東京・北海道は秋季地区大会が都道府県の大会を兼ねる
         for region, ranking in rankings.items():
-            prefectural.setdefault(region, [ranking])
+            if region not in prefectural:
+                prefectural[region] = [ranking]
+                prefectural_sources.update(
+                    dict.fromkeys(ranking, sources[region])
+                )
+        century = self._selection_config()["century"]
         annual = deepcopy(
             self.annual_templates[competition_id]
         )
@@ -1651,7 +1694,9 @@ class LiveSeasonDependencyRuntimeState:
             rankings,
             jingu_region=jingu_region,
             prefectural_rankings=prefectural,
-            public_school_ids=self._public_school_ids(),
+            public_school_ids=self._public_school_ids(century),
+            strength_of=self._autumn_strength_of(prefectural_sources),
+            century_config=century,
             rng_seed=annual.rng_seed,
         )
         self.history.append({
