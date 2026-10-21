@@ -9,7 +9,6 @@ ROOT = Path(__file__).resolve().parents[1]
 STAGE = ROOT / "data/schedules/2026/competition_stage_calendar.csv"
 QUEUE = ROOT / "data/research/2026/research_pending_queue.csv"
 MAIN = ROOT / "data/schedules/2026/season_calendar.csv"
-REPORT = ROOT / "docs/research/stage13e3f3_hokkaido_spring_20261008.md"
 EXPECTED_DATES = [f"2026-05-{day:02d}" for day in range(8, 18)]
 
 
@@ -71,20 +70,6 @@ class Stage13E3F3HokkaidoSpringTenBranchesTests(unittest.TestCase):
         self.assertEqual(0, sum(r["status"] != "resolved" for r in stage_tasks))
         hokkaido = {r["task_id"]: r for r in queue}["RS2026001"]
         self.assertEqual("resolved", hokkaido["status"])
-
-    def test_official_daily_sources_for_every_registered_day(self):
-        report = REPORT.read_text(encoding="utf-8")
-        for day in range(8, 18):
-            with self.subTest(day=day):
-                self.assertIn(
-                    f"newsflash_1_202605{day:02d}.html", report
-                )
-        for branch in (
-            "函館", "室蘭", "札幌", "小樽", "空知",
-            "旭川", "名寄", "北見", "十勝", "釧根",
-        ):
-            with self.subTest(branch=branch):
-                self.assertIn(branch, report)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,0 @@
-test_all_eight_sources_third_place_and_region_final_are_resumable (test_stage43g10_full_kanto17_e2e.Stage43G10Kanto17EndToEndTests.test_all_eight_sources_third_place_and_region_final_are_resumable) ... ok
-test_not_ready_with_any_incomplete_feeder_or_missing_sidecar (test_stage43g10_full_kanto17_e2e.Stage43G10Kanto17EndToEndTests.test_not_ready_with_any_incomplete_feeder_or_missing_sidecar) ... ok
-
-----------------------------------------------------------------------
-Ran 2 tests in 319.540s
-
-OK
