@@ -83,21 +83,17 @@ class CareerOverlapTests(unittest.TestCase):
         ].to_competition_run().entrant_school_ids
         # 地区ごとの枠＋関東・東京の比較枠＋神宮枠＋21世紀枠
         self.assertEqual(32, len(entrants))
-        # 21世紀枠（最後の2校）は公立校で、秋の県大会でベスト8以上
-        top8 = {
+        # 21世紀枠（最後の2校）は秋の県大会でベスト16以上（私立も候補）
+        top16 = {
             sid
             for cid, scheduled in state.competitions.items()
             if self.repo.competitions[cid]["competition_type"]
             in ("autumn_prefectural", "autumn_regional")
             for sid in scheduled.to_competition_run()
-            .outcome.final_ranking_school_ids[:8]
+            .outcome.final_ranking_school_ids[:16]
         }
         for school_id in entrants[-2:]:
-            self.assertIn(
-                self.repo.schools[school_id]["ownership_type"],
-                ("prefectural", "municipal"),
-            )
-            self.assertIn(school_id, top8)
+            self.assertIn(school_id, top16)
         self.assertEqual(32, len(set(entrants)))
         kinki = state.competitions[
             "CMP000019"
