@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Mapping
 
 from .engine import TournamentEngine
+from .initial_state import PriorResults, load_prior_results
 from .live_season_dependency import (
     LiveSeasonDependencyRuntimeState,
 )
@@ -13,6 +14,10 @@ from .models import AnnualCompetitionInput
 from .paths import resolve_data_file
 from .randomness import shuffled
 from .repository import DataRepository
+from .school_year import (
+    INVITATIONAL_TYPE,
+    competition_school_year,
+)
 from .season import (
     SeasonOrchestrator,
     StructuralAnnualInputFactory,
@@ -134,6 +139,8 @@ class LiveSeasonGraphPlan:
     external_bootstrap_resolutions: list[
         ExternalAccessBootstrapResolution
     ] = field(default_factory=list)
+    # 前の年度の3月の選抜の出場校。この年度の春季大会の推薦・予選免除に使う。
+    prior_invitational_entrant_ids: tuple[str, ...] = ()
     warnings: list[str] = field(default_factory=list)
 
     def summary(self) -> dict:
@@ -281,6 +288,9 @@ class LiveSeasonGraphPlan:
                 structural_factory=(
                     structural_factory
                 ),
+                prior_invitational_entrant_ids=(
+                    self.prior_invitational_entrant_ids
+                ),
             )
         )
 
@@ -345,8 +355,8 @@ class LiveSeasonGraphPlanner:
         selected = [
             row
             for row in rows
-            if row.get("reference_year")
-            == str(self.year)
+            if competition_school_year(row)
+            == self.year
         ]
         selected.sort(
             key=lambda row: row[
@@ -422,6 +432,9 @@ class LiveSeasonGraphPlanner:
     def _external_access_bootstrap(
         self,
         access_rules: list[dict],
+        competition_ids: set[str],
+        prior: PriorResults | None,
+        senbatsu_ids: list[str],
     ) -> tuple[
         dict[str, list[str]],
         dict[str, list[str]],
@@ -434,6 +447,8 @@ class LiveSeasonGraphPlanner:
                 self.year,
                 self.rng_seed,
             )
+            if prior is None
+            else ({}, {})
         )
         direct: dict[str, list[str]] = {}
         bypass: dict[str, list[str]] = {}
@@ -449,7 +464,10 @@ class LiveSeasonGraphPlanner:
                 "source_competition_id_2026",
                 "",
             )
-            if offset == 0 and source_id:
+            if (
+                offset == 0
+                and source_id in competition_ids
+            ):
                 continue
 
             destination = rule[
@@ -467,7 +485,32 @@ class LiveSeasonGraphPlanner:
             resolution_source = ""
             notes = ""
 
-            if (
+            if prior is not None and (
+                offset == -1
+                or kind == INVITATIONAL_TYPE
+            ):
+                ids, resolution_source, notes = (
+                    self._prior_results_ids(
+                        prior,
+                        rule,
+                    )
+                )
+            elif (
+                offset == 0
+                and kind == INVITATIONAL_TYPE
+            ):
+                ids = [
+                    school_id
+                    for school_id in senbatsu_ids
+                    if self.repo.schools[school_id].get(
+                        "prefecture_code"
+                    )
+                    == pcode
+                ]
+                resolution_source = (
+                    "prior_year_structural_bootstrap"
+                )
+            elif (
                 offset == -1
                 and kind
                 == "autumn_prefectural"
@@ -548,6 +591,9 @@ class LiveSeasonGraphPlanner:
                 or rule.get("quota")
                 or 0
             )
+            if rule.get("quota_mode") == "all_matches":
+                # 対象校すべてに適用する。人数は前の年度の結果で変わる。
+                expected = len(ids)
             if expected and len(ids) > expected:
                 ids = ids[:expected]
             status = (
@@ -628,6 +674,57 @@ class LiveSeasonGraphPlanner:
             resolutions,
             warnings,
         )
+
+    def _prior_invitational_entrants(
+        self,
+        prior: PriorResults | None,
+    ) -> list[str]:
+        if prior is not None:
+            return [
+                school_id
+                for school_id, _
+                in prior.senbatsu_entrants
+            ]
+        return list(
+            self.orchestrator
+            ._bootstrap_senbatsu_participants(
+                self.year - 1,
+                self.rng_seed,
+            )
+        )
+
+    @staticmethod
+    def _prior_results_ids(
+        prior: PriorResults,
+        rule: Mapping[str, str],
+    ) -> tuple[list[str], str, str]:
+        if (
+            rule.get("source_event_kind")
+            == INVITATIONAL_TYPE
+        ):
+            return (
+                prior.senbatsu_entrants_from(
+                    rule.get(
+                        "destination_prefecture_code",
+                        "",
+                    )
+                ),
+                "initial_state_actual",
+                "",
+            )
+        ids = prior.school_ids_by_rule.get(
+            rule["access_rule_id"]
+        )
+        if ids is None:
+            return (
+                [],
+                "",
+                (
+                    "initial_state prior_results has "
+                    "no rows for this rule"
+                ),
+            )
+        return list(ids), "initial_state_actual", ""
 
     @staticmethod
     def _topological_order(
@@ -714,7 +811,12 @@ class LiveSeasonGraphPlanner:
             row["competition_id"]: row
             for row in competitions
         }
-        calendar_rows = self._calendar_rows()
+        calendar_rows = [
+            row
+            for row in self._calendar_rows()
+            if row["competition_id"]
+            in competition_by_id
+        ]
         calendar_by_comp = {
             row["competition_id"]: row
             for row in calendar_rows
@@ -732,6 +834,17 @@ class LiveSeasonGraphPlanner:
         access_rules = (
             self._effective_access_rules()
         )
+        # 前の年度の結果（前年秋・3月の選抜）。最初の年度は実際の結果を使い、
+        # データがない年度はルールの範囲内でランダムに決める。
+        prior = load_prior_results(
+            self.data_dir,
+            self.year,
+        )
+        prior_invitational = (
+            self._prior_invitational_entrants(prior)
+        )
+        # 同じ年度の大会どうしのつながり。前の年度の大会（3月の選抜など）
+        # からのルールは、外部の結果として _external_access_bootstrap で解決する。
         same_year_access = [
             rule
             for rule in access_rules
@@ -744,6 +857,7 @@ class LiveSeasonGraphPlanner:
                 and rule.get(
                     "source_competition_id_2026"
                 )
+                in competition_by_id
             )
         ]
         qualification_rules = (
@@ -809,7 +923,8 @@ class LiveSeasonGraphPlanner:
                 "source_competition_id",
                 "",
             )
-            if source:
+            # 前の年度の大会（3月の選抜）は計画に入らないので辺を作らない。
+            if source in competition_by_id:
                 edges.append((
                     source,
                     rule[
@@ -824,7 +939,10 @@ class LiveSeasonGraphPlanner:
             external_resolutions,
             external_warnings,
         ) = self._external_access_bootstrap(
-            access_rules
+            access_rules,
+            set(competition_by_id),
+            prior,
+            prior_invitational,
         )
 
         pref_index = self._read(
@@ -834,14 +952,6 @@ class LiveSeasonGraphPlanner:
             row["competition_id"]
             for row in pref_index
         }
-
-        senbatsu_ids = (
-            self.orchestrator
-            ._bootstrap_senbatsu_participants(
-                self.year,
-                self.rng_seed,
-            )
-        )
 
         templates: dict[
             str,
@@ -900,7 +1010,7 @@ class LiveSeasonGraphPlanner:
             )
             seed = self._seed(cid)
 
-            if ctype == "national_invitational":
+            if ctype == INVITATIONAL_TYPE:
                 strategy = (
                     STRATEGY_SENBATSU_BOOTSTRAP
                 )
@@ -908,7 +1018,11 @@ class LiveSeasonGraphPlanner:
                     competition_id=cid,
                     year=self.year,
                     entrant_school_ids=list(
-                        senbatsu_ids
+                        self.orchestrator
+                        ._bootstrap_senbatsu_participants(
+                            self.year,
+                            self.rng_seed,
+                        )
                     ),
                     rng_seed=seed,
                 )
@@ -1003,6 +1117,7 @@ class LiveSeasonGraphPlanner:
                         if rule.get(
                             "source_competition_id"
                         )
+                        in competition_by_id
                     ]
                 )
             )
@@ -1074,6 +1189,9 @@ class LiveSeasonGraphPlanner:
             topological_order=order,
             external_bootstrap_resolutions=(
                 external_resolutions
+            ),
+            prior_invitational_entrant_ids=tuple(
+                prior_invitational
             ),
             warnings=warnings,
         )

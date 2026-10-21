@@ -14,6 +14,7 @@ from pathlib import Path
 from .live_season_planner import LiveSeasonGraphPlan
 from .paths import resolve_data_file
 from .repository import DataRepository
+from .school_year import competition_school_year
 
 
 EXPECTED_PREFECTURES = tuple(f"{i:02d}" for i in range(1, 48))
@@ -62,7 +63,7 @@ def audit_national_competition_inputs(
 
     catalog = {
         cid: c for cid, c in repo.competitions.items()
-        if c.get("reference_year") == "2026"
+        if competition_school_year(c) == plan.year
     }
     calendar_ids = [row["competition_id"] for row in plan.calendar_rows]
     if len(calendar_ids) != len(set(calendar_ids)):
