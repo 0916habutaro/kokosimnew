@@ -10,9 +10,10 @@ from phase2_engine import (
     PLAN_QUALIFICATION,
     PLAN_REGIONAL_FEEDER,
     PLAN_ROOT,
+    PLAN_SELECTION,
     STRATEGY_DEFERRED_STRUCTURAL,
     STRATEGY_DEPENDENCY_AGGREGATE,
-    STRATEGY_SENBATSU_BOOTSTRAP,
+    STRATEGY_SENBATSU_SELECTION,
     STRATEGY_STRUCTURAL,
     STRATEGY_SUMMER_AREA,
 )
@@ -68,14 +69,14 @@ class Stage13E3D3FullSeasonPlannerTests(
             summary["topological_count"],
         )
         self.assertEqual(
-            160,
+            170,
             summary["dependency_edge_count"],
         )
         self.assertEqual(
             {
                 STRATEGY_DEFERRED_STRUCTURAL: 9,
                 STRATEGY_DEPENDENCY_AGGREGATE: 18,
-                STRATEGY_SENBATSU_BOOTSTRAP: 1,
+                STRATEGY_SENBATSU_SELECTION: 1,
                 STRATEGY_STRUCTURAL: 85,
                 STRATEGY_SUMMER_AREA: 49,
             },
@@ -86,7 +87,8 @@ class Stage13E3D3FullSeasonPlannerTests(
                 PLAN_ACCESS: 9,
                 PLAN_QUALIFICATION: 2,
                 PLAN_REGIONAL_FEEDER: 16,
-                PLAN_ROOT: 135,
+                PLAN_ROOT: 134,
+                PLAN_SELECTION: 1,
             },
             summary[
                 "dependency_family_counts"
@@ -298,7 +300,7 @@ class Stage13E3D3FullSeasonPlannerTests(
             regional.entrant_school_ids,
         )
 
-    def test_full_plan_builds_runtime_with_135_roots_and_27_waiting_destinations(
+    def test_full_plan_builds_runtime_with_134_roots_and_28_waiting_destinations(
         self,
     ):
         state = self.plan.build_runtime()
@@ -311,15 +313,15 @@ class Stage13E3D3FullSeasonPlannerTests(
             ],
         )
         self.assertEqual(
-            135,
+            134,
             summary["active_runtime_count"],
         )
         # March spring competitions finish before the April start.
         self.assertEqual(
             {
-                "active": 124,
+                "active": 123,
                 "completed": 11,
-                "waiting_dependencies": 27,
+                "waiting_dependencies": 28,
             },
             summary["status_counts"],
         )
@@ -331,8 +333,8 @@ class Stage13E3D3FullSeasonPlannerTests(
             "CMP000016",
             state.competitions,
         )
-        # 2027年3月の第99回選抜
-        self.assertIn(
+        # 2027年3月の第99回選抜は、秋季地区大会の後に出場校を選ぶ
+        self.assertNotIn(
             "CMP000001",
             state.competitions,
         )

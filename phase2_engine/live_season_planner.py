@@ -17,6 +17,7 @@ from .repository import DataRepository
 from .school_year import (
     INVITATIONAL_TYPE,
 )
+from .senbatsu_selection import selection_region_ids
 from .season_catalog import (
     TEMPLATE_YEAR,
     SeasonCompetition,
@@ -40,8 +41,9 @@ PLAN_ACCESS = "access"
 PLAN_QUALIFICATION = "qualification"
 PLAN_REGIONAL_FEEDER = "regional_feeder"
 PLAN_OVERLAP = "overlap"
+PLAN_SELECTION = "selection"
 
-STRATEGY_SENBATSU_BOOTSTRAP = "senbatsu_bootstrap"
+STRATEGY_SENBATSU_SELECTION = "senbatsu_selection"
 STRATEGY_SUMMER_AREA = "summer_area"
 STRATEGY_STRUCTURAL = "structural"
 STRATEGY_DEFERRED_STRUCTURAL = "deferred_structural"
@@ -732,6 +734,31 @@ class LiveSeasonGraphPlanner:
             warnings,
         )
 
+    def _selection_sources(
+        self,
+        competition_ids: set[str],
+    ) -> dict[str, list[str]]:
+        """選抜 → 選考に使う秋季地区大会。"""
+        rules: dict[str, list[dict]] = {}
+        for row in self._read("selection_rules.csv"):
+            destination = row["destination_competition_id"]
+            if destination in competition_ids:
+                rules.setdefault(destination, []).append(row)
+        regionals = {
+            row.get("region_id"): cid
+            for cid, row in self.repo.competitions.items()
+            if row.get("competition_type") == "autumn_regional"
+            and cid in competition_ids
+        }
+        return {
+            destination: [
+                regionals[region]
+                for region in selection_region_ids(rows)
+                if region in regionals
+            ]
+            for destination, rows in rules.items()
+        }
+
     def _prior_invitational_entrants(
         self,
         prior: PriorResults | None,
@@ -1018,6 +1045,14 @@ class LiveSeasonGraphPlanner:
                         "destination_competition_id"
                     ],
                 ))
+        # 選抜は秋季地区大会の結果から選ぶ
+        selection_sources = self._selection_sources(
+            set(competition_by_id)
+        )
+        for destination, sources in selection_sources.items():
+            edges.extend(
+                (source, destination) for source in sources
+            )
         edges = sorted(set(edges))
 
         (
@@ -1071,10 +1106,12 @@ class LiveSeasonGraphPlanner:
                 cid,
                 [],
             )
+            selection = selection_sources.get(cid, [])
             family_count = sum([
                 bool(access),
                 bool(qualification),
                 bool(feeders),
+                bool(selection),
             ])
             if family_count > 1:
                 family = PLAN_OVERLAP
@@ -1084,6 +1121,8 @@ class LiveSeasonGraphPlanner:
                 family = PLAN_QUALIFICATION
             elif feeders:
                 family = PLAN_REGIONAL_FEEDER
+            elif selection:
+                family = PLAN_SELECTION
             else:
                 family = PLAN_ROOT
 
@@ -1099,23 +1138,13 @@ class LiveSeasonGraphPlanner:
 
             if ctype == INVITATIONAL_TYPE:
                 strategy = (
-                    STRATEGY_SENBATSU_BOOTSTRAP
+                    STRATEGY_SENBATSU_SELECTION
                 )
+                # 出場校は秋季地区大会が終わってから選ぶ
                 annual = AnnualCompetitionInput(
                     competition_id=cid,
                     year=self.year,
-                    # 秋の結果からの選考は §8 の4で入れる。
-                    # それまではルールの範囲内でランダム。
-                    entrant_school_ids=list(
-                        self.orchestrator
-                        ._bootstrap_senbatsu_participants(
-                            self.rules_year,
-                            SeasonOrchestrator._seed(
-                                self.rng_seed,
-                                f"{self.year}:senbatsu",
-                            ),
-                        )
-                    ),
+                    entrant_school_ids=[],
                     rng_seed=seed,
                 )
             elif (
@@ -1217,6 +1246,7 @@ class LiveSeasonGraphPlanner:
                             cid,
                         )
                     ]
+                    + list(selection)
                 )
             )
             calendar = calendar_by_comp[cid]

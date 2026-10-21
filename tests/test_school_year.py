@@ -66,9 +66,11 @@ class SchoolYearRuntimeTests(unittest.TestCase):
             for key in state.completed_results()
             if "CMP000001" in key
         ])
+        # 出場校は秋季地区大会の後に選ぶので、まだ始まっていない
+        self.assertNotIn("CMP000001", state.competitions)
         self.assertTrue(
-            state.competitions["CMP000001"]
-            .next_scheduled_date().startswith("2027-03")
+            state.calendar_rows["CMP000001"]["start_date"]
+            .startswith("2027-03")
         )
         prestart_dates = [
             item["date"]

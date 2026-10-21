@@ -74,6 +74,18 @@ class CareerOverlapTests(unittest.TestCase):
         self.assertTrue(senbatsu)
         self.assertTrue(all(r["match_date"].startswith("2027-03") for r in senbatsu))
 
+    def test_senbatsu_is_selected_from_autumn_regionals(self):
+        state = self.overlap_seasons[2026]
+        entrants = state.competitions[
+            "CMP000001"
+        ].to_competition_run().entrant_school_ids
+        # 地区ごとの枠＋関東・東京の比較枠（21世紀枠はまだない）
+        self.assertEqual(30, len(entrants))
+        kinki = state.competitions[
+            "CMP000019"
+        ].to_competition_run().outcome.final_ranking_school_ids
+        self.assertTrue(set(kinki[:6]) <= set(entrants))
+
     def test_no_school_plays_two_competitions_on_one_day(self):
         days = _school_days(self.overlap_seasons)
         doubles = {key: games for key, games in days.items() if len(games) > 1}
