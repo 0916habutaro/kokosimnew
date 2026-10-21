@@ -5,7 +5,8 @@
 - 関東・東京の比較枠は、関東の次の順位の学校と東京の次の順位の学校から
   1校をくじで選ぶ
 - 21世紀枠はまだ選ばない（§8「21世紀枠は後で追加」）。その分、出場校は少ない
-- 神宮枠（``bonus_quota``）は、神宮大会を試合で行うまではデータのとおりの地区
+- 神宮枠（``bonus_quota`` の合計）は、その年の神宮大会で優勝した学校の地区に付ける。
+  地区ごとの枠は ``base_quota``
 """
 from __future__ import annotations
 
@@ -32,9 +33,12 @@ def select_invitational(
     rules: Sequence[Mapping[str, str]],
     rankings: Mapping[str, Sequence[str]],
     *,
+    jingu_region: str,
     rng_seed: int,
 ) -> list[str]:
-    """``rankings`` は地区 → 秋季地区大会の順位（優勝校が先頭）。"""
+    """``rankings`` は地区 → 秋季地区大会の順位（優勝校が先頭）。
+    ``jingu_region`` は神宮大会で優勝した学校の地区。"""
+    jingu_quota = sum(int(rule.get("bonus_quota") or 0) for rule in rules)
     selected: list[str] = []
     chosen: set[str] = set()
 
@@ -45,7 +49,9 @@ def select_invitational(
         region = rule.get("region_id", "")
         if not region:
             continue
-        quota = int(rule.get("total_quota") or 0)
+        quota = int(rule.get("base_quota") or 0)
+        if region == jingu_region:
+            quota += jingu_quota
         picks = next_ranked(region)[:quota]
         if len(picks) != quota:
             raise ValueError(
@@ -65,7 +71,7 @@ def select_invitational(
             )
             if ranked
         ]
-        quota = int(rule.get("total_quota") or 0)
+        quota = int(rule.get("base_quota") or 0)
         picks = shuffled(
             candidates, rng_seed, "senbatsu:kanto_tokyo_compare"
         )[:quota]

@@ -87,6 +87,16 @@ class CareerOverlapTests(unittest.TestCase):
             "CMP000019"
         ].to_competition_run().outcome.final_ranking_school_ids
         self.assertTrue(set(kinki[:6]) <= set(entrants))
+        # 神宮枠はその年の神宮大会の優勝校の地区に付く
+        jingu = state.competitions[
+            "CMP000003"
+        ].to_competition_run().outcome.final_ranking_school_ids
+        selection = next(
+            item for item in state.history
+            if item["action"] == "select_invitational"
+        )
+        self.assertEqual(jingu[0], selection["jingu_champion_school_id"])
+        self.assertIn(jingu[0], entrants)
 
     def test_next_spring_uses_previous_season_results(self):
         previous = self.overlap_seasons[2026]

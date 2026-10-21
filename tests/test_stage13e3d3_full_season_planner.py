@@ -69,7 +69,7 @@ class Stage13E3D3FullSeasonPlannerTests(
             summary["topological_count"],
         )
         self.assertEqual(
-            170,
+            171,
             summary["dependency_edge_count"],
         )
         self.assertEqual(

@@ -758,12 +758,21 @@ class LiveSeasonGraphPlanner:
             if row.get("competition_type") == "autumn_regional"
             and cid in competition_ids
         }
+        jingu = [
+            cid
+            for cid, row in self.repo.competitions.items()
+            if row.get("competition_type")
+            == "national_autumn_championship"
+            and cid in competition_ids
+        ]
+        # 神宮枠はその年の神宮大会の優勝校の地区に付ける
         return {
             destination: [
                 regionals[region]
                 for region in selection_region_ids(rows)
                 if region in regionals
             ]
+            + jingu
             for destination, rows in rules.items()
         }
 

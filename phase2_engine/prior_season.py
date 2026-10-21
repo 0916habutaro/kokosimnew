@@ -75,11 +75,16 @@ def prior_results_from_season(state) -> PriorResults:
             regional_entrants.setdefault(
                 _school_prefecture(repo, school_id), []
             ).append(school_id)
+    senbatsu = invitational_entrants(state)
+    if not senbatsu:
+        raise ValueError(
+            f"{state.year}: invitational entrants are not selected yet"
+        )
     return PriorResults(
         year=state.year + 1,
         senbatsu_entrants=tuple(
             (school_id, _school_prefecture(repo, school_id))
-            for school_id in invitational_entrants(state)
+            for school_id in senbatsu
         ),
         autumn_prefectural_rankings=rankings,
         autumn_regional_entrants={

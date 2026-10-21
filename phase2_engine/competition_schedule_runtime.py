@@ -38,10 +38,22 @@ def _date_list(values: Iterable[str], label: str) -> list[str]:
 
 
 def _calendar_dates(calendar_row: Mapping[str, str]) -> list[str]:
-    return _date_list(
+    dates = _date_list(
         (calendar_row.get("game_date_list") or "").split(";"),
         "game_date_list",
     )
+    if dates or not (
+        calendar_row.get("start_date") and calendar_row.get("end_date")
+    ):
+        return dates
+    # 試合ごとの日付を出典で確認できず開催期間だけが分かる大会（神宮大会）は、
+    # 開催期間の各日を試合日の候補にする。データには日付を書き足さない。
+    start = date.fromisoformat(calendar_row["start_date"])
+    end = date.fromisoformat(calendar_row["end_date"])
+    return [
+        (start + timedelta(days=offset)).isoformat()
+        for offset in range((end - start).days + 1)
+    ]
 
 
 @dataclass

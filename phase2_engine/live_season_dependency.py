@@ -39,6 +39,8 @@ DEPENDENCY_ACTIVE = "active"
 DEPENDENCY_COMPLETED = "completed"
 DEPENDENCY_BLOCKED = "blocked"
 DEPENDENCY_BLOCKED_DATE = "blocked_date_dependency"
+# 選抜の選考に使う大会のうち、神宮大会の印
+JINGU = "jingu"
 
 
 @dataclass(frozen=True)
@@ -689,10 +691,22 @@ class LiveSeasonDependencyRuntimeState:
             if row.get("competition_type") == "autumn_regional"
             and cid in self.annual_templates
         }
-        return {
+        sources = {
             region: regionals.get(region, "")
             for region in selection_region_ids(rules)
         }
+        # 神宮枠はその年の神宮大会の優勝校の地区に付ける
+        sources[JINGU] = next(
+            (
+                cid
+                for cid, row in self.repo.competitions.items()
+                if row.get("competition_type")
+                == "national_autumn_championship"
+                and cid in self.annual_templates
+            ),
+            "",
+        )
+        return sources
 
     def _dependency_family_count(
         self,
@@ -724,6 +738,20 @@ class LiveSeasonDependencyRuntimeState:
                 == str(rules_year(self.year))
             )
         }
+
+    def _autumn_region_of(self, school_id: str) -> str:
+        pcode = self.repo.schools[school_id].get("prefecture_code", "")
+        return next(
+            row["region_id"]
+            for row in self._read_csv(
+                self.repo.data_dir,
+                "prefecture_region_memberships.csv",
+            )
+            if row.get("prefecture_code") == pcode
+            and row.get("season_segment") == "autumn"
+            and row.get("effective_year")
+            == str(rules_year(self.year))
+        )
 
     def _initialize_statuses(self) -> None:
         for cid in self.annual_templates:
@@ -1587,17 +1615,22 @@ class LiveSeasonDependencyRuntimeState:
                 competition_id
             ).items()
         }
+        jingu_champion = rankings.pop(JINGU)[0]
+        jingu_region = self._autumn_region_of(jingu_champion)
         annual = deepcopy(
             self.annual_templates[competition_id]
         )
         annual.entrant_school_ids = select_invitational(
             self.selection_rules[competition_id],
             rankings,
+            jingu_region=jingu_region,
             rng_seed=annual.rng_seed,
         )
         self.history.append({
             "action": "select_invitational",
             "competition_id": competition_id,
+            "jingu_champion_school_id": jingu_champion,
+            "jingu_region_id": jingu_region,
             "entrant_school_ids": list(
                 annual.entrant_school_ids
             ),
