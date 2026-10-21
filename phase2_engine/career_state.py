@@ -20,7 +20,7 @@ from .school_year import school_year_end, school_year_of
 
 AUTUMN = "autumn"
 
-# (年度, 開く日, 学校ごとの試合の日) → (計画, 状態)
+# (年度, 開く日, 前の年度の状態) → (計画, 状態)
 SeasonOpener = Callable[[int, date, dict], tuple[object, object]]
 
 
@@ -128,10 +128,11 @@ class CareerState:
             return []
         if self.open_season is None:
             raise ValueError("career cannot open the next season")
-        # 前の年度と同じ「学校ごとの試合の日」を使い、3月の選抜と新しい
+        # 前の年度の結果（選抜の出場校・秋の上位校）を翌春の予選免除・
+        # シードに使い、「学校ごとの試合の日」を共有して3月の選抜と新しい
         # 年度の春季県大会が同じ学校で同じ日に重ならないようにする
         plan, state = self.open_season(
-            latest + 1, self.current_date, state.school_days,
+            latest + 1, self.current_date, state,
         )
         self.seasons[latest + 1] = state
         self.plans[latest + 1] = plan

@@ -13,6 +13,7 @@ import unittest
 
 from phase2_engine import DataRepository, LiveGameService
 from phase2_engine.career_state import CareerState, autumn_end
+from phase2_engine.prior_season import invitational_entrants
 
 
 DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
@@ -33,7 +34,7 @@ class CareerOverlapTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
-        repo = DataRepository(DATA_ROOT)
+        repo = cls.repo = DataRepository(DATA_ROOT)
         cls.service = LiveGameService(
             repo, DATA_ROOT, save_root=cls.tmp.name,
             autosave_after_action=False,
@@ -43,6 +44,7 @@ class CareerOverlapTests(unittest.TestCase):
         cls.autumn_end_2026 = autumn_end(cls.state.seasons[2026])
         cls.service.advance_through(cls.session, "2027-03-25")
         cls.overlap_seasons = dict(cls.state.seasons)
+        cls.overlap_plans = dict(cls.state.plans)
         cls.service.save_game(cls.session)
         cls.loaded = cls.service.load_game("career")
         cls.service.advance_through(cls.session, "2027-04-02")
@@ -86,6 +88,55 @@ class CareerOverlapTests(unittest.TestCase):
         ].to_competition_run().outcome.final_ranking_school_ids
         self.assertTrue(set(kinki[:6]) <= set(entrants))
 
+    def test_next_spring_uses_previous_season_results(self):
+        previous = self.overlap_seasons[2026]
+        senbatsu = set(invitational_entrants(previous))
+        plan = self.overlap_plans[2027]
+        prior = plan.prior_results
+        autumn_rankings = {
+            tuple(
+                scheduled.to_competition_run()
+                .outcome.final_ranking_school_ids
+            )
+            for cid, scheduled in previous.competitions.items()
+            if self.repo.competitions[cid]["competition_type"]
+            in ("autumn_prefectural", "autumn_regional")
+        }
+        for pcode, ranking in prior.autumn_prefectural_rankings.items():
+            self.assertIn(ranking, autumn_rankings)
+            self.assertEqual(
+                pcode, self.repo.schools[ranking[0]]["prefecture_code"]
+            )
+        rows = [
+            row for row in plan.external_bootstrap_resolutions
+            if row.source_event_kind in (
+                "national_invitational",
+                "autumn_prefectural",
+                "autumn_regional",
+            )
+        ]
+        self.assertTrue(rows)
+        for row in rows:
+            self.assertEqual("PASS", row.status, row.access_rule_id)
+            self.assertEqual(
+                "previous_season_result", row.resolution_source
+            )
+            if row.source_event_kind == "national_invitational":
+                self.assertTrue(set(row.resolved_school_ids) <= senbatsu)
+            if row.source_event_kind == "autumn_prefectural":
+                pcode = self.repo.competitions[
+                    row.destination_competition_id
+                ]["prefecture_code"]
+                ranking = prior.autumn_prefectural_rankings[pcode]
+                self.assertEqual(
+                    list(ranking[:len(row.resolved_school_ids)]),
+                    list(row.resolved_school_ids),
+                )
+        self.assertEqual(
+            sorted(senbatsu),
+            sorted(plan.prior_invitational_entrant_ids),
+        )
+
     def test_no_school_plays_two_competitions_on_one_day(self):
         days = _school_days(self.overlap_seasons)
         doubles = {key: games for key, games in days.items() if len(games) > 1}
@@ -111,6 +162,18 @@ class CareerOverlapTests(unittest.TestCase):
         self.assertEqual(
             self.state.seasons[2027].completed_results(),
             self.loaded.state.seasons[2027].completed_results(),
+        )
+
+    def test_save_after_previous_season_closed(self):
+        # 前の年度を閉じた後も、セーブに残した前の年度の結果から
+        # 同じ大会表をつくり直せる
+        self.service.save_game(self.loaded)
+        again = self.service.load_game("career")
+        self.assertEqual([2027], sorted(again.state.seasons))
+        self.assertIsNotNone(again.plan.prior_results)
+        self.assertEqual(
+            self.loaded.state.completed_results(),
+            again.state.completed_results(),
         )
 
 

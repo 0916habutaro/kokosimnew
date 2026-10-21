@@ -21,6 +21,46 @@ class PriorResults:
     school_ids_by_rule: dict[str, tuple[str, ...]] = field(
         default_factory=dict
     )
+    # 2年目からのゲーム内の結果（``prior_season.py``）。実際の結果は
+    # ルールごと（school_ids_by_rule）、ゲーム内の結果は大会の順位で持つ。
+    autumn_prefectural_rankings: dict[str, tuple[str, ...]] = field(
+        default_factory=dict
+    )
+    autumn_regional_entrants: dict[str, tuple[str, ...]] = field(
+        default_factory=dict
+    )
+
+    @property
+    def from_game(self) -> bool:
+        """ゲーム内の結果（実際の結果ではない）。"""
+        return bool(
+            self.autumn_prefectural_rankings or self.autumn_regional_entrants
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "year": self.year,
+            "senbatsu_entrants": [list(row) for row in self.senbatsu_entrants],
+            "school_ids_by_rule": _lists(self.school_ids_by_rule),
+            "autumn_prefectural_rankings": _lists(
+                self.autumn_prefectural_rankings
+            ),
+            "autumn_regional_entrants": _lists(self.autumn_regional_entrants),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "PriorResults":
+        return cls(
+            year=int(data["year"]),
+            senbatsu_entrants=tuple(
+                (row[0], row[1]) for row in data["senbatsu_entrants"]
+            ),
+            school_ids_by_rule=_tuples(data["school_ids_by_rule"]),
+            autumn_prefectural_rankings=_tuples(
+                data["autumn_prefectural_rankings"]
+            ),
+            autumn_regional_entrants=_tuples(data["autumn_regional_entrants"]),
+        )
 
     def senbatsu_entrants_from(self, prefecture_code: str) -> list[str]:
         return [
@@ -28,6 +68,14 @@ class PriorResults:
             for school_id, pcode in self.senbatsu_entrants
             if pcode == prefecture_code
         ]
+
+
+def _lists(mapping) -> dict[str, list[str]]:
+    return {key: list(ids) for key, ids in sorted(mapping.items())}
+
+
+def _tuples(mapping) -> dict[str, tuple[str, ...]]:
+    return {key: tuple(ids) for key, ids in mapping.items()}
 
 
 def prior_results_path(data_dir: str | Path, year: int) -> Path:

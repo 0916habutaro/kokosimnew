@@ -157,6 +157,12 @@ class LiveSeasonGraphPlan:
     ] = field(default_factory=list)
     # 前の年度の3月の選抜の出場校。この年度の春季大会の推薦・予選免除に使う。
     prior_invitational_entrant_ids: tuple[str, ...] = ()
+    # 前の年度のゲーム内の結果（2年目から）。セーブに書き、読込時に同じ
+    # 計画をつくり直すのに使う。最初の年度（実際の結果）は None。
+    prior_results: PriorResults | None = field(
+        default=None,
+        repr=False,
+    )
     warnings: list[str] = field(default_factory=list)
 
     def summary(self) -> dict:
@@ -333,11 +339,13 @@ class LiveSeasonGraphPlanner:
         rng_seed: int,
         *,
         year: int = 2026,
+        prior_results: PriorResults | None = None,
     ):
         self.repo = repo
         self.data_dir = Path(data_dir)
         self.rng_seed = rng_seed
         self.year = year
+        self.prior_results = prior_results
         self.rules_year = rules_year(year)
         self._season: dict[str, SeasonCompetition] | None = None
         self.factory = StructuralAnnualInputFactory(
@@ -759,6 +767,27 @@ class LiveSeasonGraphPlanner:
             for destination, rows in rules.items()
         }
 
+    @staticmethod
+    def _previous_season_ids(
+        prior: PriorResults,
+        rule: Mapping[str, str],
+    ) -> list[str] | None:
+        """前の年度のゲーム内の秋の結果から、ルールの対象校を選ぶ。"""
+        if not prior.from_game:
+            return None
+        kind = rule.get("source_event_kind")
+        pcode = rule.get("destination_prefecture_code", "")
+        if kind == "autumn_prefectural":
+            ranking = prior.autumn_prefectural_rankings.get(pcode)
+            if ranking is None:
+                return None
+            lo = int(rule.get("source_rank_from") or 1)
+            hi = int(rule.get("source_rank_to") or lo)
+            return list(ranking[lo - 1:hi])
+        if kind == "autumn_regional":
+            return list(prior.autumn_regional_entrants.get(pcode, ()))
+        return None
+
     def _prior_invitational_entrants(
         self,
         prior: PriorResults | None,
@@ -807,12 +836,23 @@ class LiveSeasonGraphPlanner:
                         "",
                     )
                 ),
-                "initial_state_actual",
+                (
+                    "previous_season_result"
+                    if prior.from_game
+                    else "initial_state_actual"
+                ),
                 "",
             )
         ids = prior.school_ids_by_rule.get(
             rule["access_rule_id"]
         )
+        if ids is None:
+            ids = LiveSeasonGraphPlanner._previous_season_ids(
+                prior,
+                rule,
+            )
+            if ids is not None:
+                return ids, "previous_season_result", ""
         if ids is None:
             return (
                 [],
@@ -934,7 +974,7 @@ class LiveSeasonGraphPlanner:
         )
         # 前の年度の結果（前年秋・3月の選抜）。最初の年度は実際の結果を使い、
         # データがない年度はルールの範囲内でランダムに決める。
-        prior = load_prior_results(
+        prior = self.prior_results or load_prior_results(
             self.data_dir,
             self.year,
         )
@@ -1340,5 +1380,6 @@ class LiveSeasonGraphPlanner:
             prior_invitational_entrant_ids=tuple(
                 prior_invitational
             ),
+            prior_results=self.prior_results,
             warnings=warnings,
         )

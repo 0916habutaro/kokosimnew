@@ -17,6 +17,8 @@ from .historical_match_archive import (
     expand_payload,
 )
 from .career_state import CareerState
+from .initial_state import PriorResults
+from .prior_season import prior_results_from_season
 from .school_year import in_school_year
 from .year_transition import require_year_end, year_end_readiness
 from .live_season_planner import (
@@ -627,6 +629,7 @@ class LiveGameService:
         rng_seed: int,
         *,
         year: int | None = None,
+        prior_results=None,
     ):
         target_year = (
             self.year
@@ -634,17 +637,23 @@ class LiveGameService:
             else int(year)
         )
         if self.planner_factory is not None:
+            extra = (
+                {"prior_results": prior_results}
+                if prior_results is not None else {}
+            )
             return self.planner_factory(
                 self.repo,
                 self.data_dir,
                 int(rng_seed),
                 target_year,
+                **extra,
             )
         return LiveSeasonGraphPlanner(
             self.repo,
             self.data_dir,
             int(rng_seed),
             year=target_year,
+            prior_results=prior_results,
         )
 
     def new_game(
@@ -722,9 +731,14 @@ class LiveGameService:
                 "save resolver contract differs "
                 "from game service"
             )
+        prior_by_year = {
+            int(year): PriorResults.from_dict(data)
+            for year, data in metadata["prior_results"].items()
+        }
         planner = self._planner(
             metadata["rng_seed"],
             year=metadata["year"],
+            prior_results=prior_by_year.get(metadata["year"]),
         )
         built = planner.build_plan()
         if self.career_persistence is not None:
@@ -750,6 +764,7 @@ class LiveGameService:
             ),
             planner_for_year=lambda year: self._planner(
                 rng_seed, year=year,
+                prior_results=prior_by_year.get(year),
             ),
             engine_for_plan=engine_for_plan,
         )
@@ -778,14 +793,18 @@ class LiveGameService:
     def _season_opener(self, rng_seed: int):
         """秋の大会の後に翌年度の大会表をつくって開く（年度の重なり）。"""
 
-        def open_season(year: int, day: date, school_days: dict):
-            plan = self._planner(rng_seed, year=year).build_plan()
+        def open_season(year: int, day: date, previous):
+            plan = self._planner(
+                rng_seed,
+                year=year,
+                prior_results=prior_results_from_season(previous),
+            ).build_plan()
             engine, season = self._engine(plan, None)
             state = plan.build_runtime(
                 engine=engine,
                 start_date=day.isoformat(),
                 open_before_school_year=True,
-                school_days=school_days,
+                school_days=previous.school_days,
             )
             if season is not None:
                 season.attach(state)
