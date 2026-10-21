@@ -15,6 +15,10 @@ import sys
 import unittest
 
 from phase2_engine.career_history_scale_audit import synthetic_ability_record
+from phase2_engine.historical_match_archive import (
+    compact_payload,
+    expand_payload,
+)
 from phase2_engine.career_player_records import BATTER, PITCHER
 from phase2_engine.career_roster_archive import CareerRosterArchive
 from phase2_engine.career_tokai_season_browse_model import (
@@ -203,7 +207,7 @@ class Stage43G58TokaiMultiYearTests(unittest.TestCase):
                 "WHERE year=2028 AND competition_id=? AND match_id=?",
                 (TOKAI, "REGIONAL-01"),
             ).fetchone()
-            game = json.loads(raw)
+            game = expand_payload(json.loads(raw))
             used = {
                 x["player_id"] for kind in ("batter_stats", "pitcher_stats")
                 for x in (game.get(kind) or [])
@@ -216,7 +220,7 @@ class Stage43G58TokaiMultiYearTests(unittest.TestCase):
             )
             forged["player_id"] = foreign_player
             changed = json.dumps(
-                game, ensure_ascii=False, sort_keys=True,
+                compact_payload(game), ensure_ascii=False, sort_keys=True,
                 separators=(",", ":"), allow_nan=False,
             )
             conn.execute(

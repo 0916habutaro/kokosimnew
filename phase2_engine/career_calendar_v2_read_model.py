@@ -16,6 +16,7 @@ from .career_calendar_v2 import (
 )
 from .career_option_a_storage_profile import _read_only
 from .career_era_calendar_contract import _year
+from .historical_match_archive import expand_payload
 
 MAX_PAGE = 100
 
@@ -63,7 +64,7 @@ class CareerCalendarV2MatchReadModel:
                         "archived A match checksum differs"
                     )
                 try:
-                    game = json.loads(raw)
+                    game = expand_payload(json.loads(raw))
                 except (TypeError, ValueError) as exc:
                     raise SandboxCalendarConflict(
                         "archived A match payload unreadable"

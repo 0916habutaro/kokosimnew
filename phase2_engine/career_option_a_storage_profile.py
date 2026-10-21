@@ -14,6 +14,8 @@ from pathlib import Path
 import sqlite3
 from statistics import median
 
+from .historical_match_archive import expand_payload
+
 FIELDS = ("inning_scores", "team_stats", "batter_stats", "pitcher_stats")
 SOURCE = "read_only_persisted_full_option_a_storage_breakdown"
 
@@ -111,7 +113,7 @@ def profile_option_a_storage(
             raw_bytes = raw.encode("utf-8")
             if hashlib.sha256(raw_bytes).hexdigest() != recorded_sha:
                 raise ValueError("stored full-A match digest mismatch")
-            value = json.loads(raw)
+            value = expand_payload(json.loads(raw))
             total = len(raw_bytes)
             sizes.append(total)
             records += 1

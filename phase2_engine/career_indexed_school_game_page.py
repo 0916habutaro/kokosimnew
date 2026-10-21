@@ -15,6 +15,7 @@ from pathlib import Path
 import sqlite3
 
 from .career_option_a_storage_profile import _read_only
+from .historical_match_archive import expand_payload
 
 
 class IndexedSchoolGamePageConflict(ValueError):
@@ -51,7 +52,7 @@ def _verified(row: sqlite3.Row, school_id: str) -> dict:
             or sha256(raw.encode("utf-8")).hexdigest() != row["record_sha256"]):
         raise IndexedSchoolGamePageConflict("saved match record digest differs")
     try:
-        value = json.loads(raw)
+        value = expand_payload(json.loads(raw))
     except (TypeError, ValueError) as exc:
         raise IndexedSchoolGamePageConflict("saved match payload invalid") from exc
     if (type(value) is not dict

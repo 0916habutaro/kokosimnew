@@ -67,6 +67,46 @@ def _canonical(value: object) -> str:
     )
 
 
+# 個人成績などの表は、列名を1回だけ書き行を配列で持つ（容量を小さくする）。
+# 読むときは expand_payload で元の「行ごとの dict」に戻す。中身は同じ。
+_TABLE_FIELDS = ("inning_scores", "team_stats", "batter_stats", "pitcher_stats")
+
+
+def _compact_table(rows):
+    if not isinstance(rows, list) or not rows:
+        return rows
+    columns = list(rows[0])
+    if any(not isinstance(row, dict) or list(row) != columns for row in rows):
+        return rows
+    return {
+        "columns": columns,
+        "rows": [[row[name] for name in columns] for row in rows],
+    }
+
+
+def _expand_table(value):
+    if isinstance(value, dict) and set(value) == {"columns", "rows"}:
+        return [dict(zip(value["columns"], row)) for row in value["rows"]]
+    return value
+
+
+def compact_payload(payload: Mapping[str, object]) -> dict:
+    out = dict(payload)
+    for name in _TABLE_FIELDS:
+        if name in out:
+            out[name] = _compact_table(out[name])
+    return out
+
+
+def expand_payload(payload: Mapping[str, object]) -> dict:
+    """履歴に保存した試合の記録を、行ごとの dict の表に戻す。"""
+    out = dict(payload)
+    for name in _TABLE_FIELDS:
+        if name in out:
+            out[name] = _expand_table(out[name])
+    return out
+
+
 def _digest(payload: str) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -442,7 +482,7 @@ class HistoricalMatchArchive:
             if key in seen:
                 raise ValueError(f"duplicate completed match: {key}")
             seen.add(key)
-            raw = _canonical(payload)
+            raw = _canonical(compact_payload(payload))
             normalized.append((key, payload, raw, _digest(raw)))
 
         with self._connection() as conn:
@@ -538,7 +578,7 @@ class HistoricalMatchArchive:
                    WHERE year=? AND competition_id=? AND match_id=?""",
                 (year, competition_id, match_id),
             ).fetchone()
-            return json.loads(row[0]) if row else None
+            return expand_payload(json.loads(row[0])) if row else None
 
     def list_matches(
         self, year: int, *, school_id: str = "",
@@ -562,4 +602,4 @@ class HistoricalMatchArchive:
                     LIMIT ? OFFSET ?""",
                 args,
             ).fetchall()
-            return [json.loads(row[0]) for row in rows]
+            return [expand_payload(json.loads(row[0])) for row in rows]

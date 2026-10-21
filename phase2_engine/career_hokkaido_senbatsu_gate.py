@@ -36,6 +36,7 @@ from .future_season_blueprint import build_future_season_blueprint
 from .historical_match_archive import HistoricalMatchArchive
 from .models import AnnualCompetitionInput, CompetitionRun
 from .repository import DataRepository
+from .historical_match_archive import expand_payload
 
 SENBATSU_ID = "CMP000001"
 SPRING_HOKKAIDO_ID = "CMP000004"
@@ -127,7 +128,7 @@ def certify_saved_senbatsu_hokkaido(
                     raise HokkaidoRecommendationNotReady(
                         "same-year Senbatsu match checksum changed"
                     )
-                game = json.loads(raw)
+                game = expand_payload(json.loads(raw))
                 match = expected[row["match_id"]]
                 if (game.get("year") != year
                         or game.get("competition_id") != SENBATSU_ID

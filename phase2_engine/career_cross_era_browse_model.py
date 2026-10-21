@@ -21,6 +21,7 @@ from .career_v2_option_a_archive import (
 )
 from .career_v2_roster_attribution import CareerV2RosterAttribution
 from .career_v2_player_stat_cache import CareerV2PlayerStatCache
+from .historical_match_archive import expand_payload
 
 
 class CareerCrossEraBrowseConflict(ValueError):
@@ -110,7 +111,7 @@ class CareerCrossEraBrowseModel:
                 raw = row["payload_json"]
                 if sha256(raw.encode("utf-8")).hexdigest() != row["record_sha256"]:
                     raise CareerCrossEraBrowseConflict("legacy match SHA changed")
-                game = json.loads(raw)
+                game = expand_payload(json.loads(raw))
                 if (game.get("competition_id"), game.get("match_id")) != (
                     row["competition_id"], row["match_id"]
                 ):
@@ -202,7 +203,7 @@ class CareerCrossEraBrowseModel:
                 raw = row["payload_json"]
                 if sha256(raw.encode("utf-8")).hexdigest() != row["record_sha256"]:
                     raise CareerCrossEraBrowseConflict("legacy match SHA changed")
-                game = json.loads(raw)
+                game = expand_payload(json.loads(raw))
                 if (game.get("year"), game.get("competition_id"),
                         game.get("match_id")) != (
                         row["year"], row["competition_id"], row["match_id"]):

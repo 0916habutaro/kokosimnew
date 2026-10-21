@@ -11,7 +11,11 @@ import sqlite3
 
 from .career_option_a_storage_profile import _read_only
 
-from .historical_match_archive import HistoricalMatchArchive, _history_payload
+from .historical_match_archive import (
+    HistoricalMatchArchive,
+    _history_payload,
+    expand_payload,
+)
 from .career_state import CareerState
 from .school_year import in_school_year
 from .year_transition import require_year_end, year_end_readiness
@@ -236,7 +240,7 @@ class InitialCareerPersistence:
                 stored = {}
                 for record in conn.execute('SELECT * FROM historical_matches'):
                     raw, digest = record['payload_json'], record['record_sha256']
-                    row = json.loads(raw)
+                    row = expand_payload(json.loads(raw))
                     if (hashlib.sha256(raw.encode()).hexdigest() != digest
                             or any(record[key] != row.get(key) for key in (
                                 'year', 'competition_id', 'match_id', 'match_date', 'date_source',
@@ -546,6 +550,10 @@ class Yamanashi33FixturePersistence(SharedSchoolYearPersistence):
             raise ValueError("33校fixtureの保存planが変更されています")
         self._check_input_version(plan)
         super().prepare(plan, engine, contract)
+
+
+# まとめて進めるときの自動セーブの間隔（日）
+CHECKPOINT_DAYS = 7
 
 
 class _BuiltPlanner:
@@ -1033,9 +1041,8 @@ class LiveGameService:
 
         A single save at the end of a multi-day advance loses every game
         simulated since the previous save if the process stops mid-jump.
-        Save the replayable JSON first and then sync the append-only history
-        after each day that actually completed a match. Calendar-only days
-        need no intermediate checkpoint. Explicit autosave=False retains
+        Save every CHECKPOINT_DAYS days (when games were played since the
+        last save) and once more at the end. Explicit autosave=False retains
         the caller's manual-save contract.
         """
         enabled = (
@@ -1068,15 +1075,22 @@ class LiveGameService:
         played_match_count = 0
         last_save = None
         checkpoint_date = None
+        unsaved_matches = 0
+        days_since_save = 0
         while session.state.current_date < target_date:
             step = session.state.next_day()
             self._close_finished_seasons(session)
             advanced_days += 1
+            days_since_save += 1
             new_matches = int(step["played_match_count"])
             played_match_count += new_matches
-            if new_matches:
+            unsaved_matches += new_matches
+            # まとめて進めるときは1週間ごとに自動セーブ（最後にもう1回）
+            if unsaved_matches and days_since_save >= CHECKPOINT_DAYS:
                 last_save = self.autosave_game(session)
                 checkpoint_date = session.state.current_date
+                unsaved_matches = 0
+                days_since_save = 0
 
         result = {
             "current_date": session.state.current_date.isoformat(),

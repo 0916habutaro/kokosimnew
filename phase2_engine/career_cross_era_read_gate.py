@@ -20,6 +20,7 @@ from .career_v2_option_a_archive import (
     CareerV2OptionAArchive, _calendar_info, _ledger as _v2_ledger,
 )
 from .historical_match_archive import HistoricalMatchArchive
+from .historical_match_archive import expand_payload
 
 CONTRACT = "career_legacy_v2_read_preflight_v1"
 
@@ -119,7 +120,7 @@ class CareerCrossEraReadGate:
                             raise CareerCrossEraConflict(
                                 "legacy Option-A match payload SHA differs"
                             )
-                        value = json.loads(raw)
+                        value = expand_payload(json.loads(raw))
                         if (value.get("year"), value.get("competition_id"),
                             value.get("match_id"), value.get("match_date")) != (
                             year, row["competition_id"], row["match_id"],
