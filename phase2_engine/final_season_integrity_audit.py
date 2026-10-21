@@ -14,6 +14,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from .school_year import competition_school_year
+
 
 def _rows(path: Path) -> list[dict[str, str]]:
     with path.open(encoding="utf-8-sig", newline="") as stream:
@@ -238,13 +240,18 @@ def build_final_season_integrity_report(
             if r.blocker_kind != "complete"
         )
         runtime_errors = []
-        if live_summary["competition_count"] != len(competitions):
+        # 実行するのはその年度に属する大会だけ（3月の選抜は前の年度）。
+        season_ids = {
+            r["competition_id"] for r in competitions
+            if competition_school_year(r) == year
+        }
+        if live_summary["competition_count"] != len(season_ids):
             runtime_errors.append("runtime and master competition totals differ")
         if live_summary["pending_stage_row_count"] != summary[
             "pending_pre_main_stage_count"
         ]:
             runtime_errors.append("runtime and CSV pending stages differ")
-        if live_summary["completed_competition_count"] + len(blocked_ids) != len(competitions):
+        if live_summary["completed_competition_count"] + len(blocked_ids) != len(season_ids):
             runtime_errors.append("completed and blocked counts differ")
         if set(blocked_ids) != set(blank_main):
             runtime_errors.append("runtime blocked IDs differ from blank MAIN calendars")
@@ -253,7 +260,7 @@ def build_final_season_integrity_report(
         if live_summary["dependency_wait_competition_count"] != 0:
             runtime_errors.append("upstream dependency still waiting")
         check("full_season_live_dependencies", runtime_errors,
-              f'{live_summary["completed_competition_count"]}/{len(competitions)} '
+              f'{live_summary["completed_competition_count"]}/{len(season_ids)} '
               'simulated competitions complete; no downstream waits')
         summary["simulated_completed_competition_count"] = (
             live_summary["completed_competition_count"]

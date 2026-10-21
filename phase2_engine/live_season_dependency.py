@@ -15,6 +15,7 @@ from .paths import resolve_data_file
 from .randomness import shuffled
 from .repository import DataRepository
 from .school_year import (
+    competition_school_year,
     in_school_year,
     school_year_end,
     school_year_start,
@@ -179,6 +180,8 @@ class LiveSeasonDependencyRuntimeState:
         str,
         dict[str, list[str]],
     ] = field(default_factory=dict, repr=False)
+    # 前の年度の3月の選抜の出場校（ゲーム内では試合をしない）。
+    prior_invitational_entrant_ids: tuple[str, ...] = ()
     dependency_rules: dict[str, list[dict]] = field(
         default_factory=dict,
         repr=False,
@@ -261,6 +264,9 @@ class LiveSeasonDependencyRuntimeState:
             ]
             | None
         ) = None,
+        prior_invitational_entrant_ids: (
+            Sequence[str]
+        ) = (),
     ) -> "LiveSeasonDependencyRuntimeState":
         if not annual_templates:
             raise ValueError(
@@ -384,6 +390,15 @@ class LiveSeasonDependencyRuntimeState:
                     "",
                 )
                 if not source:
+                    continue
+                # 前の年度の大会（3月の選抜）からのルールは、計画の段階で
+                # 前の年度の結果として解決済み。
+                if source in repo.competitions and (
+                    competition_school_year(
+                        repo.competitions[source]
+                    )
+                    != year
+                ):
                     continue
                 selected.append(dict(rule))
             selected.sort(
@@ -526,6 +541,9 @@ class LiveSeasonDependencyRuntimeState:
             structural_factory=structural_factory,
             calendar_rows=calendar_by_comp,
             stage_date_lists=stage_dates,
+            prior_invitational_entrant_ids=tuple(
+                prior_invitational_entrant_ids
+            ),
             dependency_rules=rules,
             qualification_rules=qualification_rules,
             regional_feeder_rules=regional_feeder_rules,
@@ -589,8 +607,24 @@ class LiveSeasonDependencyRuntimeState:
                 [],
             )
             if rule.get("source_competition_id")
+            and not self._is_prior_year_source(
+                rule["source_competition_id"]
+            )
         )
         return list(dict.fromkeys(sources))
+
+    def _is_prior_year_source(
+        self,
+        competition_id: str,
+    ) -> bool:
+        competition = self.repo.competitions.get(
+            competition_id
+        )
+        return (
+            competition is not None
+            and competition_school_year(competition)
+            < self.year
+        )
 
     def _dependency_family_count(
         self,
@@ -1181,7 +1215,39 @@ class LiveSeasonDependencyRuntimeState:
             notes = ""
 
             scheduled = self.competitions.get(source_id)
-            if scheduled is None or not scheduled.is_complete:
+            prior_year_source = self._is_prior_year_source(
+                source_id
+            )
+            if (
+                prior_year_source
+                and source_type
+                == "national_invitational_participants"
+                and selector
+                == "participants_from_region"
+            ):
+                pref_codes = (
+                    self._region_prefecture_codes(
+                        rule.get(
+                            "source_region_filter",
+                            "",
+                        )
+                    )
+                )
+                ids = [
+                    school_id
+                    for school_id
+                    in self.prior_invitational_entrant_ids
+                    if self.repo.schools.get(
+                        school_id,
+                        {},
+                    ).get("prefecture_code")
+                    in pref_codes
+                ][:quota]
+                notes = (
+                    "prior school year invitational "
+                    "entrants filtered by regional membership"
+                )
+            elif scheduled is None or not scheduled.is_complete:
                 notes = "source competition not complete"
             elif (
                 source_type

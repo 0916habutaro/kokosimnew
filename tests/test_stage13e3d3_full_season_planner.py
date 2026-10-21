@@ -12,7 +12,6 @@ from phase2_engine import (
     PLAN_ROOT,
     STRATEGY_DEFERRED_STRUCTURAL,
     STRATEGY_DEPENDENCY_AGGREGATE,
-    STRATEGY_SENBATSU_BOOTSTRAP,
     STRATEGY_STRUCTURAL,
     STRATEGY_SUMMER_AREA,
 )
@@ -37,47 +36,48 @@ class Stage13E3D3FullSeasonPlannerTests(
         )
         cls.plan = cls.planner.build_plan()
 
-    def test_plan_covers_all_162_competitions(
+    def test_plan_covers_all_161_competitions(
         self,
     ):
         summary = self.plan.summary()
 
+        # 2026年3月の選抜は2025年度の大会なので、2026年度の計画に入らない。
+        self.assertNotIn("CMP000001", self.plan.entries)
         self.assertEqual(
-            162,
+            161,
             summary["competition_count"],
         )
         self.assertEqual(
-            162,
+            161,
             summary["template_count"],
         )
         self.assertEqual(
-            162,
+            161,
             summary["calendar_count"],
         )
         self.assertEqual(
-            162,
+            161,
             summary["topological_count"],
         )
         self.assertEqual(
-            166,
+            160,
             summary["dependency_edge_count"],
         )
         self.assertEqual(
             {
-                STRATEGY_DEFERRED_STRUCTURAL: 14,
+                STRATEGY_DEFERRED_STRUCTURAL: 9,
                 STRATEGY_DEPENDENCY_AGGREGATE: 18,
-                STRATEGY_SENBATSU_BOOTSTRAP: 1,
-                STRATEGY_STRUCTURAL: 80,
+                STRATEGY_STRUCTURAL: 85,
                 STRATEGY_SUMMER_AREA: 49,
             },
             summary["strategy_counts"],
         )
         self.assertEqual(
             {
-                PLAN_ACCESS: 14,
+                PLAN_ACCESS: 9,
                 PLAN_QUALIFICATION: 2,
                 PLAN_REGIONAL_FEEDER: 16,
-                PLAN_ROOT: 130,
+                PLAN_ROOT: 134,
             },
             summary[
                 "dependency_family_counts"
@@ -86,7 +86,7 @@ class Stage13E3D3FullSeasonPlannerTests(
         self.assertEqual(
             {
                 "autumn": 56,
-                "spring": 56,
+                "spring": 55,
                 "summer": 50,
             },
             summary["season_segment_counts"],
@@ -136,14 +136,15 @@ class Stage13E3D3FullSeasonPlannerTests(
         self,
     ):
         summary = self.plan.summary()
+        # 前年秋の7件・前の年度の選抜の5件・新人戦の1件
         self.assertEqual(
-            8,
+            13,
             summary[
                 "external_bootstrap_count"
             ],
         )
         self.assertEqual(
-            8,
+            13,
             summary[
                 "external_bootstrap_pass_count"
             ],
@@ -230,36 +231,33 @@ class Stage13E3D3FullSeasonPlannerTests(
         hokkaido_spring = (
             self.plan.entries["CMP000004"]
         )
+        # 前の年度の選抜の出場校は、計画の段階で直接出場として入る。
         self.assertEqual(
-            STRATEGY_DEFERRED_STRUCTURAL,
+            STRATEGY_STRUCTURAL,
             hokkaido_spring.strategy,
         )
         self.assertEqual(
-            ("CMP000001",),
+            (),
             hokkaido_spring
             .dependency_source_competition_ids,
+        )
+        self.assertEqual(
+            1,
+            len(
+                self.plan.annual_templates[
+                    "CMP000004"
+                ].direct_main_entry_school_ids
+            ),
         )
 
     def test_root_templates_are_generated_without_manual_annual_inputs(
         self,
     ):
-        senbatsu = self.plan.annual_templates[
-            "CMP000001"
-        ]
-        self.assertEqual(
-            STRATEGY_SENBATSU_BOOTSTRAP,
-            self.plan.entries[
-                "CMP000001"
-            ].strategy,
-        )
-        self.assertEqual(
-            32,
-            len(senbatsu.entrant_school_ids),
-        )
         self.assertEqual(
             32,
             len(set(
-                senbatsu.entrant_school_ids
+                self.plan
+                .prior_invitational_entrant_ids
             )),
         )
 
@@ -291,27 +289,27 @@ class Stage13E3D3FullSeasonPlannerTests(
             regional.entrant_school_ids,
         )
 
-    def test_full_plan_builds_runtime_with_135_roots_and_27_waiting_destinations(
+    def test_full_plan_builds_runtime_with_134_roots_and_27_waiting_destinations(
         self,
     ):
         state = self.plan.build_runtime()
         summary = state.summary()
 
         self.assertEqual(
-            162,
+            161,
             summary[
                 "template_competition_count"
             ],
         )
         self.assertEqual(
-            135,
+            134,
             summary["active_runtime_count"],
         )
-        # March competitions (e.g. Senbatsu) finish before the April start.
+        # March spring competitions finish before the April start.
         self.assertEqual(
             {
                 "active": 123,
-                "completed": 12,
+                "completed": 11,
                 "waiting_dependencies": 27,
             },
             summary["status_counts"],
@@ -324,7 +322,7 @@ class Stage13E3D3FullSeasonPlannerTests(
             "CMP000016",
             state.competitions,
         )
-        self.assertIn(
+        self.assertNotIn(
             "CMP000001",
             state.competitions,
         )
@@ -332,8 +330,8 @@ class Stage13E3D3FullSeasonPlannerTests(
             "CMP000034",
             state.competitions,
         )
-        # The spring access benefit depends on Senbatsu participants,
-        # not on the tournament winner or its completion date.
+        # The spring access benefit uses the previous school year's
+        # Senbatsu participants, which are known before the season.
         self.assertIn(
             "CMP000113",
             state.competitions,
