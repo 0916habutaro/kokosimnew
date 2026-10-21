@@ -21,8 +21,10 @@ KANTO_TOKYO_SCOPE = "関東・東京"
 KANTO_REGION = "REG03"
 TOKYO_REGION = "REG04"
 CENTURY_METHOD = "21st_century_selection"
-# 公立校（data/master/schools.csv の ownership_type）
-PUBLIC_OWNERSHIP_TYPES = frozenset({"prefectural", "municipal"})
+# 公立校（data/master/schools.csv の ownership_type）。公立大学法人の附属校も公立
+PUBLIC_OWNERSHIP_TYPES = frozenset(
+    {"prefectural", "municipal", "public_university_corporation"}
+)
 # 21世紀枠の候補になる秋の県大会の順位（ベスト8以上）
 CENTURY_TOP_N = 8
 
