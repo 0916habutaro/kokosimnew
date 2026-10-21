@@ -246,7 +246,13 @@ def build_final_season_integrity_report(
             runtime_errors.append("runtime and CSV pending stages differ")
         if live_summary["completed_competition_count"] + len(blocked_ids) != len(competitions):
             runtime_errors.append("completed and blocked counts differ")
-        if set(blocked_ids) != set(blank_main):
+        # 試合日の一覧がなくても開催期間が分かる大会は、その期間で試合をする
+        unplayable = {
+            r["competition_id"] for r in main
+            if not r["game_date_list"]
+            and not (r.get("start_date") and r.get("end_date"))
+        }
+        if set(blocked_ids) != unplayable:
             runtime_errors.append("runtime blocked IDs differ from blank MAIN calendars")
         if live_summary["unique_downstream_blocked_competition_count"] != 0:
             runtime_errors.append("downstream dependency still blocked")

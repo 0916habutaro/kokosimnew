@@ -183,9 +183,11 @@ class GeneratedSeasonPlanTests(unittest.TestCase):
         self.assertEqual(date(2027, 4, 1), state.start_date)
         self.assertEqual(2027, state.year)
         # 2027年度の選抜は2028年3月に行う
+        # 出場校は秋季地区大会の後に選ぶので、まだ始まっていない
+        self.assertNotIn("CMP000001", state.competitions)
         self.assertTrue(
-            state.competitions["CMP000001"]
-            .next_scheduled_date().startswith("2028-03")
+            state.calendar_rows["CMP000001"]["start_date"]
+            .startswith("2028-03")
         )
         self.assertGreater(len(state.competitions), 100)
 

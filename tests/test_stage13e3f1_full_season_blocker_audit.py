@@ -8,7 +8,6 @@ import unittest
 
 from phase2_engine import (
     ACTION_FIX_DEPENDENCY,
-    ACTION_REVIEW_STRUCTURE,
     ACTION_VERIFY_STAGE_DATES,
     BLOCKER_BLOCKED,
     BLOCKER_CALENDAR_GAP,
@@ -16,7 +15,6 @@ from phase2_engine import (
     BLOCKER_WAITING_DEPENDENCY,
     DataRepository,
     LiveSeasonGraphPlanner,
-    ORIGIN_CALENDAR_WITHOUT_STAGE,
     ORIGIN_DEPENDENCY_RESOLUTION,
     ORIGIN_PENDING_STAGE_CALENDAR,
     ORIGIN_UPSTREAM_DEPENDENCY,
@@ -62,29 +60,27 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             162,
             summary["competition_count"],
         )
+        # 神宮大会も開催期間の各日を試合日の候補にして行うので、全大会が終わる
         self.assertEqual(
-            161,
+            162,
             summary[
                 "completed_competition_count"
             ],
         )
         self.assertEqual(
-            1,
+            0,
             summary[
                 "blocked_competition_count"
             ],
         )
         self.assertEqual(
             {
-                BLOCKER_CALENDAR_GAP: 1,
-                BLOCKER_COMPLETE: 161,
+                BLOCKER_COMPLETE: 162,
             },
             summary["blocker_counts"],
         )
         self.assertEqual(
-            {
-                ORIGIN_CALENDAR_WITHOUT_STAGE: 1,
-            },
+            {},
             summary["blocker_origin_counts"],
         )
         self.assertEqual(
@@ -113,7 +109,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
         )
         self.assertEqual({}, summary["priority_counts"])
         self.assertEqual(
-            1,
+            0,
             summary[
                 "direct_calendar_gap_competition_count"
             ],
@@ -131,7 +127,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             ],
         )
         self.assertEqual(
-            ["CMP000003"],
+            [],
             summary[
                 "calendar_gap_without_pending_stage_competition_ids"
             ],
@@ -149,25 +145,21 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             ],
         )
         self.assertEqual(
-            ["CMP000003"],
+            [],
             summary[
                 "blocked_national_competition_ids"
             ],
         )
         self.assertEqual(
-            1,
+            0,
             summary["action_count"],
         )
         self.assertEqual(
-            {
-                ACTION_REVIEW_STRUCTURE: 1,
-            },
+            {},
             summary["action_counts"],
         )
         self.assertEqual(
-            {
-                PRIORITY_LOCAL: 1,
-            },
+            {},
             summary[
                 "action_priority_counts"
             ],
@@ -177,7 +169,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             10308,
         )
 
-    def test_waiting_dependency_set_matches_expected_regional_and_jingu_chain(
+    def test_no_competition_waits_on_dependencies(
         self,
     ):
         waiting = {
@@ -211,19 +203,11 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             == "CMP000003"
         )
         self.assertEqual(
-            BLOCKER_CALENDAR_GAP,
+            BLOCKER_COMPLETE,
             jingu.blocker_kind,
         )
         self.assertEqual(
-            ORIGIN_CALENDAR_WITHOUT_STAGE,
-            jingu.blocker_origin,
-        )
-        self.assertEqual(
-            (),
-            jingu.unresolved_source_competition_ids,
-        )
-        self.assertEqual(
-            2,
+            0,
             jingu.calendar_gap_count,
         )
 
@@ -291,7 +275,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
                 blocker.resolution_failures
             )
 
-    def test_non_stage_calendar_gap_and_access_failures_are_separate_actions(
+    def test_jingu_and_access_destinations_complete_without_actions(
         self,
     ):
         by_comp = {
@@ -308,20 +292,12 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
 
         jingu = by_comp["CMP000003"]
         self.assertEqual(
-            BLOCKER_CALENDAR_GAP,
+            BLOCKER_COMPLETE,
             jingu.blocker_kind,
-        )
-        self.assertEqual(
-            ORIGIN_CALENDAR_WITHOUT_STAGE,
-            jingu.blocker_origin,
         )
         self.assertEqual(
             (),
             jingu.pending_stage_ids,
-        )
-        self.assertEqual(
-            2,
-            jingu.calendar_gap_count,
         )
 
         kanagawa = by_comp["CMP000095"]
@@ -335,18 +311,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             row.action_id: row
             for row in self.audit.action_rows
         }
-        self.assertEqual(
-            ACTION_REVIEW_STRUCTURE,
-            action_by_id[
-                "structure:CMP000003"
-            ].action_type,
-        )
-        self.assertEqual(
-            PRIORITY_LOCAL,
-            action_by_id[
-                "structure:CMP000003"
-            ].priority_tier,
-        )
+        self.assertNotIn("structure:CMP000003", action_by_id)
         self.assertNotIn("dependency:CMP000095", action_by_id)
         self.assertNotIn("dependency:CMP000113", action_by_id)
 
@@ -389,19 +354,9 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             for row in p1
         ))
         self.assertEqual([], self.audit.stage_priority_rows)
+        self.assertEqual([], self.audit.action_rows)
 
-        action_by_id = {
-            row.action_id: row
-            for row in self.audit.action_rows
-        }
-        self.assertEqual(
-            PRIORITY_LOCAL,
-            action_by_id[
-                "structure:CMP000003"
-            ].priority_tier,
-        )
-
-    def test_national_championships_show_summer_complete_and_jingu_blocked(
+    def test_national_championships_are_complete(
         self,
     ):
         by_comp = {
@@ -422,7 +377,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             ].blocker_kind,
         )
         self.assertEqual(
-            BLOCKER_CALENDAR_GAP,
+            BLOCKER_COMPLETE,
             by_comp[
                 "CMP000003"
             ].blocker_kind,
@@ -479,7 +434,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
                 len(stage_rows),
             )
             self.assertEqual(
-                1,
+                0,
                 len(action_rows),
             )
             self.assertEqual(
@@ -487,13 +442,6 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
                 summary,
             )
             self.assertEqual([], stage_rows)
-            self.assertIn(
-                "structure:CMP000003",
-                {
-                    row["action_id"]
-                    for row in action_rows
-                },
-            )
 
 
 if __name__ == "__main__":

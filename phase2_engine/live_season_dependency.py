@@ -14,6 +14,10 @@ from .models import AnnualCompetitionInput
 from .paths import resolve_data_file
 from .randomness import shuffled
 from .repository import DataRepository
+from .senbatsu_selection import (
+    select_invitational,
+    selection_region_ids,
+)
 from .season_catalog import (
     is_previous_school_year_source,
     rules_year,
@@ -35,6 +39,8 @@ DEPENDENCY_ACTIVE = "active"
 DEPENDENCY_COMPLETED = "completed"
 DEPENDENCY_BLOCKED = "blocked"
 DEPENDENCY_BLOCKED_DATE = "blocked_date_dependency"
+# 選抜の選考に使う大会のうち、神宮大会の印
+JINGU = "jingu"
 
 
 @dataclass(frozen=True)
@@ -209,6 +215,11 @@ class LiveSeasonDependencyRuntimeState:
         repr=False,
     )
     regional_playoffs: dict[str, list[dict]] = field(
+        default_factory=dict,
+        repr=False,
+    )
+    # 選抜の選考の枠（selection_rules.csv）。選考は秋季地区大会の結果から行う。
+    selection_rules: dict[str, list[dict]] = field(
         default_factory=dict,
         repr=False,
     )
@@ -521,6 +532,25 @@ class LiveSeasonDependencyRuntimeState:
                 key=lambda row: row["playoff_id"]
             )
 
+        selection_rules: dict[str, list[dict]] = {}
+        for row in cls._read_csv(
+            repo.data_dir,
+            "selection_rules.csv",
+        ):
+            destination = row.get(
+                "destination_competition_id",
+                "",
+            )
+            if destination in templates:
+                selection_rules.setdefault(
+                    destination,
+                    [],
+                ).append(dict(row))
+        for rows in selection_rules.values():
+            rows.sort(
+                key=lambda row: row["selection_rule_id"]
+            )
+
         all_dates = []
         for cid, row in calendar_by_comp.items():
             if cid not in templates:
@@ -576,6 +606,7 @@ class LiveSeasonDependencyRuntimeState:
             qualification_rules=qualification_rules,
             regional_feeder_rules=regional_feeder_rules,
             regional_playoffs=regional_playoffs,
+            selection_rules=selection_rules,
         )
         state._initialize_statuses()
         state._activate_roots()
@@ -641,7 +672,41 @@ class LiveSeasonDependencyRuntimeState:
                 competition_id,
             )
         )
+        sources.extend(
+            self._selection_sources(competition_id).values()
+        )
         return list(dict.fromkeys(sources))
+
+    def _selection_sources(
+        self,
+        competition_id: str,
+    ) -> dict[str, str]:
+        """選抜の選考に使う地区 → その地区の秋季地区大会。"""
+        rules = self.selection_rules.get(competition_id)
+        if not rules:
+            return {}
+        regionals = {
+            row.get("region_id"): cid
+            for cid, row in self.repo.competitions.items()
+            if row.get("competition_type") == "autumn_regional"
+            and cid in self.annual_templates
+        }
+        sources = {
+            region: regionals.get(region, "")
+            for region in selection_region_ids(rules)
+        }
+        # 神宮枠はその年の神宮大会の優勝校の地区に付ける
+        sources[JINGU] = next(
+            (
+                cid
+                for cid, row in self.repo.competitions.items()
+                if row.get("competition_type")
+                == "national_autumn_championship"
+                and cid in self.annual_templates
+            ),
+            "",
+        )
+        return sources
 
     def _dependency_family_count(
         self,
@@ -651,6 +716,7 @@ class LiveSeasonDependencyRuntimeState:
             bool(self.dependency_rules.get(competition_id)),
             bool(self.qualification_rules.get(competition_id)),
             bool(self.regional_feeder_rules.get(competition_id)),
+            bool(self.selection_rules.get(competition_id)),
         ])
 
     def _region_prefecture_codes(
@@ -672,6 +738,20 @@ class LiveSeasonDependencyRuntimeState:
                 == str(rules_year(self.year))
             )
         }
+
+    def _autumn_region_of(self, school_id: str) -> str:
+        pcode = self.repo.schools[school_id].get("prefecture_code", "")
+        return next(
+            row["region_id"]
+            for row in self._read_csv(
+                self.repo.data_dir,
+                "prefecture_region_memberships.csv",
+            )
+            if row.get("prefecture_code") == pcode
+            and row.get("season_segment") == "autumn"
+            and row.get("effective_year")
+            == str(rules_year(self.year))
+        )
 
     def _initialize_statuses(self) -> None:
         for cid in self.annual_templates:
@@ -1231,6 +1311,7 @@ class LiveSeasonDependencyRuntimeState:
             selector = rule.get("selector", "")
             ids: list[str] = []
             notes = ""
+            up_to_quota = False
 
             scheduled = self.competitions.get(source_id)
             prior_year_source = is_previous_school_year_source(
@@ -1263,6 +1344,7 @@ class LiveSeasonDependencyRuntimeState:
                     ).get("prefecture_code")
                     in pref_codes
                 ][:quota]
+                up_to_quota = True
                 notes = (
                     "prior school year invitational "
                     "entrants filtered by regional membership"
@@ -1295,6 +1377,7 @@ class LiveSeasonDependencyRuntimeState:
                     ).get("prefecture_code")
                     in pref_codes
                 ][:quota]
+                up_to_quota = True
                 notes = (
                     "completed invitational entrants "
                     "filtered by regional membership"
@@ -1345,9 +1428,12 @@ class LiveSeasonDependencyRuntimeState:
                 "qualification_mode",
                 "direct",
             )
+            # 選抜の出場校は選考の結果で地区ごとの校数が変わるので、
+            # 枠より少なくてもよい（その分、大会の出場校が少なくなる）
             status = (
                 "PASS"
                 if len(ids) == quota
+                or (up_to_quota and len(ids) < quota)
                 else "BLOCKED"
             )
             if status == "PASS":
@@ -1475,6 +1561,13 @@ class LiveSeasonDependencyRuntimeState:
                 competition_id
             ).get("team_count") or 0
         )
+        if expected:
+            # 選抜の出場校が枠より少ない地区は、その分だけ出場校が少ない
+            expected -= sum(
+                row.expected_count - len(row.resolved_school_ids)
+                for row in resolutions
+                if row.status == "PASS"
+            )
         valid = (
             all(
                 row.status == "PASS"
@@ -1507,6 +1600,42 @@ class LiveSeasonDependencyRuntimeState:
             resolutions,
             playoff_resolutions,
         )
+
+    def _build_selection_destination_annual(
+        self,
+        competition_id: str,
+    ) -> AnnualCompetitionInput:
+        rankings = {
+            region: list(
+                self.competitions[source]
+                .to_competition_run()
+                .outcome.final_ranking_school_ids
+            )
+            for region, source in self._selection_sources(
+                competition_id
+            ).items()
+        }
+        jingu_champion = rankings.pop(JINGU)[0]
+        jingu_region = self._autumn_region_of(jingu_champion)
+        annual = deepcopy(
+            self.annual_templates[competition_id]
+        )
+        annual.entrant_school_ids = select_invitational(
+            self.selection_rules[competition_id],
+            rankings,
+            jingu_region=jingu_region,
+            rng_seed=annual.rng_seed,
+        )
+        self.history.append({
+            "action": "select_invitational",
+            "competition_id": competition_id,
+            "jingu_champion_school_id": jingu_champion,
+            "jingu_region_id": jingu_region,
+            "entrant_school_ids": list(
+                annual.entrant_school_ids
+            ),
+        })
+        return annual
 
     def _build_destination_annual(
         self,
@@ -1541,6 +1670,14 @@ class LiveSeasonDependencyRuntimeState:
                 self._build_regional_destination_annual(
                     competition_id
                 )
+            )
+        if self.selection_rules.get(competition_id):
+            return (
+                self._build_selection_destination_annual(
+                    competition_id
+                ),
+                [],
+                [],
             )
         return (
             deepcopy(
@@ -1901,7 +2038,13 @@ class LiveSeasonDependencyRuntimeState:
                     if self.regional_feeder_rules.get(
                         competition_id
                     )
-                    else "root"
+                    else (
+                        "selection"
+                        if self.selection_rules.get(
+                            competition_id
+                        )
+                        else "root"
+                    )
                 )
             )
         )

@@ -284,6 +284,12 @@ def create_live_season_save(
             str(year): plan_fingerprint(plans[year])
             for year in years
         },
+        # 前の年度のゲーム内の結果。読込時に同じ計画をつくり直すのに使う
+        "prior_results": {
+            str(year): plans[year].prior_results.to_dict()
+            for year in years
+            if getattr(plans[year], "prior_results", None) is not None
+        },
         "start_date": start_date,
         "current_date": current_date,
         "processed_dates": processed_dates,
@@ -306,6 +312,7 @@ def create_live_season_save(
 REQUIRED_FIELDS = frozenset({
     "season_years",
     "plan_fingerprints",
+    "prior_results",
     "year",
     "rng_seed",
     "resolver_contract",
@@ -538,6 +545,9 @@ def inspect_live_season_save(
         ),
         "plan_fingerprint": (
             data["plan_fingerprint"]
+        ),
+        "prior_results": _json_copy(
+            data["prior_results"]
         ),
         "payload_checksum": (
             data["payload_checksum"]
