@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from copy import deepcopy
 from dataclasses import asdict
 from datetime import date, timedelta
@@ -12,14 +13,16 @@ from .live_season_planner import (
     LiveSeasonGraphPlan,
     LiveSeasonGraphPlanner,
 )
-from .save_migrations import (
-    DEFAULT_SAVE_MIGRATION_REGISTRY,
-    SaveMigrationError,
-    SaveMigrationRegistry,
+from .runtime_snapshot import (
+    RuntimeSnapshotError,
+    dump_runtime_state,
+    load_runtime_state,
 )
 
 
-SAVE_SCHEMA_VERSION = "stage13e3e1.live-season-save.v1"
+# v2：進行中の状態をそのまま書き出す（読込時に最初から計算し直さない）。
+# 旧形式は読み込まない（game_definition.md §5）。
+SAVE_SCHEMA_VERSION = "live-season-save.v2"
 DEFAULT_RESOLVER_CONTRACT = "default_deterministic_v1"
 
 
@@ -37,7 +40,7 @@ class LiveSeasonSaveCompatibilityError(
     pass
 
 
-class LiveSeasonSaveReplayError(LiveSeasonSaveError):
+class LiveSeasonSaveStateError(LiveSeasonSaveError):
     pass
 
 
@@ -144,22 +147,6 @@ def plan_fingerprint(
     return _fingerprint(
         plan_identity(plan)
     )
-
-
-def _completed_match_log(state) -> dict[str, dict]:
-    output: dict[str, dict] = {}
-    for cid, scheduled in sorted(
-        state.competitions.items()
-    ):
-        for match_id, match in sorted(
-            scheduled.matches.items()
-        ):
-            if match.status != "completed":
-                continue
-            output[
-                f"{cid}:{match_id}"
-            ] = asdict(match)
-    return _json_copy(output)
 
 
 def _processed_dates(state) -> list[str]:
@@ -280,29 +267,15 @@ def create_live_season_save(
         "start_date": start_date,
         "current_date": current_date,
         "processed_dates": processed_dates,
-        "completed_match_results": (
-            _completed_match_log(state)
-        ),
-        "status_by_competition": dict(
-            sorted(
-                state.status_by_competition
-                .items()
-            )
-        ),
-        "activated_on": dict(
-            sorted(state.activated_on.items())
+        "completed_match_count": len(
+            state.completed_results()
         ),
         "runtime_summary": _json_copy(
             state.summary()
         ),
-        "public_snapshot_fingerprint": (
-            _fingerprint(
-                state.public_snapshot()
-            )
-        ),
-        "history": _json_copy(
-            state.history
-        ),
+        "runtime_state": base64.b64encode(
+            dump_runtime_state(state)
+        ).decode("ascii"),
     }
     body["payload_checksum"] = _fingerprint(
         body
@@ -310,27 +283,18 @@ def create_live_season_save(
     return body
 
 
-def migrate_live_season_save_payload(
-    payload: Mapping[str, Any],
-    *,
-    migration_registry: (
-        SaveMigrationRegistry | None
-    ) = None,
-) -> dict:
-    registry = (
-        migration_registry
-        if migration_registry is not None
-        else DEFAULT_SAVE_MIGRATION_REGISTRY
-    )
-    try:
-        return registry.migrate(
-            payload,
-            target_version=SAVE_SCHEMA_VERSION,
-        )
-    except SaveMigrationError as exc:
-        raise LiveSeasonSaveCompatibilityError(
-            str(exc)
-        ) from exc
+REQUIRED_FIELDS = frozenset({
+    "year",
+    "rng_seed",
+    "resolver_contract",
+    "plan_fingerprint",
+    "start_date",
+    "current_date",
+    "processed_dates",
+    "completed_match_count",
+    "runtime_summary",
+    "runtime_state",
+})
 
 
 def _validate_save_payload(
@@ -349,41 +313,24 @@ def _validate_save_payload(
         raise LiveSeasonSaveSchemaError(
             "payload_checksum is required"
         )
+    if data.get("schema_version") != (
+        SAVE_SCHEMA_VERSION
+    ):
+        raise LiveSeasonSaveCompatibilityError(
+            "unsupported save schema_version: "
+            f"{data.get('schema_version', '')}"
+        )
     if _fingerprint(data) != checksum:
         raise LiveSeasonSaveSchemaError(
             "save payload checksum mismatch"
         )
-    if data.get("schema_version") != (
-        SAVE_SCHEMA_VERSION
-    ):
-        raise LiveSeasonSaveSchemaError(
-            "unsupported save schema_version: "
-            f"{data.get('schema_version', '')}"
-        )
-
-    required = {
-        "year",
-        "rng_seed",
-        "resolver_contract",
-        "plan_fingerprint",
-        "start_date",
-        "current_date",
-        "processed_dates",
-        "completed_match_results",
-        "status_by_competition",
-        "activated_on",
-        "runtime_summary",
-        "public_snapshot_fingerprint",
-        "history",
-    }
     missing = sorted(
-        required - set(data)
+        REQUIRED_FIELDS - set(data)
     )
     if missing:
         raise LiveSeasonSaveSchemaError(
             f"missing save fields: {missing}"
         )
-
     if not isinstance(
         data["processed_dates"],
         list,
@@ -410,19 +357,9 @@ def restore_live_season_save(
     resolver_contract: str = (
         DEFAULT_RESOLVER_CONTRACT
     ),
-    migration_registry: (
-        SaveMigrationRegistry | None
-    ) = None,
 ):
-    migrated = migrate_live_season_save_payload(
-        payload,
-        migration_registry=(
-            migration_registry
-        ),
-    )
-    data = _validate_save_payload(
-        migrated
-    )
+    """保存した状態をそのまま戻す。試合を最初からやり直さない。"""
+    data = _validate_save_payload(payload)
     if data["year"] != planner.year:
         raise LiveSeasonSaveCompatibilityError(
             "save year does not match planner"
@@ -441,11 +378,8 @@ def restore_live_season_save(
         )
 
     plan = planner.build_plan()
-    actual_plan_fingerprint = (
-        plan_fingerprint(plan)
-    )
     if data["plan_fingerprint"] != (
-        actual_plan_fingerprint
+        plan_fingerprint(plan)
     ):
         raise LiveSeasonSaveCompatibilityError(
             "season plan fingerprint mismatch; "
@@ -453,110 +387,29 @@ def restore_live_season_save(
             "changed since the save was created"
         )
 
-    state = plan.build_runtime(
-        engine=engine,
-        start_date=data["start_date"],
-    )
-
-    processed_dates = list(
-        data["processed_dates"]
-    )
-    if processed_dates:
-        state.advance_through(
-            processed_dates[-1]
+    try:
+        state = load_runtime_state(
+            base64.b64decode(
+                data["runtime_state"]
+            ),
+            plan,
+            engine=engine,
         )
-
-    saved_current = date.fromisoformat(
-        data["current_date"]
-    )
-    if state.current_date != saved_current:
-        if (
-            processed_dates
-            and saved_current
-            == state.current_date
-            + timedelta(days=1)
-        ):
-            state.current_date = (
-                saved_current
-            )
-        else:
-            raise LiveSeasonSaveReplayError(
-                "restored current_date cannot be "
-                "reconciled with processed dates"
-            )
-
-    replay_match_log = (
-        _completed_match_log(state)
-    )
-    if replay_match_log != data[
-        "completed_match_results"
-    ]:
-        expected_keys = set(
-            data[
-                "completed_match_results"
-            ]
-        )
-        actual_keys = set(
-            replay_match_log
-        )
-        missing = sorted(
-            expected_keys - actual_keys
-        )[:10]
-        extra = sorted(
-            actual_keys - expected_keys
-        )[:10]
-        changed = sorted(
-            key
-            for key
-            in expected_keys & actual_keys
-            if data[
-                "completed_match_results"
-            ][key] != replay_match_log[key]
-        )[:10]
-        raise LiveSeasonSaveReplayError(
-            "completed match replay mismatch: "
-            f"missing={missing} extra={extra} "
-            f"changed={changed}"
-        )
-
-    if dict(
-        state.status_by_competition
-    ) != data["status_by_competition"]:
-        raise LiveSeasonSaveReplayError(
-            "competition dependency status "
-            "differs after replay"
-        )
-    if dict(state.activated_on) != (
-        data["activated_on"]
+    except RuntimeSnapshotError as exc:
+        raise LiveSeasonSaveStateError(
+            str(exc)
+        ) from exc
+    if (
+        state.year != data["year"]
+        or state.rng_seed != data["rng_seed"]
+        or state.current_date.isoformat()
+        != data["current_date"]
+        or _json_copy(state.summary())
+        != data["runtime_summary"]
     ):
-        raise LiveSeasonSaveReplayError(
-            "competition activation dates "
-            "differ after replay"
+        raise LiveSeasonSaveStateError(
+            "restored runtime differs from save metadata"
         )
-
-    actual_snapshot_fingerprint = (
-        _fingerprint(
-            state.public_snapshot()
-        )
-    )
-    if actual_snapshot_fingerprint != data[
-        "public_snapshot_fingerprint"
-    ]:
-        raise LiveSeasonSaveReplayError(
-            "public runtime snapshot differs "
-            "after replay"
-        )
-
-    if _json_copy(
-        state.summary()
-    ) != data["runtime_summary"]:
-        raise LiveSeasonSaveReplayError(
-            "runtime summary differs after replay"
-        )
-
-    state.history = _json_copy(
-        data["history"]
-    )
     return plan, state
 
 
@@ -596,16 +449,10 @@ def write_live_season_save(
     return payload
 
 
-def inspect_live_season_save(
-    path: str | Path,
-    *,
-    migration_registry: (
-        SaveMigrationRegistry | None
-    ) = None,
-) -> dict:
+def _read_payload(path: str | Path) -> dict:
     source = Path(path)
     try:
-        payload = json.loads(
+        return json.loads(
             source.read_text(
                 encoding="utf-8"
             )
@@ -617,14 +464,13 @@ def inspect_live_season_save(
         raise LiveSeasonSaveSchemaError(
             f"cannot read save file: {source}"
         ) from exc
-    migrated = migrate_live_season_save_payload(
-        payload,
-        migration_registry=(
-            migration_registry
-        ),
-    )
+
+
+def inspect_live_season_save(
+    path: str | Path,
+) -> dict:
     data = _validate_save_payload(
-        migrated
+        _read_payload(path)
     )
     return {
         "schema_version": data["schema_version"],
@@ -638,8 +484,8 @@ def inspect_live_season_save(
         "processed_date_count": len(
             data["processed_dates"]
         ),
-        "completed_match_count": len(
-            data["completed_match_results"]
+        "completed_match_count": (
+            data["completed_match_count"]
         ),
         "plan_fingerprint": (
             data["plan_fingerprint"]
@@ -661,30 +507,10 @@ def read_live_season_save(
     resolver_contract: str = (
         DEFAULT_RESOLVER_CONTRACT
     ),
-    migration_registry: (
-        SaveMigrationRegistry | None
-    ) = None,
 ):
-    source = Path(path)
-    try:
-        payload = json.loads(
-            source.read_text(
-                encoding="utf-8"
-            )
-        )
-    except (
-        OSError,
-        json.JSONDecodeError,
-    ) as exc:
-        raise LiveSeasonSaveSchemaError(
-            f"cannot read save file: {source}"
-        ) from exc
     return restore_live_season_save(
         planner,
-        payload,
+        _read_payload(path),
         engine=engine,
         resolver_contract=resolver_contract,
-        migration_registry=(
-            migration_registry
-        ),
     )

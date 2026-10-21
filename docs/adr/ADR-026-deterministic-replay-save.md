@@ -1,6 +1,6 @@
 # ADR-026: live season saveはobject serializationではなくdeterministic replayで復元する
 
-- Status: Accepted
+- Status: Superseded（ADR-043 で置き換え。2026-10-21）
 - Date: 2026-10-08
 - Stage: 13E-3E-1
 
