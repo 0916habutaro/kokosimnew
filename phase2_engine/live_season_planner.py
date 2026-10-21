@@ -16,7 +16,15 @@ from .randomness import shuffled
 from .repository import DataRepository
 from .school_year import (
     INVITATIONAL_TYPE,
-    competition_school_year,
+)
+from .season_catalog import (
+    TEMPLATE_YEAR,
+    SeasonCompetition,
+    is_previous_school_year_source,
+    rules_year,
+    season_competitions,
+    shift_calendar_row,
+    shift_stage_calendar_row,
 )
 from .season import (
     SeasonOrchestrator,
@@ -85,6 +93,9 @@ class LiveSeasonPlanEntry:
     calendar_end_date: str
     has_pre_main: bool
     external_bootstrap_rule_ids: tuple[str, ...]
+    display_name: str = ""
+    year_offset: int = 0
+    calendar_shift_days: int = 0
 
     def to_dict(self) -> dict:
         return {
@@ -103,6 +114,9 @@ class LiveSeasonPlanEntry:
             "external_bootstrap_rule_ids": list(
                 self.external_bootstrap_rule_ids
             ),
+            "display_name": self.display_name,
+            "year_offset": self.year_offset,
+            "calendar_shift_days": self.calendar_shift_days,
         }
 
 
@@ -316,6 +330,8 @@ class LiveSeasonGraphPlanner:
         self.data_dir = Path(data_dir)
         self.rng_seed = rng_seed
         self.year = year
+        self.rules_year = rules_year(year)
+        self._season: dict[str, SeasonCompetition] | None = None
         self.factory = StructuralAnnualInputFactory(
             repo,
             data_dir,
@@ -345,18 +361,42 @@ class LiveSeasonGraphPlanner:
         self,
         competition_id: str,
     ) -> int:
+        # 組み合わせは年度ごとに抽選し直す。
+        namespace = (
+            competition_id
+            if self.year == TEMPLATE_YEAR
+            else f"{self.year}:{competition_id}"
+        )
         return SeasonOrchestrator._seed(
             self.rng_seed,
-            competition_id,
+            namespace,
         )
+
+    def season_catalog(
+        self,
+    ) -> dict[str, SeasonCompetition]:
+        if self._season is None:
+            self._season = season_competitions(
+                self._read("competitions.csv"),
+                {
+                    row["competition_id"]: row
+                    for row in self._read(
+                        "season_calendar.csv"
+                    )
+                },
+                self.year,
+            )
+        return self._season
 
     def _competition_rows(self) -> list[dict]:
         rows = self._read("competitions.csv")
+        season = self.season_catalog()
         selected = [
             row
             for row in rows
-            if competition_school_year(row)
-            == self.year
+            if row["competition_id"] in season
+            and row.get("reference_year")
+            == str(TEMPLATE_YEAR)
         ]
         selected.sort(
             key=lambda row: row[
@@ -366,12 +406,16 @@ class LiveSeasonGraphPlanner:
         return selected
 
     def _calendar_rows(self) -> list[dict]:
-        rows = self._read("season_calendar.csv")
+        season = self.season_catalog()
         rows = [
-            row
-            for row in rows
-            if row.get("competition_id")
-            in self.repo.competitions
+            shift_calendar_row(
+                row,
+                season[row["competition_id"]].shift_days,
+            )
+            for row in self._read(
+                "season_calendar.csv"
+            )
+            if row.get("competition_id") in season
         ]
         rows.sort(
             key=lambda row: row[
@@ -388,9 +432,10 @@ class LiveSeasonGraphPlanner:
         )
         selected = []
         for row in rows:
+            year = self.rules_year
             start = int(
                 row.get("effective_from_year")
-                or self.year
+                or year
             )
             end_raw = row.get(
                 "effective_to_year",
@@ -399,9 +444,9 @@ class LiveSeasonGraphPlanner:
             end = (
                 int(end_raw)
                 if end_raw
-                else self.year
+                else year
             )
-            if start <= self.year <= end:
+            if start <= year <= end:
                 selected.append(row)
         return selected
 
@@ -414,7 +459,7 @@ class LiveSeasonGraphPlanner:
                 "qualification_rules.csv"
             )
             if row.get("effective_year")
-            == str(self.year)
+            == str(self.rules_year)
         ]
 
     def _regional_feeder_rules(
@@ -426,7 +471,7 @@ class LiveSeasonGraphPlanner:
                 "regional_feeder_rules.csv"
             )
             if row.get("effective_year")
-            == str(self.year)
+            == str(self.rules_year)
         ]
 
     def _external_access_bootstrap(
@@ -467,6 +512,12 @@ class LiveSeasonGraphPlanner:
             if (
                 offset == 0
                 and source_id in competition_ids
+                and not self._previous_year_source(
+                    source_id,
+                    rule[
+                        "destination_competition_id"
+                    ],
+                )
             ):
                 continue
 
@@ -688,9 +739,23 @@ class LiveSeasonGraphPlanner:
         return list(
             self.orchestrator
             ._bootstrap_senbatsu_participants(
-                self.year - 1,
-                self.rng_seed,
+                rules_year(self.year - 1),
+                SeasonOrchestrator._seed(
+                    self.rng_seed,
+                    f"{self.year - 1}:senbatsu",
+                ),
             )
+        )
+
+    def _previous_year_source(
+        self,
+        source_id: str,
+        destination_id: str,
+    ) -> bool:
+        return is_previous_school_year_source(
+            self.repo.competitions,
+            source_id,
+            destination_id,
         )
 
     @staticmethod
@@ -858,6 +923,14 @@ class LiveSeasonGraphPlanner:
                     "source_competition_id_2026"
                 )
                 in competition_by_id
+                and not self._previous_year_source(
+                    rule[
+                        "source_competition_id_2026"
+                    ],
+                    rule[
+                        "destination_competition_id"
+                    ],
+                )
             )
         ]
         qualification_rules = (
@@ -923,8 +996,16 @@ class LiveSeasonGraphPlanner:
                 "source_competition_id",
                 "",
             )
-            # 前の年度の大会（3月の選抜）は計画に入らないので辺を作らない。
-            if source in competition_by_id:
+            # 前の年度の大会（3月の選抜）の結果は計画の段階で解決済み。
+            if (
+                source in competition_by_id
+                and not self._previous_year_source(
+                    source,
+                    rule[
+                        "destination_competition_id"
+                    ],
+                )
+            ):
                 edges.append((
                     source,
                     rule[
@@ -1017,11 +1098,16 @@ class LiveSeasonGraphPlanner:
                 annual = AnnualCompetitionInput(
                     competition_id=cid,
                     year=self.year,
+                    # 秋の結果からの選考は §8 の4で入れる。
+                    # それまではルールの範囲内でランダム。
                     entrant_school_ids=list(
                         self.orchestrator
                         ._bootstrap_senbatsu_participants(
-                            self.year,
-                            self.rng_seed,
+                            self.rules_year,
+                            SeasonOrchestrator._seed(
+                                self.rng_seed,
+                                f"{self.year}:senbatsu",
+                            ),
                         )
                     ),
                     rng_seed=seed,
@@ -1118,6 +1204,12 @@ class LiveSeasonGraphPlanner:
                             "source_competition_id"
                         )
                         in competition_by_id
+                        and not self._previous_year_source(
+                            rule[
+                                "source_competition_id"
+                            ],
+                            cid,
+                        )
                     ]
                 )
             )
@@ -1159,6 +1251,18 @@ class LiveSeasonGraphPlanner:
                 external_bootstrap_rule_ids=(
                     external_rule_ids
                 ),
+                display_name=(
+                    self.season_catalog()[cid]
+                    .display_name
+                ),
+                year_offset=(
+                    self.season_catalog()[cid]
+                    .year_offset
+                ),
+                calendar_shift_days=(
+                    self.season_catalog()[cid]
+                    .shift_days
+                ),
             )
 
         order = self._topological_order(
@@ -1166,12 +1270,19 @@ class LiveSeasonGraphPlanner:
             edges,
             calendar_by_comp,
         )
-        stage_calendar_rows = (
-            load_competition_stage_calendar(
-                self.data_dir,
-                year=self.year,
+        season = self.season_catalog()
+        stage_calendar_rows = [
+            shift_stage_calendar_row(
+                row,
+                season[row["competition_id"]].shift_days,
             )
-        )
+            if row["competition_id"] in season
+            else row
+            for row in load_competition_stage_calendar(
+                self.data_dir,
+                year=self.rules_year,
+            )
+        ]
 
         return LiveSeasonGraphPlan(
             repo=self.repo,

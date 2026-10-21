@@ -11,6 +11,7 @@ from .models import AnnualCompetitionInput, CompetitionRun
 from .randomness import shuffled
 from .repository import DataRepository
 from .paths import resolve_data_file
+from .season_catalog import rules_year
 
 
 @dataclass
@@ -243,7 +244,7 @@ class StructuralAnnualInputFactory:
     def summer_area_school_ids(self, competition_id: str, year: int) -> List[str]:
         comp = self.repo.competition(competition_id)
         area_id = comp.get("qualifying_area_id", "")
-        ids = sorted(self.repo.area_school_ids.get((str(year), area_id), set()))
+        ids = sorted(self.repo.area_school_ids.get((str(rules_year(year)), area_id), set()))
         if not ids:
             raise ValueError(f"{competition_id}: no summer-area membership for {area_id}/{year}")
         return ids

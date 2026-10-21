@@ -58,14 +58,18 @@ class SchoolYearRuntimeTests(unittest.TestCase):
         self.assertEqual(date(2026, 4, 1), state.start_date)
         self.assertEqual(date(2026, 4, 1), state.current_date)
         self.assertEqual(date(2027, 3, 31), state.end_date)
-        # 2026年3月の選抜は前の年度の大会なので試合をしない。3月に始まる
-        # 春季県大会はこの年度の大会として、開始前の試合で処理する。
-        self.assertNotIn("CMP000001", state.status_by_competition)
+        # 2026年3月の選抜は前の年度の大会なので試合をしない（この年度の
+        # 選抜は2027年3月）。3月に始まる春季県大会はこの年度の大会として、
+        # 開始前の試合で処理する。
         self.assertFalse([
             key
             for key in state.completed_results()
             if "CMP000001" in key
         ])
+        self.assertTrue(
+            state.competitions["CMP000001"]
+            .next_scheduled_date().startswith("2027-03")
+        )
         prestart_dates = [
             item["date"]
             for item in state.history
@@ -123,9 +127,17 @@ class PriorSchoolYearResultsTests(unittest.TestCase):
         ).build_plan()
         cls.prior = load_prior_results(DATA_ROOT, 2026)
 
-    def test_previous_invitational_is_not_in_the_plan(self):
-        self.assertNotIn("CMP000001", self.plan.entries)
-        self.assertNotIn("CMP000001", self.plan.topological_order)
+    def test_previous_invitational_is_not_played(self):
+        # 計画にある選抜は2027年3月の第99回。2026年3月の第98回は入らず、
+        # 春季大会はその出場校を実際の結果として使う。
+        self.assertTrue(
+            self.plan.entries["CMP000001"]
+            .calendar_start_date.startswith("2027-03")
+        )
+        self.assertFalse([
+            edge for edge in self.plan.dependency_edges
+            if edge[0] == "CMP000001"
+        ])
         self.assertEqual(
             tuple(
                 school_id

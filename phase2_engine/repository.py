@@ -7,6 +7,7 @@ from typing import Dict, Iterable, List, Optional, Set
 
 from .models import Team
 from .paths import resolve_data_file
+from .season_catalog import rules_year
 
 
 class DataRepository:
@@ -131,13 +132,13 @@ class DataRepository:
         area_ids = [x for x in group.get("source_area_ids", "").split(";") if x]
         out: Set[str] = set()
         for area_id in area_ids:
-            out |= set(self.area_school_ids.get((str(year), area_id), set()))
+            out |= set(self.area_school_ids.get((str(rules_year(year)), area_id), set()))
         return out
 
     def area_school_ids_for_group(self, group: dict, year: int) -> Dict[str, Set[str]]:
         out: Dict[str, Set[str]] = {}
         for area_id in [x for x in group.get("source_area_ids", "").split(";") if x]:
-            out[area_id] = set(self.area_school_ids.get((str(year), area_id), set()))
+            out[area_id] = set(self.area_school_ids.get((str(rules_year(year)), area_id), set()))
         return out
 
     def access_rules(self, competition_id: str) -> List[dict]:

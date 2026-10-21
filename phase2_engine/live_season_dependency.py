@@ -14,8 +14,11 @@ from .models import AnnualCompetitionInput
 from .paths import resolve_data_file
 from .randomness import shuffled
 from .repository import DataRepository
+from .season_catalog import (
+    is_previous_school_year_source,
+    rules_year,
+)
 from .school_year import (
-    competition_school_year,
     in_school_year,
     school_year_end,
     school_year_start,
@@ -314,7 +317,7 @@ class LiveSeasonDependencyRuntimeState:
             validate_competition_stage_calendar(
                 repo,
                 stage_calendar_rows,
-                year=year,
+                year=rules_year(year),
             )
             stage_dates = (
                 stage_date_lists_by_competition(
@@ -377,7 +380,7 @@ class LiveSeasonDependencyRuntimeState:
             for rule in repo.access_rules(destination):
                 if not cls._rule_effective(
                     rule,
-                    year,
+                    rules_year(year),
                 ):
                     continue
                 if int(
@@ -393,11 +396,10 @@ class LiveSeasonDependencyRuntimeState:
                     continue
                 # 前の年度の大会（3月の選抜）からのルールは、計画の段階で
                 # 前の年度の結果として解決済み。
-                if source in repo.competitions and (
-                    competition_school_year(
-                        repo.competitions[source]
-                    )
-                    != year
+                if is_previous_school_year_source(
+                    repo.competitions,
+                    source,
+                    destination,
                 ):
                     continue
                 selected.append(dict(rule))
@@ -424,7 +426,8 @@ class LiveSeasonDependencyRuntimeState:
             )
             if (
                 destination not in templates
-                or row.get("effective_year") != str(year)
+                or row.get("effective_year")
+                != str(rules_year(year))
             ):
                 continue
             qualification_rules[
@@ -453,7 +456,8 @@ class LiveSeasonDependencyRuntimeState:
             )
             if (
                 destination not in templates
-                or row.get("effective_year") != str(year)
+                or row.get("effective_year")
+                != str(rules_year(year))
             ):
                 continue
             regional_feeder_rules[
@@ -485,7 +489,8 @@ class LiveSeasonDependencyRuntimeState:
             )
             if (
                 destination not in templates
-                or row.get("effective_year") != str(year)
+                or row.get("effective_year")
+                != str(rules_year(year))
             ):
                 continue
             regional_playoffs[
@@ -607,24 +612,13 @@ class LiveSeasonDependencyRuntimeState:
                 [],
             )
             if rule.get("source_competition_id")
-            and not self._is_prior_year_source(
-                rule["source_competition_id"]
+            and not is_previous_school_year_source(
+                self.repo.competitions,
+                rule["source_competition_id"],
+                competition_id,
             )
         )
         return list(dict.fromkeys(sources))
-
-    def _is_prior_year_source(
-        self,
-        competition_id: str,
-    ) -> bool:
-        competition = self.repo.competitions.get(
-            competition_id
-        )
-        return (
-            competition is not None
-            and competition_school_year(competition)
-            < self.year
-        )
 
     def _dependency_family_count(
         self,
@@ -652,7 +646,7 @@ class LiveSeasonDependencyRuntimeState:
                 and row.get("season_segment")
                 == "autumn"
                 and row.get("effective_year")
-                == str(self.year)
+                == str(rules_year(self.year))
             )
         }
 
@@ -1215,8 +1209,10 @@ class LiveSeasonDependencyRuntimeState:
             notes = ""
 
             scheduled = self.competitions.get(source_id)
-            prior_year_source = self._is_prior_year_source(
-                source_id
+            prior_year_source = is_previous_school_year_source(
+                self.repo.competitions,
+                source_id,
+                competition_id,
             )
             if (
                 prior_year_source
