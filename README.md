@@ -24,10 +24,6 @@
 - 成長・怪我、監督、選手名（今は全員「仮選手01」形式）、実在に近い学校の強さ
 - タイブレーク・コールド・球数制限など高校野球の規定
 
-**既知の問題**
-
-- シーズン一括シミュレーション（`season_cli`）が夏の甲子園の組み合わせで止まる（`bye match must not have team2`）。このため閲覧画面用のデータを新しく作れない。段階1で大会生成を見直すときに直す
-
 ## 動かし方（Windows / PowerShell）
 
 Python 3.12 以上。追加のパッケージは不要。リポジトリのフォルダで実行する。
@@ -44,7 +40,10 @@ python -m phase2_engine.live_game_cli --data-dir data --save-root out\saves adva
 python -m phase2_engine.live_game_cli --data-dir data --save-root out\saves list
 python -m phase2_engine.live_game_cli --data-dir data --save-root out\saves status slot01
 
-# 閲覧画面（シーズン一括シミュレーションで作ったSQLiteを開く。上の既知の問題を参照）
+# 閲覧画面用のデータを作る（シーズン一括シミュレーション）
+python -m phase2_engine.season_cli --data-dir data --result-dir out\season_2026 --sqlite-db out\kokosim_browse.sqlite3
+
+# 閲覧画面（上で作ったSQLiteを開く）
 python -m phase2_engine.browse_gui --db out\kokosim_browse.sqlite3 --data-dir data
 ```
 

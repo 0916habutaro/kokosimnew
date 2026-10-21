@@ -323,7 +323,10 @@ class MainTournamentRuntimeState:
                         if round_no != 1:
                             match.status = MATCH_WAITING
                             continue
+                        # 不戦勝は team1 に出場校、team2 を空にそろえる。
                         winner = match.team1 or match.team2
+                        match.team1 = winner
+                        match.team2 = ""
                         match.winner = winner
                         match.loser = ""
                         match.is_bye = True
