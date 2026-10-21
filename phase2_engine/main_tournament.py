@@ -291,6 +291,8 @@ def run_main_single_elimination(
             if not t1 and not t2:
                 raise AssertionError("empty match after round 1")
             if not t1 or not t2:
+                # 不戦勝は他の方式と同じく team1 に出場校、team2 を空にする。
+                # 抽選上の位置は execution.metadata["initial_slots"] に残る。
                 winner = t1 or t2
                 match = Match(
                     match_id=match_id,
@@ -299,8 +301,8 @@ def run_main_single_elimination(
                     stage_code="MAIN",
                     phase_code="MAIN_BRACKET",
                     round_no=round_no,
-                    team1=t1,
-                    team2=t2,
+                    team1=winner,
+                    team2="",
                     winner=winner,
                     is_bye=True,
                     metadata={

@@ -260,6 +260,9 @@ class Stage13E2ResumableMainTournamentTests(unittest.TestCase):
         self.assertEqual(3, len(byes))
         self.assertEqual([], resolver.calls)
         self.assertTrue(all(match.winner for match in byes))
+        self.assertTrue(
+            all(m.team1 == m.winner and m.team2 == "" for m in byes)
+        )
 
         lazy = state.resolve_all()
         self.assertEqual(4, len(resolver.calls))
