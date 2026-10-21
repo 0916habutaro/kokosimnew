@@ -22,6 +22,7 @@ from .future_season_blueprint import build_future_season_blueprint
 from .historical_match_archive import HistoricalMatchArchive
 from .models import CompetitionRun
 from .repository import DataRepository
+from .historical_match_archive import expand_payload
 
 
 SENBATSU_ID = "CMP000001"
@@ -134,7 +135,7 @@ def certify_saved_tokai_senbatsu(
                 raw = row["payload_json"]
                 if sha256(raw.encode("utf-8")).hexdigest() != row["record_sha256"]:
                     raise TokaiSenbatsuNotReady("Senbatsu archived checksum modified")
-                saved = json.loads(raw)
+                saved = expand_payload(json.loads(raw))
                 game = expected[row["match_id"]]
                 if (saved.get("year") != year
                         or saved.get("competition_id") != SENBATSU_ID

@@ -21,6 +21,7 @@ from .career_preview_checkpoint import (
     CareerPreviewSaveError, _atomic_write, _checksum, _digest,
 )
 from .historical_match_archive import (
+    expand_payload,
     HistoricalMatchArchive, _canonical as _history_canonical,
     _history_payload,
 )
@@ -152,7 +153,7 @@ class ChibaThirdPlaceCheckpointService:
                 if row["match_id"] == f"{self.source_competition_id}-{self.match_prefix}-{year}-THIRD":
                     continue
                 try:
-                    payload = json.loads(row["payload_json"])
+                    payload = expand_payload(json.loads(row["payload_json"]))
                 except ValueError as exc:
                     raise ChibaThirdPlaceNotReady("corrupted existing Chiba record") from exc
                 if (payload.get("stage_code") == "PLACEMENT" and

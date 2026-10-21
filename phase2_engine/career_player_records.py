@@ -18,6 +18,7 @@ from .career_longitudinal_read import (
 )
 from .career_roster_archive import CareerRosterArchive
 from .historical_match_archive import HistoricalMatchArchive
+from .historical_match_archive import expand_payload
 
 BATTER = (
     "plate_appearances", "at_bats", "runs", "hits", "doubles", "triples",
@@ -99,7 +100,7 @@ class CareerPlayerRecordView:
                 raw = row["payload_json"]
                 if hashlib.sha256(raw.encode("utf-8")).hexdigest() != row["record_sha256"]:
                     raise CareerHistoryViewConflict("match SHA changed")
-                match = json.loads(raw)
+                match = expand_payload(json.loads(raw))
                 if (match.get("year") != row["year"]
                         or match.get("competition_id") != row["competition_id"]
                         or match.get("match_id") != row["match_id"]

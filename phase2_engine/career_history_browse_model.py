@@ -22,6 +22,7 @@ from .career_v2_option_a_archive import CareerV2OptionAArchive
 from .historical_match_archive import HistoricalMatchArchive
 from .career_roster_archive import CareerRosterArchive
 from .repository import DataRepository
+from .historical_match_archive import expand_payload
 
 SCREENS = ("years", "school", "player", "competition", "match", "leaders")
 SOURCE = "game_career_sandbox_not_official"
@@ -322,7 +323,7 @@ class CareerHistoryBrowseModel:
             raw = row["payload_json"]
             if hashlib.sha256(raw.encode("utf-8")).hexdigest() != row["record_sha256"]:
                 raise ValueError("archived game checksum differs")
-            game = json.loads(raw)
+            game = expand_payload(json.loads(raw))
             if ((game["year"], game["competition_id"], game["match_id"])
                     != (row["year"], row["competition_id"], row["match_id"])):
                 raise ValueError("archived game identity differs")
@@ -374,7 +375,7 @@ class CareerHistoryBrowseModel:
         raw = row["payload_json"]
         if hashlib.sha256(raw.encode("utf-8")).hexdigest() != row["record_sha256"]:
             raise ValueError("archived game checksum differs")
-        game = json.loads(raw)
+        game = expand_payload(json.loads(raw))
         if (game["year"], game["competition_id"], game["match_id"]) != (
             year, competition_id, match_id
         ):

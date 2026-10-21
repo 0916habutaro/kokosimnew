@@ -27,6 +27,7 @@ from .career_multi_preview_checkpoint import (
     _digest,
 )
 from .paths import resolve_data_file
+from .historical_match_archive import expand_payload
 
 
 class RegionalFeederNotReady(CareerPreviewSaveError):
@@ -261,7 +262,7 @@ def project_same_year_regional_feeders(
                         raise RegionalFeederNotReady(
                             "missing or modified third-place game record"
                         )
-                    evidence = json.loads(extra["payload_json"])
+                    evidence = expand_payload(json.loads(extra["payload_json"]))
                     if (evidence.get("stage_code") != "PLACEMENT"
                             or evidence.get("phase_code") != "THIRD_PLACE"
                             or evidence.get("score_source") != "ability_model_v1"

@@ -16,6 +16,7 @@ from .career_history_browse_model import (
     CareerHistoryBrowseModel, SOURCE,
 )
 from .career_option_a_storage_profile import _read_only
+from .historical_match_archive import expand_payload
 
 SENBATSU = "CMP000001"
 GIFU = "CMP000109"
@@ -120,7 +121,7 @@ class CareerTokaiSeasonBrowseModel:
                     != row["record_sha256"]):
                 raise TokaiSeasonBrowseConflict("archived Tokai game SHA changed")
             try:
-                game = json.loads(raw)
+                game = expand_payload(json.loads(raw))
             except (ValueError, TypeError) as exc:
                 raise TokaiSeasonBrowseConflict("archived Tokai game invalid") from exc
             key = (row["competition_id"], row["match_id"])

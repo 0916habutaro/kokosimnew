@@ -13,6 +13,7 @@ from pathlib import Path
 
 from .career_roster_archive import CareerRosterArchive, CareerRosterConflictError
 from .historical_match_archive import HistoricalMatchArchive
+from .historical_match_archive import expand_payload
 
 
 def _iter_school_games(path: Path, school_id: str,
@@ -105,7 +106,7 @@ class CareerLongitudinalReadModel:
                 raw = record["payload_json"]
                 if hashlib.sha256(raw.encode("utf-8")).hexdigest() != record["record_sha256"]:
                     raise CareerHistoryViewConflict("archived match digest differs")
-                data = json.loads(raw)
+                data = expand_payload(json.loads(raw))
                 if (data["year"] != record["year"]
                         or data["competition_id"] != record["competition_id"]
                         or data["match_id"] != record["match_id"]
