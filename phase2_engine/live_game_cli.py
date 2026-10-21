@@ -8,7 +8,7 @@ from typing import Any
 
 from .live_game_service import LiveGameService
 from .live_season_save import (
-    DEFAULT_RESOLVER_CONTRACT,
+    PLAYER_RESOLVER_CONTRACT,
 )
 from .repository import DataRepository
 from .save_slots import (
@@ -51,7 +51,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--resolver-contract",
-        default=DEFAULT_RESOLVER_CONTRACT,
+        # 本番は全国の試合を選手で行う
+        default=PLAYER_RESOLVER_CONTRACT,
     )
     parser.add_argument(
         "--max-backups",

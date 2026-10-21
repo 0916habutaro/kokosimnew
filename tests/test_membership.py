@@ -206,19 +206,27 @@ class _Entry:
         self.competition_type = ctype
 
 
-class _Done:
-    is_complete = True
+class _Match:
+    status = "completed"
+
+    def __init__(self, match_date, team1_id, team2_id, loser_id):
+        self.match_date = match_date
+        self.team1_id = team1_id
+        self.team2_id = team2_id
+        self.loser_id = loser_id
+
+
+class _Competition:
+    def __init__(self, matches=(), is_complete=True):
+        self.matches = dict(enumerate(matches))
+        self.is_complete = is_complete
 
 
 class _State:
-    def __init__(self, results):
+    def __init__(self, competitions):
         self.current_date = date(2026, 9, 1)
         self.history = []
-        self.competitions = {"NATIONAL": _Done()}
-        self._results = results
-
-    def completed_results(self):
-        return self._results
+        self.competitions = competitions
 
 
 class LiveSeasonMembersTests(unittest.TestCase):
@@ -251,9 +259,10 @@ class LiveSeasonMembersTests(unittest.TestCase):
         live = LiveSeasonMembers(Plan(), _book())
         self.assertEqual(date(2026, 8, 10), live.starts["AUTUMN"])
         live.attach(_State({
-            "m": {"competition_id": "LOCAL", "match_date": "2026-07-10",
-                  "team1_id": "SCH-TEST", "team2_id": "SCH-X",
-                  "winner_id": "SCH-X", "loser_id": "SCH-TEST"},
+            "LOCAL": _Competition([
+                _Match("2026-07-10", "SCH-TEST", "SCH-X", "SCH-TEST"),
+            ]),
+            "NATIONAL": _Competition(),
         }))
         self.assertEqual(
             20, len(live.members_on("SCH-TEST", date(2026, 7, 10)))

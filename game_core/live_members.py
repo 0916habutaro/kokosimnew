@@ -92,7 +92,21 @@ class LiveSeasonMembers:
                 and self.state.competitions[cid].is_complete
             }
             self._summer_ends = summer_end_dates(
-                self.state.completed_results(),
+                {
+                    f"{cid}:{match_id}": {
+                        "competition_id": cid,
+                        "match_date": match.match_date,
+                        "team1_id": match.team1_id,
+                        "team2_id": match.team2_id,
+                        "loser_id": match.loser_id,
+                    }
+                    for cid in self.summer_ids
+                    if cid in self.state.competitions
+                    for match_id, match in self.state.competitions[
+                        cid
+                    ].matches.items()
+                    if match.status == "completed"
+                },
                 self.summer_ids,
                 completed,
             )
@@ -120,3 +134,48 @@ class LiveSeasonMembers:
         if school_year_of(on) != self.plan.year:
             raise ValueError("date outside this season's school year")
         return self.members.members_on(school_id, on)
+
+
+class PlayerSeason:
+    """選手で試合をする engine と、それにつなぐ出場メンバー・試合記録の置き場。"""
+
+    def __init__(self, engine, members, resolver):
+        self.engine = engine
+        self.members = members
+        self.resolver = resolver
+        # 状態ができる前（開始前の試合）の試合記録
+        self.resolver.detail_sink = {}
+
+    def attach(self, state) -> None:
+        self.members.attach(state)
+        pending = state.pending_match_details
+        pending.update(self.resolver.detail_sink)
+        self.resolver.detail_sink = pending
+
+
+def player_engine(repo, plan) -> PlayerSeason:
+    """選手で試合をする engine。進行中の状態ができたら ``attach`` する。"""
+    from phase2_engine.engine import TournamentEngine
+    from phase2_engine.season_catalog import TEMPLATE_YEAR
+
+    from .tournament_bridge import AbilityMatchResolver
+
+    members = LiveSeasonMembers(
+        plan,
+        RosterBook(
+            repo.team,
+            first_year=TEMPLATE_YEAR,
+            career_seed=plan.rng_seed,
+        ),
+    )
+    resolver = AbilityMatchResolver(
+        repo,
+        team_generation_seed=plan.rng_seed,
+        member_provider=members,
+    )
+    engine = TournamentEngine(
+        repo,
+        main_match_resolver=resolver,
+        pre_main_match_resolver=resolver,
+    )
+    return PlayerSeason(engine, members, resolver)

@@ -22,6 +22,8 @@ SNAPSHOT_FORMAT = b"KOKOSIM-RUNTIME-1\n"
 _REPO = "repo"
 _ENGINE = "engine"
 _FACTORY = "structural_factory"
+# 大会の進行が直接持っている試合の決め方（engine と同じもの）。
+_RESOLVERS = ("main_match_resolver", "pre_main_match_resolver")
 
 
 class RuntimeSnapshotError(ValueError):
@@ -32,10 +34,18 @@ class _Pickler(pickle.Pickler):
     def __init__(self, stream, engine):
         super().__init__(stream, protocol=pickle.HIGHEST_PROTOCOL)
         self._engine = engine
+        self._resolvers = {
+            id(value): name
+            for name in _RESOLVERS
+            if (value := getattr(engine, name, None)) is not None
+        }
 
     def persistent_id(self, obj):
         if obj is self._engine:
             return _ENGINE
+        name = self._resolvers.get(id(obj))
+        if name is not None:
+            return name
         if isinstance(obj, DataRepository):
             return _REPO
         if isinstance(obj, StructuralAnnualInputFactory):
@@ -68,12 +78,14 @@ def load_runtime_state(data: bytes, plan, *, engine=None):
         raise RuntimeSnapshotError("unknown runtime snapshot format")
     try:
         raw = zlib.decompress(data[len(SNAPSHOT_FORMAT):])
+        engine = (
+            engine if engine is not None
+            else TournamentEngine(plan.repo)
+        )
         external = {
+            **{name: getattr(engine, name, None) for name in _RESOLVERS},
             _REPO: plan.repo,
-            _ENGINE: (
-                engine if engine is not None
-                else TournamentEngine(plan.repo)
-            ),
+            _ENGINE: engine,
             _FACTORY: StructuralAnnualInputFactory(
                 plan.repo, plan.data_dir, plan.rng_seed
             ),

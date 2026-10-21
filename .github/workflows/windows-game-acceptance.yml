@@ -55,6 +55,7 @@ jobs:
             'test_stage43c2_incremental_checkpoint.py',
             'test_stage43d_career_year_boundary.py',
             'test_stage43e_career_rosters.py',
+            'test_player_season.py',
             'test_stage12s_readonly_gui.py',
             'test_stage12t_gui_filters_bracket_navigation.py',
             'test_stage12u_gui_home_filters.py',

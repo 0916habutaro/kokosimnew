@@ -24,6 +24,8 @@ from .runtime_snapshot import (
 # 旧形式は読み込まない（game_definition.md §5）。
 SAVE_SCHEMA_VERSION = "live-season-save.v2"
 DEFAULT_RESOLVER_CONTRACT = "default_deterministic_v1"
+# 全国の試合を選手で行う（game_core.live_members.player_engine）。
+PLAYER_RESOLVER_CONTRACT = "players_v1"
 
 
 class LiveSeasonSaveError(ValueError):

@@ -416,10 +416,33 @@ def validate_game_stats_contract(document: ConfigDocument) -> None:
         raise ValueError("game stats: batter PA formula mismatch")
 
 
+MATCH_CONFIG_FILES = (
+    "match_simulation_v1.json",
+    "event_catalog_v1.json",
+    "game_stats_contract_v1.json",
+)
+# 試合の記録を1球ごとに検査するたびに読み直さないよう、検査済みの設定を
+# ファイルの更新時刻ごとに覚えておく。
+_VALIDATED: dict[tuple, dict[str, ConfigDocument]] = {}
+
+
 def load_and_validate_match_configs(
     config_dir: str | Path = "config/match",
 ) -> dict[str, ConfigDocument]:
     root = Path(config_dir)
+    key = (str(root.resolve()),) + tuple(
+        (root / name).stat().st_mtime_ns for name in MATCH_CONFIG_FILES
+    )
+    cached = _VALIDATED.get(key)
+    if cached is None:
+        cached = _load_and_validate_match_configs(root)
+        _VALIDATED[key] = cached
+    return dict(cached)
+
+
+def _load_and_validate_match_configs(
+    root: Path,
+) -> dict[str, ConfigDocument]:
     match = load_config(
         root / "match_simulation_v1.json",
         expected_config_id="match_simulation_v1",

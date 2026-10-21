@@ -127,6 +127,7 @@ from .save_slots import (
 )
 from .live_season_save import (
     DEFAULT_RESOLVER_CONTRACT,
+    PLAYER_RESOLVER_CONTRACT,
     SAVE_SCHEMA_VERSION,
     LiveSeasonSaveCompatibilityError,
     LiveSeasonSaveError,
