@@ -11,8 +11,8 @@ from phase2_engine import (
     LiveSeasonGraphPlan,
     LiveSeasonGraphPlanner,
     LiveSeasonSaveCompatibilityError,
-    LiveSeasonSaveReplayError,
     LiveSeasonSaveSchemaError,
+    LiveSeasonSaveStateError,
     MatchResolution,
     TournamentEngine,
     create_live_season_save,
@@ -237,18 +237,10 @@ class Stage13E3E1FullSeasonSaveLoadTests(
             "2026-07-27",
             payload["processed_dates"][-1],
         )
-        self.assertTrue(
-            payload["completed_match_results"]
+        self.assertGreater(
+            payload["completed_match_count"],
+            0,
         )
-        self.assertTrue(any(
-            row.get(
-                "ability_detail",
-                {},
-            ).get("save_test_marker")
-            for row in payload[
-                "completed_match_results"
-            ].values()
-        ))
 
         restored_plan, restored = (
             restore_live_season_save(
@@ -278,6 +270,14 @@ class Stage13E3E1FullSeasonSaveLoadTests(
             "2026-07-28",
             restored.current_date.isoformat(),
         )
+        # 試合の詳細も保存した状態から戻る（やり直していない）
+        self.assertTrue(any(
+            (match.ability_detail or {}).get(
+                "save_test_marker"
+            )
+            for scheduled in restored.competitions.values()
+            for match in scheduled.matches.values()
+        ))
 
         original.play_today()
         restored.play_today()
@@ -339,15 +339,21 @@ class Stage13E3E1FullSeasonSaveLoadTests(
                     self.planner,
                 )
             )
-            self.assertEqual(
-                written[
-                    "payload_checksum"
-                ],
-                create_live_season_save(
-                    loaded_plan,
-                    restored,
-                )["payload_checksum"],
+            resaved = create_live_season_save(
+                loaded_plan,
+                restored,
             )
+            for key in (
+                "plan_fingerprint",
+                "current_date",
+                "processed_dates",
+                "completed_match_count",
+                "runtime_summary",
+            ):
+                self.assertEqual(
+                    written[key],
+                    resaved[key],
+                )
             self.assertEqual(
                 original.public_snapshot(),
                 restored.public_snapshot(),
@@ -408,7 +414,7 @@ class Stage13E3E1FullSeasonSaveLoadTests(
                 payload,
             )
 
-    def test_resolver_contract_and_replay_mismatch_are_rejected(
+    def test_resolver_contract_mismatch_is_rejected_and_load_does_not_replay(
         self,
     ):
         original = self._state_before_release(
@@ -436,26 +442,27 @@ class Stage13E3E1FullSeasonSaveLoadTests(
                 ),
             )
 
+        # 読込で試合をやり直さないので、試合の決め方が違っても
+        # 終わった試合の結果は保存したとおりに戻る。
         divergent = _DivergentResolver(
-            payload[
-                "completed_match_results"
-            ]
+            original.completed_results()
         )
-        with self.assertRaises(
-            LiveSeasonSaveReplayError
-        ):
-            restore_live_season_save(
-                self.planner,
-                payload,
-                engine=self._engine(
-                    divergent
-                ),
-                resolver_contract=(
-                    "deterministic_score_v1"
-                ),
-            )
+        _, restored = restore_live_season_save(
+            self.planner,
+            payload,
+            engine=self._engine(
+                divergent
+            ),
+            resolver_contract=(
+                "deterministic_score_v1"
+            ),
+        )
+        self.assertEqual(
+            original.completed_results(),
+            restored.completed_results(),
+        )
 
-    def test_payload_checksum_detects_semantic_match_tamper_even_when_rehashed(
+    def test_rehashed_tamper_of_state_or_summary_is_rejected(
         self,
     ):
         original = (
@@ -465,35 +472,64 @@ class Stage13E3E1FullSeasonSaveLoadTests(
             self.mini_plan,
             original,
         )
-        tampered = deepcopy(payload)
-        key = next(iter(
-            tampered[
-                "completed_match_results"
-            ]
-        ))
-        row = tampered[
-            "completed_match_results"
-        ][key]
-        row["score_source"] = (
-            "tampered_source"
-        )
-        body = dict(tampered)
-        body.pop(
-            "payload_checksum",
-            None,
-        )
-        tampered[
-            "payload_checksum"
-        ] = save_module._fingerprint(
-            body
-        )
 
+        def rehash(data):
+            body = dict(data)
+            body.pop("payload_checksum", None)
+            data["payload_checksum"] = (
+                save_module._fingerprint(body)
+            )
+            return data
+
+        summary = deepcopy(payload)
+        summary["runtime_summary"]["current_date"] = "2026-07-01"
         with self.assertRaises(
-            LiveSeasonSaveReplayError
+            LiveSeasonSaveStateError
         ):
             restore_live_season_save(
                 self.planner,
-                tampered,
+                rehash(summary),
+            )
+
+        broken = deepcopy(payload)
+        broken["runtime_state"] = "AAAA"
+        with self.assertRaises(
+            LiveSeasonSaveStateError
+        ):
+            restore_live_season_save(
+                self.planner,
+                rehash(broken),
+            )
+
+
+
+class NationalSaveLoadTests(unittest.TestCase):
+    def test_service_load_restores_state_without_replaying(self):
+        from phase2_engine import LiveGameService
+
+        repo = DataRepository(DATA_ROOT)
+        with tempfile.TemporaryDirectory() as tmp:
+            service = LiveGameService(
+                repo, DATA_ROOT, save_root=tmp,
+                autosave_after_action=False,
+            )
+            session = service.new_game("national", rng_seed=20261021)
+            session.state.advance_through("2026-04-12")
+            service.save_game(session)
+            loaded = service.load_game("national")
+            self.assertEqual(
+                session.state.completed_results(),
+                loaded.state.completed_results(),
+            )
+            self.assertEqual(
+                session.state.current_date,
+                loaded.state.current_date,
+            )
+            session.state.advance_through("2026-04-19")
+            loaded.state.advance_through("2026-04-19")
+            self.assertEqual(
+                session.state.completed_results(),
+                loaded.state.completed_results(),
             )
 
 

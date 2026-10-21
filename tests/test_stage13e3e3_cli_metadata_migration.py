@@ -14,8 +14,6 @@ from phase2_engine import (
     LiveSeasonSaveCompatibilityError,
     SAVE_KIND_AUTOSAVE,
     SAVE_KIND_MANUAL,
-    SAVE_SCHEMA_VERSION,
-    SaveMigrationRegistry,
     create_live_season_save,
     rechecksum_live_season_save_payload,
     restore_live_season_save,
@@ -362,9 +360,10 @@ class Stage13E3E3CliMetadataMigrationTests(
                 )["current_date"],
             )
 
-    def test_custom_migration_registry_upgrades_legacy_payload(
+    def test_older_save_schema_is_rejected_without_migration(
         self,
     ):
+        # 旧セーブは読み込まない（変換もしない）
         state = self.mini_plan.build_runtime(
             start_date="2026-07-01"
         )
@@ -375,61 +374,13 @@ class Stage13E3E3CliMetadataMigrationTests(
             self.mini_plan,
             state,
         )
-
         legacy = deepcopy(payload)
         legacy["schema_version"] = (
-            "stage13e3e0.live-season-save.v0"
+            "stage13e3e1.live-season-save.v1"
         )
         legacy = (
             rechecksum_live_season_save_payload(
                 legacy
-            )
-        )
-
-        registry = SaveMigrationRegistry()
-
-        def migrate_v0(data):
-            data = deepcopy(data)
-            data["schema_version"] = (
-                SAVE_SCHEMA_VERSION
-            )
-            return (
-                rechecksum_live_season_save_payload(
-                    data
-                )
-            )
-
-        registry.register(
-            "stage13e3e0.live-season-save.v0",
-            SAVE_SCHEMA_VERSION,
-            migrate_v0,
-        )
-
-        plan, restored = (
-            restore_live_season_save(
-                _StaticPlanner(
-                    self.mini_plan
-                ),
-                legacy,
-                migration_registry=registry,
-            )
-        )
-        self.assertEqual(
-            self.mini_plan.public_snapshot(),
-            plan.public_snapshot(),
-        )
-        self.assertEqual(
-            state.public_snapshot(),
-            restored.public_snapshot(),
-        )
-
-        unknown = deepcopy(legacy)
-        unknown["schema_version"] = (
-            "unknown.save.v9"
-        )
-        unknown = (
-            rechecksum_live_season_save_payload(
-                unknown
             )
         )
         with self.assertRaises(
@@ -439,8 +390,7 @@ class Stage13E3E3CliMetadataMigrationTests(
                 _StaticPlanner(
                     self.mini_plan
                 ),
-                unknown,
-                migration_registry=registry,
+                legacy,
             )
 
     def test_cli_contract_uses_game_service_for_new_list_status_and_actions(
@@ -569,22 +519,6 @@ class Stage13E3E3CliMetadataMigrationTests(
             self.assertTrue(
                 deleted["deleted"]
             )
-
-    def test_current_schema_requires_no_migration_step(
-        self,
-    ):
-        registry = SaveMigrationRegistry()
-        self.assertEqual(
-            [],
-            registry.path(
-                SAVE_SCHEMA_VERSION,
-                SAVE_SCHEMA_VERSION,
-            ),
-        )
-        self.assertEqual(
-            [],
-            registry.registered_versions(),
-        )
 
 
 if __name__ == "__main__":

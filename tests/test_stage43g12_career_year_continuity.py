@@ -57,12 +57,9 @@ def legacy_save(year=2026):
         "start_date": f"{year}-01-01",
         "current_date": f"{year}-01-01",
         "processed_dates": [],
-        "completed_match_results": {},
-        "status_by_competition": {},
-        "activated_on": {},
+        "completed_match_count": 0,
         "runtime_summary": {"scope": "legacy_fixture_only"},
-        "public_snapshot_fingerprint": "fixture-snapshot",
-        "history": [],
+        "runtime_state": "",
     }
     return rechecksum_live_season_save_payload(body)
 
