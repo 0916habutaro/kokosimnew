@@ -28,12 +28,12 @@ class Stage43G38NationwideCoverageTests(unittest.TestCase):
             cls.repo, cls.plan, DATA,
         )
 
-    def test_all_47_prefectures_161_competitions_49_summer_areas(self):
+    def test_all_47_prefectures_162_competitions_49_summer_areas(self):
         self.assertTrue(self.report["ok"], self.report["issues"][:20])
         s = self.report["summary"]
         self.assertEqual(47, s["prefecture_count"])
-        self.assertEqual(161, s["competition_count"])
-        self.assertEqual(161, s["national_plan_entry_count"])
+        self.assertEqual(162, s["competition_count"])
+        self.assertEqual(162, s["national_plan_entry_count"])
         self.assertEqual(49, s["summer_local_competition_count"])
         self.assertEqual(0, s["issue_count"])
         self.assertEqual(

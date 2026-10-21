@@ -12,6 +12,7 @@ from phase2_engine import (
     PLAN_ROOT,
     STRATEGY_DEFERRED_STRUCTURAL,
     STRATEGY_DEPENDENCY_AGGREGATE,
+    STRATEGY_SENBATSU_BOOTSTRAP,
     STRATEGY_STRUCTURAL,
     STRATEGY_SUMMER_AREA,
 )
@@ -36,27 +37,34 @@ class Stage13E3D3FullSeasonPlannerTests(
         )
         cls.plan = cls.planner.build_plan()
 
-    def test_plan_covers_all_161_competitions(
+    def test_plan_covers_all_162_competitions(
         self,
     ):
         summary = self.plan.summary()
 
-        # 2026年3月の選抜は2025年度の大会なので、2026年度の計画に入らない。
-        self.assertNotIn("CMP000001", self.plan.entries)
+        # 2026年3月の選抜は2025年度の大会。2026年度の選抜は2027年3月の第99回。
         self.assertEqual(
-            161,
+            "第99回選抜高等学校野球大会",
+            self.plan.entries["CMP000001"].display_name,
+        )
+        self.assertEqual(
+            "2027-03-18",
+            self.plan.entries["CMP000001"].calendar_start_date,
+        )
+        self.assertEqual(
+            162,
             summary["competition_count"],
         )
         self.assertEqual(
-            161,
+            162,
             summary["template_count"],
         )
         self.assertEqual(
-            161,
+            162,
             summary["calendar_count"],
         )
         self.assertEqual(
-            161,
+            162,
             summary["topological_count"],
         )
         self.assertEqual(
@@ -67,6 +75,7 @@ class Stage13E3D3FullSeasonPlannerTests(
             {
                 STRATEGY_DEFERRED_STRUCTURAL: 9,
                 STRATEGY_DEPENDENCY_AGGREGATE: 18,
+                STRATEGY_SENBATSU_BOOTSTRAP: 1,
                 STRATEGY_STRUCTURAL: 85,
                 STRATEGY_SUMMER_AREA: 49,
             },
@@ -77,7 +86,7 @@ class Stage13E3D3FullSeasonPlannerTests(
                 PLAN_ACCESS: 9,
                 PLAN_QUALIFICATION: 2,
                 PLAN_REGIONAL_FEEDER: 16,
-                PLAN_ROOT: 134,
+                PLAN_ROOT: 135,
             },
             summary[
                 "dependency_family_counts"
@@ -86,7 +95,7 @@ class Stage13E3D3FullSeasonPlannerTests(
         self.assertEqual(
             {
                 "autumn": 56,
-                "spring": 55,
+                "spring": 56,
                 "summer": 50,
             },
             summary["season_segment_counts"],
@@ -289,26 +298,26 @@ class Stage13E3D3FullSeasonPlannerTests(
             regional.entrant_school_ids,
         )
 
-    def test_full_plan_builds_runtime_with_134_roots_and_27_waiting_destinations(
+    def test_full_plan_builds_runtime_with_135_roots_and_27_waiting_destinations(
         self,
     ):
         state = self.plan.build_runtime()
         summary = state.summary()
 
         self.assertEqual(
-            161,
+            162,
             summary[
                 "template_competition_count"
             ],
         )
         self.assertEqual(
-            134,
+            135,
             summary["active_runtime_count"],
         )
         # March spring competitions finish before the April start.
         self.assertEqual(
             {
-                "active": 123,
+                "active": 124,
                 "completed": 11,
                 "waiting_dependencies": 27,
             },
@@ -322,7 +331,8 @@ class Stage13E3D3FullSeasonPlannerTests(
             "CMP000016",
             state.competitions,
         )
-        self.assertNotIn(
+        # 2027年3月の第99回選抜
+        self.assertIn(
             "CMP000001",
             state.competitions,
         )

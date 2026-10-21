@@ -59,11 +59,11 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             summary["processed_through"],
         )
         self.assertEqual(
-            161,
+            162,
             summary["competition_count"],
         )
         self.assertEqual(
-            160,
+            161,
             summary[
                 "completed_competition_count"
             ],
@@ -77,7 +77,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
         self.assertEqual(
             {
                 BLOCKER_CALENDAR_GAP: 1,
-                BLOCKER_COMPLETE: 160,
+                BLOCKER_COMPLETE: 161,
             },
             summary["blocker_counts"],
         )
@@ -409,8 +409,12 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             for row
             in self.audit.competition_rows
         }
-        # 2026年3月の選抜は前の年度の大会なので実行しない。
-        self.assertNotIn("CMP000001", by_comp)
+        self.assertEqual(
+            BLOCKER_COMPLETE,
+            by_comp[
+                "CMP000001"
+            ].blocker_kind,
+        )
         self.assertEqual(
             BLOCKER_COMPLETE,
             by_comp[
@@ -467,7 +471,7 @@ class Stage13E3F1FullSeasonBlockerAuditTests(
             )
 
             self.assertEqual(
-                161,
+                162,
                 len(competition_rows),
             )
             self.assertEqual(
