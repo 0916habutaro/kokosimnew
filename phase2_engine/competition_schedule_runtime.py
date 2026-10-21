@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import date
 from typing import Dict, Iterable, List, Mapping, Sequence
 
@@ -69,11 +69,22 @@ class ScheduledRuntimeMatch:
     team2_score: int | None = None
     score_source: str = ""
     ability_detail: dict | None = None
+    # 履歴（historical_match_archive）に保存済みか
+    archived: bool = False
 
     def public_dict(self) -> dict:
-        row = asdict(self)
-        row.pop("ability_detail", None)
-        return row
+        # 試合の詳細（1球ごとの記録）は大きいので写さない。
+        return {
+            name: getattr(self, name)
+            for name in _PUBLIC_MATCH_FIELDS
+        }
+
+
+_PUBLIC_MATCH_FIELDS = tuple(
+    item.name
+    for item in fields(ScheduledRuntimeMatch)
+    if item.name not in ("ability_detail", "archived")
+)
 
 
 @dataclass

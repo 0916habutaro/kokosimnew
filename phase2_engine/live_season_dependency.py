@@ -185,6 +185,12 @@ class LiveSeasonDependencyRuntimeState:
     ] = field(default_factory=dict, repr=False)
     # 前の年度の3月の選抜の出場校（ゲーム内では試合をしない）。
     prior_invitational_entrant_ids: tuple[str, ...] = ()
+    # まだ履歴に保存していない試合の記録（スコア・個人成績）。
+    # 「competition_id:match_id」→記録。選手で試合をするときに使う。
+    pending_match_details: dict[str, dict] = field(
+        default_factory=dict,
+        repr=False,
+    )
     dependency_rules: dict[str, list[dict]] = field(
         default_factory=dict,
         repr=False,

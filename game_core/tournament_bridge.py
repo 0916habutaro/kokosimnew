@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from copy import deepcopy
+from dataclasses import replace
 from typing import Callable
 
 from phase2_engine.models import MatchResolution
@@ -40,6 +41,10 @@ class AbilityMatchResolver:
         self.roster_provider = roster_provider
         # 大会ごとの出場メンバー（大会開始時点の部員）。指定すると名簿より優先する。
         self.member_provider = member_provider
+        # 指定すると、試合の記録（スコア・個人成績）は大会の進行には持たせず
+        # ここに「competition_id:match_id」で置く。履歴に保存したら消す
+        # （全国の試合でセーブを小さく保つ。1打席ごとの記録は残さない）。
+        self.detail_sink: dict[str, dict] | None = None
         self.ability_generator = SchoolAwarePlayerAbilityGenerator(
             ability_config_dir
         )
@@ -63,6 +68,7 @@ class AbilityMatchResolver:
             tuple[str, int, str],
             TeamMatchInput,
         ] = {}
+        self._abilities: dict[tuple, object] = {}
         self._initial_roster_scope = None
 
     def prepare_initial_rosters(self, *, reference_year: int,
@@ -126,6 +132,7 @@ class AbilityMatchResolver:
         self._team_cache.clear()
         self._roster_cache.clear()
         self._competition_teams.clear()
+        self._abilities.clear()
 
     def begin_season(
         self,
@@ -249,13 +256,11 @@ class AbilityMatchResolver:
         if cached is not None:
             return cached
         members = self.member_provider(competition_id, school_id)
-        # 能力はその大会の年度のもの（3月に始まる大会も、大会の年度で揃える）
+        # 能力はその大会の年度のもの（3月に始まる大会も、大会の年度で揃える）。
+        # 同じ選手が年度内のいくつもの大会に出るので、一度つくった能力を使い回す。
         abilities = tuple(
-            self.ability_generator.iter_roster(
-                members.players,
-                reference_year,
-                team_seed,
-            )
+            self._player_ability(player, reference_year, team_seed)
+            for player in members.players
         )
         team = TeamMatchInput(
             school_id=school_id,
@@ -264,6 +269,16 @@ class AbilityMatchResolver:
         )
         self._competition_teams[key] = team
         return team
+
+    def _player_ability(self, player, reference_year: int, team_seed: int):
+        key = (player, reference_year, team_seed)
+        snapshot = self._abilities.get(key)
+        if snapshot is None:
+            snapshot = self.ability_generator.generate(
+                player, reference_year, team_seed
+            )
+            self._abilities[key] = snapshot
+        return snapshot
 
     def __call__(
         self,
@@ -314,8 +329,14 @@ class AbilityMatchResolver:
             team_generation_seed=team_generation_seed,
         )
         result = self.simulator.simulate(match_input)
-        detail = result.to_dict()
-        detail["team_generation_seed"] = team_generation_seed
+        if self.detail_sink is not None:
+            full = replace(result, events=()).to_dict()
+            full["team_generation_seed"] = team_generation_seed
+            self.detail_sink[f"{competition_id}:{match_id}"] = full
+            detail = {"team_generation_seed": team_generation_seed}
+        else:
+            detail = result.to_dict()
+            detail["team_generation_seed"] = team_generation_seed
         return MatchResolution(
             winner_id=result.winner_id,
             loser_id=result.loser_id,

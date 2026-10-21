@@ -19,6 +19,7 @@ from .live_season_planner import (
 )
 from .live_season_save import (
     DEFAULT_RESOLVER_CONTRACT,
+    PLAYER_RESOLVER_CONTRACT,
     plan_fingerprint,
 )
 from .repository import DataRepository
@@ -539,6 +540,18 @@ class Yamanashi33FixturePersistence(SharedSchoolYearPersistence):
         super().prepare(plan, engine, contract)
 
 
+class _BuiltPlanner:
+    """作った計画を使い回す（読込で計画を2回作らない）。"""
+
+    def __init__(self, planner, plan):
+        self.year = planner.year
+        self.rng_seed = planner.rng_seed
+        self._plan = plan
+
+    def build_plan(self):
+        return self._plan
+
+
 class LiveGameService:
     """Facade used by future GUI/CLI for new/load/save and day progression."""
 
@@ -642,10 +655,13 @@ class LiveGameService:
             if self.slots.slot_dir(slot).exists():
                 raise ValueError("既存セーブへ新規ゲームを上書きできません")
             self.career_persistence.prepare(plan, engine, self.resolver_contract)
+        engine, season = self._engine(plan, engine)
         state = plan.build_runtime(
             engine=engine,
             start_date=start_date,
         )
+        if season is not None:
+            season.attach(state)
         session = LiveGameSession(
             slot_id=slot,
             plan=plan,
@@ -688,17 +704,21 @@ class LiveGameService:
             metadata["rng_seed"],
             year=metadata["year"],
         )
+        built = planner.build_plan()
         if self.career_persistence is not None:
-            self.career_persistence.prepare(planner.build_plan(), engine, self.resolver_contract)
+            self.career_persistence.prepare(built, engine, self.resolver_contract)
+        engine, season = self._engine(built, engine)
         plan, state = self.slots.load(
             slot_id,
-            planner,
+            _BuiltPlanner(planner, built),
             source=source,
             engine=engine,
             resolver_contract=(
                 self.resolver_contract
             ),
         )
+        if season is not None:
+            season.attach(state)
         session = LiveGameSession(
             slot_id=(
                 self.slots.validate_slot_id(
@@ -716,6 +736,18 @@ class LiveGameService:
         self._sync_history(session)
         return session
 
+    def _engine(self, plan, engine):
+        """選手で試合をする契約なら、その engine（と状態につなぐ部品）をつくる。"""
+        if (
+            engine is not None
+            or self.resolver_contract != PLAYER_RESOLVER_CONTRACT
+        ):
+            return engine, None
+        from game_core.live_members import player_engine
+
+        season = player_engine(self.repo, plan)
+        return season.engine, season
+
     def _history_archive(self, slot_id: str) -> HistoricalMatchArchive:
         return HistoricalMatchArchive(
             self.slots.slot_dir(slot_id) / "historical_matches.sqlite3"
@@ -726,12 +758,23 @@ class LiveGameService:
         persistence = self.career_persistence
         rosters, sealed = persistence.validate(session, slot) if persistence else ((), False)
         roster_result = persistence.sync_rosters(rosters, slot) if persistence else None
-        completed = (
-            match.__dict__
-            for scheduled in session.state.competitions.values()
+        # まだ履歴に保存していない試合だけを送る。選手で試合をするときの
+        # スコア・個人成績は状態の pending_match_details にあり、保存したら消す。
+        details = getattr(session.state, "pending_match_details", {})
+        new = [
+            (cid, match)
+            for cid, scheduled in session.state.competitions.items()
             for match in scheduled.matches.values()
             if match.status == "completed"
-        )
+            and not getattr(match, "archived", False)
+        ]
+        completed = []
+        for cid, match in new:
+            row = dict(match.__dict__)
+            detail = details.get(f"{cid}:{match.match_id}")
+            if detail is not None:
+                row["ability_detail"] = detail
+            completed.append(row)
         result = self._history_archive(session.slot_id).sync(
             year=session.state.year,
             rng_seed=session.state.rng_seed,
@@ -739,6 +782,9 @@ class LiveGameService:
             plan_fingerprint=plan_fingerprint(session.plan),
             completed=completed,
         )
+        for cid, match in new:
+            match.archived = True
+            details.pop(f"{cid}:{match.match_id}", None)
         if persistence:
             result['career_rosters'] = roster_result
             result['career_outcomes'] = persistence.sync_outcomes(session, slot) if sealed else []
@@ -751,7 +797,8 @@ class LiveGameService:
         kind: str = SAVE_KIND_MANUAL,
     ) -> dict:
         # JSON first: if the archive operation fails or the process exits,
-        # a later load deterministically replays and retries the archive.
+        # the saved state still holds the unarchived match records and the
+        # next save archives them.
         if self.career_persistence is not None:
             self.career_persistence.validate(session, self.slots.slot_dir(session.slot_id))
         saved = self.slots.save(

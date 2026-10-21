@@ -495,6 +495,7 @@ def validate_match_event(
     match_input: MatchSimulationInput,
     *,
     config_dir: str | Path = "config/match",
+    catalog: dict[str, dict] | None = None,
 ) -> None:
     if event.event_no < 1:
         raise ValueError("match event: event_no must be >= 1")
@@ -527,7 +528,8 @@ def validate_match_event(
             f"match event {event.event_no}: offense/defense order mismatch"
         )
 
-    catalog = _event_type_map(config_dir)
+    if catalog is None:
+        catalog = _event_type_map(config_dir)
     if event.event_type not in catalog:
         raise ValueError(
             f"match event {event.event_no}: unknown event_type "
@@ -709,11 +711,13 @@ def validate_match_simulation_result(
         raise ValueError(
             "match result: plate_appearance_no must be contiguous in v1"
         )
+    catalog = _event_type_map(config_dir)
     for event in events:
         validate_match_event(
             event,
             match_input,
             config_dir=config_dir,
+            catalog=catalog,
         )
     if result.inning_scores is not None:
         actual_by_half: dict[tuple[int, str], int] = {}
