@@ -15,6 +15,7 @@ from .paths import resolve_data_file
 from .randomness import shuffled
 from .repository import DataRepository
 from .senbatsu_selection import (
+    PUBLIC_OWNERSHIP_TYPES,
     select_invitational,
     selection_region_ids,
 )
@@ -41,6 +42,8 @@ DEPENDENCY_BLOCKED = "blocked"
 DEPENDENCY_BLOCKED_DATE = "blocked_date_dependency"
 # 選抜の選考に使う大会のうち、神宮大会の印
 JINGU = "jingu"
+# 選抜の選考に使う秋の県大会（21世紀枠）の印
+PREFECTURAL = "prefectural:"
 
 
 @dataclass(frozen=True)
@@ -706,6 +709,13 @@ class LiveSeasonDependencyRuntimeState:
             ),
             "",
         )
+        # 21世紀枠は秋の県大会の順位から推薦する
+        for cid, row in self.repo.competitions.items():
+            if (
+                row.get("competition_type") == "autumn_prefectural"
+                and cid in self.annual_templates
+            ):
+                sources[PREFECTURAL + cid] = cid
         return sources
 
     def _dependency_family_count(
@@ -738,6 +748,13 @@ class LiveSeasonDependencyRuntimeState:
                 == str(rules_year(self.year))
             )
         }
+
+    def _public_school_ids(self) -> frozenset[str]:
+        return frozenset(
+            school_id
+            for school_id, row in self.repo.schools.items()
+            if row.get("ownership_type") in PUBLIC_OWNERSHIP_TYPES
+        )
 
     def _autumn_region_of(self, school_id: str) -> str:
         pcode = self.repo.schools[school_id].get("prefecture_code", "")
@@ -1617,6 +1634,15 @@ class LiveSeasonDependencyRuntimeState:
         }
         jingu_champion = rankings.pop(JINGU)[0]
         jingu_region = self._autumn_region_of(jingu_champion)
+        prefectural: dict[str, list[list[str]]] = {}
+        for key in [k for k in rankings if k.startswith(PREFECTURAL)]:
+            ranking = rankings.pop(key)
+            prefectural.setdefault(
+                self._autumn_region_of(ranking[0]), []
+            ).append(ranking)
+        # 東京・北海道は秋季地区大会が都道府県の大会を兼ねる
+        for region, ranking in rankings.items():
+            prefectural.setdefault(region, [ranking])
         annual = deepcopy(
             self.annual_templates[competition_id]
         )
@@ -1624,6 +1650,8 @@ class LiveSeasonDependencyRuntimeState:
             self.selection_rules[competition_id],
             rankings,
             jingu_region=jingu_region,
+            prefectural_rankings=prefectural,
+            public_school_ids=self._public_school_ids(),
             rng_seed=annual.rng_seed,
         )
         self.history.append({

@@ -68,8 +68,9 @@ class Stage13E3D3FullSeasonPlannerTests(
             162,
             summary["topological_count"],
         )
+        # 選抜は秋季地区大会・神宮大会・秋の県大会（21世紀枠）から選ぶ
         self.assertEqual(
-            171,
+            216,
             summary["dependency_edge_count"],
         )
         self.assertEqual(
