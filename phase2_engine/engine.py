@@ -312,6 +312,7 @@ class TournamentEngine:
         calendar_row,
         *,
         stage_date_lists=None,
+        school_days=None,
     ):
         """Prepare a lazy competition runtime and bind its next ready wave to dates."""
         from .competition_schedule_runtime import (
@@ -326,6 +327,7 @@ class TournamentEngine:
             runtime,
             calendar_row,
             stage_date_lists=stage_date_lists,
+            school_days=school_days,
         )
 
     def _pre_main_resolution_kwargs(self, annual: AnnualCompetitionInput) -> dict:

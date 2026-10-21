@@ -266,6 +266,8 @@ class LiveSeasonGraphPlan:
         *,
         engine: TournamentEngine | None = None,
         start_date: str | None = None,
+        open_before_school_year: bool = False,
+        school_days: dict | None = None,
     ) -> LiveSeasonDependencyRuntimeState:
         structural_factory = (
             StructuralAnnualInputFactory(
@@ -293,6 +295,10 @@ class LiveSeasonGraphPlan:
                 calendar_rows=self.calendar_rows,
                 rng_seed=self.rng_seed,
                 start_date=start_date,
+                open_before_school_year=(
+                    open_before_school_year
+                ),
+                school_days=school_days,
                 stage_calendar_rows=(
                     self.stage_calendar_rows
                 ),

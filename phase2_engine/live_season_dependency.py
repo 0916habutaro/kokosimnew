@@ -191,6 +191,11 @@ class LiveSeasonDependencyRuntimeState:
         default_factory=dict,
         repr=False,
     )
+    # 学校ごとの試合の日。全大会で共有し、年度の重なりでは前の年度と共有する。
+    school_days: dict[str, set] = field(
+        default_factory=dict,
+        repr=False,
+    )
     dependency_rules: dict[str, list[dict]] = field(
         default_factory=dict,
         repr=False,
@@ -263,6 +268,8 @@ class LiveSeasonDependencyRuntimeState:
         ) = None,
         structural_factory: object | None = None,
         start_date: str | date | None = None,
+        open_before_school_year: bool = False,
+        school_days: dict[str, set] | None = None,
         stage_calendar_rows: (
             Sequence[Mapping[str, str]] | None
         ) = None,
@@ -375,7 +382,14 @@ class LiveSeasonDependencyRuntimeState:
                 else school_year_start(year)
             )
         )
-        if not in_school_year(year, initial):
+        # 翌年度の大会表は前の年度の秋の大会の後に作る（年度の重なり）。
+        # そのときは年度が始まる前の日から進める。
+        early = (
+            open_before_school_year
+            and school_year_start(year - 1) <= initial
+            < school_year_start(year)
+        )
+        if not early and not in_school_year(year, initial):
             raise ValueError(
                 "start_date must be inside school year"
             )
@@ -555,6 +569,9 @@ class LiveSeasonDependencyRuntimeState:
             prior_invitational_entrant_ids=tuple(
                 prior_invitational_entrant_ids
             ),
+            school_days=(
+                school_days if school_days is not None else {}
+            ),
             dependency_rules=rules,
             qualification_rules=qualification_rules,
             regional_feeder_rules=regional_feeder_rules,
@@ -725,6 +742,7 @@ class LiveSeasonDependencyRuntimeState:
                         competition_id
                     )
                 ),
+                school_days=self.school_days,
             )
         )
         next_date = scheduled.next_scheduled_date()
@@ -1796,9 +1814,13 @@ class LiveSeasonDependencyRuntimeState:
                 )
             )
         )
-        if not in_school_year(
-            self.year,
-            target_date,
+        # 年度が始まる前に開いた年度（年度の重なり）は開いた日から進める。
+        if (
+            target_date > school_year_end(self.year)
+            or target_date < min(
+                self.start_date,
+                school_year_start(self.year),
+            )
         ):
             raise ValueError(
                 "target_date must be inside school year"

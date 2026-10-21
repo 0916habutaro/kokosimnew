@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, fields
-from datetime import date
+from datetime import date, timedelta
 from typing import Dict, Iterable, List, Mapping, Sequence
 
 from .models import CompetitionRun, MatchResolution
@@ -115,6 +115,10 @@ class ScheduledCompetitionRuntime:
     last_scheduled_date: str = ""
     calendar_gap_match_ids: List[str] = field(default_factory=list)
     ranking_sidecars: Dict[str, object] = field(default_factory=dict, repr=False)
+    # 学校ごとの試合の日（全大会・全年度で共有）。同じ日に2試合しないため。
+    school_days: Dict[str, set] = field(default_factory=dict, repr=False)
+    # 試合を空いている日へ回したことがあるか（日程が足りなくなったときの扱い）
+    spread_matches: bool = False
 
     @classmethod
     def from_calendar_row(
@@ -124,6 +128,7 @@ class ScheduledCompetitionRuntime:
         calendar_row: Mapping[str, str],
         *,
         stage_date_lists: Mapping[str, Sequence[str]] | None = None,
+        school_days: Dict[str, set] | None = None,
     ) -> "ScheduledCompetitionRuntime":
         competition_id = getattr(
             runtime,
@@ -179,6 +184,8 @@ class ScheduledCompetitionRuntime:
                 else ""
             ),
         )
+        if school_days is not None:
+            state.school_days = school_days
         state.ensure_next_wave_scheduled()
         return state
 
@@ -240,6 +247,45 @@ class ScheduledCompetitionRuntime:
             if (not floor or value > floor)
             and value not in used
         ]
+
+    def _used_dates(self) -> set[str]:
+        return {
+            match.match_date
+            for match in self.matches.values()
+            if match.match_date
+        }
+
+    def _stage_limit(self, stage_code: str, after: str) -> date | None:
+        """その段階に使える最後の日（次の段階が始まる前の日）。"""
+        later_pools = [
+            value
+            for code, pool in self.stage_date_lists.items()
+            if code != stage_code
+            for value in pool
+            if value > after
+        ]
+        if stage_code in self.stage_date_lists:
+            later_pools.extend(
+                value for value in self.calendar_dates
+                if value > after
+            )
+        if later_pools:
+            return date.fromisoformat(min(later_pools)) - timedelta(days=1)
+        if self.calendar_dates:
+            return date.fromisoformat(max(self.calendar_dates))
+        return None
+
+    def _reserve_dates(self, stage_code: str, after: str) -> list[str]:
+        """日程にない空き日（予備日）。``after`` の翌日から次の段階の前まで。"""
+        limit = self._stage_limit(stage_code, after)
+        if limit is None:
+            return []
+        day = date.fromisoformat(after) + timedelta(days=1)
+        days = []
+        while day <= limit:
+            days.append(day.isoformat())
+            day += timedelta(days=1)
+        return days
 
     def _record_from_ready_row(
         self,
@@ -347,13 +393,22 @@ class ScheduledCompetitionRuntime:
             dates = self._available_dates_for_stage(
                 stage_code
             )
+            if (
+                not dates
+                and self.spread_matches
+                and self.last_scheduled_date
+            ):
+                # 試合を空いている日へ回したために日程が足りなくなった。
+                # 次の段階（本大会など）が始まる前の空いている日を予備日に使う。
+                dates = self._reserve_dates(
+                    stage_code, self.last_scheduled_date,
+                )[:1]
             if not dates:
                 unresolved_gap.extend(
                     str(row["match_id"])
                     for row in stage_rows
                 )
                 continue
-            target = dates[0]
             source = (
                 self.date_source_override
                 or (
@@ -362,12 +417,48 @@ class ScheduledCompetitionRuntime:
                     else "runtime_wave_v1"
                 )
             )
+            # 同じ学校が同じ日に2試合しないよう、両校とも空いている最初の日に
+            # 入れる（総当たりの組・ほかの大会）。空いた日がなければ最初の日。
+            chosen = []
+            used_dates = self._used_dates()
             for row in stage_rows:
                 match_id = str(row["match_id"])
                 if match_id in self.matches:
                     raise ValueError(
                         f"duplicate scheduled runtime match: {match_id}"
                     )
+                teams = [
+                    team
+                    for team in (
+                        str(row.get("team1") or ""),
+                        str(row.get("team2") or ""),
+                    )
+                    if team
+                ]
+                # 最初の日がふさがっていれば、次の日程の日より前の空き日
+                # （予備日）、次に残りの日程の日。予備日をあとの日程まで
+                # 使うと次の回戦の日程が足りなくなるので、そこまでにする。
+                reserve = [
+                    day
+                    for day in self._reserve_dates(stage_code, dates[0])
+                    if (len(dates) < 2 or day < dates[1])
+                    and day not in used_dates
+                ]
+                candidates = dates[:1] + reserve + dates[1:]
+                target = next(
+                    (
+                        day for day in candidates
+                        if not any(
+                            day in self.school_days.get(team, ())
+                            for team in teams
+                        )
+                    ),
+                    dates[0],
+                )
+                if target != dates[0]:
+                    self.spread_matches = True
+                for team in teams:
+                    self.school_days.setdefault(team, set()).add(target)
                 record = self._record_from_ready_row(
                     row,
                     target,
@@ -375,7 +466,8 @@ class ScheduledCompetitionRuntime:
                 )
                 self.matches[match_id] = record
                 assigned.append(record)
-            self.last_scheduled_date = target
+                chosen.append(target)
+            self.last_scheduled_date = max(chosen)
 
         self.calendar_gap_match_ids = sorted(
             unresolved_gap

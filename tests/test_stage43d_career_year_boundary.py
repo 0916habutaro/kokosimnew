@@ -115,18 +115,15 @@ class Stage43DCareerYearBoundaryTests(unittest.TestCase):
             self._sync(rows=[completed_record(score=5)])
         self.assertEqual(1, len(self.archive.list_matches(2026)))
 
-    def test_skip_unsealed_and_unregistered_years_are_blocked(self):
+    def test_skipped_and_unregistered_years_are_blocked(self):
         self._sync(rows=[completed_record()])
-        with self.assertRaisesRegex(HistoricalMatchConflictError, "previous year"):
-            self._register()
         with self.assertRaisesRegex(HistoricalMatchConflictError, "previous year"):
             self._register(2028)
         with self.assertRaisesRegex(HistoricalMatchConflictError, "identity"):
             self._sync(2027, [completed_record()], seed=22)
-        self.archive.seal_year(2026, expected_match_count=1)
-        with self.assertRaisesRegex(HistoricalMatchConflictError, "previous year"):
-            self._register(2028)
+        # 年度の重なり：前の年度を封印する前に翌年度を登録できる
         self._register()
+        self.archive.seal_year(2026, expected_match_count=1)
         with self.assertRaisesRegex(HistoricalMatchConflictError, "identity"):
             self._sync(2027, [completed_record()], seed=999)
         with self.assertRaisesRegex(HistoricalMatchConflictError, "identity"):

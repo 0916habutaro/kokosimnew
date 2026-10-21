@@ -873,6 +873,7 @@ class SaveSlotManager:
         resolver_contract: str = (
             DEFAULT_RESOLVER_CONTRACT
         ),
+        **season_builders,
     ):
         path = self._source_path(
             slot_id,
@@ -885,6 +886,7 @@ class SaveSlotManager:
             resolver_contract=(
                 resolver_contract
             ),
+            **season_builders,
         )
 
     def delete_slot(
