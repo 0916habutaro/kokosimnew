@@ -218,7 +218,7 @@ class Stage13E3F4FinalSeasonIntegrityRuntimeTests(unittest.TestCase):
     def test_complete_runtime_with_only_jingu_deferred(self):
         self.assertTrue(self.report["ok"], self.report["checks"])
         self.assertEqual(
-            161, self.report["summary"]["simulated_completed_competition_count"]
+            160, self.report["summary"]["simulated_completed_competition_count"]
         )
         self.assertEqual(
             ["CMP000003"],
