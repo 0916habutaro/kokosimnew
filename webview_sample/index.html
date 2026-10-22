@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>ココシミュ 見本（WebView版）</title>
+<style>
+:root {
+  --bg: #0e151d; --panel: #15202b; --panel2: #1b2936; --line: #2a3b4b;
+  --text: #e8eef4; --muted: #8ea3b6; --accent: #f2b233; --accent-ink: #1b1300;
+  --red: #d63a35; --paper: #f5f1e6; --paper-line: #6b665c; --paper-ink: #1f1d1a;
+  --board: #10301f; --board-line: #1f4a33;
+  --ui: "Yu Gothic UI", "Meiryo UI", "Noto Sans CJK JP", sans-serif;
+  --num: "Bahnschrift", "DIN Alternate", "Roboto Condensed", var(--ui);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--ui); font-size: 14px; overflow: hidden; user-select: none; }
+button { font-family: inherit; }
+
+/* 上の帯 */
+.top { height: 56px; display: flex; align-items: center; gap: 18px; padding: 0 18px; background: linear-gradient(#18252f, #121c25); border-bottom: 1px solid var(--line); }
+.logo { font-weight: 800; letter-spacing: .08em; font-size: 18px; }
+.logo span { color: var(--accent); }
+.date { margin-left: 12px; display: flex; align-items: baseline; gap: 8px; padding: 6px 14px; background: #0a1016; border: 1px solid var(--line); border-radius: 6px; }
+.date b { font-family: var(--num); font-size: 22px; color: var(--accent); letter-spacing: .04em; }
+.date small { color: var(--muted); }
+.spacer { flex: 1; }
+.btn { height: 34px; padding: 0 16px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); cursor: pointer; font-size: 13px; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+.btn[disabled] { opacity: .45; cursor: default; }
+
+/* 全体の配置 */
+.app { display: flex; height: calc(100% - 56px); }
+nav { width: 168px; background: var(--panel); border-right: 1px solid var(--line); padding: 12px 8px; display: flex; flex-direction: column; gap: 4px; }
+nav button { text-align: left; height: 42px; padding: 0 14px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 15px; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+nav button:hover:not([disabled]) { background: var(--panel2); color: var(--text); }
+nav button.on { background: var(--panel2); color: var(--text); box-shadow: inset 3px 0 0 var(--accent); }
+nav button[disabled] { opacity: .35; cursor: default; }
+nav .note { margin-top: auto; color: var(--muted); font-size: 11px; line-height: 1.5; padding: 8px; }
+main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.page { display: none; flex: 1; min-height: 0; }
+.page.on { display: flex; }
+h2 { margin: 0; font-size: 18px; }
+
+/* 大会 */
+.tour { flex-direction: column; }
+.tour-head { display: flex; align-items: center; gap: 8px; padding: 14px 18px 10px; border-bottom: 1px solid var(--line); }
+.tabs { display: flex; gap: 6px; margin-left: 12px; }
+.tab { padding: 6px 12px; border-radius: 16px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
+.tab.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+.zoom { display: flex; gap: 4px; }
+.zoom .btn { width: 34px; padding: 0; }
+.tour-body { flex: 1; min-height: 0; display: flex; }
+.paper-wrap { flex: 1; min-width: 0; overflow: auto; background: #0b1117; padding: 16px; }
+.paper { background: var(--paper); border-radius: 4px; box-shadow: 0 6px 24px rgba(0,0,0,.45); display: inline-block; padding: 18px 22px 22px; }
+.paper .title { color: var(--paper-ink); font-weight: 800; font-size: 16px; margin-bottom: 6px; }
+.paper .champ { color: var(--red); font-weight: 800; }
+svg text { font-family: var(--ui); }
+.seg { stroke: var(--paper-line); stroke-width: 1.2; fill: none; }
+.seg.win { stroke: var(--red); stroke-width: 2.4; }
+.seg.trace { stroke: #1f6fd1 !important; stroke-width: 3.4 !important; }
+.tname { font-size: 12.5px; fill: var(--paper-ink); cursor: pointer; }
+.tname:hover { fill: #1f6fd1; text-decoration: underline; }
+.tname.champion { font-weight: 800; fill: var(--red); }
+.sc { font-family: var(--num); font-size: 10.5px; fill: #555; }
+.sc.win { fill: var(--red); font-weight: 700; }
+.hit { fill: transparent; cursor: pointer; }
+.dot { fill: var(--paper-line); pointer-events: none; }
+.dot.win { fill: var(--red); }
+.hit:hover, .hit.sel { fill: rgba(242,178,51,.35); }
+.rlabel { font-size: 11px; fill: #7a756a; }
+
+/* 試合の詳細（右） */
+.side { width: 380px; border-left: 1px solid var(--line); background: var(--panel); padding: 16px; overflow: auto; }
+.side .muted, .muted { color: var(--muted); }
+.board { margin-top: 10px; background: var(--board); border: 2px solid var(--board-line); border-radius: 6px; padding: 10px; }
+.board table { border-collapse: collapse; width: 100%; font-family: var(--num); }
+.board td, .board th { text-align: center; padding: 4px 0; font-size: 15px; color: #f6f1d8; }
+.board th { color: #9fc7ae; font-size: 11px; font-weight: 400; }
+.board td.team { text-align: left; font-family: var(--ui); font-size: 13px; padding-right: 6px; white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+.board td.total { color: var(--accent); font-size: 20px; font-weight: 700; border-left: 1px solid var(--board-line); }
+.board tr.loser td.team { color: #b7c9bc; }
+.empty { color: var(--muted); padding: 40px 8px; text-align: center; line-height: 1.8; }
+.link { color: #7fb8ff; cursor: pointer; }
+.link:hover { text-decoration: underline; }
+
+/* 学校 */
+.schools { flex-direction: column; }
+.filters { display: flex; align-items: center; gap: 10px; padding: 14px 18px 10px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+select, input[type=search] { height: 32px; background: #0b1117; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 0 10px; font-family: inherit; font-size: 13px; }
+input[type=search] { width: 220px; }
+.count { color: var(--muted); margin-left: auto; font-family: var(--num); }
+.sbody { flex: 1; min-height: 0; display: flex; }
+.grid { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ghead, .grow { display: grid; grid-template-columns: 90px minmax(160px, 1fr) 70px 56px 56px 56px 64px 64px 110px; align-items: center; }
+.ghead { height: 36px; background: var(--panel2); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.ghead div { padding: 0 10px; cursor: pointer; white-space: nowrap; }
+.ghead div:hover { color: var(--text); }
+.ghead div.sorted { color: var(--accent); }
+.gscroll { flex: 1; overflow-y: auto; position: relative; }
+.grow { height: 32px; position: absolute; left: 0; right: 0; border-bottom: 1px solid #1a2631; cursor: pointer; }
+.grow:hover { background: #18242f; }
+.grow.sel { background: #243444; box-shadow: inset 3px 0 0 var(--accent); }
+.grow div { padding: 0 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.grow .n { font-family: var(--num); text-align: right; }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; background: #22303d; color: var(--muted); }
+.badge.b-top { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.badge.b-mid { background: #3b4f2f; color: #d6f0c4; }
+.detail h3 { margin: 0 0 2px; font-size: 20px; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0; }
+.stat { background: var(--panel2); border-radius: 6px; padding: 8px; text-align: center; }
+.stat b { display: block; font-family: var(--num); font-size: 22px; }
+.stat span { color: var(--muted); font-size: 11px; }
+.log { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.log td { padding: 5px 4px; border-bottom: 1px solid #22303d; }
+.log td.r { text-align: center; }
+.log .w { color: var(--accent); }
+.log .num { font-family: var(--num); text-align: right; }
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="logo">ココシミュ<span>New</span></div>
+  <div class="date"><b id="date">----</b><small id="dow"></small></div>
+  <div class="spacer"></div>
+  <button class="btn primary" disabled title="見本では動きません">1日進める</button>
+  <button class="btn" disabled title="見本では動きません">指定日まで進める…</button>
+</div>
+<div class="app">
+  <nav>
+    <button disabled>今日</button>
+    <button data-page="tour" class="on">大会</button>
+    <button disabled>試合</button>
+    <button data-page="schools">学校</button>
+    <button disabled>記録</button>
+    <div class="note" id="note"></div>
+  </nav>
+  <main>
+    <section class="page tour on" id="page-tour">
+      <div class="tour-head">
+        <h2>トーナメント表</h2>
+        <div class="tabs" id="tabs"></div>
+        <div class="spacer"></div>
+        <div class="zoom">
+          <button class="btn" id="zout" title="縮小">−</button>
+          <button class="btn" id="zfit" title="全体" style="width:auto;padding:0 10px">全体</button>
+          <button class="btn" id="zin" title="拡大">＋</button>
+        </div>
+      </div>
+      <div class="tour-body">
+        <div class="paper-wrap" id="paperWrap"><div class="paper"><div class="title" id="ptitle"></div><svg id="bracket"></svg></div></div>
+        <aside class="side" id="matchSide"><div class="empty">トーナメント表の試合（交点）を押すと<br>スコアが出ます。<br>学校名を押すと勝ち上がりが<br>青く表示されます。</div></aside>
+      </div>
+    </section>
+    <section class="page schools" id="page-schools">
+      <div class="filters">
+        <h2>学校</h2>
+        <select id="fPref"><option value="">全国</option></select>
+        <select id="fOwner"><option value="">設置者すべて</option></select>
+        <select id="fSummer"><option value="">夏の成績すべて</option><option>優勝</option><option>準優勝</option><option>ベスト4</option><option>ベスト8</option><option>ベスト16</option></select>
+        <input type="search" id="fName" placeholder="校名で探す">
+        <div class="count" id="count"></div>
+      </div>
+      <div class="sbody">
+        <div class="grid">
+          <div class="ghead" id="ghead"></div>
+          <div class="gscroll" id="gscroll"><div id="gspace"></div></div>
+        </div>
+        <aside class="side detail" id="schoolSide"><div class="empty">学校を選ぶと、2026年度の成績と<br>試合の一覧が出ます。</div></aside>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+// ---- Pythonとの窓口（pywebviewが無いときは見本データを直接読む：開発確認用） ----
+let api;
+function ready() {
+  return new Promise(resolve => {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.get_overview) return resolve(window.pywebview.api);
+    window.addEventListener('pywebviewready', () => resolve(window.pywebview.api));
+    setTimeout(async () => {
+      if (window.pywebview) return;
+      const d = await (await fetch('../shared/sample_data.json')).json();
+      const by = Object.fromEntries(d.schools.map(s => [s.id, s]));
+      resolve({
+        get_overview: async () => ({ game_date: d.game_date, note: d.note, tournaments: d.tournaments.map(t => ({ id: t.id, name: t.name })) }),
+        get_tournament: async id => { const t = d.tournaments.find(t => t.id === id); return { ...t, names: Object.fromEntries(t.bracket.rows.map(r => [r.team, by[r.team].name])) }; },
+        get_schools: async () => d.schools,
+        get_school: async id => ({ ...by[id], game_log: (d.games[id] || []).map(([a, b, o, r, s]) => [a, b, (by[o] || {}).name || o, r, s]) }),
+      });
+    }, 800);
+  });
+}
+const $ = id => document.getElementById(id);
+const el = (tag, attrs = {}, text) => { const e = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; return e; };
+const DOW = ['日', '月', '火', '水', '木', '金', '土'];
+
+// ---- 画面の切り替え ----
+document.querySelectorAll('nav button[data-page]').forEach(b => b.onclick = () => show(b.dataset.page));
+function show(page) {
+  document.querySelectorAll('nav button[data-page]').forEach(b => b.classList.toggle('on', b.dataset.page === page));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('on', p.id === 'page-' + page));
+  if (page === 'schools') renderGrid();
+}
+
+// ---- トーナメント表 ----
+const ROW = 22, NAME_W = 150, COL_W = 64;
+let tour = null, zoom = 1;
+async function loadTour(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.id === id));
+  tour = await api.get_tournament(id);
+  tour.byId = Object.fromEntries(tour.matches.map(m => [m.id, m]));
+  drawBracket();
+  $('matchSide').innerHTML = '<div class="empty">トーナメント表の試合（交点）を押すと<br>スコアが出ます。<br>学校名を押すと勝ち上がりが<br>青く表示されます。</div>';
+}
+function drawBracket() {
+  const { rows, rounds, final } = tour.bracket;
+  const svg = $('bracket');
+  svg.innerHTML = '';
+  const X = r => NAME_W + r * COL_W, Y = y => 26 + y * ROW + ROW / 2;
+  const W = X(rounds) + 150, H = 26 + rows.length * ROW + 10;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('width', W * zoom); svg.setAttribute('height', H * zoom);
+  const champ = tour.byId[final].winner;
+  $('ptitle').innerHTML = `${tour.name}　<span class="champ">優勝 ${tour.names[champ]}</span>`;
+  for (let r = 1; r <= rounds; r++) svg.append(el('text', { x: X(r) - 4, y: 14, 'text-anchor': 'end', class: 'rlabel' }, roundName(r, rounds)));
+  const gLines = el('g'), gText = el('g'), gHit = el('g');
+  svg.append(gLines, gText, gHit);
+  rows.forEach((row, i) => {
+    const t = el('text', { x: NAME_W - 8, y: Y(i) + 4, 'text-anchor': 'end', class: 'tname' + (row.team === champ ? ' champion' : '') }, tour.names[row.team]);
+    t.onclick = () => trace(row.team);
+    gText.append(t);
+  });
+  const seg = (x1, y1, x2, y2, win, team) => gLines.append(el('path', { d: x1 === x2 ? `M${x1} ${y1}V${y2}` : `M${x1} ${y1}H${x2}`, class: 'seg' + (win ? ' win' : ''), 'data-team': team }));
+  for (const m of tour.matches) {
+    const x = X(m.round), ym = Y(m.y);
+    m.children.forEach((c, k) => {
+      const team = k === 0 ? m.team1 : m.team2;
+      const x0 = c.match ? X(tour.byId[c.match].round) : NAME_W;
+      const yc = Y(c.y), win = team === m.winner;
+      seg(x0, yc, x, yc, win, team);
+      seg(x, yc, x, ym, win, team);
+      const runs = k === 0 ? m.score1 : m.score2;
+      gText.append(el('text', { x: x - 4, y: yc - 3, 'text-anchor': 'end', class: 'sc' + (win ? ' win' : '') }, runs));
+    });
+    const hit = el('rect', { x: x - 9, y: ym - 9, width: 18, height: 18, rx: 4, class: 'hit', 'data-id': m.id });
+    gHit.append(el('circle', { cx: x, cy: ym, r: 2.6, class: 'dot win' }));
+    hit.onclick = () => selectMatch(m.id);
+    gHit.append(hit);
+  }
+  seg(X(rounds), Y(tour.byId[final].y), X(rounds) + 28, Y(tour.byId[final].y), true, champ);
+  gText.append(el('text', { x: X(rounds) + 34, y: Y(tour.byId[final].y) + 5, class: 'tname champion' }, tour.names[champ]));
+}
+function roundName(r, total) { return ({ 0: '決勝', 1: '準決勝', 2: '準々決勝' })[total - r] || `${r}回戦`; }
+function trace(team) {
+  const svg = $('bracket');
+  svg.querySelectorAll('.trace').forEach(e => e.classList.remove('trace'));
+  svg.querySelectorAll(`path[data-team="${team}"]`).forEach(e => e.classList.add('trace'));
+  const games = tour.matches.filter(m => m.team1 === team || m.team2 === team).sort((a, b) => a.round - b.round);
+  $('matchSide').innerHTML = `<div class="muted">${tour.name}</div><h2 style="margin:6px 0 10px">${tour.names[team]}</h2>` +
+    `<table class="log">${games.map(m => { const me = m.team1 === team; const w = m.winner === team; return `<tr><td>${m.round_label}</td><td>${tour.names[me ? m.team2 : m.team1]}</td><td class="r ${w ? 'w' : ''}">${w ? '○' : '●'}</td><td class="num">${me ? m.score1 : m.score2}-${me ? m.score2 : m.score1}</td><td><span class="link" onclick="selectMatch('${m.id}')">詳細</span></td></tr>`; }).join('')}</table>` +
+    `<p><span class="link" onclick="openSchool('${team}')">学校の画面へ →</span></p>`;
+}
+function selectMatch(id) {
+  const m = tour.byId[id];
+  $('bracket').querySelectorAll('.hit.sel').forEach(e => e.classList.remove('sel'));
+  $('bracket').querySelector(`.hit[data-id="${id}"]`).classList.add('sel');
+  const n = Math.max(9, m.innings1.length, m.innings2.length);
+  const cells = arr => Array.from({ length: n }, (_, i) => `<td>${arr[i] ?? ''}</td>`).join('');
+  const line = (t, inn, s) => `<tr class="${m.winner === t ? '' : 'loser'}"><td class="team">${tour.names[t]}</td>${cells(inn)}<td class="total">${s}</td></tr>`;
+  const d = new Date(m.date);
+  $('matchSide').innerHTML = `<div class="muted">${tour.name}</div><h2 style="margin:6px 0 2px">${m.round_label}</h2><div class="muted">${m.date.replaceAll('-', '/')}（${DOW[d.getDay()]}）</div>` +
+    `<div class="board"><table><tr><th></th>${Array.from({ length: n }, (_, i) => `<th>${i + 1}</th>`).join('')}<th>計</th></tr>${line(m.team1, m.innings1, m.score1)}${line(m.team2, m.innings2, m.score2)}</table></div>` +
+    `<p class="muted" style="font-size:12px">本番ではここに試合の要点（得点の場面・本塁打・継投）と両チームの成績が入ります。</p>` +
+    `<p><span class="link" onclick="openSchool('${m.team1}')">${tour.names[m.team1]}</span>　／　<span class="link" onclick="openSchool('${m.team2}')">${tour.names[m.team2]}</span></p>`;
+}
+$('zin').onclick = () => { zoom = Math.min(2, zoom * 1.2); drawBracket(); };
+$('zout').onclick = () => { zoom = Math.max(0.25, zoom / 1.2); drawBracket(); };
+$('zfit').onclick = () => { if (zoom < 1) { zoom = 1; drawBracket(); return; } const wrap = $('paperWrap'); const vb = $('bracket').viewBox.baseVal; zoom = Math.min(1, (wrap.clientHeight - 90) / vb.height, (wrap.clientWidth - 80) / vb.width); drawBracket(); };
+$('paperWrap').addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); zoom = Math.min(2, Math.max(0.25, zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1))); drawBracket(); }, { passive: false });
+
+// ---- 学校一覧（見えている行だけ描く） ----
+const COLS = [
+  ['pref', '都道府県'], ['name', '校名'], ['owner', '設置者'], ['g', '試合', 1], ['w', '勝', 1], ['l', '敗', 1], ['rs', '得点', 1], ['ra', '失点', 1], ['summer', '夏の成績'],
+];
+const SUMMER_ORDER = { '優勝': 0, '準優勝': 1, 'ベスト4': 2, 'ベスト8': 3, 'ベスト16': 4 };
+let schools = [], view = [], sortKey = 'pref', sortDir = 1, selected = null;
+const RH = 32;
+function buildHead() {
+  $('ghead').innerHTML = COLS.map(([k, label, num]) => `<div data-k="${k}" class="${k === sortKey ? 'sorted' : ''}" style="${num ? 'text-align:right' : ''}">${label}${k === sortKey ? (sortDir > 0 ? ' ▲' : ' ▼') : ''}</div>`).join('');
+  $('ghead').querySelectorAll('div').forEach(d => d.onclick = () => { const k = d.dataset.k; sortDir = sortKey === k ? -sortDir : (COLS.find(c => c[0] === k)[2] ? -1 : 1); sortKey = k; applyFilter(); });
+}
+function summerRank(s) { return s in SUMMER_ORDER ? SUMMER_ORDER[s] : (s ? 10 - parseInt(s) : 99); }
+function applyFilter() {
+  const p = $('fPref').value, o = $('fOwner').value, su = $('fSummer').value, q = $('fName').value.trim();
+  view = schools.filter(s => (!p || s.pref === p) && (!o || s.owner === o) && (!su || s.summer === su) && (!q || s.official.includes(q) || s.name.includes(q)));
+  const key = s => sortKey === 'pref' ? s.pref_code + s.name : sortKey === 'summer' ? summerRank(s.summer) : s[sortKey];
+  view.sort((a, b) => { const x = key(a), y = key(b); return (x < y ? -1 : x > y ? 1 : 0) * sortDir; });
+  $('count').textContent = `${view.length.toLocaleString()} 校`;
+  buildHead();
+  $('gscroll').scrollTop = 0;
+  renderGrid();
+}
+function badge(s) { if (!s) return ''; const c = SUMMER_ORDER[s] <= 1 ? 'b-top' : SUMMER_ORDER[s] <= 3 ? 'b-mid' : ''; return `<span class="badge ${c}">${s}</span>`; }
+function renderGrid() {
+  const sc = $('gscroll'), space = $('gspace');
+  space.style.height = view.length * RH + 'px';
+  const first = Math.max(0, Math.floor(sc.scrollTop / RH) - 5), last = Math.min(view.length, first + Math.ceil(sc.clientHeight / RH) + 10);
+  let html = '';
+  for (let i = first; i < last; i++) {
+    const s = view[i];
+    html += `<div class="grow ${s.id === selected ? 'sel' : ''}" style="top:${i * RH}px" data-id="${s.id}"><div>${s.pref}</div><div title="${s.official}">${s.name}</div><div>${s.owner}</div><div class="n">${s.g}</div><div class="n">${s.w}</div><div class="n">${s.l}</div><div class="n">${s.rs}</div><div class="n">${s.ra}</div><div>${badge(s.summer)}</div></div>`;
+  }
+  space.innerHTML = html;
+  space.querySelectorAll('.grow').forEach(r => r.onclick = () => openSchool(r.dataset.id, false));
+}
+$('gscroll').addEventListener('scroll', () => requestAnimationFrame(renderGrid));
+window.addEventListener('resize', renderGrid);
+['fPref', 'fOwner', 'fSummer'].forEach(id => $(id).onchange = applyFilter);
+$('fName').oninput = applyFilter;
+async function openSchool(id, jump = true) {
+  selected = id;
+  if (jump) {
+    show('schools');
+    const i = view.findIndex(s => s.id === id);
+    if (i < 0) { $('fPref').value = ''; $('fOwner').value = ''; $('fSummer').value = ''; $('fName').value = ''; applyFilter(); }
+    const j = view.findIndex(s => s.id === id);
+    $('gscroll').scrollTop = Math.max(0, j * RH - 120);
+  }
+  renderGrid();
+  const s = await api.get_school(id);
+  const pct = s.g ? (s.w / s.g).toFixed(3).replace(/^0/, '') : '-';
+  $('schoolSide').innerHTML = `<div class="muted">${s.pref}・${s.owner}</div><h3>${s.name}</h3><div class="muted" style="font-size:12px">${s.official}</div>` +
+    `<div class="stats"><div class="stat"><b>${s.w}-${s.l}</b><span>勝敗</span></div><div class="stat"><b>${pct}</b><span>勝率</span></div><div class="stat"><b>${s.rs}</b><span>得点</span></div><div class="stat"><b>${s.ra}</b><span>失点</span></div></div>` +
+    `<div class="muted" style="margin-bottom:6px">2026年度の試合</div><table class="log">${s.game_log.map(([d, c, o, r, sc]) => `<tr><td class="num" style="text-align:left">${d.slice(5).replace('-', '/')}</td><td>${c.replace(/^第\d+回/, '').replace('全国高等学校野球選手権', '夏・').replace('高等学校野球', '').slice(0, 14)}</td><td>${o}</td><td class="r ${r === '○' ? 'w' : ''}">${r}</td><td class="num">${sc}</td></tr>`).join('') || '<tr><td>試合なし</td></tr>'}</table>`;
+}
+
+// ---- 起動 ----
+(async () => {
+  api = await ready();
+  const ov = await api.get_overview();
+  const d = new Date(ov.game_date);
+  $('date').textContent = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+  $('dow').textContent = `（${DOW[d.getDay()]}）`;
+  $('note').textContent = ov.note;
+  $('tabs').innerHTML = ov.tournaments.map(t => `<button class="tab" data-id="${t.id}">${t.name.replace(/^第\d+回全国高等学校野球選手権/, '夏・')}</button>`).join('');
+  document.querySelectorAll('.tab').forEach(t => t.onclick = () => loadTour(t.dataset.id));
+  schools = await api.get_schools();
+  [...new Set(schools.map(s => s.pref_code + '|' + s.pref))].sort().forEach(v => $('fPref').append(new Option(v.split('|')[1], v.split('|')[1])));
+  [...new Set(schools.map(s => s.owner))].forEach(v => $('fOwner').append(new Option(v, v)));
+  applyFilter();
+  await loadTour(ov.tournaments[1].id);
+})();
+</script>
+</body>
+</html>
