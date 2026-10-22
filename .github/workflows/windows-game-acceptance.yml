@@ -44,6 +44,11 @@ jobs:
       - name: Verify documentation-only routing
         if: steps.scope.outputs.docs_only == 'true'
         run: python -m unittest discover -s tests -p 'test_ci_change_scope.py' -v
+      - name: Install screen packages (pywebview)
+        if: steps.scope.outputs.docs_only != 'true'
+        run: |
+          python -m pip install -r requirements.txt
+          python -c "import webview; print('pywebview', webview.__version__ if hasattr(webview, '__version__') else 'ok')"
       - name: Product save load slots history and Tk browse tests on Windows
         if: steps.scope.outputs.docs_only != 'true'
         run: |
@@ -57,6 +62,7 @@ jobs:
             'test_stage43e_career_rosters.py',
             'test_player_season.py',
             'test_career_overlap.py',
+            'test_screen_data.py',
             'test_stage12s_readonly_gui.py',
             'test_stage12t_gui_filters_bracket_navigation.py',
             'test_stage12u_gui_home_filters.py',

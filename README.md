@@ -19,16 +19,18 @@
 
 **まだないもの**（詳しくは `game_definition.md` §2）
 
-- 2027年以降の大会の自動生成（年度は4月〜翌3月になったが、大会があるのは2026年度だけ。翌年度へは進めない）
-- ゲームとしての正式な画面
+- ゲームとしての正式な画面（段階2で作成中。`game_definition.md` §9）
 - 成長・怪我、監督、選手名（今は全員「仮選手01」形式）、実在に近い学校の強さ
 - タイブレーク・コールド・球数制限など高校野球の規定
 
 ## 動かし方（Windows / PowerShell）
 
-Python 3.12 以上。追加のパッケージは不要。リポジトリのフォルダで実行する。
+Python 3.12 以上。画面には pywebview が必要（`pip install -r requirements.txt`）。リポジトリのフォルダで実行する。
 
 ```powershell
+# 画面を開く（slot01 のセーブがあれば読み込み、なければ新しく始める）
+python -m phase2_engine.screen --data-dir data --save-root out\saves --slot slot01
+
 # 新しいゲームを作る（セーブ先は out\saves）
 python -m phase2_engine.live_game_cli --data-dir data --save-root out\saves new slot01 --seed 2026100801 --title "2026年シーズン"
 

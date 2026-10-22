@@ -1055,6 +1055,8 @@ class LiveGameService:
         *,
         autosave: bool | None,
         through: bool,
+        stop_before=None,
+        on_day=None,
     ) -> dict:
         """Checkpoint completed match days during a long calendar jump.
 
@@ -1063,6 +1065,10 @@ class LiveGameService:
         Save every CHECKPOINT_DAYS days (when games were played since the
         last save) and once more at the end. Explicit autosave=False retains
         the caller's manual-save contract.
+
+        ``stop_before(state)`` は2日目から毎日、その日の試合をする前に呼ぶ。
+        理由（文字列）を返したら、その日の前で止まる。``on_day(step)`` は
+        1日進めるたびに呼ぶ（画面の進み具合の表示用）。
         """
         enabled = (
             self.autosave_after_action
@@ -1070,7 +1076,7 @@ class LiveGameService:
             else bool(autosave)
         )
         action = "advance_through" if through else "advance_to"
-        if not enabled:
+        if not enabled and stop_before is None and on_day is None:
             result = (
                 session.state.advance_through(target)
                 if through else session.state.advance_to(target)
@@ -1096,7 +1102,12 @@ class LiveGameService:
         checkpoint_date = None
         unsaved_matches = 0
         days_since_save = 0
+        stopped = ""
         while session.state.current_date < target_date:
+            if advanced_days and stop_before is not None:
+                stopped = stop_before(session.state) or ""
+                if stopped:
+                    break
             step = session.state.next_day()
             self._close_finished_seasons(session)
             advanced_days += 1
@@ -1104,8 +1115,14 @@ class LiveGameService:
             new_matches = int(step["played_match_count"])
             played_match_count += new_matches
             unsaved_matches += new_matches
+            if on_day is not None:
+                on_day(step)
             # まとめて進めるときは1週間ごとに自動セーブ（最後にもう1回）
-            if unsaved_matches and days_since_save >= CHECKPOINT_DAYS:
+            if (
+                enabled
+                and unsaved_matches
+                and days_since_save >= CHECKPOINT_DAYS
+            ):
                 last_save = self.autosave_game(session)
                 checkpoint_date = session.state.current_date
                 unsaved_matches = 0
@@ -1116,14 +1133,18 @@ class LiveGameService:
             "advanced_days": advanced_days,
             "played_match_count": played_match_count,
         }
-        if through:
+        if stopped:
+            result["stopped_reason"] = stopped
+        elif through:
             # Include games on the target day in the final replayable save.
             result["played_match_count"] += len(session.state.play_today())
             result["processed_through"] = (
                 session.state.current_date.isoformat()
             )
 
-        if through or checkpoint_date != session.state.current_date:
+        if enabled and (
+            through or checkpoint_date != session.state.current_date
+        ):
             last_save = self.autosave_game(session)
         return {"action": action, **result, "autosave": last_save}
 
@@ -1133,9 +1154,12 @@ class LiveGameService:
         target: str,
         *,
         autosave: bool | None = None,
+        stop_before=None,
+        on_day=None,
     ) -> dict:
         return self._advance_with_checkpoints(
             session, target, autosave=autosave, through=False,
+            stop_before=stop_before, on_day=on_day,
         )
 
     def advance_through(

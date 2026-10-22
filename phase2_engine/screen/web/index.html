@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ココシミュNew</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">ココシミュ<span>New</span></div>
+    <div class="today">
+      <div class="today-date" id="date-label">—</div>
+      <div class="today-sub" id="date-sub"></div>
+    </div>
+    <div class="actions">
+      <button id="btn-day" class="btn btn-primary" type="button">1日進める</button>
+      <button id="btn-bulk" class="btn" type="button">まとめて進める…</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="menu" id="menu" aria-label="メニュー"></nav>
+    <main class="content" id="content"></main>
+  </div>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <dialog class="dialog" id="bulk-dialog">
+    <form method="dialog" id="bulk-form">
+      <h2>まとめて進める</h2>
+      <fieldset>
+        <legend>どこまで進めるか</legend>
+        <label><input type="radio" name="mode" value="next_match_day" checked> 次の試合日まで</label>
+        <label><input type="radio" name="mode" value="competition_end"> 大会が終わるまで
+          <select id="bulk-competition"></select>
+        </label>
+        <label><input type="radio" name="mode" value="date"> 指定日まで
+          <input type="date" id="bulk-date">
+        </label>
+      </fieldset>
+      <label class="check"><input type="checkbox" id="bulk-stop-big" checked> 大きな場面（決勝・代表決定など）の前で止まる</label>
+      <div class="dialog-actions">
+        <button class="btn" value="cancel" type="submit">やめる</button>
+        <button class="btn btn-primary" value="start" type="submit">進める</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="progress" id="progress" hidden>
+    <div class="progress-box">
+      <div class="progress-title">日付を進めています</div>
+      <div class="progress-date" id="progress-date"></div>
+      <div class="progress-bar"><div id="progress-fill"></div></div>
+      <div class="progress-sub" id="progress-sub"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

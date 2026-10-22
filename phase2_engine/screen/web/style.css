@@ -1,0 +1,207 @@
+/* 濃い紺色を基調にしたPCゲーム風（game_definition.md §9） */
+:root {
+  --navy-950: #070f22;
+  --navy-900: #0b1730;
+  --navy-800: #12234a;
+  --navy-700: #1b3263;
+  --navy-600: #284684;
+  --line: #2c4478;
+  --text: #e8eefc;
+  --text-dim: #9fb0d4;
+  --gold: #f2c14e;
+  --red: #d8342c;
+  --paper: #f4efe2;
+  --ink: #1d1a14;
+  font-family: "Yu Gothic UI", "Meiryo UI", "Meiryo", "Hiragino Sans", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--navy-900);
+  color: var(--text);
+  font-size: 15px;
+}
+
+/* 上の帯 */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 10px 20px;
+  background: linear-gradient(180deg, var(--navy-700), var(--navy-800));
+  border-bottom: 2px solid var(--gold);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+
+.brand {
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 0.05em;
+}
+
+.brand span { color: var(--gold); margin-left: 2px; }
+
+.today { flex: 1; }
+
+.today-date {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.today-sub { color: var(--text-dim); font-size: 13px; }
+
+.actions { display: flex; gap: 10px; }
+
+.btn {
+  font: inherit;
+  color: var(--text);
+  background: var(--navy-600);
+  border: 1px solid #3d5ea3;
+  border-radius: 4px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.btn:hover { background: #33559c; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+
+.btn-primary {
+  background: var(--gold);
+  border-color: #c99a2e;
+  color: var(--navy-950);
+  font-weight: 700;
+}
+
+.btn-primary:hover { background: #ffd36b; }
+
+/* 左のメニューと本文 */
+.layout { flex: 1; display: flex; min-height: 0; }
+
+.menu {
+  width: 168px;
+  padding: 12px 0;
+  background: var(--navy-950);
+  border-right: 1px solid var(--line);
+}
+
+.menu button {
+  display: block;
+  width: 100%;
+  padding: 12px 22px;
+  font: inherit;
+  font-size: 16px;
+  text-align: left;
+  color: var(--text-dim);
+  background: none;
+  border: none;
+  border-left: 4px solid transparent;
+  cursor: pointer;
+}
+
+.menu button:hover { color: var(--text); background: var(--navy-800); }
+
+.menu button.active {
+  color: var(--text);
+  background: var(--navy-800);
+  border-left-color: var(--gold);
+  font-weight: 700;
+}
+
+.menu .menu-gap { height: 1px; margin: 10px 16px; background: var(--line); }
+
+.content { flex: 1; overflow: auto; padding: 24px 28px; }
+
+.content h1 { margin: 0 0 16px; font-size: 22px; }
+
+.panel {
+  background: var(--navy-800);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+
+.panel h2 { margin: 0 0 10px; font-size: 16px; color: var(--gold); }
+
+.muted { color: var(--text-dim); }
+
+.big-number { font-size: 36px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+.list { margin: 0; padding: 0; list-style: none; }
+.list li { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.list li:last-child { border-bottom: none; }
+
+/* まとめて進めるダイアログ */
+.dialog {
+  color: var(--text);
+  background: var(--navy-800);
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  padding: 20px 24px;
+  min-width: 460px;
+}
+
+.dialog::backdrop { background: rgba(3, 8, 20, 0.7); }
+.dialog h2 { margin: 0 0 12px; font-size: 18px; }
+.dialog fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 0 0 12px; }
+.dialog legend { color: var(--text-dim); padding: 0 6px; }
+.dialog label { display: block; margin: 8px 0; }
+.dialog select, .dialog input[type="date"] {
+  font: inherit;
+  margin-left: 8px;
+  color: var(--text);
+  background: var(--navy-950);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+.dialog .check { margin-top: 4px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+
+/* 進み具合 */
+.progress {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(3, 8, 20, 0.7);
+}
+
+.progress[hidden] { display: none; }
+
+.progress-box {
+  width: 420px;
+  padding: 22px 26px;
+  background: var(--navy-800);
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.progress-title { color: var(--text-dim); }
+.progress-date { font-size: 24px; font-weight: 700; margin: 8px 0 12px; }
+.progress-bar { height: 8px; background: var(--navy-950); border-radius: 4px; overflow: hidden; }
+.progress-bar div { height: 100%; width: 0; background: var(--gold); transition: width 0.2s; }
+.progress-sub { margin-top: 10px; color: var(--text-dim); font-size: 13px; }
+
+/* 知らせ */
+.toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  max-width: 420px;
+  padding: 12px 16px;
+  background: var(--navy-700);
+  border-left: 4px solid var(--gold);
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+
+.toast.error { border-left-color: var(--red); }
