@@ -56,6 +56,12 @@ class ScreenApi:
     def matches_on(self, day="") -> dict:
         return self._read(self._data.matches_on, day)
 
+    def today(self) -> dict:
+        return self._read(self._data.today)
+
+    def records(self, school_year=None) -> dict:
+        return self._read(self._data.records, school_year)
+
     def schools(self) -> dict:
         return self._read(self._data.schools)
 
