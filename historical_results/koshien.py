@@ -21,6 +21,8 @@ KINDS = ("summer", "spring")
 AS_OF_EDITION = {"summer": 107, "spring": 98}
 AS_OF_YEAR = {"summer": 2025, "spring": 2026}
 RESULTS = ("優勝", "準優勝", "ベスト4", "ベスト8", "3回戦", "2回戦", "1回戦")
+# 通算だけ分かっている学校（出場ごとの記録がない）で使える最高成績。何回戦か分からない初戦敗退
+RECORD_ONLY_RESULTS = RESULTS + ("初戦敗退",)
 
 APPEARANCE_COLUMNS = (
     "kind", "year", "school_id", "team_name", "results", "result", "source_id",
@@ -148,13 +150,15 @@ def validate(
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", row["verified_at"]):
             error("records", line, "VERIFIED_AT", row["verified_at"])
         numbers = ("appearances", "wins", "losses", "draws", "championships",
-                   "runner_ups", "last_appearance_year")
-        if not all(re.fullmatch(r"\d+", row[name]) for name in numbers):
+                   "last_appearance_year")
+        if not all(re.fullmatch(r"\d+", row[name]) for name in numbers) or not re.fullmatch(
+            r"\d*", row["runner_ups"]
+        ):
             error("records", line, "NUMBER", "数の列")
             continue
         if int(row["appearances"]) < 1:
             error("records", line, "APPEARANCES", row["appearances"])
-        if row["best_result"] and row["best_result"] not in RESULTS:
+        if row["best_result"] and row["best_result"] not in RECORD_ONLY_RESULTS:
             error("records", line, "BEST_RESULT", row["best_result"])
         years = row["appearance_years"]
         if years:
@@ -165,7 +169,7 @@ def validate(
                 error("records", line, "YEARS_ORDER", years)
         total = totals.get(key)
         if total is None:
-            error("records", line, "NO_APPEARANCES", "/".join(key))
+            # 出場ごとの記録がない学校は通算だけを持つ（出典の値をそのまま使う）
             continue
         expected = {
             "appearances": str(len(total["years"])),

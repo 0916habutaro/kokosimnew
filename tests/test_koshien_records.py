@@ -92,6 +92,15 @@ class KoshienValidationTests(unittest.TestCase):
             results="L", result="1回戦", source_id="HS9001"))
         self.assertIn("MISSING_RECORD", self.codes())
 
+    def test_record_without_appearances_allowed(self):
+        self.appearances = []
+        self.record.update(best_result="初戦敗退", runner_ups="", appearance_years="")
+        self.assertEqual(set(), self.codes())
+
+    def test_first_game_loss_label_needs_record_only(self):
+        self.record["best_result"] = "初戦敗退"
+        self.assertIn("MISMATCH", self.codes())
+
     def test_as_of_edition(self):
         self.record["as_of_edition"] = "108"
         self.assertIn("AS_OF", self.codes())
