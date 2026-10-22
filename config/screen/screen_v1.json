@@ -25,12 +25,36 @@
   "notes_ja": {
     "big_scene": "まとめて進めるとき「大きな場面で止まる」を選ぶと、この条件に合う試合がある日の前で止まる（決勝。夏の地方大会の決勝は代表決定戦）",
     "advance.max_days": "「次の試合日まで」「大会が終わるまで」で進める日数の上限",
-    "school_overall_weights": "学校一覧の「総合」：学校能力（打撃・投手・守備・走力）をこの重みで合わせる"
+    "school_overall_weights": "学校一覧の「総合」：学校能力（打撃・投手・守備・走力）をこの重みで合わせる",
+    "featured_match": "今日の画面の「注目の試合」：大会の点＋回戦の点＋両校の総合の平均×ability_weight の高い順に count 試合",
+    "recent_results": "今日の画面の「直近の大きな結果」：大きな場面（big_scene）の条件に合う決勝のうち、days 日以内の新しいものから count 試合"
   },
   "school_overall_weights": {
     "batting_strength": 0.35,
     "pitching_strength": 0.35,
     "defense_strength": 0.2,
     "running_strength": 0.1
+  },
+  "featured_match": {
+    "count": 6,
+    "competition_points": {
+      "national_championship": 300,
+      "national_invitational": 300,
+      "national_autumn_championship": 280,
+      "spring_regional": 200,
+      "autumn_regional": 200,
+      "summer_local_qualifier": 150
+    },
+    "other_competition_points": 100,
+    "round_points": {
+      "決勝": 60,
+      "準決勝": 35,
+      "準々決勝": 15
+    },
+    "ability_weight": 1.0
+  },
+  "recent_results": {
+    "days": 14,
+    "count": 10
   }
 }
