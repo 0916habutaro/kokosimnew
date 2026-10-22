@@ -1,0 +1,6 @@
+{
+  "config_id": "competition_short_names_v1",
+  "revision": 1,
+  "description_ja": "一覧で使う大会の短い名前で、規則（phase2_engine/screen/competition_names.py）に合わない大会を個別に直す。大会ID → 表示する短い名前。",
+  "overrides": {}
+}
