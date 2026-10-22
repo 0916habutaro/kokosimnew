@@ -1,0 +1,25 @@
+{
+  "config_id": "screen_v1",
+  "revision": 1,
+  "status": "design_default_not_tuned",
+  "description_ja": "正式な画面（game_definition.md §9）の表示と進め方の設定。",
+  "big_scene": {
+    "stage_codes": ["MAIN"],
+    "round_names": ["決勝"],
+    "competition_types": [
+      "national_championship",
+      "national_invitational",
+      "national_autumn_championship",
+      "summer_local_qualifier",
+      "spring_regional",
+      "autumn_regional"
+    ]
+  },
+  "advance": {
+    "max_days": 400
+  },
+  "notes_ja": {
+    "big_scene": "まとめて進めるとき「大きな場面で止まる」を選ぶと、この条件に合う試合がある日の前で止まる（決勝。夏の地方大会の決勝は代表決定戦）",
+    "advance.max_days": "「次の試合日まで」「大会が終わるまで」で進める日数の上限"
+  }
+}
