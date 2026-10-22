@@ -28,8 +28,12 @@
 Python 3.12 以上。画面には pywebview が必要（`pip install -r requirements.txt`）。リポジトリのフォルダで実行する。
 
 ```powershell
-# 画面を開く（slot01 のセーブがあれば読み込み、なければ新しく始める）
-python -m phase2_engine.screen --data-dir data --save-root out\saves --slot slot01
+# 画面を開く（slot01 のセーブがあれば読み込み、なければ新しく始める。セーブは out\saves）
+python -m phase2_engine.screen --slot slot01
+
+# EXE を作る（dist\kokosimnew\kokosimnew.exe。セーブは同じフォルダの saves）
+pip install pyinstaller
+pyinstaller --noconfirm kokosimnew.spec
 
 # 新しいゲームを作る（セーブ先は out\saves）
 python -m phase2_engine.live_game_cli --data-dir data --save-root out\saves new slot01 --seed 2026100801 --title "2026年シーズン"

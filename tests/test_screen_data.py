@@ -11,7 +11,7 @@ import tempfile
 import unittest
 
 from phase2_engine import DataRepository, LiveGameService
-from phase2_engine.screen.app import ScreenApi, WEB_DIR, open_session
+from phase2_engine.screen.app import ScreenApi, WEB_DIR, build_parser, open_session
 from phase2_engine.screen.data import GameScreenData
 
 
@@ -124,6 +124,11 @@ class ScreenApiTests(unittest.TestCase):
             self.assertEqual(
                 date(2026, 4, 1), reopened.state.start_date
             )
+
+    def test_default_paths_do_not_depend_on_working_directory(self):
+        args = build_parser().parse_args([])
+        self.assertEqual(DATA_ROOT.resolve(), Path(args.data_dir))
+        self.assertEqual(ROOT.resolve() / "out" / "saves", Path(args.save_root))
 
     def test_screen_calls_only_existing_api_methods(self):
         script = (WEB_DIR / "app.js").read_text(encoding="utf-8")

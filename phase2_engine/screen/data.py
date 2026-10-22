@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Callable
 
 from ..career_state import CareerState
+from ..save_slots import SAVE_KIND_MANUAL
 from .competition_views import (
     POSITION_LABELS,
     bracket_layout,
@@ -20,6 +21,7 @@ from .competition_views import (
     other_stage_matches,
 )
 from .competition_names import CompetitionNames
+from .save_views import next_slot_id, recovery_rows, slot_rows
 from .school_names import SchoolNames, prefecture_names
 from .school_views import (
     SchoolAbilities,
@@ -80,6 +82,7 @@ class GameScreenData:
         self.service = service
         self.session = session
         config_root = Path(service.data_dir).parent / "config"
+        self.config_root = config_root
         self.config = config or load_screen_config(config_root)
         self.names = SchoolNames(service.repo, config_root)
         self.competition_names = CompetitionNames(config_root)
@@ -628,15 +631,26 @@ class GameScreenData:
             for school_id in self.service.repo.schools
         }
 
-    def compute_abilities(self, members: dict | None = None) -> bool:
-        """学校の能力を計算しておく（画面の起動時に別のスレッドでも呼ぶ）。"""
-        members = members if members is not None else self._today_members()
-        if members is None:
+    def compute_abilities(self) -> bool:
+        """学校の能力を計算しておく。"""
+        job = self.ability_job()
+        if job is None:
             return False
-        self.abilities.compute(
-            members, self._current_year(), self.session.plan.rng_seed,
-        )
+        job()
         return True
+
+    def ability_job(self) -> Callable[[], None] | None:
+        """今のセーブの能力を計算する処理（別のスレッドで呼ぶ）。
+
+        部員・年度・乱数の種はここで読んでおくので、計算の途中で日付が進んだり
+        セーブが切り替わったりしても、読んだ時点のセーブの分だけを計算する。
+        """
+        members = self._today_members()
+        if members is None:
+            return None
+        abilities, year = self.abilities, self._current_year()
+        seed = self.session.plan.rng_seed
+        return lambda: abilities.compute(members, year, seed)
 
     def _current_year(self) -> int:
         return (
@@ -842,6 +856,66 @@ class GameScreenData:
             })
         out.sort(key=lambda m: (m["match_date"], m["match_id"]))
         return {"school_id": school_id, "school_year": year, "matches": out}
+
+    # ---- セーブ ----
+
+    def use_session(self, session) -> None:
+        """別のセーブに切り替える。前のセーブの集計は捨てる。"""
+        self.session = session
+        self._closed_years = {}
+        self.abilities = SchoolAbilities(
+            self.config_root, self.config["school_overall_weights"],
+        )
+
+    def saves(self) -> dict:
+        return {
+            "current_slot": self.session.slot_id,
+            "slots": slot_rows(self.service.list_games(), self.session.slot_id),
+        }
+
+    def save_now(self) -> dict:
+        self.service.save_game(self.session, kind=SAVE_KIND_MANUAL)
+        return self.saves()
+
+    def rename_save(self, slot_id: str, title: str) -> dict:
+        title = str(title).strip()
+        if not title:
+            raise ValueError("名前を入れてください")
+        self.service.rename_game(slot_id, title)
+        return self.saves()
+
+    def delete_save(self, slot_id: str) -> dict:
+        if slot_id == self.session.slot_id:
+            raise ValueError("遊んでいるセーブは削除できません")
+        self.service.delete_game(slot_id)
+        return self.saves()
+
+    def recovery(self, slot_id: str) -> dict:
+        return {
+            "slot_id": slot_id,
+            "sources": recovery_rows(self.service.recovery_sources(slot_id)),
+        }
+
+    def open_save(self, slot_id: str, source: str = "latest") -> dict:
+        """セーブを読み込んで遊ぶセーブにする。古いセーブからは手動セーブに戻す。"""
+        if source == "latest":
+            session = self.service.load_game(slot_id)
+        else:
+            session = self.service.recover_game(slot_id, source=source)
+        self.use_session(session)
+        return {**self.saves(), "header": self.header()}
+
+    def new_save(self, title: str, rng_seed: int) -> dict:
+        title = str(title).strip()
+        if not title:
+            raise ValueError("名前を入れてください")
+        root = self.service.slots.root_dir
+        used = [path.name for path in root.iterdir()] if root.exists() else []
+        session = self.service.new_game(
+            next_slot_id(used), rng_seed=int(rng_seed), title=title,
+        )
+        self.use_session(session)
+        return {**self.saves(), "header": self.header()}
 
 
 NATIONAL_TYPES = (
