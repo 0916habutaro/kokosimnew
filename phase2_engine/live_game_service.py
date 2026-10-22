@@ -978,6 +978,9 @@ class LiveGameService:
             year, competition_id, match_id
         )
 
+    def historical_match_index(self, slot_id: str, year: int) -> list[dict]:
+        return self._history_archive(slot_id).match_index(year)
+
     def historical_matches(
         self, slot_id: str, year: int, *, school_id: str = "",
         limit: int = 200, offset: int = 0,

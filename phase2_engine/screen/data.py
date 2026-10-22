@@ -12,6 +12,7 @@ from typing import Callable
 
 from ..career_state import CareerState
 from .competition_views import (
+    POSITION_LABELS,
     bracket_layout,
     competition_list,
     main_runtime,
@@ -19,7 +20,14 @@ from .competition_views import (
     other_stage_matches,
 )
 from .competition_names import CompetitionNames
-from .school_names import SchoolNames
+from .school_names import SchoolNames, prefecture_names
+from .school_views import (
+    SchoolAbilities,
+    best_result,
+    koshien_summary,
+    normalized_rows,
+    year_results,
+)
 
 
 CONFIG_PATH = Path("screen") / "screen_v1.json"
@@ -75,6 +83,16 @@ class GameScreenData:
         self.config = config or load_screen_config(config_root)
         self.names = SchoolNames(service.repo, config_root)
         self.competition_names = CompetitionNames(config_root)
+        self.prefectures = prefecture_names(service.repo.data_dir)
+        self.abilities = SchoolAbilities(
+            config_root, self.config["school_overall_weights"],
+        )
+        self._closed_years: dict[int, dict] = {}
+        self._stage_names = {
+            stage["stage_id"]: stage.get("stage_name", "")
+            for cid in service.repo.competitions
+            for stage in service.repo.stages(cid)
+        }
 
     @property
     def state(self):
@@ -270,7 +288,10 @@ class GameScreenData:
         layout = (
             bracket_layout(main, scheduled) if main is not None else None
         )
-        others = other_stage_matches(scheduled)
+        others = [
+            {**row, "round_name": self.stage_label(row["match_id"], row["group_name"])}
+            for row in other_stage_matches(scheduled)
+        ]
         ids = {
             team
             for match in others for team in (match["team1_id"], match["team2_id"])
@@ -285,6 +306,8 @@ class GameScreenData:
         }
 
     def match(self, school_year, competition_id: str, match_id: str) -> dict:
+        if int(school_year) not in _seasons(self.state):
+            return self._closed_match(int(school_year), competition_id, match_id)
         season = self._season(school_year)
         scheduled = season.competitions.get(competition_id)
         row = (
@@ -341,6 +364,8 @@ class GameScreenData:
                     ),
                 ),
                 **{key: value for key, value in _match_fields(row).items()},
+                "round_name": row.round_name if row.stage_code == "MAIN"
+                else self.stage_label(row.match_id, row.group_name),
                 "team1_name": names(row.team1_id),
                 "team2_name": names(row.team2_id),
             }
@@ -353,6 +378,11 @@ class GameScreenData:
             "match_dates": played[-60:],
             "matches": items,
         }
+
+    def stage_label(self, match_id: str, group_name: str = "") -> str:
+        """MAIN 以外の試合の段階（「地区予選　川崎・横浜北地区」など）。"""
+        stage = self._stage_names.get(match_id.split("-", 1)[0], "") or "予選"
+        return f"{stage}　{group_name}" if group_name else stage
 
     def _competition_name(self, season, competition_id: str, fallback: str) -> str:
         plan = self._plans().get(season.year)
@@ -368,6 +398,259 @@ class GameScreenData:
             return {}
         members = provider(competition_id, school_id)
         return {player.player_id: player for player in members.players}
+
+
+    def _closed_match(self, year: int, competition_id: str, match_id: str) -> dict:
+        """閉じた年度の試合（試合の履歴から）。"""
+        detail = self.service.historical_match(
+            self.session.slot_id, year, competition_id, match_id,
+        )
+        if detail is None:
+            raise ValueError("その試合はありません")
+        row = {**detail, "status": "completed"}
+        out = match_detail(row, detail, self.names, lambda _: {})
+        out["school_year"] = year
+        out["competition_name"] = self.competition_names(
+            competition_id, detail.get("competition_name") or competition_id,
+        )
+        return out
+
+    # ---- 学校 ----
+
+    def _today_members(self) -> dict | None:
+        """学校ID → 今日の部員（選手で試合をしているとき）。"""
+        season = self.state.primary if isinstance(self.state, CareerState) else self.state
+        resolver = getattr(season.engine, "main_match_resolver", None)
+        provider = getattr(resolver, "member_provider", None)
+        if provider is None:
+            return None
+        today = self.state.current_date
+        return {
+            school_id: provider.members_on(school_id, today)
+            for school_id in self.service.repo.schools
+        }
+
+    def compute_abilities(self, members: dict | None = None) -> bool:
+        """学校の能力を計算しておく（画面の起動時に別のスレッドでも呼ぶ）。"""
+        members = members if members is not None else self._today_members()
+        if members is None:
+            return False
+        self.abilities.compute(
+            members, self._current_year(), self.session.plan.rng_seed,
+        )
+        return True
+
+    def _current_year(self) -> int:
+        return (
+            self.state.school_year if isinstance(self.state, CareerState)
+            else self.state.year
+        )
+
+    def _year_rows(self, year: int) -> tuple[list[dict], dict]:
+        """その年度の試合の要約と、大会ごとの MAIN の回戦数。"""
+        seasons = _seasons(self.state)
+        if year in seasons:
+            season = seasons[year]
+            rows = []
+            rounds = {}
+            for cid, scheduled in season.competitions.items():
+                rows.extend(
+                    {**row.public_dict(), "competition_id": cid}
+                    for row in scheduled.matches.values()
+                )
+                main = main_runtime(scheduled)
+                if main is not None:
+                    rounds[cid] = main.total_rounds
+            return normalized_rows(rows), rounds
+        return normalized_rows(
+            self.service.historical_match_index(self.session.slot_id, year)
+        ), {}
+
+    def _results(self, year: int) -> dict[str, list[dict]]:
+        if year in self._closed_years and year not in _seasons(self.state):
+            return self._closed_years[year]
+        rows, rounds = self._year_rows(year)
+        results = year_results(
+            rows, self.service.repo.competitions, rounds,
+            self.competition_names,
+        )
+        if year not in _seasons(self.state):
+            self._closed_years[year] = results
+        return results
+
+    def _years(self) -> list[int]:
+        archived = {
+            int(row["year"])
+            for row in self.service.career_history_years(self.session.slot_id)
+        }
+        return sorted(archived | set(_seasons(self.state)))
+
+    def _ownership(self, school: dict) -> str:
+        kind = school.get("ownership_type", "")
+        if kind == "prefectural":
+            prefecture = self.prefectures.get(school.get("prefecture_code"), "")
+            return (prefecture[-1:] or "県") + "立"
+        return {
+            "municipal": "市立", "private": "私立", "national": "国立",
+            "public_university_corporation": "公立大学法人",
+        }.get(kind, "不明")
+
+    def schools(self) -> dict:
+        """学校の一覧（全校）。能力の計算が終わっていない学校は能力が空。"""
+        year = self._current_year()
+        members = self._today_members()
+        if members is None:
+            abilities, status = {}, "unavailable"
+        else:
+            abilities, ready = self.abilities.get(members, year)
+            status = "ready" if ready else "computing"
+        results = self._results(year)
+        rows = []
+        for school_id, school in self.service.repo.schools.items():
+            mine = results.get(school_id, [])
+            best = best_result(mine)
+            rows.append({
+                "school_id": school_id,
+                "name": self.names(school_id),
+                "official_name": school.get("official_name") or school.get("display_name", ""),
+                "prefecture_code": school.get("prefecture_code", ""),
+                "prefecture": self.prefectures.get(school.get("prefecture_code"), ""),
+                "ownership": self._ownership(school),
+                "abilities": abilities.get(school_id),
+                "wins": sum(r["wins"] for r in mine),
+                "losses": sum(r["losses"] for r in mine),
+                "best": best["label"] if best else "",
+                "best_score": best["score"] if best else 0,
+            })
+        return {"school_year": year, "abilities_status": status, "schools": rows}
+
+    def school(self, school_id: str) -> dict:
+        repo = self.service.repo
+        if school_id not in repo.schools:
+            raise ValueError("その学校はありません")
+        school = repo.schools[school_id]
+        year = self._current_year()
+        members = self._today_members()
+        abilities = None
+        roster = []
+        if members is not None:
+            self.abilities.compute({school_id: members[school_id]}, year,
+                                   self.session.plan.rng_seed)
+            abilities = self.abilities.get(
+                {school_id: members[school_id]}, year,
+            )[0].get(school_id)
+            roster = [
+                {
+                    "name": player.display_name,
+                    "grade": player.academic_year,
+                    "position": POSITION_LABELS.get(player.primary_position, ""),
+                    "bats": player.bats, "throws": player.throws,
+                }
+                for player in sorted(
+                    members[school_id],
+                    key=lambda p: (-p.academic_year, p.roster_no),
+                )
+            ]
+        by_year = {}
+        for each in self._years():
+            results = self._results(each).get(school_id, [])
+            by_year[each] = results
+        yearly = []
+        for each, results in sorted(by_year.items(), reverse=True):
+            row = {
+                "school_year": each,
+                "wins": sum(r["wins"] for r in results),
+                "losses": sum(r["losses"] for r in results),
+            }
+            for segment in ("spring", "summer", "autumn"):
+                part = [r for r in results if r["segment"] == segment]
+                best = best_result(part)
+                row[segment] = {
+                    "best": best["label"] if best else "",
+                    "wins": sum(r["wins"] for r in part),
+                    "losses": sum(r["losses"] for r in part),
+                }
+            yearly.append(row)
+        game_koshien = koshien_summary(by_year)
+        return {
+            "school_id": school_id,
+            "name": self.names(school_id),
+            "official_name": school.get("official_name") or school.get("display_name", ""),
+            "prefecture": self.prefectures.get(school.get("prefecture_code"), ""),
+            "ownership": self._ownership(school),
+            "school_year": year,
+            "abilities": abilities,
+            "this_year": by_year.get(year, []),
+            "yearly": yearly,
+            # 甲子園：ゲーム開始前の実際の記録（historical_data 側。収集中）と
+            # ゲーム内の記録を混ぜずに並べる。実際の記録がない学校は None
+            "koshien": {"game": game_koshien, "actual": None},
+            "members": roster,
+            "years": sorted(by_year, reverse=True),
+        }
+
+    def school_matches(self, school_id: str, school_year) -> dict:
+        year = int(school_year)
+        seasons = _seasons(self.state)
+        if year in seasons:
+            rows = [
+                {**row.public_dict(), "competition_id": cid}
+                for cid, scheduled in seasons[year].competitions.items()
+                for row in scheduled.matches.values()
+                if school_id in (row.team1_id, row.team2_id)
+            ]
+        else:
+            rows = self.service.historical_match_index(self.session.slot_id, year)
+            rows = [
+                row for row in rows if school_id in (row["team1_id"], row["team2_id"])
+            ]
+        all_rows, rounds = self._year_rows(year)
+        for row in all_rows:
+            if row["main"]:
+                cid = row["competition_id"]
+                rounds.setdefault(cid, 0)
+                if year not in seasons:
+                    rounds[cid] = max(rounds[cid], row["round_no"])
+        out = []
+        for row in normalized_rows(rows):
+            mine = 1 if row["team1_id"] == school_id else 2
+            other = row["team2_id"] if mine == 1 else row["team1_id"]
+            competition = self.service.repo.competitions.get(row["competition_id"], {})
+            original = next(
+                (r for r in rows if r["match_id"] == row["match_id"]
+                 and r["competition_id"] == row["competition_id"]), {},
+            )
+            out.append({
+                "school_year": year,
+                "competition_id": row["competition_id"],
+                "competition_name": self.competition_names(
+                    row["competition_id"],
+                    competition.get("competition_name", row["competition_id"]),
+                ),
+                "match_id": row["match_id"],
+                "match_date": row["match_date"],
+                "round_name": (
+                    original.get("round_name") or round_label(
+                        row["round_no"], rounds.get(row["competition_id"], 0),
+                    )
+                ) if row["main"] else self.stage_label(
+                    row["match_id"], original.get("group_name", ""),
+                ),
+                "opponent_id": other,
+                "opponent_name": self.names(other),
+                "won": row["winner_id"] == school_id,
+                "score": row[f"team{mine}_score"],
+                "opponent_score": row[f"team{3 - mine}_score"],
+            })
+        out.sort(key=lambda m: (m["match_date"], m["match_id"]))
+        return {"school_id": school_id, "school_year": year, "matches": out}
+
+
+def round_label(round_no: int, total_rounds: int) -> str:
+    """MAIN の回戦名（履歴の試合は回戦名を持たないので番号から）。"""
+    return {0: "決勝", 1: "準決勝", 2: "準々決勝"}.get(
+        total_rounds - round_no, f"{round_no}回戦"
+    )
 
 
 def _match_fields(row) -> dict:

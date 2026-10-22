@@ -56,6 +56,25 @@ class ScreenApi:
     def matches_on(self, day="") -> dict:
         return self._read(self._data.matches_on, day)
 
+    def schools(self) -> dict:
+        return self._read(self._data.schools)
+
+    def school(self, school_id) -> dict:
+        return self._read(self._data.school, school_id)
+
+    def school_matches(self, school_id, school_year) -> dict:
+        return self._read(self._data.school_matches, school_id, school_year)
+
+    def warm_up(self) -> None:
+        """学校の能力を別のスレッドで計算しておく（一覧を開いたときに待たない）。"""
+        threading.Thread(target=self._warm_up, daemon=True).start()
+
+    def _warm_up(self) -> None:
+        with self._state_lock:
+            members = self._data._today_members()
+        if members is not None:
+            self._call(self._data.compute_abilities, members)
+
     def progress(self) -> dict:
         return dict(self._progress)
 
@@ -76,6 +95,8 @@ class ScreenApi:
             self._progress = {"running": False}
             self._advancing = False
             self._advance_lock.release()
+            # 部員が変わる日（4月1日・夏の大会の後）に備えて能力を計算しておく
+            self.warm_up()
 
     def _advance(self, options: dict) -> dict:
         start = self._data.state.current_date
@@ -146,6 +167,7 @@ def main(argv=None) -> None:
     )
     session = open_session(service, args.slot, args.seed, args.title)
     api = ScreenApi(GameScreenData(service, session))
+    api.warm_up()
     webview.create_window(
         TITLE, str(WEB_DIR / "index.html"), js_api=api,
         width=1400, height=900, min_size=(1100, 700),

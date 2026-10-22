@@ -141,3 +141,31 @@ svg text { font-family: var(--ui); }
 /* 知らせ */
 .toast { position: fixed; right: 24px; bottom: 24px; max-width: 420px; padding: 12px 16px; background: var(--panel2); border-left: 4px solid var(--accent); border-radius: 4px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5); }
 .toast.error { border-left-color: var(--red); }
+
+/* 学校の一覧（見えている行だけ描く） */
+.grid { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ghead, .grow { display: grid; grid-template-columns: 80px minmax(150px, 1fr) 72px 58px 58px 58px 58px 58px 70px 190px; align-items: center; }
+.ghead { height: 36px; background: var(--panel2); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.ghead div { padding: 0 10px; cursor: pointer; white-space: nowrap; }
+.ghead div:hover { color: var(--text); }
+.ghead div.sorted { color: var(--accent); }
+.ghead div.n, .grow div.n { text-align: right; }
+.gscroll { flex: 1; overflow-y: auto; position: relative; }
+.grow { height: 32px; position: absolute; left: 0; right: 0; border-bottom: 1px solid #1a2631; cursor: pointer; }
+.grow:hover { background: #18242f; }
+.grow.sel { background: #243444; box-shadow: inset 3px 0 0 var(--accent); }
+.grow div { padding: 0 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.grow .n { font-family: var(--num); }
+.badge.b-top { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.badge.b-mid { background: #3b4f2f; color: #d6f0c4; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0; }
+.stat { background: var(--panel2); border-radius: 6px; padding: 8px; text-align: center; }
+.stat b { display: block; font-family: var(--num); font-size: 22px; }
+.stat span { color: var(--muted); font-size: 11px; }
+.dtabs { display: flex; gap: 4px; padding: 0 18px; border-bottom: 1px solid var(--line); }
+.dtab { padding: 10px 16px; border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; border-bottom: 2px solid transparent; }
+.dtab.on { color: var(--text); border-bottom-color: var(--accent); }
+.bars { display: grid; grid-template-columns: 90px 1fr 46px; gap: 6px 10px; align-items: center; }
+.bar { height: 10px; background: #0a1016; border-radius: 5px; overflow: hidden; }
+.bar div { height: 100%; background: var(--accent); }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
