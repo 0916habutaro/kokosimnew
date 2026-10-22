@@ -1,0 +1,5 @@
+﻿都道府県,学校名,重複候補ID,同じIDの別学校,名称一致度,対応,根拠
+滋賀,長浜,SCH002413,長浜北,67,誤名寄せまたは統合系列の可能性／勝敗と出場回数は合算しない,https://github.com/0916habutaro/kokosimnew/blob/main/data/master/schools.csv
+滋賀,長浜北,SCH002413,長浜,100,誤名寄せまたは統合系列の可能性／勝敗と出場回数は合算しない,https://github.com/0916habutaro/kokosimnew/blob/main/data/master/schools.csv
+兵庫,兵庫商,SCH003486,神港橘,60,誤名寄せまたは統合系列の可能性／勝敗と出場回数は合算しない,https://github.com/0916habutaro/kokosimnew/blob/main/data/master/schools.csv
+兵庫,神港橘,SCH003486,兵庫商,72,誤名寄せまたは統合系列の可能性／勝敗と出場回数は合算しない,https://github.com/0916habutaro/kokosimnew/blob/main/data/master/schools.csv
