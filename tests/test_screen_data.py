@@ -128,6 +128,7 @@ class ScreenApiTests(unittest.TestCase):
     def test_screen_calls_only_existing_api_methods(self):
         script = (WEB_DIR / "app.js").read_text(encoding="utf-8")
         called = set(re.findall(r"api\(\)\.(\w+)\(", script))
+        called |= set(re.findall(r"call\(\"(\w+)\"", script))
         self.assertTrue(called)
         for name in called:
             self.assertTrue(

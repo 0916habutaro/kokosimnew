@@ -1,0 +1,15 @@
+{
+  "config_id": "school_short_names_v1",
+  "revision": 1,
+  "description_ja": "画面の短い校名で、規則（phase2_engine/screen/school_names.py）に合わない学校を個別に直す。学校ID → 表示する短い名前。",
+  "overrides": {
+    "SCH000750": "青鳥特別支援",
+    "SCH000829": "早稲田実",
+    "SCH001859": "広島修道大ひろしま協創",
+    "SCH001861": "黒瀬特支のみのお",
+    "SCH002722": "エナジックスポーツ",
+    "SCH002743": "日本ウェルネス沖縄",
+    "SCH003039": "大教大池田",
+    "SCH003040": "大教大天王寺"
+  }
+}

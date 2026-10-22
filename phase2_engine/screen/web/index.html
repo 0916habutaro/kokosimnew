@@ -7,21 +7,18 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">ココシミュ<span>New</span></div>
-    <div class="today">
-      <div class="today-date" id="date-label">—</div>
-      <div class="today-sub" id="date-sub"></div>
-    </div>
-    <div class="actions">
-      <button id="btn-day" class="btn btn-primary" type="button">1日進める</button>
-      <button id="btn-bulk" class="btn" type="button">まとめて進める…</button>
-    </div>
+  <header class="top">
+    <div class="logo">ココシミュ<span>New</span></div>
+    <div class="date"><b id="date">----.--.--</b><small id="dow"></small></div>
+    <div class="today-sub" id="date-sub"></div>
+    <div class="spacer"></div>
+    <button id="btn-day" class="btn primary" type="button">1日進める</button>
+    <button id="btn-bulk" class="btn" type="button">まとめて進める…</button>
   </header>
 
-  <div class="layout">
-    <nav class="menu" id="menu" aria-label="メニュー"></nav>
-    <main class="content" id="content"></main>
+  <div class="app">
+    <nav id="menu" aria-label="メニュー"></nav>
+    <main id="content"></main>
   </div>
 
   <div class="toast" id="toast" role="status" hidden></div>
@@ -42,7 +39,7 @@
       <label class="check"><input type="checkbox" id="bulk-stop-big" checked> 大きな場面（決勝・代表決定など）の前で止まる</label>
       <div class="dialog-actions">
         <button class="btn" value="cancel" type="submit">やめる</button>
-        <button class="btn btn-primary" value="start" type="submit">進める</button>
+        <button class="btn primary" value="start" type="submit">進める</button>
       </div>
     </form>
   </dialog>

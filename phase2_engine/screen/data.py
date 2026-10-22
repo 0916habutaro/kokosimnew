@@ -11,6 +11,14 @@ from pathlib import Path
 from typing import Callable
 
 from ..career_state import CareerState
+from .competition_views import (
+    bracket_layout,
+    competition_list,
+    main_runtime,
+    match_detail,
+    other_stage_matches,
+)
+from .school_names import SchoolNames
 
 
 CONFIG_PATH = Path("screen") / "screen_v1.json"
@@ -62,9 +70,9 @@ class GameScreenData:
     def __init__(self, service, session, *, config: dict | None = None):
         self.service = service
         self.session = session
-        self.config = config or load_screen_config(
-            Path(service.data_dir).parent / "config"
-        )
+        config_root = Path(service.data_dir).parent / "config"
+        self.config = config or load_screen_config(config_root)
+        self.names = SchoolNames(service.repo, config_root)
 
     @property
     def state(self):
@@ -211,3 +219,153 @@ class GameScreenData:
             ),
             "header": header,
         }
+
+    # ---- 大会・トーナメント表・試合 ----
+
+    def _plans(self) -> dict:
+        plans = getattr(self.state, "plans", None)
+        if isinstance(self.state, CareerState) and plans:
+            return plans
+        return {self.session.plan.year: self.session.plan}
+
+    def _season(self, school_year) -> object:
+        season = _seasons(self.state).get(int(school_year))
+        if season is None:
+            raise ValueError("その年度は進行中ではありません")
+        return season
+
+    def competitions(self) -> dict:
+        rows = competition_list(
+            _seasons(self.state), self._plans(), self.service.repo, self.names,
+        )
+        return {
+            "competitions": rows,
+            "school_years": sorted({row["school_year"] for row in rows}),
+        }
+
+    def bracket(self, school_year, competition_id: str) -> dict:
+        season = self._season(school_year)
+        names = self.names
+        listing = {
+            row["competition_id"]: row
+            for row in competition_list(
+                {int(school_year): season}, self._plans(),
+                self.service.repo, names,
+            )
+        }
+        if competition_id not in listing:
+            raise ValueError("その大会はありません")
+        out = {"competition": listing[competition_id]}
+        scheduled = season.competitions.get(competition_id)
+        if scheduled is None:
+            return {**out, "main": None, "other_matches": [], "names": {}}
+        main = main_runtime(scheduled)
+        layout = (
+            bracket_layout(main, scheduled) if main is not None else None
+        )
+        others = other_stage_matches(scheduled)
+        ids = {
+            team
+            for match in others for team in (match["team1_id"], match["team2_id"])
+        }
+        if layout is not None:
+            ids |= {row["school_id"] for row in layout["rows"]}
+        return {
+            **out,
+            "main": layout,
+            "other_matches": others,
+            "names": {school_id: names(school_id) for school_id in ids if school_id},
+        }
+
+    def match(self, school_year, competition_id: str, match_id: str) -> dict:
+        season = self._season(school_year)
+        scheduled = season.competitions.get(competition_id)
+        row = (
+            scheduled.matches.get(match_id) if scheduled is not None else None
+        )
+        if row is None:
+            raise ValueError("その試合はありません")
+        data = row.public_dict()
+        data["competition_id"] = competition_id
+        detail = None
+        if data.get("status") == "completed":
+            detail = season.pending_match_details.get(
+                f"{competition_id}:{match_id}"
+            )
+            if detail is None:
+                try:
+                    detail = self.service.historical_match(
+                        self.session.slot_id, int(school_year),
+                        competition_id, match_id,
+                    )
+                except (KeyError, ValueError, OSError):
+                    detail = None
+        out = match_detail(
+            data, detail, self.names,
+            lambda school_id: self._players(season, competition_id, school_id),
+        )
+        out["school_year"] = int(school_year)
+        out["competition_name"] = self._competition_name(
+            season, competition_id, out.get("competition_name") or "",
+        )
+        return out
+
+    def matches_on(self, day: str = "") -> dict:
+        """その日の全国の試合（試合の画面の一覧）。日を省くと直近の試合日。"""
+        rows = []
+        for year, season in _seasons(self.state).items():
+            for cid, scheduled in season.competitions.items():
+                for row in scheduled.matches.values():
+                    if row.match_date and row.team1_id and row.team2_id:
+                        rows.append((year, cid, row))
+        played = sorted({
+            row.match_date for _, _, row in rows if row.status == "completed"
+        })
+        target = day or (played[-1] if played else self.state.current_date.isoformat())
+        names = self.names
+        items = [
+            {
+                "school_year": year,
+                "competition_id": cid,
+                "competition_name": self._competition_name(
+                    _seasons(self.state)[year], cid, row.competition_name,
+                ),
+                **{key: value for key, value in _match_fields(row).items()},
+                "team1_name": names(row.team1_id),
+                "team2_name": names(row.team2_id),
+            }
+            for year, cid, row in rows
+            if row.match_date == target
+        ]
+        items.sort(key=lambda m: (m["competition_name"], m["match_id"]))
+        return {
+            "date": target,
+            "match_dates": played[-60:],
+            "matches": items,
+        }
+
+    def _competition_name(self, season, competition_id: str, fallback: str) -> str:
+        plan = self._plans().get(season.year)
+        entry = plan.entries.get(competition_id) if plan is not None else None
+        return (entry.display_name if entry is not None else "") or fallback
+
+    @staticmethod
+    def _players(season, competition_id: str, school_id: str) -> dict:
+        """その大会の出場メンバー（選手で試合をしているとき）。"""
+        resolver = getattr(season.engine, "main_match_resolver", None)
+        provider = getattr(resolver, "member_provider", None)
+        if provider is None:
+            return {}
+        members = provider(competition_id, school_id)
+        return {player.player_id: player for player in members.players}
+
+
+def _match_fields(row) -> dict:
+    return {
+        key: getattr(row, key)
+        for key in (
+            "match_id", "match_date", "stage_code", "round_name",
+            "group_name", "team1_id", "team2_id", "team1_score",
+            "team2_score", "winner_id", "status",
+        )
+    }

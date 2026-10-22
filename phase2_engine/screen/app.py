@@ -18,64 +18,94 @@ from .data import GameScreenData
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 TITLE = "ココシミュNew"
+BUSY = "日付を進めている途中です"
 
 
 class ScreenApi:
     """JavaScript から呼ぶ入口（pywebview の js_api）。中身はデータの層に任せる。
 
-    pywebview は呼び出しごとに別のスレッドで動かすので、日付を進めている間も
-    ``progress`` は呼べる。進める処理は同時に1つだけにする。
+    pywebview は呼び出しごとに別のスレッドで動かす。状態を読む・進める処理は
+    ``_state_lock`` で1つずつにし、日付を進めている間は ``progress`` 以外を
+    断る（進めている途中の状態を読まない）。
     """
 
     def __init__(self, data: GameScreenData):
         self._data = data
-        self._lock = threading.Lock()
+        self._state_lock = threading.Lock()
+        self._advance_lock = threading.Lock()
+        self._advancing = False
         self._progress = {"running": False}
 
     def shell(self) -> dict:
-        return self._call(self._data.shell)
+        return self._read(self._data.shell)
 
     def header(self) -> dict:
-        return self._call(self._data.header)
+        return self._read(self._data.header)
+
+    def competitions(self) -> dict:
+        return self._read(self._data.competitions)
+
+    def bracket(self, school_year, competition_id) -> dict:
+        return self._read(self._data.bracket, school_year, competition_id)
+
+    def match(self, school_year, competition_id, match_id) -> dict:
+        return self._read(
+            self._data.match, school_year, competition_id, match_id,
+        )
+
+    def matches_on(self, day="") -> dict:
+        return self._read(self._data.matches_on, day)
 
     def progress(self) -> dict:
         return dict(self._progress)
 
+    def _read(self, function, *args) -> dict:
+        if self._advancing:
+            return {"error": BUSY, "busy": True}
+        with self._state_lock:
+            return self._call(function, *args)
+
     def advance(self, options: dict) -> dict:
-        if not self._lock.acquire(blocking=False):
-            return {"error": "日付を進めている途中です"}
+        if not self._advance_lock.acquire(blocking=False):
+            return {"error": BUSY, "busy": True}
+        self._advancing = True
         try:
-            start = self._data.state.current_date
-            self._progress = {
-                "running": True,
-                "from_date": start.isoformat(),
-                "current_date": start.isoformat(),
-                "target_date": options.get("target_date", ""),
-                "advanced_days": 0,
-                "played_match_count": 0,
-            }
-
-            def on_day(step: dict) -> None:
-                self._progress = {
-                    **self._progress,
-                    "current_date": step.get("to_date", ""),
-                    "advanced_days": self._progress["advanced_days"] + 1,
-                    "played_match_count": self._progress["played_match_count"]
-                    + int(step.get("played_match_count", 0)),
-                }
-
-            return self._call(
-                self._data.advance,
-                options.get("mode", ""),
-                target_date=options.get("target_date", ""),
-                competition_id=options.get("competition_id", ""),
-                school_year=options.get("school_year"),
-                stop_at_big_scene=bool(options.get("stop_at_big_scene")),
-                on_day=on_day,
-            )
+            with self._state_lock:
+                return self._advance(options)
         finally:
             self._progress = {"running": False}
-            self._lock.release()
+            self._advancing = False
+            self._advance_lock.release()
+
+    def _advance(self, options: dict) -> dict:
+        start = self._data.state.current_date
+        self._progress = {
+            "running": True,
+            "from_date": start.isoformat(),
+            "current_date": start.isoformat(),
+            "target_date": options.get("target_date", ""),
+            "advanced_days": 0,
+            "played_match_count": 0,
+        }
+
+        def on_day(step: dict) -> None:
+            self._progress = {
+                **self._progress,
+                "current_date": step.get("to_date", ""),
+                "advanced_days": self._progress["advanced_days"] + 1,
+                "played_match_count": self._progress["played_match_count"]
+                + int(step.get("played_match_count", 0)),
+            }
+
+        return self._call(
+            self._data.advance,
+            options.get("mode", ""),
+            target_date=options.get("target_date", ""),
+            competition_id=options.get("competition_id", ""),
+            school_year=options.get("school_year"),
+            stop_at_big_scene=bool(options.get("stop_at_big_scene")),
+            on_day=on_day,
+        )
 
     @staticmethod
     def _call(function, *args, **kwargs) -> dict:
