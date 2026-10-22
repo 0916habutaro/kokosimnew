@@ -580,6 +580,27 @@ class HistoricalMatchArchive:
             ).fetchone()
             return expand_payload(json.loads(row[0])) if row else None
 
+    def match_index(self, year: int) -> list[dict]:
+        """その年度の全試合の要約（成績表用。個人成績などは読まない）。"""
+        if not self.db_path.is_file():
+            return []
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            rows = conn.execute(
+                """SELECT competition_id, match_id, match_date, team1_id,
+                          team2_id, team1_score, team2_score
+                   FROM historical_matches WHERE year = ?
+                   ORDER BY match_date, competition_id, match_id""",
+                (year,),
+            ).fetchall()
+        return [
+            {
+                "competition_id": cid, "match_id": mid, "match_date": day,
+                "team1_id": team1, "team2_id": team2,
+                "team1_score": score1, "team2_score": score2,
+            }
+            for cid, mid, day, team1, team2, score1, score2 in rows
+        ]
+
     def list_matches(
         self, year: int, *, school_id: str = "",
         limit: int = 200, offset: int = 0,

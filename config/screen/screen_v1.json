@@ -4,8 +4,12 @@
   "status": "design_default_not_tuned",
   "description_ja": "正式な画面（game_definition.md §9）の表示と進め方の設定。",
   "big_scene": {
-    "stage_codes": ["MAIN"],
-    "round_names": ["決勝"],
+    "stage_codes": [
+      "MAIN"
+    ],
+    "round_names": [
+      "決勝"
+    ],
     "competition_types": [
       "national_championship",
       "national_invitational",
@@ -20,6 +24,13 @@
   },
   "notes_ja": {
     "big_scene": "まとめて進めるとき「大きな場面で止まる」を選ぶと、この条件に合う試合がある日の前で止まる（決勝。夏の地方大会の決勝は代表決定戦）",
-    "advance.max_days": "「次の試合日まで」「大会が終わるまで」で進める日数の上限"
+    "advance.max_days": "「次の試合日まで」「大会が終わるまで」で進める日数の上限",
+    "school_overall_weights": "学校一覧の「総合」：学校能力（打撃・投手・守備・走力）をこの重みで合わせる"
+  },
+  "school_overall_weights": {
+    "batting_strength": 0.35,
+    "pitching_strength": 0.35,
+    "defense_strength": 0.2,
+    "running_strength": 0.1
   }
 }

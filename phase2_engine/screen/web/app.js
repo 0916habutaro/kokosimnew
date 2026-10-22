@@ -19,6 +19,10 @@ const state = {
   busy: false,
   competitions: { filter: { year: "", segment: "", level: "", status: "" }, view: null },
   matches: { date: "", detail: null },
+  schools: {
+    data: null, view: [], filter: { pref: "", owner: "", result: "", name: "" },
+    sortKey: "pref", sortDir: 1, selected: null, detail: null, tab: "overview",
+  },
   bracket: null,
   zoom: 1,
 };
@@ -114,6 +118,7 @@ function renderPage() {
   if (state.page === "today") return renderToday(content);
   if (state.page === "competitions") return renderCompetitions(content);
   if (state.page === "matches") return renderMatches(content);
+  if (state.page === "schools") return renderSchools(content);
   const title = (state.menu.find((m) => m.id === state.page) || {}).label || "";
   content.innerHTML = `<div class="head"><h2>${esc(title)}</h2></div>
     <div class="scroll"><div class="empty">この画面はこれから作ります。</div></div>`;
@@ -289,7 +294,7 @@ function otherMatches(matches, name) {
   box.innerHTML = `<h3>予選・シード決めの試合</h3><table class="list">
     <tr><th>日</th><th>段階</th><th>対戦</th><th class="n">スコア</th></tr>
     ${matches.map((m) => `<tr class="click" data-id="${esc(m.match_id)}"><td class="num">${slashDate(m.match_date)}</td>
-      <td>${esc(m.group_name || m.round_name)}</td>
+      <td>${esc(m.round_name)}</td>
       <td><span class="${m.winner_id === m.team1_id ? "w" : ""}">${esc(name(m.team1_id))}</span> − <span class="${m.winner_id === m.team2_id ? "w" : ""}">${esc(name(m.team2_id))}</span></td>
       <td class="n">${m.team1_score ?? ""}${m.team1_score !== null ? "−" : ""}${m.team2_score ?? ""}</td></tr>`).join("")}
   </table>`;
@@ -311,8 +316,10 @@ function trace(school) {
       const won = m.winner_id === school;
       return `<tr><td>${esc(m.round_name)}</td><td>${esc(name(op.school_id))}</td><td class="r ${won ? "w" : ""}">${won ? "○" : "●"}</td>
         <td class="num">${me.score ?? ""}-${op.score ?? ""}</td><td><span class="link" data-id="${esc(m.match_id)}">詳細</span></td></tr>`;
-    }).join("") || '<tr><td class="muted">まだ試合をしていません</td></tr>'}</table>`;
-  $("b-side").querySelectorAll(".link").forEach((a) => a.addEventListener("click", () => selectMatch(a.dataset.id)));
+    }).join("") || '<tr><td class="muted">まだ試合をしていません</td></tr>'}</table>
+    <p><span class="link" id="to-school">学校の画面へ →</span></p>`;
+  $("b-side").querySelectorAll(".link[data-id]").forEach((a) => a.addEventListener("click", () => selectMatch(a.dataset.id)));
+  $("to-school").addEventListener("click", () => openSchool(school));
 }
 
 async function selectMatch(matchId) {
@@ -375,7 +382,7 @@ async function renderMatches(content) {
     <div class="scroll">${Object.entries(groups).map(([competition, matches]) => `
       <div class="panel"><h3>${esc(competition)}</h3><table class="list">
       ${matches.map((m) => `<tr class="click" data-year="${m.school_year}" data-cid="${esc(m.competition_id)}" data-id="${esc(m.match_id)}">
-        <td style="width:110px" class="muted">${esc(m.round_name || m.group_name)}</td>
+        <td style="width:220px" class="muted">${esc(m.round_name)}</td>
         <td style="text-align:right" class="${m.winner_id === m.team1_id ? "w" : ""}">${esc(m.team1_name)}</td>
         <td class="n" style="width:90px;text-align:center">${m.status === "completed" ? `${m.team1_score} − ${m.team2_score}` : "−"}</td>
         <td class="${m.winner_id === m.team2_id ? "w" : ""}">${esc(m.team2_name)}</td></tr>`).join("")}
@@ -401,6 +408,7 @@ async function renderMatchDetail(content, detail) {
       <span class="muted num">${slashDate(m.match_date)}</span></div>
     <div class="scroll">
       ${scoreboard(m, true)}
+      <p><span class="link" data-school="${esc(m.team1_id)}">${esc(m.team1_name)}</span>　／　<span class="link" data-school="${esc(m.team2_id)}">${esc(m.team2_name)}</span>　<span class="muted">（学校の画面へ）</span></p>
       ${m.has_detail ? `
         <div class="panel" style="margin-top:14px"><h3>試合の要点</h3>${highlights || '<div class="muted">得点はありませんでした</div>'}</div>
         <div class="cols">
@@ -409,6 +417,225 @@ async function renderMatchDetail(content, detail) {
         </div>` : `<p class="muted">${m.status === "completed" ? "この試合の詳しい記録はありません。" : "まだ試合をしていません。"}</p>`}
     </div>`;
   $("m-back").addEventListener("click", () => { state.matches.detail = null; renderPage(); });
+  content.querySelectorAll(".link[data-school]").forEach((a) => a.addEventListener("click", () => openSchool(a.dataset.school)));
+}
+
+// ---- 学校：一覧（見えている行だけ描く） → 詳細（タブ） ----
+
+const SCHOOL_COLS = [
+  ["pref", "都道府県"], ["name", "校名"], ["ownership", "設置者"],
+  ["overall", "総合", 1], ["batting", "打撃", 1], ["pitching", "投手", 1],
+  ["defense", "守備", 1], ["running", "走力", 1], ["record", "勝敗", 1], ["best", "今年度の最高成績"],
+];
+const RESULT_FILTERS = [
+  ["", "成績すべて"], ["3000", "甲子園出場"], ["2000", "地区大会出場以上"], ["1012", "都道府県ベスト8以上"],
+];
+const RH = 32;
+
+function openSchool(schoolId) {
+  state.schools.detail = schoolId;
+  state.schools.tab = "overview";
+  state.page = "schools";
+  renderMenu();
+  renderPage();
+}
+
+async function renderSchools(content) {
+  const st = state.schools;
+  if (st.detail) return renderSchoolDetail(content, st.detail);
+  const data = await call("schools");
+  if (!data) return;
+  st.data = data;
+  const prefs = [...new Map(data.schools.map((s) => [s.prefecture_code, s.prefecture])).entries()].sort();
+  const owners = [...new Set(data.schools.map((s) => s.ownership))];
+  const f = st.filter;
+  const opt = (value, label, current) => `<option value="${esc(value)}" ${value === current ? "selected" : ""}>${esc(label)}</option>`;
+  content.innerHTML = `<div class="head"><h2>学校</h2>
+      <select id="s-pref">${opt("", "全国", f.pref)}${prefs.map(([c, n]) => opt(c, n, f.pref)).join("")}</select>
+      <select id="s-owner">${opt("", "設置者すべて", f.owner)}${owners.map((o) => opt(o, o, f.owner)).join("")}</select>
+      <select id="s-result">${RESULT_FILTERS.map(([v, l]) => opt(v, l, f.result)).join("")}</select>
+      <input type="search" id="s-name" placeholder="校名で探す" value="${esc(f.name)}">
+      ${data.abilities_status === "computing" ? '<span class="muted">能力を計算しています…</span>' : ""}
+      <div class="spacer"></div><span class="muted num" id="s-count"></span></div>
+    <div class="body">
+      <div class="grid"><div class="ghead" id="s-head"></div><div class="gscroll" id="s-scroll"><div id="s-space"></div></div></div>
+      <aside class="side" id="s-side"><div class="empty">学校を選ぶと、今年度の成績が出ます。</div></aside>
+    </div>`;
+  for (const [id, key] of [["s-pref", "pref"], ["s-owner", "owner"], ["s-result", "result"]]) {
+    $(id).addEventListener("change", (e) => { f[key] = e.target.value; applySchoolFilter(); });
+  }
+  $("s-name").addEventListener("input", (e) => { f.name = e.target.value.trim(); applySchoolFilter(); });
+  $("s-scroll").addEventListener("scroll", () => requestAnimationFrame(renderSchoolRows));
+  applySchoolFilter();
+  if (st.selected) showSchoolSide(st.selected);
+  if (data.abilities_status === "computing") {
+    clearTimeout(renderSchools.retry);
+    renderSchools.retry = setTimeout(() => {
+      if (state.page === "schools" && !st.detail && !state.busy) renderPage();
+    }, 4000);
+  }
+}
+
+function schoolValue(s, key) {
+  if (key === "pref") return s.prefecture_code + s.name;
+  if (key === "record") return s.wins - s.losses / 100;
+  if (key === "best") return s.best_score;
+  if (["overall", "batting", "pitching", "defense", "running"].includes(key)) return s.abilities ? s.abilities[key] : -1;
+  return s[key] ?? "";
+}
+
+function applySchoolFilter() {
+  const st = state.schools, f = st.filter;
+  st.view = st.data.schools.filter((s) =>
+    (!f.pref || s.prefecture_code === f.pref) && (!f.owner || s.ownership === f.owner)
+    && (!f.result || s.best_score >= Number(f.result))
+    && (!f.name || s.name.includes(f.name) || s.official_name.includes(f.name)));
+  st.view.sort((a, b) => {
+    const x = schoolValue(a, st.sortKey), y = schoolValue(b, st.sortKey);
+    return (x < y ? -1 : x > y ? 1 : 0) * st.sortDir;
+  });
+  $("s-count").textContent = `${st.view.length.toLocaleString()} 校`;
+  $("s-head").innerHTML = SCHOOL_COLS.map(([key, label, num]) =>
+    `<div data-k="${key}" class="${num ? "n" : ""} ${key === st.sortKey ? "sorted" : ""}">${label}${key === st.sortKey ? (st.sortDir > 0 ? " ▲" : " ▼") : ""}</div>`).join("");
+  $("s-head").querySelectorAll("div").forEach((d) => d.addEventListener("click", () => {
+    const key = d.dataset.k, numeric = (SCHOOL_COLS.find((c) => c[0] === key) || [])[2] || key === "best";
+    st.sortDir = st.sortKey === key ? -st.sortDir : (numeric ? -1 : 1);
+    st.sortKey = key;
+    applySchoolFilter();
+  }));
+  $("s-scroll").scrollTop = 0;
+  renderSchoolRows();
+}
+
+function badge(score, label) {
+  if (!label) return "";
+  const cls = score >= 3000 ? "b-top" : score >= 2000 ? "b-mid" : "";
+  return `<span class="badge ${cls}">${esc(label)}</span>`;
+}
+
+function renderSchoolRows() {
+  const st = state.schools, scroll = $("s-scroll"), space = $("s-space");
+  if (!scroll) return;
+  space.style.height = `${st.view.length * RH}px`;
+  const first = Math.max(0, Math.floor(scroll.scrollTop / RH) - 5);
+  const last = Math.min(st.view.length, first + Math.ceil(scroll.clientHeight / RH) + 10);
+  let html = "";
+  for (let i = first; i < last; i++) {
+    const s = st.view[i], a = s.abilities;
+    const ab = (key) => a ? a[key].toFixed(1) : "…";
+    html += `<div class="grow ${s.school_id === st.selected ? "sel" : ""}" style="top:${i * RH}px" data-id="${esc(s.school_id)}">
+      <div>${esc(s.prefecture)}</div><div title="${esc(s.official_name)}">${esc(s.name)}</div><div>${esc(s.ownership)}</div>
+      <div class="n">${ab("overall")}</div><div class="n">${ab("batting")}</div><div class="n">${ab("pitching")}</div>
+      <div class="n">${ab("defense")}</div><div class="n">${ab("running")}</div><div class="n">${s.wins}-${s.losses}</div>
+      <div>${badge(s.best_score, s.best)}</div></div>`;
+  }
+  space.innerHTML = html;
+  space.querySelectorAll(".grow").forEach((r) => r.addEventListener("click", () => {
+    st.selected = r.dataset.id;
+    renderSchoolRows();
+    showSchoolSide(r.dataset.id);
+  }));
+}
+
+function showSchoolSide(schoolId) {
+  const s = state.schools.data.schools.find((x) => x.school_id === schoolId);
+  if (!s) return;
+  const games = s.wins + s.losses;
+  $("s-side").innerHTML = `<div class="muted">${esc(s.prefecture)}・${esc(s.ownership)}</div><h2>${esc(s.name)}</h2>
+    <div class="muted" style="font-size:12px">${esc(s.official_name)}</div>
+    <div class="stats" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><b>${s.abilities ? s.abilities.overall.toFixed(1) : "…"}</b><span>総合</span></div>
+      <div class="stat"><b>${s.wins}-${s.losses}</b><span>今年度の勝敗</span></div>
+      <div class="stat"><b>${games ? (s.wins / games).toFixed(3).replace(/^0/, "") : "-"}</b><span>勝率</span></div></div>
+    <div class="muted" style="font-size:12px">今年度の最高成績</div>
+    <p>${s.best ? badge(s.best_score, s.best) : '<span class="muted">今年度の試合はまだありません</span>'}</p>
+    <p><button class="btn" id="s-open">詳しく見る →</button></p>`;
+  $("s-open").addEventListener("click", () => openSchool(schoolId));
+}
+
+const SCHOOL_TABS = [["overview", "概要"], ["yearly", "年度別成績"], ["koshien", "甲子園"], ["members", "部員"], ["games", "試合一覧"]];
+const ABILITY_LABELS = [
+  ["overall", "総合"], ["batting", "打撃"], ["contact", "ミート"], ["power", "長打"], ["discipline", "選球"],
+  ["pitching", "投手"], ["ace", "エース"], ["pitching_depth", "投手層"], ["bullpen", "救援"],
+  ["defense", "守備"], ["running", "走力"],
+];
+const HANDS = { R: "右", L: "左", S: "両" };
+
+async function renderSchoolDetail(content, schoolId) {
+  const st = state.schools;
+  const d = await call("school", schoolId);
+  if (!d) return;
+  content.innerHTML = `<div class="head"><button class="btn small" id="sd-back">← 学校の一覧</button>
+      <h2>${esc(d.name)}</h2><span class="muted">${esc(d.prefecture)}・${esc(d.ownership)}　${esc(d.official_name)}</span></div>
+    <div class="dtabs">${SCHOOL_TABS.map(([k, l]) => `<button class="dtab ${st.tab === k ? "on" : ""}" data-k="${k}">${l}</button>`).join("")}</div>
+    <div class="scroll" id="sd-body"></div>`;
+  $("sd-back").addEventListener("click", () => { st.detail = null; renderPage(); });
+  content.querySelectorAll(".dtab").forEach((b) => b.addEventListener("click", () => { st.tab = b.dataset.k; renderPage(); }));
+  const body = $("sd-body");
+  if (st.tab === "overview") body.innerHTML = schoolOverview(d);
+  if (st.tab === "yearly") body.innerHTML = schoolYearly(d);
+  if (st.tab === "koshien") body.innerHTML = schoolKoshien(d);
+  if (st.tab === "members") body.innerHTML = schoolMembers(d);
+  if (st.tab === "games") await schoolGames(body, d);
+}
+
+function schoolOverview(d) {
+  const a = d.abilities;
+  const bars = a ? ABILITY_LABELS.map(([k, l]) =>
+    `<span>${l}</span><div class="bar"><div style="width:${Math.max(0, Math.min(100, a[k]))}%"></div></div><span class="num">${a[k].toFixed(1)}</span>`).join("")
+    : '<span class="muted">能力は選手で試合をしているときに出ます</span>';
+  const rows = d.this_year.map((r) => `<tr><td>${esc(r.competition_name)}</td><td class="n">${r.wins}-${r.losses}</td><td>${badge(r.score, r.finish)}</td></tr>`).join("");
+  return `<div class="split">
+    <div class="panel"><h3>能力の内訳</h3><div class="bars">${bars}</div></div>
+    <div class="panel"><h3>${d.school_year}年度の成績</h3>${rows ? `<table class="list"><tr><th>大会</th><th class="n">勝敗</th><th>成績</th></tr>${rows}</table>` : '<div class="muted">まだ試合をしていません</div>'}</div>
+  </div>`;
+}
+
+function schoolYearly(d) {
+  const cell = (part) => part.best ? `${esc(part.best)}<span class="muted num">　${part.wins}-${part.losses}</span>` : '<span class="muted">−</span>';
+  return `<div class="panel"><table class="list"><tr><th>年度</th><th>春</th><th>夏</th><th>秋</th><th class="n">勝敗</th></tr>
+    ${d.yearly.map((y) => `<tr><td class="num">${y.school_year}</td><td>${cell(y.spring)}</td><td>${cell(y.summer)}</td><td>${cell(y.autumn)}</td><td class="n">${y.wins}-${y.losses}</td></tr>`).join("")}
+  </table></div>`;
+}
+
+function schoolKoshien(d) {
+  const game = d.koshien.game, actual = d.koshien.actual;
+  const block = (label, g, a) => {
+    const total = a ? a.appearances + g.appearances : g.appearances;
+    return `<div class="panel"><h3>${label}</h3>
+      <div class="stats"><div class="stat"><b>${total}</b><span>出場回数</span></div>
+        <div class="stat"><b>${g.wins}-${g.losses}</b><span>通算勝敗（ゲーム内）</span></div>
+        <div class="stat"><b>${esc(g.best || "−")}</b><span>最高成績（ゲーム内）</span></div>
+        <div class="stat"><b>${g.years.length ? g.years[g.years.length - 1] : "−"}</b><span>最近の出場</span></div></div>
+      <table class="list"><tr><th>内訳</th><th class="n">出場</th><th>出場した年</th></tr>
+        ${a ? `<tr><td>ゲーム開始前の実際の記録</td><td class="n">${a.appearances}</td><td>${esc((a.years || []).join("、"))}</td></tr>` : ""}
+        <tr><td>ゲーム内の記録</td><td class="n">${g.appearances}</td><td class="num">${g.years.join("、") || "−"}</td></tr>
+      </table></div>`;
+  };
+  return block("夏の甲子園", game.summer, actual && actual.summer) + block("春の選抜", game.spring, actual && actual.spring)
+    + (actual ? "" : '<p class="muted">ゲーム開始前の実際の記録は、データを集め終わったら合計に加わります。</p>');
+}
+
+function schoolMembers(d) {
+  if (!d.members.length) return '<div class="empty">部員は選手で試合をしているときに出ます。</div>';
+  return `<div class="panel"><table class="list"><tr><th>名前</th><th>学年</th><th>守備位置</th><th>投打</th></tr>
+    ${d.members.map((m) => `<tr><td>${esc(m.name)}</td><td>${m.grade}年</td><td>${esc(m.position)}</td><td>${HANDS[m.throws] || m.throws}投${HANDS[m.bats] || m.bats}打</td></tr>`).join("")}
+  </table></div>`;
+}
+
+async function schoolGames(body, d) {
+  const st = state.schools;
+  st.gamesYear = st.gamesYear && d.years.includes(st.gamesYear) ? st.gamesYear : d.school_year;
+  const data = await call("school_matches", d.school_id, st.gamesYear);
+  if (!data) return;
+  body.innerHTML = `<div class="head" style="padding:0 0 10px;border:0"><select id="sg-year">${d.years.map((y) => `<option value="${y}" ${y === st.gamesYear ? "selected" : ""}>${y}年度</option>`).join("")}</select></div>
+    <div class="panel"><table class="list"><tr><th>日</th><th>大会</th><th>回戦</th><th>相手</th><th></th><th class="n">スコア</th></tr>
+    ${data.matches.map((m) => `<tr class="click" data-year="${m.school_year}" data-cid="${esc(m.competition_id)}" data-id="${esc(m.match_id)}">
+      <td class="num">${slashDate(m.match_date)}</td><td>${esc(m.competition_name)}</td><td>${esc(m.round_name)}</td>
+      <td>${esc(m.opponent_name)}</td><td class="${m.won ? "w" : ""}">${m.won ? "○" : "●"}</td><td class="n">${m.score}-${m.opponent_score}</td></tr>`).join("")
+      || '<tr><td class="muted">試合はありません</td></tr>'}</table></div>`;
+  $("sg-year").addEventListener("change", (e) => { st.gamesYear = Number(e.target.value); renderPage(); });
+  body.querySelectorAll("tr.click").forEach((tr) => tr.addEventListener("click", () =>
+    openMatch(Number(tr.dataset.year), tr.dataset.cid, tr.dataset.id)));
 }
 
 // ---- 日付を進める ----
