@@ -48,7 +48,9 @@ def _level(competition: dict) -> str:
     return "local" if level not in ("national", "regional") else level
 
 
-def competition_list(seasons: dict, plans: dict, repo, names) -> list[dict]:
+def competition_list(
+    seasons: dict, plans: dict, repo, names, short_names,
+) -> list[dict]:
     """進行中の年度の大会（始まっていない大会も含む）。"""
     rows = []
     for year, season in seasons.items():
@@ -66,11 +68,14 @@ def competition_list(seasons: dict, plans: dict, repo, names) -> list[dict]:
                 status = "active"
             main = main_runtime(scheduled) if scheduled is not None else None
             champion = main.champion_school_id if main is not None else ""
+            name = (
+                entry.display_name if entry is not None else ""
+            ) or competition.get("competition_name", cid)
             rows.append({
                 "school_year": year,
                 "competition_id": cid,
-                "name": (entry.display_name if entry is not None else "")
-                or competition.get("competition_name", cid),
+                "name": name,
+                "short_name": short_names(cid, name),
                 "segment": competition.get("season_segment", ""),
                 "segment_label": SEGMENT_LABELS.get(
                     competition.get("season_segment", ""), ""

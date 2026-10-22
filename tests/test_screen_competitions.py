@@ -9,6 +9,10 @@ import unittest
 
 from phase2_engine import DataRepository, LiveGameService
 from phase2_engine.screen.app import ScreenApi
+from phase2_engine.screen.competition_names import (
+    CompetitionNames,
+    short_competition_name,
+)
 from phase2_engine.screen.competition_views import match_detail
 from phase2_engine.screen.data import GameScreenData
 from phase2_engine.screen.school_names import (
@@ -49,6 +53,7 @@ class CompetitionScreenTests(unittest.TestCase):
         statuses = {row["status"] for row in rows}
         self.assertEqual({"upcoming", "active", "completed"}, statuses)
         for row in rows:
+            self.assertTrue(row["short_name"])
             if row["status"] == "completed" and row["champion_id"]:
                 self.assertTrue(row["champion_name"])
 
@@ -159,6 +164,31 @@ class MatchDetailTests(unittest.TestCase):
                          (change["kind"], change["school_name"], change["player_name"]))
         self.assertEqual("遊", out["batting"]["A"][0]["position"])
         self.assertEqual("8 1/3", out["pitching"]["B"][0]["innings"])
+
+
+class CompetitionNameTests(unittest.TestCase):
+    def test_rule(self):
+        cases = {
+            "令和8年度春季埼玉県高等学校野球大会": "春季埼玉県大会",
+            "令和9年度秋季近畿地区高等学校野球大会": "秋季近畿大会",
+            "東京都秋季高等学校野球大会": "秋季東京都大会",
+            "第108回全国高等学校野球選手権静岡大会": "夏・静岡大会",
+            "第109回全国高等学校野球選手権大会": "夏の甲子園",
+            "第99回選抜高等学校野球大会": "選抜大会",
+            "第58回明治神宮野球大会 高校の部": "明治神宮大会",
+        }
+        for name, expected in cases.items():
+            self.assertEqual(expected, short_competition_name(name))
+
+    def test_short_names_are_unique(self):
+        repo = DataRepository(DATA_ROOT)
+        names = CompetitionNames(ROOT / "config")
+        shorts = [
+            names(cid, row["competition_name"])
+            for cid, row in repo.competitions.items()
+        ]
+        self.assertEqual(len(shorts), len(set(shorts)))
+        self.assertFalse([n for n in shorts if "高等学校" in n])
 
 
 class SchoolNameTests(unittest.TestCase):

@@ -43,6 +43,14 @@ function dotDate(iso) {
   return iso ? iso.replaceAll("-", ".") : "";
 }
 
+// 「4月9日（木）」。今日なら「今日」
+function jpDate(iso, withToday = true) {
+  if (!iso) return "";
+  if (withToday && state.header && iso === state.header.date) return "今日";
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}月${d.getDate()}日（${DOW[d.getDay()]}）`;
+}
+
 function slashDate(iso) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -116,7 +124,7 @@ function renderPage() {
 function renderToday(content) {
   const header = state.header;
   const rows = header.active_competitions.slice(0, 12).map((row) =>
-    `<tr><td>${esc(row.name)}</td><td class="muted">${row.next_date ? "次の試合 " + slashDate(row.next_date) : ""}</td></tr>`).join("");
+    `<tr><td title="${esc(row.name)}">${esc(row.short_name)}</td><td class="muted">${row.next_date ? "次の試合 " + jpDate(row.next_date) : ""}</td></tr>`).join("");
   content.innerHTML = `<div class="head"><h2>今日</h2></div>
     <div class="scroll">
       <div class="panel"><h3>今日の全国の試合</h3><div class="big">${header.today_match_count}<small class="muted" style="font-size:16px"> 試合</small></div></div>
@@ -146,8 +154,8 @@ async function renderCompetitions(content) {
     <div class="scroll"><table class="list">
       <tr><th>大会</th><th>季節</th><th>区分</th><th>期間</th><th>状態</th><th>優勝</th></tr>
       ${rows.map((c) => `<tr class="click" data-year="${c.school_year}" data-id="${esc(c.competition_id)}">
-        <td>${esc(c.name)}</td><td>${esc(c.segment_label)}</td><td>${esc(c.level_label)}</td>
-        <td class="num">${slashDate(c.start_date)} 〜 ${slashDate(c.end_date)}</td>
+        <td title="${esc(c.name)}">${esc(c.short_name)}</td><td>${esc(c.segment_label)}</td><td>${esc(c.level_label)}</td>
+        <td>${jpDate(c.start_date, false)} 〜 ${jpDate(c.end_date, false)}</td>
         <td><span class="badge ${c.status}">${esc(c.status_label)}</span></td>
         <td class="${c.champion_name ? "w" : ""}">${esc(c.champion_name)}</td></tr>`).join("")}
     </table></div>`;
@@ -407,12 +415,19 @@ async function renderMatchDetail(content, detail) {
 
 async function advance(options) {
   setBusy(true);
-  const poll = setInterval(updateProgress, 250);
+  if (options.mode === "day") {
+    // 1日のときは、その日の試合を行っている間の表示だけにする
+    $("progress-title").textContent = "試合を行っています";
+    $("progress-sub").textContent =
+      `${jpDate(state.header.date, false)}の${state.header.today_match_count}試合を行っています`;
+    $("progress-fill").style.width = "100%";
+  }
+  const poll = options.mode === "day" ? null : setInterval(updateProgress, 250);
   let result;
   try {
     result = await api().advance(options);
   } finally {
-    clearInterval(poll);
+    if (poll) clearInterval(poll);
     setBusy(false);
   }
   if (result.error) {
@@ -432,6 +447,7 @@ function setBusy(busy) {
   $("btn-bulk").disabled = busy;
   $("progress").hidden = !busy;
   if (busy) {
+    $("progress-title").textContent = "日付を進めています";
     $("progress-date").textContent = dotDate(state.header.date);
     $("progress-sub").textContent = "";
     $("progress-fill").style.width = "0";
@@ -458,7 +474,7 @@ function openBulkDialog() {
   if (state.busy) return;
   const select = $("bulk-competition");
   select.innerHTML = state.header.active_competitions.map((row) =>
-    `<option value="${row.school_year}|${esc(row.competition_id)}">${esc(row.name)}</option>`).join("");
+    `<option value="${row.school_year}|${esc(row.competition_id)}">${esc(row.short_name)}</option>`).join("");
   const dateInput = $("bulk-date");
   dateInput.min = state.header.date;
   if (!dateInput.value || dateInput.value <= state.header.date) dateInput.value = "";

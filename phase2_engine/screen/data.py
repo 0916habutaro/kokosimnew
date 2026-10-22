@@ -18,6 +18,7 @@ from .competition_views import (
     match_detail,
     other_stage_matches,
 )
+from .competition_names import CompetitionNames
 from .school_names import SchoolNames
 
 
@@ -73,6 +74,7 @@ class GameScreenData:
         config_root = Path(service.data_dir).parent / "config"
         self.config = config or load_screen_config(config_root)
         self.names = SchoolNames(service.repo, config_root)
+        self.competition_names = CompetitionNames(config_root)
 
     @property
     def state(self):
@@ -125,10 +127,14 @@ class GameScreenData:
             for cid, scheduled in season.competitions.items():
                 if scheduled.is_complete:
                     continue
+                name = self._competition_name(
+                    season, cid, scheduled.competition_name,
+                )
                 rows.append({
                     "school_year": year,
                     "competition_id": cid,
-                    "name": scheduled.competition_name,
+                    "name": name,
+                    "short_name": self.competition_names(cid, name),
                     "next_date": scheduled.next_scheduled_date() or "",
                 })
         return sorted(
@@ -236,7 +242,8 @@ class GameScreenData:
 
     def competitions(self) -> dict:
         rows = competition_list(
-            _seasons(self.state), self._plans(), self.service.repo, self.names,
+            _seasons(self.state), self._plans(), self.service.repo,
+            self.names, self.competition_names,
         )
         return {
             "competitions": rows,
@@ -250,7 +257,7 @@ class GameScreenData:
             row["competition_id"]: row
             for row in competition_list(
                 {int(school_year): season}, self._plans(),
-                self.service.repo, names,
+                self.service.repo, names, self.competition_names,
             )
         }
         if competition_id not in listing:
@@ -327,8 +334,11 @@ class GameScreenData:
             {
                 "school_year": year,
                 "competition_id": cid,
-                "competition_name": self._competition_name(
-                    _seasons(self.state)[year], cid, row.competition_name,
+                "competition_name": self.competition_names(
+                    cid,
+                    self._competition_name(
+                        _seasons(self.state)[year], cid, row.competition_name,
+                    ),
                 ),
                 **{key: value for key, value in _match_fields(row).items()},
                 "team1_name": names(row.team1_id),
