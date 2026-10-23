@@ -7,7 +7,8 @@ import unittest
 from pathlib import Path
 
 from historical_results.koshien import (
-    APPEARANCE_COLUMNS, RECORD_COLUMNS, aggregate, validate,
+    APPEARANCE_COLUMNS, RECORD_COLUMNS, SPECIAL_RESULT_COLUMNS,
+    aggregate, summarize_adjudications, validate,
 )
 
 
@@ -46,6 +47,7 @@ class KoshienValidationTests(unittest.TestCase):
             dict(kind="summer", year="2005", school_id="SCH000001", team_name="架空高校",
                  results="L", result="1回戦", source_id="HS9001"),
         ]
+        self.special_results = []
         self.record = dict(
             school_id="SCH000001", kind="summer", as_of_edition="107", appearances="2",
             wins="1", losses="2", draws="0", championships="0", runner_ups="0",
@@ -57,6 +59,7 @@ class KoshienValidationTests(unittest.TestCase):
         for name, columns, rows in (
             ("koshien_appearances.csv", APPEARANCE_COLUMNS, self.appearances),
             ("koshien_records.csv", RECORD_COLUMNS, [self.record]),
+            ("koshien_special_results.csv", SPECIAL_RESULT_COLUMNS, self.special_results),
         ):
             with (self.root / name).open("w", encoding="utf-8", newline="") as handle:
                 writer = csv.DictWriter(handle, fieldnames=columns)
@@ -104,6 +107,54 @@ class KoshienValidationTests(unittest.TestCase):
     def test_as_of_edition(self):
         self.record["as_of_edition"] = "108"
         self.assertIn("AS_OF", self.codes())
+
+
+    @staticmethod
+    def walkover(**changes):
+        row = dict(
+            event_id="EV1", kind="summer", year="2001", edition="83",
+            round_label="2回戦",
+            winner_school_id="SCH000001", winner_team_name="架空高校",
+            loser_school_id="", loser_team_name="架空相手校",
+            result_type="walkover", played="false",
+            win_counted="1", loss_counted="unknown", source_id="HS9001",
+        )
+        row.update(changes)
+        return row
+
+    def test_forfeit_row_keeps_original_results_unchanged(self):
+        self.special_results = [self.walkover()]
+        self.assertEqual(set(), self.codes())
+        played = aggregate(self.appearances)[("SCH000001", "summer")]
+        awarded = summarize_adjudications(self.special_results)[("SCH000001", "summer")]
+        self.assertEqual((1, 2), (played["wins"], played["losses"]))
+        self.assertEqual(1, awarded["awarded_wins"])
+        self.assertEqual(0, awarded["pending_wins"])
+
+    def test_unknown_is_pending_not_zero_and_unknown_schools_are_not_guessed(self):
+        self.special_results = [self.walkover(win_counted="unknown", loss_counted="1")]
+        counts = summarize_adjudications(self.special_results)
+        self.assertEqual(0, counts[("SCH000001", "summer")]["awarded_wins"])
+        self.assertEqual(1, counts[("SCH000001", "summer")]["pending_wins"])
+        self.assertEqual(1, len(counts))  # 対戦校のIDは不明
+
+    def test_special_data_rejects_bad_fields_and_duplicate_events(self):
+        self.special_results = [
+            self.walkover(played="true", win_counted="maybe", source_id="HS_UNKNOWN"),
+            self.walkover(loser_school_id="SCH_UNKNOWN", loser_team_name=""),
+        ]
+        codes = self.codes()
+        self.assertTrue({
+            "PLAYED", "COUNTED", "UNKNOWN_SOURCE", "UNKNOWN_SCHOOL",
+            "EMPTY_TEAM_NAME", "DUPLICATE_OR_EMPTY_ID",
+        } <= codes)
+
+    def test_special_schema_and_required_file(self):
+        self.assertEqual(set(), self.codes())
+        (self.root / "koshien_special_results.csv").unlink()
+        self.assertIn("READ_ERROR", {i.code for i in validate(self.root, self.schools)})
+        (self.root / "koshien_special_results.csv").write_text("wrong,header\n", encoding="utf-8")
+        self.assertIn("SCHEMA", {i.code for i in validate(self.root, self.schools)})
 
 
 if __name__ == "__main__":

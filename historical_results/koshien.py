@@ -35,6 +35,17 @@ RECORD_COLUMNS = (
 )
 
 
+# 主催者の裁定記録は実際の試合結果W/L/Dとは区別する。
+# 未判明の算入基準は unknown とし、勝敗ゼロへ暗黙変換しない。
+SPECIAL_RESULT_COLUMNS = (
+    "event_id", "kind", "year", "edition", "round_label",
+    "winner_school_id", "winner_team_name", "loser_school_id", "loser_team_name",
+    "result_type", "played", "win_counted", "loss_counted", "source_id",
+)
+SPECIAL_RESULT_TYPES = frozenset({"walkover"})
+SPECIAL_COUNT_VALUES = frozenset({"0", "1", "unknown"})
+
+
 @dataclass(frozen=True)
 class Issue:
     table: str
@@ -78,6 +89,37 @@ def aggregate(appearances: list[dict[str, str]]) -> dict[tuple[str, str], dict]:
     return totals
 
 
+
+def summarize_adjudications(
+    special_results: list[dict[str, str]],
+) -> dict[tuple[str, str], dict[str, int]]:
+    """認定勝敗と算入未確定件数を、実施試合の W/L/D と独立して数える。
+
+    source に裏付けられた counted=1 だけを加算する。unknown を0扱いしない。
+    現行の aggregate()・通算CSVは、この値で自動更新しない（移行は別PR）。
+    """
+    totals: dict[tuple[str, str], dict[str, int]] = {}
+    for row in special_results:
+        for side, counted, confirmed, pending in (
+            ("winner", "win_counted", "awarded_wins", "pending_wins"),
+            ("loser", "loss_counted", "awarded_losses", "pending_losses"),
+        ):
+            school_id = row[f"{side}_school_id"]
+            if not school_id:
+                continue  # 歴史校の帰属未確定。学校IDを推測しない。
+            key = (school_id, row["kind"])
+            total = totals.setdefault(key, {
+                "awarded_wins": 0, "awarded_losses": 0,
+                "pending_wins": 0, "pending_losses": 0,
+            })
+            status = row[counted]
+            if status == "1":
+                total[confirmed] += 1
+            elif status == "unknown":
+                total[pending] += 1
+    return totals
+
+
 def validate(
     data_dir: Path = DATA_DIR,
     school_master: Path = ROOT / "data/master/schools.csv",
@@ -91,6 +133,58 @@ def validate(
     school_ids = {row["school_id"] for row in schools}
     _, sources = read_rows(data_dir / "sources.csv")
     source_ids = {row["source_id"] for row in sources}
+
+
+    # 全国共通の裁定。元の年度別W/L/Dと別管理し、既存通算の数字を変えない。
+    try:
+        special_columns, special_rows = read_rows(data_dir / "koshien_special_results.csv")
+    except (OSError, UnicodeError, csv.Error) as exc:
+        error("special", 0, "READ_ERROR", f"{type(exc).__name__}: {exc}")
+        special_columns, special_rows = [], []
+    if tuple(special_columns) != SPECIAL_RESULT_COLUMNS:
+        error("special", 1, "SCHEMA", repr(special_columns))
+    else:
+        seen_events: set[str] = set()
+        for line, row in enumerate(special_rows, 2):
+            if None in row or any(v is None for v in row.values()):
+                error("special", line, "ROW_COLUMNS", "列数不足または余剰")
+                continue
+            event_id = row["event_id"]
+            if not event_id or event_id in seen_events:
+                error("special", line, "DUPLICATE_OR_EMPTY_ID", event_id)
+            seen_events.add(event_id)
+            kind = row["kind"]
+            if kind not in KINDS:
+                error("special", line, "KIND", kind)
+            year = row["year"]
+            if not re.fullmatch(r"\d{4}", year) or (
+                kind in KINDS and not 1915 <= int(year) <= AS_OF_YEAR[kind]
+            ):
+                error("special", line, "YEAR", year)
+            edition = row["edition"]
+            if not re.fullmatch(r"\d+", edition) or (
+                kind in KINDS and not 1 <= int(edition) <= AS_OF_EDITION[kind]
+            ):
+                error("special", line, "EDITION", edition)
+            if not row["round_label"]:
+                error("special", line, "ROUND", event_id)
+            for side in ("winner", "loser"):
+                school_id = row[f"{side}_school_id"]
+                if school_id and school_id not in school_ids:
+                    error("special", line, "UNKNOWN_SCHOOL", school_id)
+                if not row[f"{side}_team_name"]:
+                    error("special", line, "EMPTY_TEAM_NAME", side)
+            if row["winner_team_name"] == row["loser_team_name"]:
+                error("special", line, "SAME_TEAM_NAME", event_id)
+            if row["result_type"] not in SPECIAL_RESULT_TYPES:
+                error("special", line, "RESULT_TYPE", row["result_type"])
+            if row["played"] != "false":
+                error("special", line, "PLAYED", row["played"])
+            for field in ("win_counted", "loss_counted"):
+                if row[field] not in SPECIAL_COUNT_VALUES:
+                    error("special", line, "COUNTED", f"{field}={row[field]}")
+            if row["source_id"] not in source_ids:
+                error("special", line, "UNKNOWN_SOURCE", row["source_id"])
 
     columns, appearances = read_rows(data_dir / "koshien_appearances.csv")
     if tuple(columns) != APPEARANCE_COLUMNS:
