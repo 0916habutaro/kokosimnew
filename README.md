@@ -48,11 +48,23 @@ python -m phase2_engine.live_game_cli --data-dir data --save-root out\saves stat
 
 ### EXE を作って遊ぶ（Windows）
 
-1. リポジトリのフォルダで `build_exe.bat` をダブルクリックする（または PowerShell で `.\build_exe.bat`）。必要なパッケージ（pywebview・PyInstaller）を入れてから EXE を作る。数分かかる
-2. できた `dist\kokosimnew\kokosimnew.exe` を開く。`dist\kokosimnew` フォルダごとなら好きな場所に移してよい（中の `_internal` フォルダも必要）
-3. 最初はセーブの画面が開くので、「新しく始める…」か、前のセーブの「読み込む」を押す
+**作り方**（Python 3.12 以上が入っていること）
 
-セーブは `E:\14.koko\kokosim_github\saves` に置かれ、EXE を作り直しても残る（場所は `config\screen\screen_v1.json` の `save_root` で変えられる。E ドライブがないときは `%LOCALAPPDATA%\KokosimNew\saves`）。うまく動かないときはセーブのフォルダの `kokosimnew.log` を見る。画面には WebView2 ランタイム（Windows 10/11 には通常入っている）が必要。
+1. リポジトリのフォルダ（例：`E:\14.koko\kokosim_github`）で `build_exe.bat` をダブルクリックする（または PowerShell で `.\build_exe.bat`）
+2. 必要なパッケージ（pywebview・PyInstaller）を入れてから EXE を作る。数分かかり、終わると「できました」と出て止まるので、何かキーを押して閉じる
+3. できるのは `dist\kokosimnew\kokosimnew.exe`。`dist\kokosimnew` フォルダごとなら好きな場所に移してよい（中の `_internal` フォルダも必要）
+
+**起動のしかた**
+
+1. `dist\kokosimnew\kokosimnew.exe` をダブルクリックする
+2. 最初はセーブの画面が開く。「新しく始める…」（スロット名・シードは空なら自動）か、前のセーブの「読み込む」を押す
+3. 上の「1日進める」「まとめて進める…」で日付を進める。セーブは日付を進めるたびに自動で行われる
+
+**作り直すとき**（main を取り込んだあとなど）：EXE を閉じてから `build_exe.bat` をもう一度実行する。セーブは EXE とは別の場所にあるので残る。
+
+**セーブの場所**：`E:\14.koko\kokosim_github\saves`。場所は `config\screen\screen_v1.json` の `save_root` で変えられる（設定は EXE の中に入るので、変えたら EXE を作り直す）。E ドライブがないときは `%LOCALAPPDATA%\KokosimNew\saves`。
+
+**うまく動かないとき**：セーブのフォルダの `kokosimnew.log` を見る。画面には WebView2 ランタイム（Windows 10/11 には通常入っている）が必要。
 
 ## 構成
 
