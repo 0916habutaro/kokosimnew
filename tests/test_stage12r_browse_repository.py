@@ -349,13 +349,6 @@ class Stage12RBrowseRepositoryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.repo.search_school_records(2026, limit=1001)
 
-    def test_season_cli_exposes_sqlite_db_option(self):
-        source = (ROOT / "phase2_engine" / "season_cli.py").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("--sqlite-db", source)
-        self.assertIn("save_season_browse_repository(", source)
-
 
 if __name__ == "__main__":
     unittest.main()

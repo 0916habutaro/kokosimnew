@@ -13,7 +13,6 @@ import tempfile
 import unittest
 
 from game_core.players import PlayerRosterGenerator
-from phase2_engine.career_cross_era_navigation import CareerCrossEraNavigator
 from phase2_engine.career_multi_preview_checkpoint import (
     CareerMultiPreviewCheckpointService, CareerPreviewSaveError,
 )
@@ -24,7 +23,6 @@ from phase2_engine.future_non_kanto_regional_main_bridge import (
 )
 from phase2_engine.historical_match_archive import HistoricalMatchArchive
 from phase2_engine.repository import DataRepository
-from phase2_engine.career_history_scale_benchmark import file_sha256
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -179,36 +177,9 @@ class Stage43G39NonKantoRegionalCareerE2ETests(unittest.TestCase):
         )
 
         # Explicitly seal this complete two-event sandbox, *not* a full
-        # 2027 season. The read-only archive browser requires a sealed year.
+        # 2027 season.
         history = self._history()
         history.seal_year(2027, expected_match_count=14)
-        before = [
-            file_sha256(self.slot / "historical_matches.sqlite3"),
-            file_sha256(self.slot / "career_rosters.sqlite3"),
-        ]
-        nav = CareerCrossEraNavigator(self.slot)
-        cid = "CMP000008"
-        sid = self.teams[cid][0]
-        school = nav.school_page(
-            [2027], sid, selected_year=2027, verify_source=True,
-        )
-        self.assertEqual("cross_era_school", school["screen"])
-        self.assertGreater(school["match_total"], 0)
-        self.assertEqual("historical_matches_legacy_iso", school["source"])
-        self.assertTrue(school["match_detail_targets"])
-        target = school["match_detail_targets"][0]["target"]
-        detail = nav.follow(target, verify_source=True)
-        self.assertEqual("cross_era_match", detail["screen"])
-        self.assertTrue(detail["details"]["batter_stats"])
-        self.assertTrue(detail["details"]["pitcher_stats"])
-        self.assertTrue(detail["details"]["inning_scores"])
-        self.assertEqual(
-            before,
-            [
-                file_sha256(self.slot / "historical_matches.sqlite3"),
-                file_sha256(self.slot / "career_rosters.sqlite3"),
-            ],
-        )
 
     def test_region_exclusion_and_nonqualified_inputs_fail_closed(self):
         wrong = [

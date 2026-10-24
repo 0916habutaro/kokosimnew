@@ -7,7 +7,7 @@
 
 ## 今の状態（2026-10-21）
 
-段階0（整理）が終わったところ。ゲームとしてはまだ遊べない。
+段階2（正式な画面）の仕上げ中。画面から日付を進めて、全国の大会・試合・学校・記録を眺められる。
 
 **できること**
 
@@ -15,11 +15,10 @@
 - 架空の選手20人／校の生成、能力、選手の能力から計算する学校の強さ
 - 打席単位の試合シミュレーションと個人成績
 - 日付を1日ずつ進めて、その日の試合を処理する（コマンド操作）。セーブスロット・オートセーブ・世代バックアップ
-- 試合結果・大会・学校・選手を眺める試作の閲覧画面（Tk）
+- 正式な画面（pywebview）：今日・大会（トーナメント表）・試合・学校・記録・セーブの管理
 
 **まだないもの**（詳しくは `game_definition.md` §2）
 
-- ゲームとしての正式な画面（段階2で作成中。`game_definition.md` §9）
 - 成長・怪我、監督、選手名（今は全員「仮選手01」形式）、実在に近い学校の強さ
 - タイブレーク・コールド・球数制限など高校野球の規定
 
@@ -43,12 +42,6 @@ python -m phase2_engine.live_game_cli --data-dir data --save-root out\saves adva
 # セーブの一覧と状態
 python -m phase2_engine.live_game_cli --data-dir data --save-root out\saves list
 python -m phase2_engine.live_game_cli --data-dir data --save-root out\saves status slot01
-
-# 閲覧画面用のデータを作る（シーズン一括シミュレーション）
-python -m phase2_engine.season_cli --data-dir data --result-dir out\season_2026 --sqlite-db out\kokosim_browse.sqlite3
-
-# 閲覧画面（上で作ったSQLiteを開く）
-python -m phase2_engine.browse_gui --db out\kokosim_browse.sqlite3 --data-dir data
 ```
 
 ほかのコマンドは `--help` で確認できる。
