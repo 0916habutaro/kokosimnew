@@ -135,7 +135,9 @@ class ScreenApiTests(unittest.TestCase):
         import sys
         from phase2_engine.screen import app
 
+        # 設定の save_root のドライブがない（Windows でない）ときはユーザーのフォルダ
         with mock.patch.object(sys, "frozen", True, create=True), \
+                mock.patch.object(sys, "_MEIPASS", str(ROOT), create=True), \
                 mock.patch.dict("os.environ", {"LOCALAPPDATA": "/users/me/local"}):
             self.assertEqual(
                 Path("/users/me/local/KokosimNew/saves"), app.default_save_root()

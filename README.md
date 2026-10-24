@@ -28,7 +28,7 @@
 Python 3.12 以上。画面には pywebview が必要（`pip install -r requirements.txt`）。リポジトリのフォルダで実行する。
 
 ```powershell
-# 画面を開く（セーブの画面で、続きから遊ぶセーブを選ぶか新しく始める。セーブは out\saves）
+# 画面を開く（セーブの画面で、続きから遊ぶセーブを選ぶか新しく始める）
 python -m phase2_engine.screen
 # slot01 を直接開く（なければ新しく始める）
 python -m phase2_engine.screen --slot slot01
@@ -59,7 +59,7 @@ python -m phase2_engine.browse_gui --db out\kokosim_browse.sqlite3 --data-dir da
 2. できた `dist\kokosimnew\kokosimnew.exe` を開く。`dist\kokosimnew` フォルダごとなら好きな場所に移してよい（中の `_internal` フォルダも必要）
 3. 最初はセーブの画面が開くので、「新しく始める…」か、前のセーブの「読み込む」を押す
 
-セーブは `%LOCALAPPDATA%\KokosimNew\saves`（例：`C:\Users\<ユーザー名>\AppData\Local\KokosimNew\saves`）に置かれ、EXE を作り直しても残る。うまく動かないときは同じフォルダの `kokosimnew.log` を見る。画面には WebView2 ランタイム（Windows 10/11 には通常入っている）が必要。
+セーブは `E:\14.koko\kokosim_github\saves` に置かれ、EXE を作り直しても残る（場所は `config\screen\screen_v1.json` の `save_root` で変えられる。E ドライブがないときは `%LOCALAPPDATA%\KokosimNew\saves`）。うまく動かないときはセーブのフォルダの `kokosimnew.log` を見る。画面には WebView2 ランタイム（Windows 10/11 には通常入っている）が必要。
 
 ## 構成
 

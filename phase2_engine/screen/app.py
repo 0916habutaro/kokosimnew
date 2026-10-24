@@ -8,7 +8,8 @@
 
 ``--slot`` を付けないときは、セーブの画面から遊ぶセーブを選ぶ（新しく始める
 こともできる）。EXE（``kokosimnew.spec``）では、データと設定は EXE の中、
-セーブはユーザーのフォルダ（``%LOCALAPPDATA%\\KokosimNew\\saves``）に置く。
+セーブは ``config/screen/screen_v1.json`` の ``save_root`` に置く（そのドライブが
+なければユーザーのフォルダ ``%LOCALAPPDATA%\\KokosimNew\\saves``）。
 """
 from __future__ import annotations
 
@@ -21,7 +22,7 @@ import threading
 import traceback
 
 from .. import PLAYER_RESOLVER_CONTRACT, DataRepository, LiveGameService
-from .data import GameScreenData
+from .data import GameScreenData, load_screen_config
 
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
@@ -212,7 +213,11 @@ def app_root() -> Path:
 
 
 def default_save_root() -> Path:
-    """EXE ならユーザーのフォルダ、それ以外はリポジトリの out/saves。"""
+    """``config/screen/screen_v1.json`` の ``save_root``（Windows でそのドライブが
+    あるとき）。なければ EXE はユーザーのフォルダ、それ以外はリポジトリの out/saves。"""
+    path = load_screen_config(app_root() / "config")["save_root"]["windows_path"]
+    if os.name == "nt" and path and Path(Path(path).anchor).exists():
+        return Path(path)
     if getattr(sys, "frozen", False):
         base = os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local"
         return Path(base) / "KokosimNew" / "saves"
