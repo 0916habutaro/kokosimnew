@@ -118,7 +118,10 @@ class GameScreenData:
     def shell(self) -> dict:
         """メニューと上の帯。セーブを選ぶ前は上の帯がない（None）。"""
         header = self.header() if self.session is not None else None
-        return {"menu": list(MENU), "header": header}
+        return {
+            "menu": list(MENU), "header": header,
+            "ability_ranks": dict(self.config["ability_ranks"]),
+        }
 
     def header(self) -> dict:
         today = self.state.current_date
@@ -301,7 +304,7 @@ class GameScreenData:
         out = {"competition": listing[competition_id]}
         scheduled = season.competitions.get(competition_id)
         if scheduled is None:
-            return {**out, "main": None, "other_matches": [], "names": {}}
+            return {**out, "main": None, "entrants": [], "other_matches": [], "names": {}}
         main = main_runtime(scheduled)
         layout = (
             bracket_layout(main, scheduled) if main is not None else None
@@ -319,8 +322,14 @@ class GameScreenData:
         return {
             **out,
             "main": layout,
+            "entrants": self._national_entrants(
+                int(school_year), competition_id, main,
+            ),
             "other_matches": others,
-            "names": {school_id: names(school_id) for school_id in ids if school_id},
+            "names": {
+                school_id: self.team_name(school_id, competition_id)
+                for school_id in ids if school_id
+            },
         }
 
     def match(self, school_year, competition_id: str, match_id: str) -> dict:
@@ -349,7 +358,7 @@ class GameScreenData:
                 except (KeyError, ValueError, OSError):
                     detail = None
         out = match_detail(
-            data, detail, self.names,
+            data, detail, lambda school_id: self.team_name(school_id, competition_id),
             lambda school_id: self._players(season, competition_id, school_id),
         )
         out["school_year"] = int(school_year)
@@ -384,8 +393,8 @@ class GameScreenData:
                 **{key: value for key, value in _match_fields(row).items()},
                 "round_name": row.round_name if row.stage_code == "MAIN"
                 else self.stage_label(row.match_id, row.group_name),
-                "team1_name": names(row.team1_id),
-                "team2_name": names(row.team2_id),
+                "team1_name": self.team_name(row.team1_id, cid),
+                "team2_name": self.team_name(row.team2_id, cid),
             }
             for year, cid, row in rows
             if row.match_date == target
@@ -398,6 +407,51 @@ class GameScreenData:
             "next_date": next((d for d in played if d > target), ""),
             "matches": items,
         }
+
+    def _national_entrants(self, year: int, competition_id: str, main) -> list[dict]:
+        """全国大会の出場校（都道府県順）。夏・春は甲子園の通算〇回目つき。"""
+        competition = self.service.repo.competitions.get(competition_id, {})
+        if competition.get("competition_level") != "national" or main is None:
+            return []
+        kind = {"national_championship": "summer",
+                "national_invitational": "spring"}.get(competition.get("competition_type"))
+        before = self._koshien_counts(year - 1) if kind else None
+        schools = self.service.repo.schools
+        rows = []
+        for school_id in main.entrant_school_ids:
+            row = {
+                "school_id": school_id,
+                "name": self.names(school_id),
+                "prefecture": self.prefectures.get(
+                    schools.get(school_id, {}).get("prefecture_code"), ""
+                ),
+                "prefecture_code": schools.get(school_id, {}).get("prefecture_code", ""),
+                "appearance": None,
+            }
+            if kind:
+                actual = self.actual_koshien.get(school_id, {}).get(kind, {})
+                row["appearance"] = count_label(
+                    actual.get("appearances", 0),
+                    before[kind]["appearances"].get(school_id, 0) + 1,
+                )
+            rows.append(row)
+        return sorted(rows, key=lambda row: (row["prefecture_code"], row["name"]))
+
+    def team_name(self, school_id: str, competition_id: str) -> str:
+        """試合に出す校名。全国大会・地区大会では都道府県を添える（横浜（神奈川））。"""
+        name = self.names(school_id)
+        level = self.service.repo.competitions.get(competition_id, {}).get(
+            "competition_level", ""
+        )
+        if not name or level not in ("national", "regional"):
+            return name
+        return f"{name}（{self.prefecture_short(school_id)}）"
+
+    def prefecture_short(self, school_id: str) -> str:
+        """「神奈川」「東京」「北海道」（都・府・県を除く）。"""
+        code = self.service.repo.schools.get(school_id, {}).get("prefecture_code")
+        name = self.prefectures.get(code, "")
+        return name if name == "北海道" else name.rstrip("都府県")
 
     def stage_label(self, match_id: str, group_name: str = "") -> str:
         """MAIN 以外の試合の段階（「地区予選　川崎・横浜北地区」など）。"""
@@ -428,7 +482,10 @@ class GameScreenData:
         if detail is None:
             raise ValueError("その試合はありません")
         row = {**detail, "status": "completed"}
-        out = match_detail(row, detail, self.names, lambda _: {})
+        out = match_detail(
+            row, detail, lambda school_id: self.team_name(school_id, competition_id),
+            lambda _: {},
+        )
         out["school_year"] = year
         out["competition_name"] = self.competition_names(
             competition_id, detail.get("competition_name") or competition_id,
@@ -528,8 +585,8 @@ class GameScreenData:
             "round_name": row.get("round_name", "") if row.get("stage_code") == "MAIN"
             else self.stage_label(row["match_id"], row.get("group_name", "")),
             "team1_id": row["team1_id"], "team2_id": row["team2_id"],
-            "team1_name": self.names(row["team1_id"]),
-            "team2_name": self.names(row["team2_id"]),
+            "team1_name": self.team_name(row["team1_id"], cid),
+            "team2_name": self.team_name(row["team2_id"], cid),
             "team1_score": row.get("team1_score"),
             "team2_score": row.get("team2_score"),
             "winner_id": row.get("winner_id", ""),

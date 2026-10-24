@@ -58,6 +58,39 @@ class TodayAndRecordsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.data.records(2030)
 
+    def test_national_bracket_has_prefectures_and_entrants(self):
+        koshien = next(
+            cid for cid, c in self.service.repo.competitions.items()
+            if c.get("competition_type") == "national_championship"
+        )
+        bracket = self.data.bracket(2026, koshien)
+        # 全国大会の校名には都道府県を添える
+        self.assertTrue(all(name.endswith("）") for name in bracket["names"].values()))
+        entrants = bracket["entrants"]
+        self.assertEqual(49, len(entrants))
+        codes = [row["prefecture_code"] for row in entrants]
+        self.assertEqual(sorted(codes), codes)
+        for row in entrants:
+            actual = self.data.actual_koshien.get(row["school_id"], {}).get("summer", {})
+            self.assertEqual(
+                {"total": actual.get("appearances", 0) + 1,
+                 "actual": actual.get("appearances", 0), "game": 1},
+                row["appearance"],
+            )
+        # 都道府県大会には付けない・出場校一覧もない
+        local = next(
+            row["competition_id"] for row in self.data.competitions()["competitions"]
+            if row["level"] == "local" and row["status"] == "completed"
+        )
+        bracket = self.data.bracket(2026, local)
+        self.assertEqual([], bracket["entrants"])
+        self.assertFalse(any(name.endswith("）") for name in bracket["names"].values()))
+
+    def test_competition_list_order(self):
+        order = {"active": 0, "upcoming": 1, "completed": 2}
+        statuses = [order[row["status"]] for row in self.data.competitions()["competitions"]]
+        self.assertEqual(sorted(statuses), statuses)
+
     def test_today_screen(self):
         # このテストの進め方では甲子園の決勝が8月中旬なので、30日分を見る
         self.data.config = {

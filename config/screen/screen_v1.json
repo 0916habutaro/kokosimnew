@@ -31,13 +31,23 @@
     "advance.max_days": "「次の試合日まで」「大会が終わるまで」で進める日数の上限",
     "school_overall_weights": "学校一覧の「総合」：学校能力（打撃・投手・守備・走力）をこの重みで合わせる",
     "featured_match": "今日の画面の「注目の試合」：大会の点＋回戦の点＋両校の総合の平均×ability_weight の高い順に count 試合。1つの大会からは max_per_competition 試合まで",
-    "recent_results": "今日の画面の「直近の大きな結果」：大きな場面（big_scene）の条件に合う決勝のうち、days 日以内の新しいものから count 試合"
+    "recent_results": "今日の画面の「直近の大きな結果」：大きな場面（big_scene）の条件に合う決勝のうち、days 日以内の新しいものから count 試合",
+    "ability_ranks": "学校能力のランク：値がこの数以上ならそのランク（Sから順に見る）。Fの境目より下はG。数値は内部で持ち、画面はランクで出す"
   },
   "school_overall_weights": {
     "batting_strength": 0.35,
     "pitching_strength": 0.35,
     "defense_strength": 0.2,
     "running_strength": 0.1
+  },
+  "ability_ranks": {
+    "S": 66,
+    "A": 62,
+    "B": 59,
+    "C": 56,
+    "D": 53,
+    "E": 50,
+    "F": 46
   },
   "featured_match": {
     "count": 6,

@@ -13,7 +13,7 @@ SEGMENT_LABELS = {"spring": "春", "summer": "夏", "autumn": "秋"}
 LEVEL_LABELS = {"national": "全国", "regional": "地区", "local": "都道府県"}
 STATUS_LABELS = {
     "upcoming": "これから",
-    "active": "進行中",
+    "active": "開催中",
     "completed": "終了",
 }
 EVENT_LABELS = {
@@ -102,9 +102,11 @@ def competition_list(
                 "champion_id": champion,
                 "champion_name": names(champion) if champion else "",
             })
+    # 開催中 → これから → 終了の順。その中は始まる日の順
     level_order = {"national": 0, "regional": 1, "local": 2}
+    status_order = {"active": 0, "upcoming": 1, "completed": 2}
     return sorted(rows, key=lambda row: (
-        row["school_year"], row["start_date"] or "9",
+        row["school_year"], status_order[row["status"]], row["start_date"] or "9",
         level_order[row["level"]], row["prefecture_code"], row["name"],
     ))
 
