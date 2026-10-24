@@ -172,22 +172,27 @@ async function renderRecords(content) {
   const data = await call("records", state.recordsYear || null);
   if (!data) return;
   state.recordsYear = data.school_year;
-  const school = (e) => `<span class="link" data-school="${esc(e.school_id)}">${esc(e.name)}</span><span class="muted">（${esc(e.prefecture)}）</span>`;
+  const school = (e) => `<span class="link" data-school="${esc(e.school_id)}">${esc(e.name)}</span><span class="muted">（${esc(e.prefecture)}）</span>`
+    + (e.championship_count ? `<span class="muted">　${e.championship_count.total}回目の優勝${breakdown(e.championship_count)}</span>` : "");
+  // 「12回目」と内訳（実際の記録＋ゲーム内）
+  const breakdown = (c) => c.actual ? `（実際${c.actual}＋ゲーム${c.game}）` : "";
+  const nth = (c) => c ? `<span class="num">${c.total}回目</span><span class="muted">${breakdown(c)}</span>` : "";
   const nationals = data.nationals.map((n) => `<div class="panel"><h3>${esc(n.competition_name)}${n.started && !n.finished ? '　<span class="badge active">進行中</span>' : ""}</h3>
     ${n.played ? `<table class="list">${["優勝", "準優勝", "ベスト4", "ベスト8"].map((f) => `<tr><td style="width:80px">${badge(f === "優勝" ? 3000 : f === "準優勝" ? 2000 : 0, f)}</td>
       <td>${(n.groups[f] || []).map(school).join("　") || '<span class="muted">−</span>'}</td></tr>`).join("")}</table>`
       : `<div class="muted">${n.started ? "始まったばかりです" : "まだ行われていません"}</div>`}</div>`).join("");
   const reps = data.representatives.map((r) => `<tr><td>${esc(r.area)}</td>
     <td>${r.school_id ? `<span class="link" data-school="${esc(r.school_id)}">${esc(r.name)}</span>` : '<span class="muted">未定</span>'}</td>
+    <td>${nth(r.appearance)}</td>
     <td>${r.koshien ? badge(r.koshien === "優勝" ? 3000 : 0, r.koshien) : ""}</td></tr>`).join("");
-  const senbatsu = data.senbatsu.map((r) => `<tr><td>${esc(r.prefecture)}</td><td><span class="link" data-school="${esc(r.school_id)}">${esc(r.name)}</span></td><td>${badge(r.finish === "優勝" ? 3000 : 0, r.finish)}</td></tr>`).join("");
+  const senbatsu = data.senbatsu.map((r) => `<tr><td>${esc(r.prefecture)}</td><td><span class="link" data-school="${esc(r.school_id)}">${esc(r.name)}</span></td><td>${nth(r.appearance)}</td><td>${badge(r.finish === "優勝" ? 3000 : 0, r.finish)}</td></tr>`).join("");
   content.innerHTML = `<div class="head"><h2>記録</h2>
       <select id="r-year">${data.years.map((y) => `<option value="${y}" ${y === data.school_year ? "selected" : ""}>${y}年度</option>`).join("")}</select></div>
     <div class="scroll">
       <div class="split">${nationals}</div>
       <div class="split">
-        <div class="panel"><h3>夏の代表校</h3><table class="list"><tr><th>地区</th><th>代表校</th><th>甲子園</th></tr>${reps}</table></div>
-        <div class="panel"><h3>選抜の出場校</h3>${senbatsu ? `<table class="list"><tr><th>都道府県</th><th>学校</th><th>成績</th></tr>${senbatsu}</table>` : '<div class="muted">まだ選ばれていません</div>'}</div>
+        <div class="panel"><h3>夏の代表校</h3><table class="list"><tr><th>地区</th><th>代表校</th><th>出場</th><th>甲子園</th></tr>${reps}</table></div>
+        <div class="panel"><h3>選抜の出場校</h3>${senbatsu ? `<table class="list"><tr><th>都道府県</th><th>学校</th><th>出場</th><th>成績</th></tr>${senbatsu}</table>` : '<div class="muted">まだ選ばれていません</div>'}</div>
       </div>
     </div>`;
   $("r-year").addEventListener("change", (e) => { state.recordsYear = Number(e.target.value); renderPage(); });
@@ -654,22 +659,25 @@ function schoolYearly(d) {
   </table></div>`;
 }
 
+// 甲子園：合計（実際＋ゲーム内）と内訳。実際の記録がない学校はゲーム内だけ
 function schoolKoshien(d) {
-  const game = d.koshien.game, actual = d.koshien.actual;
-  const block = (label, g, a) => {
-    const total = a ? a.appearances + g.appearances : g.appearances;
+  const record = (p) => `${p.wins}-${p.losses}${p.draws ? `-${p.draws}` : ""}`;
+  const block = (label, until, k) => {
+    const t = k.total, a = k.actual, g = k.game;
+    const row = (name, p, years) => `<tr><td>${name}</td><td class="n">${p.appearances}</td><td class="n">${record(p)}</td>
+      <td class="n">${p.championships || 0}</td><td>${esc(p.best || "−")}</td><td class="num">${years}</td></tr>`;
     return `<div class="panel"><h3>${label}</h3>
-      <div class="stats"><div class="stat"><b>${total}</b><span>出場回数</span></div>
-        <div class="stat"><b>${g.wins}-${g.losses}</b><span>通算勝敗（ゲーム内）</span></div>
-        <div class="stat"><b>${esc(g.best || "−")}</b><span>最高成績（ゲーム内）</span></div>
-        <div class="stat"><b>${g.years.length ? g.years[g.years.length - 1] : "−"}</b><span>最近の出場</span></div></div>
-      <table class="list"><tr><th>内訳</th><th class="n">出場</th><th>出場した年</th></tr>
-        ${a ? `<tr><td>ゲーム開始前の実際の記録</td><td class="n">${a.appearances}</td><td>${esc((a.years || []).join("、"))}</td></tr>` : ""}
-        <tr><td>ゲーム内の記録</td><td class="n">${g.appearances}</td><td class="num">${g.years.join("、") || "−"}</td></tr>
+      <div class="stats"><div class="stat"><b>${t.appearances}</b><span>出場回数</span></div>
+        <div class="stat"><b>${record(t)}</b><span>通算勝敗</span></div>
+        <div class="stat"><b>${t.championships}</b><span>優勝</span></div>
+        <div class="stat"><b>${esc(t.best || "−")}</b><span>最高成績</span></div>
+        <div class="stat"><b>${t.last_year || "−"}</b><span>最近の出場</span></div></div>
+      <table class="list"><tr><th>内訳</th><th class="n">出場</th><th class="n">勝敗</th><th class="n">優勝</th><th>最高成績</th><th>出場した年</th></tr>
+        ${a ? row(`実際の記録（${until}まで）`, a, esc(a.years.join("、") || (a.last_year ? `最近 ${a.last_year}` : "−"))) : ""}
+        ${row("ゲーム内の記録", g, g.years.join("、") || "−")}
       </table></div>`;
   };
-  return block("夏の甲子園", game.summer, actual && actual.summer) + block("春の選抜", game.spring, actual && actual.spring)
-    + (actual ? "" : '<p class="muted">ゲーム開始前の実際の記録は、データを集め終わったら合計に加わります。</p>');
+  return block("夏の甲子園", "2025年", d.koshien.summer) + block("春の選抜", "2026年", d.koshien.spring);
 }
 
 function schoolMembers(d) {

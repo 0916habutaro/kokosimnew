@@ -44,6 +44,15 @@ class TodayAndRecordsTests(unittest.TestCase):
         self.assertTrue(all(row["school_id"] and row["koshien"] for row in reps))
         champion = summer["groups"]["優勝"][0]["school_id"]
         self.assertIn(champion, {row["school_id"] for row in reps})
+        # 出場は「実際の記録＋ゲーム内（今年の1回）」の何回目か
+        for row in reps:
+            actual = self.data.actual_koshien.get(row["school_id"], {}).get("summer", {})
+            self.assertEqual(
+                {"total": actual.get("appearances", 0) + 1,
+                 "actual": actual.get("appearances", 0), "game": 1},
+                row["appearance"],
+            )
+        self.assertEqual(1, summer["groups"]["優勝"][0]["championship_count"]["game"])
         senbatsu = next(n for n in records["nationals"] if n["type"] == "national_invitational")
         self.assertFalse(senbatsu["started"])
         with self.assertRaises(ValueError):

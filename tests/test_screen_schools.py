@@ -7,6 +7,11 @@ import unittest
 
 from phase2_engine import DataRepository, LiveGameService
 from phase2_engine.screen.data import GameScreenData, load_screen_config
+from phase2_engine.screen.koshien_records import (
+    combined as koshien_combined,
+    load_actual as load_actual_koshien,
+    result_rank,
+)
 from phase2_engine.screen.school_views import (
     SchoolAbilities,
     best_result,
@@ -61,6 +66,38 @@ class RecordTests(unittest.TestCase):
         self.assertEqual(2, koshien["summer"]["appearances"])
         self.assertEqual([2026, 2026], koshien["summer"]["years"])
         self.assertEqual(0, koshien["spring"]["appearances"])
+
+
+class ActualKoshienTests(unittest.TestCase):
+    def test_load_and_combine_with_game_records(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "koshien_records.csv"
+            path.write_text(
+                "school_id,kind,as_of_edition,appearances,wins,losses,draws,"
+                "championships,runner_ups,best_result,last_appearance_year,"
+                "appearance_years,source_id,verified_at,notes\n"
+                "SCHX1,summer,107,3,4,3,1,0,1,準優勝,2019,2001;2010;2019,S1,2026-10-23,\n"
+                "SCHX1,spring,98,2,0,2,,0,,初戦敗退,,,S1,2026-10-23,\n",
+                encoding="utf-8",
+            )
+            actual = load_actual_koshien(path)
+            self.assertEqual({}, load_actual_koshien(Path(tmp) / "none.csv"))
+        summer = actual["SCHX1"]["summer"]
+        self.assertEqual([2001, 2010, 2019], summer["years"])
+        self.assertEqual([], actual["SCHX1"]["spring"]["years"])
+        game = {"appearances": 2, "wins": 6, "losses": 1, "championships": 1,
+                "best": "優勝", "years": [2027, 2028]}
+        both = koshien_combined(summer, game)["total"]
+        self.assertEqual((5, 10, 4, 1, 1), (
+            both["appearances"], both["wins"], both["losses"],
+            both["draws"], both["championships"],
+        ))
+        self.assertEqual(("優勝", 2028), (both["best"], both["last_year"]))
+        only_game = koshien_combined(None, {**game, "best": "2回戦敗退"})
+        self.assertIsNone(only_game["actual"])
+        self.assertEqual(2, only_game["total"]["appearances"])
+        self.assertGreater(result_rank("ベスト8"), result_rank("2回戦敗退"))
+        self.assertGreater(result_rank("3回戦"), result_rank("初戦敗退"))
 
 
 class AbilityTests(unittest.TestCase):
@@ -122,7 +159,14 @@ class SchoolScreenTests(unittest.TestCase):
         self.assertEqual(top["name"], detail["name"])
         self.assertEqual([2026], detail["years"])
         self.assertEqual(top["wins"], detail["yearly"][0]["wins"])
-        self.assertIsNone(detail["koshien"]["actual"])
+        for kind in ("summer", "spring"):
+            koshien = detail["koshien"][kind]
+            actual = self.data.actual_koshien.get(top["school_id"], {}).get(kind)
+            self.assertEqual(actual, koshien["actual"])
+            self.assertEqual(
+                (actual or {}).get("appearances", 0) + koshien["game"]["appearances"],
+                koshien["total"]["appearances"],
+            )
         matches = self.data.school_matches(top["school_id"], 2026)["matches"]
         self.assertEqual(top["wins"], sum(m["won"] for m in matches))
         self.assertEqual(

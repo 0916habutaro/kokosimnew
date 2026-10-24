@@ -21,6 +21,13 @@ from .competition_views import (
     other_stage_matches,
 )
 from .competition_names import CompetitionNames
+from .koshien_records import (
+    KINDS as KOSHIEN_KINDS,
+    RECORDS_PATH as KOSHIEN_RECORDS_PATH,
+    combined as koshien_combined,
+    count_label,
+    load_actual as load_actual_koshien,
+)
 from .save_views import next_slot_id, recovery_rows, slot_rows
 from .school_names import SchoolNames, prefecture_names
 from .school_views import (
@@ -86,6 +93,10 @@ class GameScreenData:
         self.config = config or load_screen_config(config_root)
         self.names = SchoolNames(service.repo, config_root)
         self.competition_names = CompetitionNames(config_root)
+        # ゲーム開始前の甲子園の実際の記録（ゲームの記録とは混ぜずに並べる）
+        self.actual_koshien = load_actual_koshien(
+            config_root.parent / KOSHIEN_RECORDS_PATH
+        )
         self.prefectures = prefecture_names(service.repo.data_dir)
         self.abilities = SchoolAbilities(
             config_root, self.config["school_overall_weights"],
@@ -582,6 +593,20 @@ class GameScreenData:
             if competitions.get(cid, {}).get("competition_type") == "national_invitational"
             for sid, row in items
         }
+        counts = self._koshien_counts(year)
+
+        def koshien_count(school_id: str, kind: str, key: str = "appearances") -> dict:
+            actual = self.actual_koshien.get(school_id, {}).get(kind, {})
+            return count_label(actual.get(key, 0), counts[kind][key].get(school_id, 0))
+
+        for national in nationals:
+            kind = {"national_championship": "summer",
+                    "national_invitational": "spring"}.get(national["type"])
+            if kind:
+                for champion in national["groups"]["優勝"]:
+                    champion["championship_count"] = koshien_count(
+                        champion["school_id"], kind, "championships"
+                    )
         representatives = []
         for cid, competition in sorted(
             competitions.items(),
@@ -602,6 +627,7 @@ class GameScreenData:
                 "school_id": champion,
                 "name": self.names(champion) if champion else "",
                 "koshien": koshien.get(champion, "") if champion else "",
+                "appearance": koshien_count(champion, "summer") if champion else None,
             })
         schools = self.service.repo.schools
         senbatsu_rows = sorted(
@@ -613,6 +639,7 @@ class GameScreenData:
                     ),
                     "prefecture_code": schools.get(sid, {}).get("prefecture_code", ""),
                     "finish": finish,
+                    "appearance": koshien_count(sid, "spring"),
                 }
                 for sid, finish in senbatsu.items()
             ),
@@ -625,6 +652,27 @@ class GameScreenData:
             "representatives": representatives,
             "senbatsu": senbatsu_rows,
         }
+
+    def _koshien_counts(self, year: int) -> dict:
+        """その年度までのゲーム内の甲子園（夏・春）の出場・優勝の回数。"""
+        counts = {
+            kind: {"appearances": {}, "championships": {}} for kind in KOSHIEN_KINDS
+        }
+        kinds = {"national_championship": "summer", "national_invitational": "spring"}
+        for each in self._years():
+            if each > year:
+                continue
+            for school_id, rows in self._results(each).items():
+                for row in rows:
+                    kind = kinds.get(row["type"])
+                    if not kind:
+                        continue
+                    for key, hit in (("appearances", True),
+                                     ("championships", row["finish"] == "優勝")):
+                        if hit:
+                            bucket = counts[kind][key]
+                            bucket[school_id] = bucket.get(school_id, 0) + 1
+        return counts
 
     # ---- 学校 ----
 
@@ -806,9 +854,15 @@ class GameScreenData:
             "abilities": abilities,
             "this_year": by_year.get(year, []),
             "yearly": yearly,
-            # 甲子園：ゲーム開始前の実際の記録（historical_data 側。収集中）と
-            # ゲーム内の記録を混ぜずに並べる。実際の記録がない学校は None
-            "koshien": {"game": game_koshien, "actual": None},
+            # 甲子園：ゲーム開始前の実際の記録（historical_data）とゲーム内の
+            # 記録を混ぜずに持ち、合計と内訳を並べる。実際の記録がない学校は None
+            "koshien": {
+                kind: koshien_combined(
+                    self.actual_koshien.get(school_id, {}).get(kind),
+                    game_koshien[kind],
+                )
+                for kind in KOSHIEN_KINDS
+            },
             "members": roster,
             "years": sorted(by_year, reverse=True),
         }
