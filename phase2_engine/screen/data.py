@@ -460,9 +460,17 @@ class GameScreenData:
                 points += sum(overall) / 2 * float(rule["ability_weight"])
             scored.append((points, row))
         scored.sort(key=lambda item: -item[0])
-        return [
-            self._match_summary(row) for _, row in scored[: int(rule["count"])]
-        ]
+        # 同じ大会ばかりにならないよう、1つの大会からは max_per_competition 試合まで
+        picked, per_competition = [], {}
+        for _, row in scored:
+            key = (row.get("school_year"), row["competition_id"])
+            if per_competition.get(key, 0) >= int(rule["max_per_competition"]):
+                continue
+            per_competition[key] = per_competition.get(key, 0) + 1
+            picked.append(row)
+            if len(picked) >= int(rule["count"]):
+                break
+        return [self._match_summary(row) for row in picked]
 
     def recent_results(self) -> list[dict]:
         rule = self.config["recent_results"]
