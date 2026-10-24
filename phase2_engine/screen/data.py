@@ -78,7 +78,7 @@ def _seasons(state) -> dict[int, object]:
 class GameScreenData:
     """遊んでいるセーブ（``LiveGameService`` のセッション）を画面用に読む。"""
 
-    def __init__(self, service, session, *, config: dict | None = None):
+    def __init__(self, service, session=None, *, config: dict | None = None):
         self.service = service
         self.session = session
         config_root = Path(service.data_dir).parent / "config"
@@ -104,7 +104,9 @@ class GameScreenData:
     # ---- 上の帯・メニュー ----
 
     def shell(self) -> dict:
-        return {"menu": list(MENU), "header": self.header()}
+        """メニューと上の帯。セーブを選ぶ前は上の帯がない（None）。"""
+        header = self.header() if self.session is not None else None
+        return {"menu": list(MENU), "header": header}
 
     def header(self) -> dict:
         today = self.state.current_date
@@ -645,6 +647,8 @@ class GameScreenData:
         部員・年度・乱数の種はここで読んでおくので、計算の途中で日付が進んだり
         セーブが切り替わったりしても、読んだ時点のセーブの分だけを計算する。
         """
+        if self.session is None:
+            return None
         members = self._today_members()
         if members is None:
             return None
@@ -868,9 +872,10 @@ class GameScreenData:
         )
 
     def saves(self) -> dict:
+        current = self.session.slot_id if self.session is not None else ""
         return {
-            "current_slot": self.session.slot_id,
-            "slots": slot_rows(self.service.list_games(), self.session.slot_id),
+            "current_slot": current,
+            "slots": slot_rows(self.service.list_games(), current),
         }
 
     def save_now(self) -> dict:
@@ -885,7 +890,7 @@ class GameScreenData:
         return self.saves()
 
     def delete_save(self, slot_id: str) -> dict:
-        if slot_id == self.session.slot_id:
+        if self.session is not None and slot_id == self.session.slot_id:
             raise ValueError("遊んでいるセーブは削除できません")
         self.service.delete_game(slot_id)
         return self.saves()
@@ -905,14 +910,24 @@ class GameScreenData:
         self.use_session(session)
         return {**self.saves(), "header": self.header()}
 
-    def new_save(self, title: str, rng_seed: int) -> dict:
+    def new_save(self, title: str, rng_seed: int, slot_id: str = "") -> dict:
+        """新しく始める。スロット名が空なら ``slot01`` の形で空いているものにする。"""
         title = str(title).strip()
         if not title:
             raise ValueError("名前を入れてください")
         root = self.service.slots.root_dir
         used = [path.name for path in root.iterdir()] if root.exists() else []
+        slot_id = str(slot_id).strip() or next_slot_id(used)
+        try:
+            self.service.slots.validate_slot_id(slot_id)
+        except ValueError:
+            raise ValueError(
+                "スロット名は半角の英数字・「-」・「_」で入れてください"
+            ) from None
+        if slot_id in used:
+            raise ValueError("そのスロット名はもう使われています")
         session = self.service.new_game(
-            next_slot_id(used), rng_seed=int(rng_seed), title=title,
+            slot_id, rng_seed=int(rng_seed), title=title,
         )
         self.use_session(session)
         return {**self.saves(), "header": self.header()}

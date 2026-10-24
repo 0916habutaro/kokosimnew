@@ -28,12 +28,10 @@
 Python 3.12 以上。画面には pywebview が必要（`pip install -r requirements.txt`）。リポジトリのフォルダで実行する。
 
 ```powershell
-# 画面を開く（slot01 のセーブがあれば読み込み、なければ新しく始める。セーブは out\saves）
+# 画面を開く（セーブの画面で、続きから遊ぶセーブを選ぶか新しく始める。セーブは out\saves）
+python -m phase2_engine.screen
+# slot01 を直接開く（なければ新しく始める）
 python -m phase2_engine.screen --slot slot01
-
-# EXE を作る（dist\kokosimnew\kokosimnew.exe。セーブは同じフォルダの saves）
-pip install pyinstaller
-pyinstaller --noconfirm kokosimnew.spec
 
 # 新しいゲームを作る（セーブ先は out\saves）
 python -m phase2_engine.live_game_cli --data-dir data --save-root out\saves new slot01 --seed 2026100801 --title "2026年シーズン"
@@ -54,6 +52,14 @@ python -m phase2_engine.browse_gui --db out\kokosim_browse.sqlite3 --data-dir da
 ```
 
 ほかのコマンドは `--help` で確認できる。
+
+### EXE を作って遊ぶ（Windows）
+
+1. リポジトリのフォルダで `build_exe.bat` をダブルクリックする（または PowerShell で `.\build_exe.bat`）。必要なパッケージ（pywebview・PyInstaller）を入れてから EXE を作る。数分かかる
+2. できた `dist\kokosimnew\kokosimnew.exe` を開く。`dist\kokosimnew` フォルダごとなら好きな場所に移してよい（中の `_internal` フォルダも必要）
+3. 最初はセーブの画面が開くので、「新しく始める…」か、前のセーブの「読み込む」を押す
+
+セーブは `%LOCALAPPDATA%\KokosimNew\saves`（例：`C:\Users\<ユーザー名>\AppData\Local\KokosimNew\saves`）に置かれ、EXE を作り直しても残る。うまく動かないときは同じフォルダの `kokosimnew.log` を見る。画面には WebView2 ランタイム（Windows 10/11 には通常入っている）が必要。
 
 ## 構成
 

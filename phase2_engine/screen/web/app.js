@@ -17,6 +17,7 @@ const state = {
   header: null,
   menu: [],
   busy: false,
+  noSession: false, // 起動時にセーブを選ぶ前
   competitions: { filter: { year: "", segment: "", level: "", status: "" }, view: null },
   matches: { date: "", detail: null },
   schools: {
@@ -100,6 +101,7 @@ function renderMenu() {
     button.type = "button";
     button.textContent = item.label;
     button.className = item.id === state.page ? "on" : "";
+    button.disabled = state.noSession && item.id !== "saves";
     button.addEventListener("click", () => showPage(item.id));
     menu.append(button);
   }
@@ -719,8 +721,11 @@ async function renderSaves(content) {
   content.innerHTML = `<div class="head"><h2>セーブ</h2><div class="spacer"></div>
       <button class="btn" id="sv-save" type="button">今すぐセーブ</button>
       <button class="btn primary" id="sv-new" type="button">新しく始める…</button></div>
-    <div class="note">日付を進めるたびに自動セーブしています。読み込むと、そのセーブの続きから遊びます。</div>
+    <div class="note">${state.noSession
+      ? "遊ぶセーブを読み込むか、新しく始めてください。"
+      : "日付を進めるたびに自動セーブしています。読み込むと、そのセーブの続きから遊びます。"}</div>
     <div class="scroll" id="sv-body"><div class="empty">読み込み中…</div></div>`;
+  $("sv-save").disabled = state.noSession;
   $("sv-save").addEventListener("click", async () => {
     const data = await call("save_now");
     if (data) { showToast("セーブしました"); drawSaves(data); }
@@ -790,7 +795,7 @@ async function recoverSave(row) {
 async function openSave(row) {
   const ok = await ask({
     title: "セーブを読み込む",
-    body: `「${esc(row.title)}」（${esc(row.date_label)}）を読み込みます。今のセーブの進み具合は自動セーブに残っています。`,
+    body: `「${esc(row.title)}」（${esc(row.date_label)}）を読み込みます。${state.noSession ? "" : "今のセーブの進み具合は自動セーブに残っています。"}`,
     ok: "読み込む",
   });
   if (ok) switchSave("open_save", row.slot_id, "latest");
@@ -799,13 +804,16 @@ async function openSave(row) {
 async function newSave() {
   const title = await ask({
     title: "新しく始める",
-    body: "2026年4月1日から新しく始めます。今のセーブの進み具合は自動セーブに残っています。",
+    body: `<div>2026年4月1日から新しく始めます。${state.noSession ? "" : "今のセーブの進み具合は自動セーブに残っています。"}</div>
+      <label class="field">スロット名（空なら自動）<input class="ask-input" id="ask-slot" type="text" maxlength="64" placeholder="slot01"></label>
+      <label class="field">シード（空なら自動）<input class="ask-input" id="ask-seed" type="text" inputmode="numeric" maxlength="10"></label>
+      <label class="field">名前</label>`,
     input: "新しいセーブ",
     ok: "始める",
   });
   if (title === null) return;
   if (!title) return showToast("名前を入れてください", true);
-  switchSave("new_save", title);
+  switchSave("new_save", title, $("ask-slot").value.trim(), $("ask-seed").value.trim());
 }
 
 // セーブを切り替える（その間は他の呼び出しをしない）
@@ -821,6 +829,8 @@ async function switchSave(name, ...args) {
     setBusy(false);
   }
   if (result.error) return showToast(result.error, true);
+  state.noSession = false;
+  setBusy(false);
   state.competitions = { filter: { year: "", segment: "", level: "", status: "" }, view: null };
   state.recordsYear = null;
   state.matches = { date: "", detail: null };
@@ -863,12 +873,12 @@ async function advance(options) {
 
 function setBusy(busy) {
   state.busy = busy;
-  $("btn-day").disabled = busy;
-  $("btn-bulk").disabled = busy;
+  $("btn-day").disabled = busy || state.noSession;
+  $("btn-bulk").disabled = busy || state.noSession;
   $("progress").hidden = !busy;
   if (busy) {
     $("progress-title").textContent = "日付を進めています";
-    $("progress-date").textContent = dotDate(state.header.date);
+    $("progress-date").textContent = state.header ? dotDate(state.header.date) : "";
     $("progress-sub").textContent = "";
     $("progress-fill").style.width = "0";
   }
@@ -924,9 +934,17 @@ async function start() {
   const shell = await call("shell");
   if (!shell) return;
   state.menu = shell.menu;
-  renderHeader(shell.header);
+  if (shell.header) {
+    renderHeader(shell.header);
+  } else {
+    // 起動時にセーブを選ぶ
+    state.noSession = true;
+    state.page = "saves";
+    $("date-sub").textContent = "遊ぶセーブを選んでください";
+  }
   renderMenu();
   renderPage();
+  setBusy(false);
   $("btn-day").addEventListener("click", () => advance({ mode: "day" }));
   $("btn-bulk").addEventListener("click", openBulkDialog);
   $("bulk-dialog").addEventListener("close", onBulkClose);

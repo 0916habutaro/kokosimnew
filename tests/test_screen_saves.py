@@ -55,6 +55,9 @@ class SaveScreenTests(unittest.TestCase):
             self.assertIn("error", api.rename_save("slot01", " "))
             self.assertIn("error", api.delete_save("slot01"))
 
+            self.assertIn("error", api.new_save("x", "slot01"))
+            self.assertIn("error", api.new_save("x", "だめ"))
+            self.assertIn("error", api.new_save("x", "", "abc"))
             created = api.new_save("ふたつめ")
             self.assertEqual("slot02", created["current_slot"])
             self.assertEqual("2026-04-01", created["header"]["date"])
@@ -70,6 +73,22 @@ class SaveScreenTests(unittest.TestCase):
                 [row["slot_id"] for row in api.delete_save("slot02")["slots"]],
             )
             self.assertEqual({"running": False}, api.progress())
+
+    def test_choose_save_at_startup(self):
+        repo = DataRepository(DATA_ROOT)
+        with tempfile.TemporaryDirectory() as tmp:
+            service = LiveGameService(
+                repo, DATA_ROOT, save_root=tmp, autosave_after_action=False,
+            )
+            api = ScreenApi(GameScreenData(service))
+            self.assertIsNone(api.shell()["header"])
+            self.assertEqual([], api.saves()["slots"])
+            self.assertTrue(api.today().get("no_session"))
+            self.assertTrue(api.advance({"mode": "day"}).get("no_session"))
+            created = api.new_save("はじめ", "mine", "42")
+            self.assertEqual("mine", created["current_slot"])
+            self.assertEqual(42, api._data.session.plan.rng_seed)
+            self.assertNotIn("error", api.today())
 
 
 if __name__ == "__main__":

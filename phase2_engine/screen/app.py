@@ -1,12 +1,14 @@
 """正式な画面のウィンドウ（pywebview、ADR-044）。
 
-    python -m phase2_engine.screen --save-root out/saves --slot slot01
+    python -m phase2_engine.screen               （セーブを画面で選ぶ）
+    python -m phase2_engine.screen --slot slot01 （slot01 を開く）
 
-スロットのセーブがあれば読み込み、なければ新しく始める。画面のファイルは
+``--slot`` のセーブがあれば読み込み、なければ新しく始める。画面のファイルは
 ``phase2_engine/screen/web/``。JavaScript からは ``ScreenApi`` のメソッドだけを呼ぶ。
 
-EXE（``kokosimnew.spec``）では、データと設定は EXE の中、セーブは EXE と同じ
-フォルダの ``saves`` に置く。
+``--slot`` を付けないときは、セーブの画面から遊ぶセーブを選ぶ（新しく始める
+こともできる）。EXE（``kokosimnew.spec``）では、データと設定は EXE の中、
+セーブはユーザーのフォルダ（``%LOCALAPPDATA%\\KokosimNew\\saves``）に置く。
 """
 from __future__ import annotations
 
@@ -25,6 +27,11 @@ from .data import GameScreenData
 WEB_DIR = Path(__file__).resolve().parent / "web"
 TITLE = "ココシミュNew"
 BUSY = "日付を進めている途中です"
+NO_SESSION = "遊ぶセーブを選んでください"
+# セーブを選ぶ前でも呼べるもの
+WITHOUT_SESSION = (
+    "shell", "saves", "rename_save", "delete_save", "recovery",
+)
 
 
 class ScreenApi:
@@ -105,9 +112,14 @@ class ScreenApi:
     def open_save(self, slot_id, source="latest") -> dict:
         return self._exclusive(self._data.open_save, slot_id, source)
 
-    def new_save(self, title) -> dict:
-        seed = random.SystemRandom().randrange(1, 2**31)
-        return self._exclusive(self._data.new_save, title, seed)
+    def new_save(self, title, slot_id="", seed="") -> dict:
+        """新しく始める。スロット名・シードが空なら、空いている名前・乱数にする。"""
+        seed = str(seed).strip()
+        if not seed:
+            seed = random.SystemRandom().randrange(1, 2**31)
+        elif not seed.isdigit():
+            return {"error": "シードは数字で入れてください"}
+        return self._exclusive(self._data.new_save, title, int(seed), slot_id)
 
     def progress(self) -> dict:
         return dict(self._progress)
@@ -115,10 +127,14 @@ class ScreenApi:
     def _read(self, function, *args) -> dict:
         if self._advancing:
             return {"error": BUSY, "busy": True}
+        if self._data.session is None and function.__name__ not in WITHOUT_SESSION:
+            return {"error": NO_SESSION, "no_session": True}
         with self._state_lock:
             return self._call(function, *args)
 
     def advance(self, options: dict) -> dict:
+        if self._data.session is None:
+            return {"error": NO_SESSION, "no_session": True}
         return self._exclusive(self._advance, options)
 
     def _exclusive(self, function, *args) -> dict:
@@ -196,8 +212,10 @@ def app_root() -> Path:
 
 
 def default_save_root() -> Path:
+    """EXE ならユーザーのフォルダ、それ以外はリポジトリの out/saves。"""
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent / "saves"
+        base = os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local"
+        return Path(base) / "KokosimNew" / "saves"
     return app_root() / "out" / "saves"
 
 
@@ -205,7 +223,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="ココシミュNew の画面を開く")
     parser.add_argument("--data-dir", default=str(app_root() / "data"))
     parser.add_argument("--save-root", default=str(default_save_root()))
-    parser.add_argument("--slot", default="slot01")
+    parser.add_argument("--slot", default="", help="付けないときは画面で選ぶ")
     parser.add_argument("--seed", type=int, default=2026100801)
     parser.add_argument("--title", default="2026年シーズン")
     return parser
@@ -228,7 +246,10 @@ def main(argv=None) -> None:
         repo, data_dir, save_root=save_root,
         resolver_contract=PLAYER_RESOLVER_CONTRACT,
     )
-    session = open_session(service, args.slot, args.seed, args.title)
+    session = (
+        open_session(service, args.slot, args.seed, args.title)
+        if args.slot else None
+    )
     api = ScreenApi(GameScreenData(service, session))
     api.warm_up()
     import webview  # pywebview（requirements.txt）

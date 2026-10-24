@@ -130,6 +130,17 @@ class ScreenApiTests(unittest.TestCase):
         self.assertEqual(DATA_ROOT.resolve(), Path(args.data_dir))
         self.assertEqual(ROOT.resolve() / "out" / "saves", Path(args.save_root))
 
+    def test_exe_saves_go_to_the_user_folder(self):
+        from unittest import mock
+        import sys
+        from phase2_engine.screen import app
+
+        with mock.patch.object(sys, "frozen", True, create=True), \
+                mock.patch.dict("os.environ", {"LOCALAPPDATA": "/users/me/local"}):
+            self.assertEqual(
+                Path("/users/me/local/KokosimNew/saves"), app.default_save_root()
+            )
+
     def test_screen_calls_only_existing_api_methods(self):
         script = (WEB_DIR / "app.js").read_text(encoding="utf-8")
         called = set(re.findall(r"api\(\)\.(\w+)\(", script))
