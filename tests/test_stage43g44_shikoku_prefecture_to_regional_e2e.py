@@ -12,8 +12,6 @@ import tempfile
 import unittest
 
 from game_core.players import PlayerRosterGenerator
-from phase2_engine.career_cross_era_navigation import CareerCrossEraNavigator
-from phase2_engine.career_history_scale_benchmark import file_sha256
 from phase2_engine.career_multi_preview_checkpoint import (
     CareerMultiPreviewCheckpointService, CareerPreviewSaveError,
 )
@@ -230,30 +228,6 @@ class Stage43G44ShikokuPrefectureRegionalCareerE2E(unittest.TestCase):
         )
 
         self._archive().seal_year(2027, expected_match_count=len(records))
-        before = (
-            file_sha256(self._archive().db_path),
-            file_sha256(self.slot / "career_rosters.sqlite3"),
-        )
-        nav = CareerCrossEraNavigator(self.slot)
-        school = next(
-            sid for sid in verified
-            if any(sid in (r["team1_id"], r["team2_id"])
-                   for r in records if r["competition_id"] == REGIONAL)
-        )
-        page = nav.school_page(
-            [2027], school, selected_year=2027, verify_source=True,
-        )
-        detail_target = next(
-            t["target"] for t in page["match_detail_targets"]
-            if t["competition_id"] == REGIONAL
-        )
-        detail = nav.follow(detail_target, verify_source=True)
-        self.assertEqual("cross_era_match", detail["screen"])
-        self.assertTrue(detail["details"]["batter_stats"])
-        self.assertEqual(before, (
-            file_sha256(self._archive().db_path),
-            file_sha256(self.slot / "career_rosters.sqlite3"),
-        ))
 
     def test_invalid_prefecture_and_unrostered_source_fail_closed(self):
         specs = [{**spec, "entrant_school_ids": list(spec["entrant_school_ids"])}

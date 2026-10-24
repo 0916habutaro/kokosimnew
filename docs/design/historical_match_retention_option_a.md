@@ -3,7 +3,7 @@
 策定日：2026-10-10
 区分：Stage 43準備・要求方針／実装前の設計基準
 適用対象：ゲーム内で生成・確定した春夏秋の全公式戦（県・地区予選、地方、地区、全国を含む）
-関連：viewing_features.md、viewing_data_requirements.md、game_event_stats_contract.md、match_simulation_contract.md
+関連：game_event_stats_contract.md、match_simulation_contract.md
 
 ## 1. 決定事項
 

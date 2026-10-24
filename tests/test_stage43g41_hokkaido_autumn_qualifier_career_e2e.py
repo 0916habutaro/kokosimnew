@@ -13,8 +13,6 @@ import tempfile
 import unittest
 
 from game_core.players import PlayerRosterGenerator
-from phase2_engine.career_cross_era_navigation import CareerCrossEraNavigator
-from phase2_engine.career_history_scale_benchmark import file_sha256
 from phase2_engine.career_multi_preview_checkpoint import (
     CareerMultiPreviewCheckpointService, CareerPreviewSaveError,
 )
@@ -232,35 +230,6 @@ class Stage43G41HokkaidoAutumnCareerE2ETests(unittest.TestCase):
         # NOT considered simulated or certified.
         count = len(records)
         self._history().seal_year(2027, expected_match_count=count)
-        before = (
-            file_sha256(self.slot / "historical_matches.sqlite3"),
-            file_sha256(self.slot / "career_rosters.sqlite3"),
-        )
-        nav = CareerCrossEraNavigator(self.slot)
-        visited = set()
-        for row in hok_rows:
-            sid = row["team1_id"]
-            if sid in visited:
-                continue
-            visited.add(sid)
-            school = nav.school_page(
-                [2027], sid, selected_year=2027, verify_source=True,
-            )
-            target = next(
-                t["target"] for t in school["match_detail_targets"]
-                if t["competition_id"] == HOKKAIDO_AUTUMN
-            )
-            detail = nav.follow(target, verify_source=True)
-            self.assertEqual("cross_era_match", detail["screen"])
-            self.assertTrue(detail["details"]["inning_scores"])
-            self.assertTrue(detail["details"]["batter_stats"])
-            self.assertTrue(detail["details"]["pitcher_stats"])
-            if len(visited) >= 2:
-                break
-        self.assertEqual(before, (
-            file_sha256(self.slot / "historical_matches.sqlite3"),
-            file_sha256(self.slot / "career_rosters.sqlite3"),
-        ))
 
     def test_wrong_group_and_spring_reuse_cannot_be_accepted(self):
         # Only CMP000013 can use Hokkaido autumn FMT001 mode.

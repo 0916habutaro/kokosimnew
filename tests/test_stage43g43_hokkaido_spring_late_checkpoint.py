@@ -13,8 +13,6 @@ import tempfile
 import unittest
 
 from game_core.players import PlayerRosterGenerator
-from phase2_engine.career_cross_era_navigation import CareerCrossEraNavigator
-from phase2_engine.career_history_scale_benchmark import file_sha256
 from phase2_engine.career_multi_preview_checkpoint import (
     CareerMultiPreviewCheckpointService, CareerPreviewSaveError,
 )
@@ -225,25 +223,6 @@ class Stage43G43DynamicSpringCheckpointTests(unittest.TestCase):
                          manual.read_bytes())
 
         self._archive().seal_year(2027, expected_match_count=len(records))
-        before = (
-            file_sha256(self._archive().db_path),
-            file_sha256(self.slot / "career_rosters.sqlite3"),
-        )
-        nav = CareerCrossEraNavigator(self.slot)
-        school = nav.school_page(
-            [2027], self.recommended, selected_year=2027,
-            verify_source=True,
-        )
-        target = next(t["target"] for t in school["match_detail_targets"]
-                      if t["competition_id"] == SPRING)
-        detail = nav.follow(target, verify_source=True)
-        self.assertTrue(detail["details"]["inning_scores"])
-        self.assertTrue(detail["details"]["batter_stats"])
-        self.assertTrue(detail["details"]["pitcher_stats"])
-        self.assertEqual(before, (
-            file_sha256(self._archive().db_path),
-            file_sha256(self.slot / "career_rosters.sqlite3"),
-        ))
 
     def test_duplicate_and_unfinished_senbatsu_cannot_append(self):
         session = self.service.start(

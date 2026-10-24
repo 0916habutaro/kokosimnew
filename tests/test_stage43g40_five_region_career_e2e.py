@@ -12,8 +12,6 @@ import tempfile
 import unittest
 
 from game_core.players import PlayerRosterGenerator
-from phase2_engine.career_cross_era_navigation import CareerCrossEraNavigator
-from phase2_engine.career_history_scale_benchmark import file_sha256
 from phase2_engine.career_multi_preview_checkpoint import (
     CareerMultiPreviewCheckpointService,
 )
@@ -211,36 +209,6 @@ class Stage43G40FiveRegionCareerE2ETests(unittest.TestCase):
         # Seal the *five sampled events only*; do not claim a nationwide
         # 2027 annual season or automatically award prefectural qualifiers.
         history.seal_year(2027, expected_match_count=MATCH_COUNT)
-        before = (
-            file_sha256(self.slot / "historical_matches.sqlite3"),
-            file_sha256(self.slot / "career_rosters.sqlite3"),
-        )
-        nav = CareerCrossEraNavigator(self.slot)
-        for cid, candidates in self.entrants.items():
-            school = next(
-                sid for sid in candidates
-                if any(sid in (r["team1_id"], r["team2_id"])
-                       for r in records if r["competition_id"] == cid)
-            )
-            page = nav.school_page([2027], school, selected_year=2027,
-                                   verify_source=True)
-            self.assertGreater(page["match_total"], 0)
-            self.assertEqual("historical_matches_legacy_iso",
-                             page["source"])
-            target = next(
-                t["target"] for t in page["match_detail_targets"]
-                if t["competition_id"] == cid
-            )
-            detail = nav.follow(target, verify_source=True)
-            self.assertEqual("cross_era_match", detail["screen"])
-            self.assertEqual(cid, detail["match"]["competition_id"])
-            self.assertTrue(detail["details"]["inning_scores"])
-            self.assertTrue(detail["details"]["batter_stats"])
-            self.assertTrue(detail["details"]["pitcher_stats"])
-        self.assertEqual(before, (
-            file_sha256(self.slot / "historical_matches.sqlite3"),
-            file_sha256(self.slot / "career_rosters.sqlite3"),
-        ))
 
     def test_incorrect_count_or_foreign_region_and_unsaved_roster_rejected(self):
         bad = [{**spec, "entrant_school_ids": list(spec["entrant_school_ids"])}

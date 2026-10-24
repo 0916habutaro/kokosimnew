@@ -67,6 +67,8 @@ class TodayAndRecordsTests(unittest.TestCase):
         matches = {(m["competition_id"], m["match_id"]) for m in self.data.today_matches()}
         for row in featured:
             self.assertIn((row["competition_id"], row["match_id"]), matches)
+        per_competition = [row["competition_id"] for row in featured]
+        self.assertTrue(all(per_competition.count(cid) <= 2 for cid in per_competition))
 
 
 if __name__ == "__main__":
