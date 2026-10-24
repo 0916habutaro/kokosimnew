@@ -432,14 +432,12 @@ async function renderMatches(content) {
   const data = await call("matches_on", state.matches.date);
   if (!data) return;
   state.matches.date = data.date;
-  const dates = data.match_dates;
-  const index = dates.indexOf(data.date);
   const groups = {};
   for (const m of data.matches) (groups[m.competition_name] ||= []).push(m);
   content.innerHTML = `<div class="head"><h2>試合</h2>
-      <button class="btn small" id="d-prev" ${index <= 0 ? "disabled" : ""}>← 前の試合日</button>
+      <button class="btn small" id="d-prev" ${data.prev_date ? "" : "disabled"}>← 前の試合日</button>
       <span class="num" style="font-size:16px">${slashDate(data.date)}</span>
-      <button class="btn small" id="d-next" ${index < 0 || index >= dates.length - 1 ? "disabled" : ""}>次の試合日 →</button>
+      <button class="btn small" id="d-next" ${data.next_date ? "" : "disabled"}>次の試合日 →</button>
       <div class="spacer"></div><span class="muted num">${data.matches.length} 試合</span></div>
     <div class="scroll">${Object.entries(groups).map(([competition, matches]) => `
       <div class="panel"><h3>${esc(competition)}</h3><table class="list">
@@ -449,8 +447,8 @@ async function renderMatches(content) {
         <td class="n" style="width:90px;text-align:center">${m.status === "completed" ? `${m.team1_score} − ${m.team2_score}` : "−"}</td>
         <td class="${m.winner_id === m.team2_id ? "w" : ""}">${esc(m.team2_name)}</td></tr>`).join("")}
       </table></div>`).join("") || '<div class="empty">この日の試合はありません。</div>'}</div>`;
-  if (index > 0) $("d-prev").addEventListener("click", () => { state.matches.date = dates[index - 1]; renderPage(); });
-  if (index >= 0 && index < dates.length - 1) $("d-next").addEventListener("click", () => { state.matches.date = dates[index + 1]; renderPage(); });
+  if (data.prev_date) $("d-prev").addEventListener("click", () => { state.matches.date = data.prev_date; renderPage(); });
+  if (data.next_date) $("d-next").addEventListener("click", () => { state.matches.date = data.next_date; renderPage(); });
   content.querySelectorAll("tr.click").forEach((tr) => tr.addEventListener("click", () =>
     openMatch(Number(tr.dataset.year), tr.dataset.cid, tr.dataset.id)));
 }

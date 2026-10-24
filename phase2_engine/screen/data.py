@@ -16,6 +16,7 @@ from .competition_views import (
     POSITION_LABELS,
     bracket_layout,
     competition_list,
+    has_started,
     main_runtime,
     match_detail,
     other_stage_matches,
@@ -158,8 +159,9 @@ class GameScreenData:
         """始まっていて、まだ終わっていない大会（「大会が終わるまで」の候補）。"""
         rows = []
         for year, season in _seasons(self.state).items():
+            today = season.current_date.isoformat()
             for cid, scheduled in season.competitions.items():
-                if scheduled.is_complete:
+                if scheduled.is_complete or not has_started(scheduled, today):
                     continue
                 name = self._competition_name(
                     season, cid, scheduled.competition_name,
@@ -389,9 +391,11 @@ class GameScreenData:
             if row.match_date == target
         ]
         items.sort(key=lambda m: (m["competition_name"], m["match_id"]))
+        # 前後の試合日（見ている日が試合日でなくても、その前後の日）
         return {
             "date": target,
-            "match_dates": played[-60:],
+            "prev_date": next((d for d in reversed(played) if d < target), ""),
+            "next_date": next((d for d in played if d > target), ""),
             "matches": items,
         }
 

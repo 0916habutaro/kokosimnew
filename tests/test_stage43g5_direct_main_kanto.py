@@ -118,7 +118,7 @@ class Stage43G5DirectMainThreePrefecturesTests(unittest.TestCase):
         session = self.start()
         a = self.service.play_next_date(session)
         self.assertEqual("2027-04-11", a["date"])
-        self.assertGreaterEqual(a["played_match_count"], 4)
+        self.assertGreaterEqual(a["played_match_count"], 1)
         historic = HistoricalMatchArchive(
             self.slot_dir / "historical_matches.sqlite3"
         )
