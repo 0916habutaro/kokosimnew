@@ -199,8 +199,8 @@ class KoshienValidationTests(unittest.TestCase):
 
     def test_same_appearance_multiple_school_histories_is_one_actual(self):
         self.schools.write_text(
-            "school_id,official_name\\n"
-            "SCH000001,架空高校\\nSCH000002,架空二高校\\n", encoding="utf-8")
+            "school_id,official_name\n"
+            "SCH000001,架空高校\nSCH000002,架空二高校\n", encoding="utf-8")
         self.historical_teams = [self.historical_team("HA3", "架空共通前身")]
         self.attributions = [
             self.historical_attribution("HA3", "1"),
@@ -242,7 +242,7 @@ class KoshienValidationTests(unittest.TestCase):
         (self.root / "koshien_historical_teams.csv").unlink()
         self.assertIn("READ_ERROR", {i.code for i in validate(self.root, self.schools)})
         (self.root / "koshien_historical_teams.csv").write_text(
-            "wrong,header\\n", encoding="utf-8")
+            "wrong,header\n", encoding="utf-8")
         self.assertIn("SCHEMA", {i.code for i in validate(self.root, self.schools)})
 
 
