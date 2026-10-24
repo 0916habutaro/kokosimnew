@@ -158,7 +158,7 @@ svg text { font-family: var(--ui); }
 .grow .n { font-family: var(--num); }
 .badge.b-top { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
 .badge.b-mid { background: #3b4f2f; color: #d6f0c4; }
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 14px 0; }
 .stat { background: var(--panel2); border-radius: 6px; padding: 8px; text-align: center; }
 .stat b { display: block; font-family: var(--num); font-size: 22px; }
 .stat span { color: var(--muted); font-size: 11px; }

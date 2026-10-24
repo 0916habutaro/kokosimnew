@@ -14,6 +14,7 @@ a = Analysis(
     datas=[
         (str(ROOT / "data"), "data"),
         (str(ROOT / "config"), "config"),
+        (str(ROOT / "historical_data" / "koshien_records.csv"), "historical_data"),
         (str(ROOT / "phase2_engine" / "screen" / "web"), "phase2_engine/screen/web"),
     ],
     excludes=["tkinter"],

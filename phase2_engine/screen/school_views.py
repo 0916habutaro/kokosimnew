@@ -224,6 +224,7 @@ def koshien_summary(results_by_year: dict[int, list[dict]]) -> dict:
             "appearances": len(entries),
             "wins": sum(r["wins"] for r in entries),
             "losses": sum(r["losses"] for r in entries),
+            "championships": sum(r["finish"] == "優勝" for r in entries),
             "best": best["finish"] if best else "",
             "years": [int(r["first_date"][:4]) for r in entries],
         }
