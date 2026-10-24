@@ -11,7 +11,7 @@ import tempfile
 import unittest
 
 from phase2_engine import DataRepository, LiveGameService
-from phase2_engine.screen.app import ScreenApi, WEB_DIR, open_session
+from phase2_engine.screen.app import ScreenApi, WEB_DIR, build_parser, open_session
 from phase2_engine.screen.data import GameScreenData
 
 
@@ -123,6 +123,24 @@ class ScreenApiTests(unittest.TestCase):
             reopened = open_session(service, "slot01", 1, "別")
             self.assertEqual(
                 date(2026, 4, 1), reopened.state.start_date
+            )
+
+    def test_default_paths_do_not_depend_on_working_directory(self):
+        args = build_parser().parse_args([])
+        self.assertEqual(DATA_ROOT.resolve(), Path(args.data_dir))
+        self.assertEqual(ROOT.resolve() / "out" / "saves", Path(args.save_root))
+
+    def test_exe_saves_go_to_the_user_folder(self):
+        from unittest import mock
+        import sys
+        from phase2_engine.screen import app
+
+        # 設定の save_root のドライブがない（Windows でない）ときはユーザーのフォルダ
+        with mock.patch.object(sys, "frozen", True, create=True), \
+                mock.patch.object(sys, "_MEIPASS", str(ROOT), create=True), \
+                mock.patch.dict("os.environ", {"LOCALAPPDATA": "/users/me/local"}):
+            self.assertEqual(
+                Path("/users/me/local/KokosimNew/saves"), app.default_save_root()
             )
 
     def test_screen_calls_only_existing_api_methods(self):

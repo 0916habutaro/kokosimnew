@@ -44,6 +44,18 @@
     </form>
   </dialog>
 
+  <dialog class="dialog" id="ask-dialog">
+    <form method="dialog">
+      <h2 id="ask-title"></h2>
+      <div class="ask-body" id="ask-body"></div>
+      <input class="ask-input" id="ask-input" type="text" maxlength="60" hidden>
+      <div class="dialog-actions">
+        <button class="btn" value="cancel" type="submit">やめる</button>
+        <button class="btn primary" id="ask-ok" value="ok" type="submit">OK</button>
+      </div>
+    </form>
+  </dialog>
+
   <div class="progress" id="progress" hidden>
     <div class="progress-box">
       <div class="progress-title" id="progress-title">日付を進めています</div>

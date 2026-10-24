@@ -66,6 +66,7 @@ jobs:
             'test_screen_competitions.py',
             'test_screen_schools.py',
             'test_screen_records.py',
+            'test_screen_saves.py',
             'test_stage12s_readonly_gui.py',
             'test_stage12t_gui_filters_bracket_navigation.py',
             'test_stage12u_gui_home_filters.py',

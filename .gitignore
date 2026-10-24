@@ -8,3 +8,9 @@ venv/
 Thumbs.db
 *.tmp
 *.bak
+
+# PyInstaller（kokosimnew.spec）と画面のセーブ
+/build/
+/dist/
+/out/
+/saves/

@@ -17,6 +17,7 @@ const state = {
   header: null,
   menu: [],
   busy: false,
+  noSession: false, // 起動時にセーブを選ぶ前
   competitions: { filter: { year: "", segment: "", level: "", status: "" }, view: null },
   matches: { date: "", detail: null },
   schools: {
@@ -100,6 +101,7 @@ function renderMenu() {
     button.type = "button";
     button.textContent = item.label;
     button.className = item.id === state.page ? "on" : "";
+    button.disabled = state.noSession && item.id !== "saves";
     button.addEventListener("click", () => showPage(item.id));
     menu.append(button);
   }
@@ -120,6 +122,7 @@ function renderPage() {
   if (state.page === "matches") return renderMatches(content);
   if (state.page === "schools") return renderSchools(content);
   if (state.page === "records") return renderRecords(content);
+  if (state.page === "saves") return renderSaves(content);
   const title = (state.menu.find((m) => m.id === state.page) || {}).label || "";
   content.innerHTML = `<div class="head"><h2>${esc(title)}</h2></div>
     <div class="scroll"><div class="empty">この画面はこれから作ります。</div></div>`;
@@ -692,6 +695,152 @@ async function schoolGames(body, d) {
     openMatch(Number(tr.dataset.year), tr.dataset.cid, tr.dataset.id)));
 }
 
+// ---- セーブ ----
+
+// 確かめる・名前を聞く小さなダイアログ。OK なら入力（入力がなければ true）、やめたら null
+function ask({ title, body = "", input = null, ok = "OK" }) {
+  const dialog = $("ask-dialog");
+  $("ask-title").textContent = title;
+  $("ask-body").innerHTML = body;
+  $("ask-ok").textContent = ok;
+  const field = $("ask-input");
+  field.hidden = input === null;
+  field.value = input ?? "";
+  return new Promise((resolve) => {
+    dialog.addEventListener("close", () => {
+      if (dialog.returnValue !== "ok") return resolve(null);
+      resolve(input === null ? true : field.value.trim());
+    }, { once: true });
+    dialog.returnValue = "";
+    dialog.showModal();
+    if (input !== null) field.select();
+  });
+}
+
+async function renderSaves(content) {
+  content.innerHTML = `<div class="head"><h2>セーブ</h2><div class="spacer"></div>
+      <button class="btn" id="sv-save" type="button">今すぐセーブ</button>
+      <button class="btn primary" id="sv-new" type="button">新しく始める…</button></div>
+    <div class="note">${state.noSession
+      ? "遊ぶセーブを読み込むか、新しく始めてください。"
+      : "日付を進めるたびに自動セーブしています。読み込むと、そのセーブの続きから遊びます。"}</div>
+    <div class="scroll" id="sv-body"><div class="empty">読み込み中…</div></div>`;
+  $("sv-save").disabled = state.noSession;
+  $("sv-save").addEventListener("click", async () => {
+    const data = await call("save_now");
+    if (data) { showToast("セーブしました"); drawSaves(data); }
+  });
+  $("sv-new").addEventListener("click", newSave);
+  const data = await call("saves");
+  if (data && state.page === "saves") drawSaves(data);
+}
+
+function drawSaves(data) {
+  const body = $("sv-body");
+  if (!body) return;
+  if (!data.slots.length) {
+    body.innerHTML = `<div class="empty">セーブがありません。</div>`;
+    return;
+  }
+  body.innerHTML = `<table class="list"><thead><tr>
+      <th>名前</th><th>ゲームの日付</th><th>保存した日時</th><th></th></tr></thead><tbody>
+    ${data.slots.map((row) => `<tr class="${row.current ? "current" : ""}" data-slot="${esc(row.slot_id)}">
+      <td>${esc(row.title)}${row.current ? `<span class="tag">遊んでいるセーブ</span>` : ""}</td>
+      <td>${esc(row.date_label)}</td><td>${esc(row.saved_at)}</td>
+      <td class="actions">
+        ${row.current ? "" : `<button class="btn small" data-act="open" type="button"${row.loadable ? "" : " disabled"}>読み込む</button>`}
+        <button class="btn small" data-act="rename" type="button">名前を変える</button>
+        <button class="btn small" data-act="recover" type="button">前の状態に戻す…</button>
+        ${row.current ? "" : `<button class="btn small" data-act="delete" type="button">削除</button>`}
+      </td></tr>`).join("")}</tbody></table>`;
+  body.querySelectorAll("button[data-act]").forEach((button) => button.addEventListener("click", () => {
+    const slot = button.closest("tr").dataset.slot;
+    const row = data.slots.find((r) => r.slot_id === slot);
+    ({ open: openSave, rename: renameSave, recover: recoverSave, delete: deleteSave })[button.dataset.act](row);
+  }));
+}
+
+async function renameSave(row) {
+  const title = await ask({ title: "名前を変える", input: row.title });
+  if (!title) return;
+  const data = await call("rename_save", row.slot_id, title);
+  if (data) drawSaves(data);
+}
+
+async function deleteSave(row) {
+  const ok = await ask({
+    title: "セーブを削除する",
+    body: `「${esc(row.title)}」を削除します。自動セーブと前の状態も消え、元に戻せません。`,
+    ok: "削除する",
+  });
+  if (!ok) return;
+  const data = await call("delete_save", row.slot_id);
+  if (data) { showToast("削除しました"); drawSaves(data); }
+}
+
+async function recoverSave(row) {
+  const data = await call("recovery", row.slot_id);
+  if (!data) return;
+  const rows = data.sources.filter((s) => s.valid);
+  if (!rows.length) return showToast("戻せる状態がありません", true);
+  const body = `<div>戻す状態を選んでください。選んだ状態を手動セーブにして読み込みます。</div>
+    <table class="list"><tbody>${rows.map((s, i) => `<tr>
+      <td><label><input type="radio" name="ask-source" value="${esc(s.source)}"${i ? "" : " checked"}> ${esc(s.label)}</label></td>
+      <td>${esc(s.date_label)}</td><td>${esc(s.saved_at)}</td></tr>`).join("")}</tbody></table>`;
+  if (!await ask({ title: `「${row.title}」を前の状態に戻す`, body, ok: "戻して読み込む" })) return;
+  const source = ($("ask-body").querySelector("input[name=ask-source]:checked") || {}).value;
+  if (source) switchSave("open_save", row.slot_id, source);
+}
+
+async function openSave(row) {
+  const ok = await ask({
+    title: "セーブを読み込む",
+    body: `「${esc(row.title)}」（${esc(row.date_label)}）を読み込みます。${state.noSession ? "" : "今のセーブの進み具合は自動セーブに残っています。"}`,
+    ok: "読み込む",
+  });
+  if (ok) switchSave("open_save", row.slot_id, "latest");
+}
+
+async function newSave() {
+  const title = await ask({
+    title: "新しく始める",
+    body: `<div>2026年4月1日から新しく始めます。${state.noSession ? "" : "今のセーブの進み具合は自動セーブに残っています。"}</div>
+      <label class="field">スロット名（空なら自動）<input class="ask-input" id="ask-slot" type="text" maxlength="64" placeholder="slot01"></label>
+      <label class="field">シード（空なら自動）<input class="ask-input" id="ask-seed" type="text" inputmode="numeric" maxlength="10"></label>
+      <label class="field">名前</label>`,
+    input: "新しいセーブ",
+    ok: "始める",
+  });
+  if (title === null) return;
+  if (!title) return showToast("名前を入れてください", true);
+  switchSave("new_save", title, $("ask-slot").value.trim(), $("ask-seed").value.trim());
+}
+
+// セーブを切り替える（その間は他の呼び出しをしない）
+async function switchSave(name, ...args) {
+  setBusy(true);
+  $("progress-title").textContent = name === "new_save" ? "新しく始めています" : "セーブを読み込んでいます";
+  $("progress-date").textContent = "";
+  $("progress-fill").style.width = "100%";
+  let result;
+  try {
+    result = await api()[name](...args);
+  } finally {
+    setBusy(false);
+  }
+  if (result.error) return showToast(result.error, true);
+  state.noSession = false;
+  setBusy(false);
+  state.competitions = { filter: { year: "", segment: "", level: "", status: "" }, view: null };
+  state.recordsYear = null;
+  state.matches = { date: "", detail: null };
+  state.schools = { ...state.schools, data: null, view: [], selected: null, detail: null, tab: "overview" };
+  state.bracket = null;
+  renderHeader(result.header);
+  showToast(name === "new_save" ? "新しく始めました" : "読み込みました");
+  showPage("today");
+}
+
 // ---- 日付を進める ----
 
 async function advance(options) {
@@ -724,12 +873,12 @@ async function advance(options) {
 
 function setBusy(busy) {
   state.busy = busy;
-  $("btn-day").disabled = busy;
-  $("btn-bulk").disabled = busy;
+  $("btn-day").disabled = busy || state.noSession;
+  $("btn-bulk").disabled = busy || state.noSession;
   $("progress").hidden = !busy;
   if (busy) {
     $("progress-title").textContent = "日付を進めています";
-    $("progress-date").textContent = dotDate(state.header.date);
+    $("progress-date").textContent = state.header ? dotDate(state.header.date) : "";
     $("progress-sub").textContent = "";
     $("progress-fill").style.width = "0";
   }
@@ -785,9 +934,17 @@ async function start() {
   const shell = await call("shell");
   if (!shell) return;
   state.menu = shell.menu;
-  renderHeader(shell.header);
+  if (shell.header) {
+    renderHeader(shell.header);
+  } else {
+    // 起動時にセーブを選ぶ
+    state.noSession = true;
+    state.page = "saves";
+    $("date-sub").textContent = "遊ぶセーブを選んでください";
+  }
   renderMenu();
   renderPage();
+  setBusy(false);
   $("btn-day").addEventListener("click", () => advance({ mode: "day" }));
   $("btn-bulk").addEventListener("click", openBulkDialog);
   $("bulk-dialog").addEventListener("close", onBulkClose);
