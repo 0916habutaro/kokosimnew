@@ -317,11 +317,11 @@ class Stage13E3D3FullSeasonPlannerTests(
             134,
             summary["active_runtime_count"],
         )
-        # March spring competitions finish before the April start.
+        # 3月に始まる春季大会は、日程どおり4月に決勝がある（高知だけ3月に終わる）
         self.assertEqual(
             {
-                "active": 123,
-                "completed": 11,
+                "active": 133,
+                "completed": 1,
                 "waiting_dependencies": 28,
             },
             summary["status_counts"],

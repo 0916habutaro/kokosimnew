@@ -8,6 +8,9 @@ from .models import CompetitionRun, MatchResolution
 from .repository import DataRepository
 
 
+# 日程の最終日の後にとれる予備日の数（試合が重なって日がずれたときだけ使う）
+RESERVE_DAYS_AFTER_SCHEDULE = 7
+
 SCHEDULE_PENDING = "pending"
 SCHEDULE_COMPLETED = "completed"
 
@@ -284,7 +287,11 @@ class ScheduledCompetitionRuntime:
         if later_pools:
             return date.fromisoformat(min(later_pools)) - timedelta(days=1)
         if self.calendar_dates:
-            return date.fromisoformat(max(self.calendar_dates))
+            # 最後の段階は、日程の最終日の後にも予備日をとれる（雨天順延のように、
+            # 同じ学校の試合が重なって日がずれたときに最後まで行えるように）
+            return date.fromisoformat(max(self.calendar_dates)) + timedelta(
+                days=RESERVE_DAYS_AFTER_SCHEDULE
+            )
         return None
 
     def _reserve_dates(self, stage_code: str, after: str) -> list[str]:
@@ -298,6 +305,36 @@ class ScheduledCompetitionRuntime:
             days.append(day.isoformat())
             day += timedelta(days=1)
         return days
+
+    def _round_plan(self, stage_code: str) -> list[tuple[int, int]]:
+        """本大会の残りの回戦と試合数。分からない段階（予選など）は空。"""
+        if stage_code != "MAIN":
+            return []
+        runtime = self.runtime
+        main = (
+            runtime if hasattr(runtime, "remaining_rounds")
+            else getattr(runtime, "main_runtime", None)
+        )
+        if main is None or not hasattr(main, "remaining_rounds"):
+            return []
+        return main.remaining_rounds()
+
+    def _round_dates(
+        self, stage_code: str, round_no: int, dates: list[str],
+    ) -> list[str]:
+        """この回戦に使う日。決勝を最後の日、準決勝をその前の日…と後ろから
+        決め、早い回戦は残りの日に分ける（1日の試合数がならべく同じになるよう）。
+        回戦の数より日が少なければ空（前から1日ずつ使う）。"""
+        plan = self._round_plan(stage_code)
+        if not plan or plan[0][0] != round_no or len(dates) < len(plan):
+            return []
+        days = [1] * len(plan)
+        for _ in range(len(dates) - len(plan)):
+            busiest = max(
+                range(len(plan)), key=lambda i: (plan[i][1] / days[i], -i),
+            )
+            days[busiest] += 1
+        return dates[: days[0]]
 
     def _record_from_ready_row(
         self,
@@ -429,11 +466,15 @@ class ScheduledCompetitionRuntime:
                     else "runtime_wave_v1"
                 )
             )
+            # 本大会は、この回戦に使う日へ試合を順に分ける
+            round_dates = self._round_dates(
+                stage_code, int(stage_rows[0].get("round_no") or 0), dates,
+            )
             # 同じ学校が同じ日に2試合しないよう、両校とも空いている最初の日に
             # 入れる（総当たりの組・ほかの大会）。空いた日がなければ最初の日。
             chosen = []
             used_dates = self._used_dates()
-            for row in stage_rows:
+            for index, row in enumerate(stage_rows):
                 match_id = str(row["match_id"])
                 if match_id in self.matches:
                     raise ValueError(
@@ -457,6 +498,28 @@ class ScheduledCompetitionRuntime:
                     and day not in used_dates
                 ]
                 candidates = dates[:1] + reserve + dates[1:]
+                if round_dates:
+                    planned = round_dates[
+                        index * len(round_dates) // len(stage_rows)
+                    ]
+                    # ふさがっていれば、この回戦の日、次の回戦の日までの予備日、
+                    # 最後にあとの回戦の日（あとの回戦の日はなるべく使わない）
+                    window_end = next(
+                        (day for day in dates if day > round_dates[-1]), "9999",
+                    )
+                    window = [
+                        day
+                        for day in self._reserve_dates(stage_code, round_dates[0])
+                        if day < window_end
+                        and day not in round_dates
+                        and day not in used_dates
+                    ]
+                    candidates = (
+                        [planned]
+                        + [day for day in round_dates if day != planned]
+                        + window
+                        + [day for day in dates if day > window_end or day == window_end]
+                    )
                 target = next(
                     (
                         day for day in candidates
@@ -465,9 +528,9 @@ class ScheduledCompetitionRuntime:
                             for team in teams
                         )
                     ),
-                    dates[0],
+                    candidates[0],
                 )
-                if target != dates[0]:
+                if target not in (round_dates or dates[:1]):
                     self.spread_matches = True
                 for team in teams:
                     self.school_days.setdefault(team, set()).add(target)

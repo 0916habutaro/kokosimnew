@@ -13,7 +13,7 @@ from .brackets import (
     run_single_round_gate,
 )
 from .models import AnnualCompetitionInput, CompetitionRun, Match, SeedAssignment, StageExecution
-from .main_tournament import run_main_single_elimination
+from .main_tournament import bye_layout_for, run_main_single_elimination
 from .randomness import shuffled
 from .repository import DataRepository
 from .direct_access_quota import effective_qualifier_group_output_slots
@@ -509,6 +509,9 @@ class TournamentEngine:
             match_resolver=self.main_match_resolver,
             resolved_match_sink=base_run.match_simulation_results,
             reference_year=annual.year,
+            bye_layout=bye_layout_for(
+                self.repo.competition(annual.competition_id).get("competition_type", "")
+            ),
         )
         base_run.stage_executions.append(execution)
         base_run.outcome = outcome

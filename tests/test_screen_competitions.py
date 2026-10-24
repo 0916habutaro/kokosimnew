@@ -56,6 +56,19 @@ class CompetitionScreenTests(unittest.TestCase):
             self.assertTrue(row["short_name"])
             if row["status"] == "completed" and row["champion_id"]:
                 self.assertTrue(row["champion_name"])
+        # 日程が組まれていても、最初の試合日より前の大会は「これから」
+        season = self.session.state.seasons[2026]
+        for row in rows:
+            scheduled = season.competitions.get(row["competition_id"])
+            if row["status"] == "upcoming" and scheduled is not None:
+                self.assertTrue(all(
+                    m.match_date > "2026-05-10" for m in scheduled.matches.values()
+                ))
+        active = {row["competition_id"] for row in self.data.active_competitions()}
+        self.assertEqual(
+            {row["competition_id"] for row in rows if row["status"] == "active"},
+            active,
+        )
 
     def _completed_with_main(self):
         for row in self.listing["competitions"]:
@@ -108,11 +121,17 @@ class CompetitionScreenTests(unittest.TestCase):
         latest = self.data.matches_on()
         self.assertEqual("2026-05-10", latest["date"])
         self.assertTrue(latest["matches"])
-        self.assertIn("2026-04-01", latest["match_dates"])
+        self.assertTrue(latest["prev_date"] < "2026-05-10")
+        self.assertEqual("", latest["next_date"])
         earlier = self.data.matches_on("2026-04-01")
         self.assertTrue(all(
             row["match_date"] == "2026-04-01" for row in earlier["matches"]
         ))
+        self.assertTrue(earlier["prev_date"] < "2026-04-01")
+        # ずっと前の日からも前後へ移れる（試合のない日でも）
+        self.assertTrue(earlier["next_date"] > "2026-04-01")
+        middle = self.data.matches_on("2026-04-15")
+        self.assertTrue(middle["prev_date"] < "2026-04-15" < middle["next_date"])
 
     def test_api_refuses_reads_while_advancing(self):
         api = ScreenApi(self.data)
