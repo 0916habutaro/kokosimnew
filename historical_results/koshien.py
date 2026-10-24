@@ -45,9 +45,17 @@ SPECIAL_RESULT_COLUMNS = (
 SPECIAL_RESULT_TYPES = frozenset({"walkover"})
 SPECIAL_COUNT_VALUES = frozenset({"0", "1", "unknown"})
 
-# 当時の出場チームの史実は現役校IDと独立した永続IDで保持する。
+# 当時の学校・野球部系列を大会ごとの実出場と分けて識別する。
+# 現役校の school_id をそのまま歴史校IDとして使わない。
+HISTORICAL_SCHOOL_COLUMNS = (
+    "historical_school_id",
+    "historical_name",
+    "source_id",
+    "notes",
+)
 HISTORICAL_TEAM_COLUMNS = (
     "appearance_id",
+    "historical_school_id",
     "kind",
     "year",
     "edition",
@@ -231,6 +239,30 @@ def validate(
                 error("special", line, "UNKNOWN_SOURCE", row["source_id"])
 
 
+    # 歴史上の学校・野球部系列は、現役学校マスターから独立して管理する。
+    try:
+        history_columns, history_rows = read_rows(
+            data_dir / "koshien_historical_schools.csv")
+    except (OSError, UnicodeError, csv.Error) as exc:
+        error("historical_schools", 0, "READ_ERROR", f"{type(exc).__name__}: {exc}")
+        history_columns, history_rows = [], []
+    historical_school_ids: set[str] = set()
+    if tuple(history_columns) != HISTORICAL_SCHOOL_COLUMNS:
+        error("historical_schools", 1, "SCHEMA", repr(history_columns))
+    else:
+        for line, row in enumerate(history_rows, 2):
+            if None in row or any(v is None for v in row.values()):
+                error("historical_schools", line, "ROW_COLUMNS", "列数不足または余剰")
+                continue
+            historical_school_id = row["historical_school_id"]
+            if not historical_school_id or historical_school_id in historical_school_ids:
+                error("historical_schools", line, "DUPLICATE_OR_EMPTY_ID", historical_school_id)
+            historical_school_ids.add(historical_school_id)
+            if not row["historical_name"]:
+                error("historical_schools", line, "EMPTY_NAME", historical_school_id)
+            if row["source_id"] not in source_ids:
+                error("historical_schools", line, "UNKNOWN_SOURCE", row["source_id"])
+
     # 当時の大会出場チームと、現在の学校の継承通算を独立して保持する。
     # ヘッダーのみから段階導入し、旧koshien_appearancesやaggregateは変更しない。
     try:
@@ -252,6 +284,9 @@ def validate(
                 error("historical_teams", line, "DUPLICATE_OR_EMPTY_ID", appearance_id)
             else:
                 historical_index[appearance_id] = row
+            historical_school_id = row["historical_school_id"]
+            if historical_school_id not in historical_school_ids:
+                error("historical_teams", line, "UNKNOWN_HISTORICAL_SCHOOL", historical_school_id)
             kind = row["kind"]
             if kind not in KINDS:
                 error("historical_teams", line, "KIND", kind)

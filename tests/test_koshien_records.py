@@ -8,7 +8,7 @@ from pathlib import Path
 
 from historical_results.koshien import (
     APPEARANCE_COLUMNS, RECORD_COLUMNS, SPECIAL_RESULT_COLUMNS,
-    HISTORICAL_TEAM_COLUMNS, HISTORICAL_ATTRIBUTION_COLUMNS,
+    HISTORICAL_SCHOOL_COLUMNS, HISTORICAL_TEAM_COLUMNS, HISTORICAL_ATTRIBUTION_COLUMNS,
     aggregate, summarize_adjudications, summarize_historical_attributions, validate,
 )
 
@@ -49,6 +49,12 @@ class KoshienValidationTests(unittest.TestCase):
                  results="L", result="1回戦", source_id="HS9001"),
         ]
         self.special_results = []
+        self.historical_schools = [
+            dict(historical_school_id="HSC1", historical_name="架空第一部",
+                 source_id="HS9001", notes=""),
+            dict(historical_school_id="HSC2", historical_name="架空商工部",
+                 source_id="HS9001", notes=""),
+        ]
         self.historical_teams = []
         self.attributions = []
         self.record = dict(
@@ -63,6 +69,7 @@ class KoshienValidationTests(unittest.TestCase):
             ("koshien_appearances.csv", APPEARANCE_COLUMNS, self.appearances),
             ("koshien_records.csv", RECORD_COLUMNS, [self.record]),
             ("koshien_special_results.csv", SPECIAL_RESULT_COLUMNS, self.special_results),
+            ("koshien_historical_schools.csv", HISTORICAL_SCHOOL_COLUMNS, self.historical_schools),
             ("koshien_historical_teams.csv", HISTORICAL_TEAM_COLUMNS, self.historical_teams),
             ("koshien_team_attributions.csv", HISTORICAL_ATTRIBUTION_COLUMNS, self.attributions),
         ):
@@ -165,7 +172,8 @@ class KoshienValidationTests(unittest.TestCase):
     @staticmethod
     def historical_team(appearance_id, name, **changes):
         row = dict(
-            appearance_id=appearance_id, kind="spring", year="1947",
+            appearance_id=appearance_id, historical_school_id="HSC1",
+            kind="spring", year="1947",
             edition="19", team_name=name, representative_region="架空地区",
             source_id="HS9001",
         )
@@ -182,7 +190,7 @@ class KoshienValidationTests(unittest.TestCase):
     def test_two_historical_teams_one_year_one_current_school(self):
         self.historical_teams = [
             self.historical_team("HA1", "架空第一部"),
-            self.historical_team("HA2", "架空商工部"),
+            self.historical_team("HA2", "架空商工部", historical_school_id="HSC2"),
         ]
         self.attributions = [
             self.historical_attribution("HA1", "1"),
@@ -196,6 +204,42 @@ class KoshienValidationTests(unittest.TestCase):
                          school[("SCH000001", "spring")])
         # 古い年度別W/L/Dと学校別通算はこの段階で変えない
         self.assertEqual(1, aggregate(self.appearances)[("SCH000001", "summer")]["wins"])
+
+    def test_historical_school_id_survives_rename_across_years(self):
+        self.historical_teams = [
+            self.historical_team("HA1", "架空旧校名"),
+            self.historical_team("HA2", "架空新校名", year="1948", edition="20"),
+        ]
+        self.attributions = [
+            self.historical_attribution("HA1", "1"),
+            self.historical_attribution("HA2", "1"),
+        ]
+        self.assertEqual(set(), self.codes())
+        self.assertEqual("HSC1", self.historical_teams[0]["historical_school_id"])
+        self.assertEqual("HSC1", self.historical_teams[1]["historical_school_id"])
+        actual, school = summarize_historical_attributions(
+            self.historical_teams, self.attributions)
+        self.assertEqual(1, actual[("spring", "1947")])
+        self.assertEqual(1, actual[("spring", "1948")])
+        self.assertEqual(2, school[("SCH000001", "spring")]["counted"])
+
+    def test_historical_school_registry_rejects_missing_or_invalid_reference(self):
+        self.historical_teams = [
+            self.historical_team("HA1", "架空未確認校", historical_school_id="HSC_UNKNOWN"),
+        ]
+        self.assertIn("UNKNOWN_HISTORICAL_SCHOOL", self.codes())
+        self.historical_schools.append(dict(self.historical_schools[0]))
+        self.assertIn("DUPLICATE_OR_EMPTY_ID", self.codes())
+        self.historical_schools[0]["historical_name"] = ""
+        self.assertIn("EMPTY_NAME", self.codes())
+
+    def test_historical_school_registry_required_and_schema(self):
+        self.assertEqual(set(), self.codes())
+        (self.root / "koshien_historical_schools.csv").unlink()
+        self.assertIn("READ_ERROR", {i.code for i in validate(self.root, self.schools)})
+        (self.root / "koshien_historical_schools.csv").write_text(
+            "wrong,header\n", encoding="utf-8")
+        self.assertIn("SCHEMA", {i.code for i in validate(self.root, self.schools)})
 
     def test_same_appearance_multiple_school_histories_is_one_actual(self):
         self.schools.write_text(
