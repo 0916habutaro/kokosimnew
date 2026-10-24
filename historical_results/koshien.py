@@ -45,6 +45,24 @@ SPECIAL_RESULT_COLUMNS = (
 SPECIAL_RESULT_TYPES = frozenset({"walkover"})
 SPECIAL_COUNT_VALUES = frozenset({"0", "1", "unknown"})
 
+# 当時の出場チームの史実は現役校IDと独立した永続IDで保持する。
+HISTORICAL_TEAM_COLUMNS = (
+    "appearance_id",
+    "kind",
+    "year",
+    "edition",
+    "team_name",
+    "representative_region",
+    "source_id",
+)
+HISTORICAL_ATTRIBUTION_COLUMNS = (
+    "appearance_id",
+    "school_id",
+    "counts_in_school_total",
+    "source_id",
+)
+ATTRIBUTION_COUNT_VALUES = frozenset({"0", "1", "unknown"})
+
 
 @dataclass(frozen=True)
 class Issue:
@@ -120,6 +138,32 @@ def summarize_adjudications(
     return totals
 
 
+
+def summarize_historical_attributions(
+    team_rows: list[dict[str, str]],
+    attribution_rows: list[dict[str, str]],
+) -> tuple[dict[tuple[str, str], int], dict[tuple[str, str], dict[str, int]]]:
+    """実出場チーム数と、学校ごとの継承通算を独立集計する。
+
+    一つの実出場を複数校が継承表示しても全国出場数は増えない。
+    unknownは数値0に自動確定せずpendingに集計する。
+    入力の検証は validate() が担当し、本関数は検証済み行を受け取る。
+    """
+    team_index = {row["appearance_id"]: row for row in team_rows}
+    actual: dict[tuple[str, str], int] = {}
+    school: dict[tuple[str, str], dict[str, int]] = {}
+    for row in team_rows:
+        key = (row["kind"], row["year"])
+        actual[key] = actual.get(key, 0) + 1
+    for row in attribution_rows:
+        team = team_index[row["appearance_id"]]
+        key = (row["school_id"], team["kind"])
+        tally = school.setdefault(key, {"counted": 0, "excluded": 0, "pending": 0})
+        decision = row["counts_in_school_total"]
+        tally[{"1": "counted", "0": "excluded", "unknown": "pending"}[decision]] += 1
+    return actual, school
+
+
 def validate(
     data_dir: Path = DATA_DIR,
     school_master: Path = ROOT / "data/master/schools.csv",
@@ -185,6 +229,77 @@ def validate(
                     error("special", line, "COUNTED", f"{field}={row[field]}")
             if row["source_id"] not in source_ids:
                 error("special", line, "UNKNOWN_SOURCE", row["source_id"])
+
+
+    # 当時の大会出場チームと、現在の学校の継承通算を独立して保持する。
+    # ヘッダーのみから段階導入し、旧koshien_appearancesやaggregateは変更しない。
+    try:
+        historical_columns, historical_rows = read_rows(
+            data_dir / "koshien_historical_teams.csv")
+    except (OSError, UnicodeError, csv.Error) as exc:
+        error("historical_teams", 0, "READ_ERROR", f"{type(exc).__name__}: {exc}")
+        historical_columns, historical_rows = [], []
+    historical_index: dict[str, dict[str, str]] = {}
+    if tuple(historical_columns) != HISTORICAL_TEAM_COLUMNS:
+        error("historical_teams", 1, "SCHEMA", repr(historical_columns))
+    else:
+        for line, row in enumerate(historical_rows, 2):
+            if None in row or any(v is None for v in row.values()):
+                error("historical_teams", line, "ROW_COLUMNS", "列数不足または余剰")
+                continue
+            appearance_id = row["appearance_id"]
+            if not appearance_id or appearance_id in historical_index:
+                error("historical_teams", line, "DUPLICATE_OR_EMPTY_ID", appearance_id)
+            else:
+                historical_index[appearance_id] = row
+            kind = row["kind"]
+            if kind not in KINDS:
+                error("historical_teams", line, "KIND", kind)
+            year = row["year"]
+            if not re.fullmatch(r"\d{4}", year) or (
+                kind in KINDS and not 1915 <= int(year) <= AS_OF_YEAR[kind]
+            ):
+                error("historical_teams", line, "YEAR", year)
+            edition = row["edition"]
+            if not re.fullmatch(r"\d+", edition) or (
+                kind in KINDS and not 1 <= int(edition) <= AS_OF_EDITION[kind]
+            ):
+                error("historical_teams", line, "EDITION", edition)
+            if not row["team_name"]:
+                error("historical_teams", line, "EMPTY_TEAM_NAME", appearance_id)
+            # 地域名は植民地・旧行政区の当時表記も想定し、都道府県コードを強制しない。
+            if not row["representative_region"]:
+                error("historical_teams", line, "EMPTY_REGION", appearance_id)
+            if row["source_id"] not in source_ids:
+                error("historical_teams", line, "UNKNOWN_SOURCE", row["source_id"])
+
+    try:
+        link_columns, link_rows = read_rows(
+            data_dir / "koshien_team_attributions.csv")
+    except (OSError, UnicodeError, csv.Error) as exc:
+        error("team_attributions", 0, "READ_ERROR", f"{type(exc).__name__}: {exc}")
+        link_columns, link_rows = [], []
+    if tuple(link_columns) != HISTORICAL_ATTRIBUTION_COLUMNS:
+        error("team_attributions", 1, "SCHEMA", repr(link_columns))
+    else:
+        link_keys: set[tuple[str, str]] = set()
+        for line, row in enumerate(link_rows, 2):
+            if None in row or any(v is None for v in row.values()):
+                error("team_attributions", line, "ROW_COLUMNS", "列数不足または余剰")
+                continue
+            appearance_id, school_id = row["appearance_id"], row["school_id"]
+            if not appearance_id or appearance_id not in historical_index:
+                error("team_attributions", line, "UNKNOWN_APPEARANCE", appearance_id)
+            if not school_id or school_id not in school_ids:
+                error("team_attributions", line, "UNKNOWN_SCHOOL", school_id)
+            if row["counts_in_school_total"] not in ATTRIBUTION_COUNT_VALUES:
+                error("team_attributions", line, "COUNTED", row["counts_in_school_total"])
+            if row["source_id"] not in source_ids:
+                error("team_attributions", line, "UNKNOWN_SOURCE", row["source_id"])
+            key = (appearance_id, school_id)
+            if key in link_keys:
+                error("team_attributions", line, "DUPLICATE_LINK", "/".join(key))
+            link_keys.add(key)
 
     columns, appearances = read_rows(data_dir / "koshien_appearances.csv")
     if tuple(columns) != APPEARANCE_COLUMNS:
