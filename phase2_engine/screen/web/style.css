@@ -196,3 +196,8 @@ nav button[disabled] { opacity: .35; cursor: default; }
 .radar text { fill: var(--muted); font-size: 12px; }
 .radar tspan { font-weight: 700; }
 .stat b .rank { font-size: inherit; }
+.ask-body .adjust { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 6px; }
+.ask-body .adjust label { display: flex; flex-direction: column; gap: 4px; color: var(--text); }
+.ask-body .adjust select { height: 30px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; }
+.ask-body div.field { margin-top: 12px; color: var(--text); }
+.ask-body select { margin-left: 0; }

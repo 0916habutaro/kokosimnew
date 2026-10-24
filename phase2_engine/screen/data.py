@@ -10,8 +10,11 @@ import json
 from pathlib import Path
 from typing import Callable
 
+from game_core.school_edits import SchoolAdjustmentModel
+
 from ..career_state import CareerState
 from ..save_slots import SAVE_KIND_MANUAL
+from ..school_edits import SchoolEdits
 from .competition_views import (
     POSITION_LABELS,
     bracket_layout,
@@ -30,7 +33,7 @@ from .koshien_records import (
     load_actual as load_actual_koshien,
 )
 from .save_views import next_slot_id, recovery_rows, slot_rows
-from .school_names import SchoolNames, prefecture_names
+from .school_names import EditedNames, SchoolNames, prefecture_names
 from .school_views import (
     SchoolAbilities,
     best_result,
@@ -92,16 +95,17 @@ class GameScreenData:
         config_root = Path(service.data_dir).parent / "config"
         self.config_root = config_root
         self.config = config or load_screen_config(config_root)
-        self.names = SchoolNames(service.repo, config_root)
+        self.names = EditedNames(
+            SchoolNames(service.repo, config_root), self._load_edits(),
+        )
         self.competition_names = CompetitionNames(config_root)
         # ゲーム開始前の甲子園の実際の記録（ゲームの記録とは混ぜずに並べる）
         self.actual_koshien = load_actual_koshien(
             config_root.parent / KOSHIEN_RECORDS_PATH
         )
         self.prefectures = prefecture_names(service.repo.data_dir)
-        self.abilities = SchoolAbilities(
-            config_root, self.config["school_overall_weights"],
-        )
+        self.abilities = self._new_abilities()
+        self.adjustment_model = SchoolAdjustmentModel(config_root)
         self._closed_years: dict[int, dict] = {}
         self._stage_names = {
             stage["stage_id"]: stage.get("stage_name", "")
@@ -319,6 +323,10 @@ class GameScreenData:
         }
         if layout is not None:
             ids |= {row["school_id"] for row in layout["rows"]}
+        first_day = min(
+            (m.match_date for m in scheduled.matches.values() if m.match_date),
+            default="",
+        )
         return {
             **out,
             "main": layout,
@@ -326,8 +334,9 @@ class GameScreenData:
                 int(school_year), competition_id, main,
             ),
             "other_matches": others,
+            # 大会の最初の試合の日の名前
             "names": {
-                school_id: self.team_name(school_id, competition_id)
+                school_id: self.team_name(school_id, competition_id, first_day)
                 for school_id in ids if school_id
             },
         }
@@ -358,7 +367,10 @@ class GameScreenData:
                 except (KeyError, ValueError, OSError):
                     detail = None
         out = match_detail(
-            data, detail, lambda school_id: self.team_name(school_id, competition_id),
+            data, detail,
+            lambda school_id: self.team_name(
+                school_id, competition_id, data.get("match_date", ""),
+            ),
             lambda school_id: self._players(season, competition_id, school_id),
         )
         out["school_year"] = int(school_year)
@@ -393,8 +405,8 @@ class GameScreenData:
                 **{key: value for key, value in _match_fields(row).items()},
                 "round_name": row.round_name if row.stage_code == "MAIN"
                 else self.stage_label(row.match_id, row.group_name),
-                "team1_name": self.team_name(row.team1_id, cid),
-                "team2_name": self.team_name(row.team2_id, cid),
+                "team1_name": self.team_name(row.team1_id, cid, row.match_date),
+                "team2_name": self.team_name(row.team2_id, cid, row.match_date),
             }
             for year, cid, row in rows
             if row.match_date == target
@@ -437,9 +449,10 @@ class GameScreenData:
             rows.append(row)
         return sorted(rows, key=lambda row: (row["prefecture_code"], row["name"]))
 
-    def team_name(self, school_id: str, competition_id: str) -> str:
-        """試合に出す校名。全国大会・地区大会では都道府県を添える（横浜（神奈川））。"""
-        name = self.names(school_id)
+    def team_name(self, school_id: str, competition_id: str, day: str = "") -> str:
+        """試合に出す校名。全国大会・地区大会では都道府県を添える（横浜（神奈川））。
+        日を渡すと、その日の名前（学校の編集で名前を変える前の試合は当時の名前）。"""
+        name = self.names(school_id, day)
         level = self.service.repo.competitions.get(competition_id, {}).get(
             "competition_level", ""
         )
@@ -483,7 +496,10 @@ class GameScreenData:
             raise ValueError("その試合はありません")
         row = {**detail, "status": "completed"}
         out = match_detail(
-            row, detail, lambda school_id: self.team_name(school_id, competition_id),
+            row, detail,
+            lambda school_id: self.team_name(
+                school_id, competition_id, row.get("match_date", ""),
+            ),
             lambda _: {},
         )
         out["school_year"] = year
@@ -585,8 +601,8 @@ class GameScreenData:
             "round_name": row.get("round_name", "") if row.get("stage_code") == "MAIN"
             else self.stage_label(row["match_id"], row.get("group_name", "")),
             "team1_id": row["team1_id"], "team2_id": row["team2_id"],
-            "team1_name": self.team_name(row["team1_id"], cid),
-            "team2_name": self.team_name(row["team2_id"], cid),
+            "team1_name": self.team_name(row["team1_id"], cid, row.get("match_date", "")),
+            "team2_name": self.team_name(row["team2_id"], cid, row.get("match_date", "")),
             "team1_score": row.get("team1_score"),
             "team2_score": row.get("team2_score"),
             "winner_id": row.get("winner_id", ""),
@@ -818,8 +834,83 @@ class GameScreenData:
         }
         return sorted(archived | set(_seasons(self.state)))
 
-    def _ownership(self, school: dict) -> str:
-        kind = school.get("ownership_type", "")
+    def _ownership(self, school_id: str) -> str:
+        return self._ownership_label(
+            self.service.repo.ownership_type(school_id),
+            self.service.repo.schools.get(school_id, {}),
+        )
+
+    # ---- 学校の編集 ----
+
+    OWNERSHIP_TYPES = (
+        "prefectural", "municipal", "national", "public_university_corporation", "private",
+    )
+
+    def _edit_form(self, school_id: str) -> dict:
+        """学校の編集の画面に出す今の値・選べる値・変更の記録。"""
+        edits = self.names.edits
+        school = self.service.repo.schools.get(school_id, {})
+        model = self.adjustment_model
+        history = [
+            {"date": entry["date"], "kind": "info",
+             "changes": {k: v for k, v in entry.items() if k != "date"}}
+            for entry in edits.info_history(school_id)
+        ] + [
+            {"date": entry["date"], "kind": "ability", "changes": entry["steps"]}
+            for entry in edits.schools.get(school_id, {}).get("ability_history", [])
+        ]
+        return {
+            "display_name": self._official_name(school_id),
+            "short_name": self.names(school_id),
+            "ownership_type": self.service.repo.ownership_type(school_id),
+            "ownership_options": [
+                {"value": kind, "label": self._ownership_label(kind, school)}
+                for kind in self.OWNERSHIP_TYPES
+            ],
+            "ability": edits.ability(school_id),
+            "step_range": model.step_range,
+            "categories": [
+                {"key": key, "label": rule["label"]}
+                for key, rule in model.categories.items()
+            ],
+            "history": sorted(history, key=lambda row: row["date"]),
+        }
+
+    def edit_school(self, school_id: str, payload: dict) -> dict:
+        """学校の情報と能力の補正を変える（そのセーブの中だけ。data/master は変えない）。"""
+        if self.session is None:
+            raise ValueError("遊ぶセーブを選んでください")
+        info = {}
+        for key in ("display_name", "short_name"):
+            value = str(payload.get(key, "")).strip()
+            if not value:
+                raise ValueError("名前を入れてください")
+            info[key] = value
+        ownership = str(payload.get("ownership_type", ""))
+        if ownership not in self.OWNERSHIP_TYPES:
+            raise ValueError("設置者を選んでください")
+        info["ownership_type"] = ownership
+        # 元と同じ値は変更として残さない
+        school = self.service.repo.schools.get(school_id, {})
+        base = {
+            "display_name": school.get("official_name") or school.get("display_name", ""),
+            "short_name": self.names._base(school_id),
+            "ownership_type": school.get("ownership_type", ""),
+        }
+        current = self.names.edits.info_on(school_id)
+        info = {
+            key: value for key, value in info.items()
+            if value != current.get(key, base[key])
+        }
+        ability = self.adjustment_model.normalize(payload.get("ability") or {})
+        self.service.edit_school(
+            self.session, school_id, info=info, ability=ability,
+        )
+        self.names.edits = self._load_edits()
+        self.abilities = self._new_abilities()
+        return self.school(school_id)
+
+    def _ownership_label(self, kind: str, school: dict) -> str:
         if kind == "prefectural":
             prefecture = self.prefectures.get(school.get("prefecture_code"), "")
             return (prefecture[-1:] or "県") + "立"
@@ -827,6 +918,14 @@ class GameScreenData:
             "municipal": "市立", "private": "私立", "national": "国立",
             "public_university_corporation": "公立大学法人",
         }.get(kind, "不明")
+
+    def _official_name(self, school_id: str) -> str:
+        """学校の詳細に出す名前（編集した表示名を優先）。"""
+        school = self.service.repo.schools.get(school_id, {})
+        return (
+            self.names.edits.info_on(school_id).get("display_name")
+            or school.get("official_name") or school.get("display_name", "")
+        )
 
     def schools(self) -> dict:
         """学校の一覧（全校）。能力の計算が終わっていない学校は能力が空。"""
@@ -845,10 +944,10 @@ class GameScreenData:
             rows.append({
                 "school_id": school_id,
                 "name": self.names(school_id),
-                "official_name": school.get("official_name") or school.get("display_name", ""),
+                "official_name": self._official_name(school_id),
                 "prefecture_code": school.get("prefecture_code", ""),
                 "prefecture": self.prefectures.get(school.get("prefecture_code"), ""),
-                "ownership": self._ownership(school),
+                "ownership": self._ownership(school_id),
                 "abilities": abilities.get(school_id),
                 "wins": sum(r["wins"] for r in mine),
                 "losses": sum(r["losses"] for r in mine),
@@ -908,11 +1007,12 @@ class GameScreenData:
         return {
             "school_id": school_id,
             "name": self.names(school_id),
-            "official_name": school.get("official_name") or school.get("display_name", ""),
+            "official_name": self._official_name(school_id),
             "prefecture": self.prefectures.get(school.get("prefecture_code"), ""),
-            "ownership": self._ownership(school),
+            "ownership": self._ownership(school_id),
             "school_year": year,
             "abilities": abilities,
+            "edit": self._edit_form(school_id),
             "this_year": by_year.get(year, []),
             "yearly": yearly,
             # 甲子園：ゲーム開始前の実際の記録（historical_data）とゲーム内の
@@ -976,7 +1076,7 @@ class GameScreenData:
                     row["match_id"], original.get("group_name", ""),
                 ),
                 "opponent_id": other,
-                "opponent_name": self.names(other),
+                "opponent_name": self.names(other, row["match_date"]),
                 "won": row["winner_id"] == school_id,
                 "score": row[f"team{mine}_score"],
                 "opponent_score": row[f"team{3 - mine}_score"],
@@ -990,8 +1090,18 @@ class GameScreenData:
         """別のセーブに切り替える。前のセーブの集計は捨てる。"""
         self.session = session
         self._closed_years = {}
-        self.abilities = SchoolAbilities(
+        self.names.edits = self._load_edits()
+        self.abilities = self._new_abilities()
+
+    def _load_edits(self) -> SchoolEdits:
+        if self.session is None:
+            return SchoolEdits()
+        return self.service.school_edits(self.session)
+
+    def _new_abilities(self) -> SchoolAbilities:
+        return SchoolAbilities(
             self.config_root, self.config["school_overall_weights"],
+            getattr(self.service, "school_adjustments", None),
         )
 
     def saves(self) -> dict:

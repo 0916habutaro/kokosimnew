@@ -771,8 +771,8 @@ class LiveSeasonDependencyRuntimeState:
         types = set(century["public_ownership_types"])
         return frozenset(
             school_id
-            for school_id, row in self.repo.schools.items()
-            if row.get("ownership_type") in types
+            for school_id in self.repo.schools
+            if self.repo.ownership_type(school_id) in types
         )
 
     def _autumn_strength_of(self, sources: Mapping[str, str]):
