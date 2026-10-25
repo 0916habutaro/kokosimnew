@@ -17,6 +17,7 @@ from .historical_match_archive import (
     expand_payload,
 )
 from .career_state import CareerState
+from .school_edits import SchoolEdits
 from .initial_state import PriorResults
 from .prior_season import prior_results_from_season
 from .school_year import in_school_year
@@ -623,6 +624,50 @@ class LiveGameService:
             save_root,
             max_backups=max_backups,
         )
+        # 遊んでいるセーブの学校の編集（能力の補正）。選手の能力をつくる部品が
+        # この dict を見る。セーブを開くたびに中身を入れ替える
+        self.school_adjustments: dict[str, dict[str, int]] = {}
+
+    def _use_school_edits(self, edits: SchoolEdits) -> None:
+        self.school_adjustments.clear()
+        self.school_adjustments.update(edits.adjustments())
+        self.repo.ownership_overrides.clear()
+        self.repo.ownership_overrides.update(edits.ownership_overrides())
+
+    def school_edits(self, session: LiveGameSession) -> SchoolEdits:
+        return SchoolEdits.load(self.slots.slot_dir(session.slot_id))
+
+    def edit_school(
+        self,
+        session: LiveGameSession,
+        school_id: str,
+        *,
+        info: dict | None = None,
+        ability: dict | None = None,
+    ) -> SchoolEdits:
+        """学校の情報・能力の補正を変える（そのセーブの中だけ。今日の日付で残す）。
+
+        補正は今の部員の能力にまとめて効き、今後の新入生にも効く。"""
+        if school_id not in self.repo.schools:
+            raise ValueError("その学校はありません")
+        edits = self.school_edits(session)
+        day = session.state.current_date.isoformat()
+        changed = False
+        if info is not None:
+            changed |= edits.set_info(school_id, day, info)
+        if ability is not None:
+            changed |= edits.set_ability(school_id, day, ability)
+        if changed:
+            edits.save(self.slots.slot_dir(session.slot_id))
+            self._use_school_edits(edits)
+            # 覚えている選手の能力・チームの強さを捨てて、補正をすぐ効かせる
+            state = session.state
+            seasons = state.seasons.values() if isinstance(state, CareerState) else [state]
+            for season in seasons:
+                resolver = getattr(season.engine, "main_match_resolver", None)
+                if resolver is not None and hasattr(resolver, "clear_cache"):
+                    resolver.clear_cache()
+        return edits
 
     def _planner(
         self,
@@ -676,6 +721,7 @@ class LiveGameService:
             year=self.year,
         )
         plan = planner.build_plan()
+        self._use_school_edits(SchoolEdits())
         if self.career_persistence is not None:
             if self.slots.slot_dir(slot).exists():
                 raise ValueError("既存セーブへ新規ゲームを上書きできません")
@@ -724,6 +770,7 @@ class LiveGameService:
             slot_id,
             source=source,
         )
+        self._use_school_edits(SchoolEdits.load(self.slots.slot_dir(slot_id)))
         if metadata[
             "resolver_contract"
         ] != self.resolver_contract:
@@ -839,6 +886,7 @@ class LiveGameService:
         from game_core.live_members import player_engine
 
         season = player_engine(self.repo, plan)
+        season.resolver.ability_generator.school_adjustments = self.school_adjustments
         return season.engine, season
 
     def _history_archive(self, slot_id: str) -> HistoricalMatchArchive:

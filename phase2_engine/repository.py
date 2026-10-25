@@ -38,12 +38,20 @@ class DataRepository:
             if not path.exists():
                 raise FileNotFoundError(path)
             self.tables[name] = self._read(path)
+        # 遊んでいるセーブで編集した設置者（学校ID → ownership_type）。
+        # マスターは書き換えず、これを優先する（phase2_engine/school_edits.py）
+        self.ownership_overrides: Dict[str, str] = {}
         self._index()
 
     @staticmethod
     def _read(path: Path) -> List[dict]:
         with path.open("r", encoding="utf-8-sig", newline="") as f:
             return list(csv.DictReader(f))
+
+    def ownership_type(self, school_id: str) -> str:
+        return self.ownership_overrides.get(
+            school_id, self.schools.get(school_id, {}).get("ownership_type", "")
+        )
 
     def _index(self) -> None:
         self.competitions = {r["competition_id"]: r for r in self.tables["competitions.csv"]}

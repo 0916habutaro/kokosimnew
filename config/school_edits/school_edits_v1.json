@@ -1,0 +1,31 @@
+{
+  "config_id": "school_edits_v1",
+  "revision": 1,
+  "status": "design_default_not_tuned",
+  "description_ja": "学校の編集（能力の補正）の設定。補正は選手の能力に足し、学校の強さはその選手から計算する（ADR-001・006）。1段階で、項目に含まれる選手の能力を points だけ上げ下げする。",
+  "step_range": 3,
+  "categories": {
+    "batting": {
+      "label": "打撃",
+      "fields": ["contact", "power", "plate_discipline", "strikeout_resistance", "bunt"],
+      "points": 3
+    },
+    "pitching": {
+      "label": "投手",
+      "fields": ["control", "stamina", "stuff", "strikeout", "groundball", "composure"],
+      "points": 3,
+      "velocity_kmh_points": 2,
+      "pitch_points": 3
+    },
+    "defense": {
+      "label": "守備",
+      "fields": ["fielding", "arm_strength", "throwing", "catching", "game_calling"],
+      "points": 3
+    },
+    "running": {
+      "label": "走力",
+      "fields": ["speed", "baserunning", "stealing"],
+      "points": 3
+    }
+  }
+}

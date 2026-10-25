@@ -128,6 +128,10 @@ class SchoolAwarePlayerAbilityGenerator:
         self.base_generator = PlayerAbilityGenerator(self.config_dir)
         self.intake_model = SchoolIntakeModel(self.config_dir)
         self.params = self.intake_model.params
+        # 学校の編集による補正（学校ID → 項目 → 段階）。セーブを読み込むときに
+        # 遊んでいるセーブの補正（同じ dict）を渡す。空なら補正しない
+        self.school_adjustments: dict[str, dict[str, int]] = {}
+        self._adjustment_model = None
 
     def _adjust_scalar(
         self,
@@ -260,11 +264,21 @@ class SchoolAwarePlayerAbilityGenerator:
             entry_year=player.entry_year,
             base_seed=base_seed,
         )
-        return self._adjust_snapshot(
+        snapshot = self._adjust_snapshot(
             base=base,
             player=player,
             profile=profile,
         )
+        steps = self.school_adjustments.get(player.school_id)
+        if steps:
+            if self._adjustment_model is None:
+                from .school_edits import SchoolAdjustmentModel
+
+                self._adjustment_model = SchoolAdjustmentModel(
+                    self.config_dir.parent
+                )
+            snapshot = self._adjustment_model.apply(snapshot, steps)
+        return snapshot
 
     def iter_roster(
         self,

@@ -77,3 +77,15 @@ class SchoolNames:
 
     def all(self) -> dict[str, str]:
         return dict(self._names)
+
+
+class EditedNames:
+    """学校の編集で変えた短い名前を優先する（日を渡すと、その日の名前）。"""
+
+    def __init__(self, base: SchoolNames, edits):
+        self._base = base
+        self.edits = edits
+
+    def __call__(self, school_id: str, day: str = "") -> str:
+        name = self.edits.info_on(school_id, day).get("short_name") if school_id else ""
+        return name or self._base(school_id)

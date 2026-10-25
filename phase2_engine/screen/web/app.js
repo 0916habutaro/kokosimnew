@@ -757,10 +757,13 @@ async function renderSchoolDetail(content, schoolId) {
   const d = await call("school", schoolId);
   if (!d) return;
   content.innerHTML = `<div class="head"><button class="btn small" id="sd-back">← 学校の一覧</button>
-      <h2>${esc(d.name)}</h2><span class="muted">${esc(d.prefecture)}・${esc(d.ownership)}　${esc(d.official_name)}</span></div>
+      <h2>${esc(d.name)}</h2><span class="muted">${esc(d.prefecture)}・${esc(d.ownership)}　${esc(d.official_name)}</span>
+      ${d.edit && Object.keys(d.edit.ability).length ? '<span class="badge">補正あり</span>' : ""}
+      <div class="spacer"></div><button class="btn small" id="sd-edit">編集…</button></div>
     <div class="dtabs">${SCHOOL_TABS.map(([k, l]) => `<button class="dtab ${st.tab === k ? "on" : ""}" data-k="${k}">${l}</button>`).join("")}</div>
     <div class="scroll" id="sd-body"></div>`;
   $("sd-back").addEventListener("click", () => { st.detail = null; renderPage(); });
+  $("sd-edit").addEventListener("click", () => editSchool(d));
   content.querySelectorAll(".dtab").forEach((b) => b.addEventListener("click", () => { st.tab = b.dataset.k; renderPage(); }));
   const body = $("sd-body");
   if (st.tab === "overview") body.innerHTML = schoolOverview(d);
@@ -768,6 +771,43 @@ async function renderSchoolDetail(content, schoolId) {
   if (st.tab === "koshien") body.innerHTML = schoolKoshien(d);
   if (st.tab === "members") body.innerHTML = schoolMembers(d);
   if (st.tab === "games") await schoolGames(body, d);
+}
+
+// 学校の編集（そのセーブの中だけ。実際の校名変更・実状に合わせる）
+const INFO_LABELS = { display_name: "表示名", short_name: "短い名前", ownership_type: "設置者" };
+
+async function editSchool(d) {
+  const e = d.edit;
+  const steps = [];
+  for (let v = -e.step_range; v <= e.step_range; v++) steps.push(v);
+  const stepLabel = (v) => (v > 0 ? `+${v}` : v === 0 ? "±0" : String(v));
+  const owner = (value) => (e.ownership_options.find((o) => o.value === value) || {}).label || value;
+  const history = e.history.map((h) => `<tr><td class="num">${esc(h.date.replaceAll("-", "."))}</td><td>${h.kind === "info"
+    ? Object.entries(h.changes).map(([k, v]) => `${INFO_LABELS[k]}：${esc(k === "ownership_type" ? owner(v) : v)}`).join("、")
+    : "能力の補正：" + (e.categories.map((c) => h.changes[c.key] ? `${c.label}${stepLabel(h.changes[c.key])}` : "").filter(Boolean).join("、") || "なし")}</td></tr>`).join("");
+  const body = `<div>変えた内容はこのセーブの中だけに残ります（変えた日は ${esc(state.header.date.replaceAll("-", "."))}）。
+      これより前の試合は当時の名前で表示します。</div>
+    <label class="field">表示名<input class="ask-input" id="ed-display" type="text" maxlength="60" value="${esc(e.display_name)}"></label>
+    <label class="field">短い名前<input class="ask-input" id="ed-short" type="text" maxlength="20" value="${esc(e.short_name)}"></label>
+    <label class="field">設置者<select class="ask-input" id="ed-owner">${e.ownership_options.map((o) =>
+      `<option value="${esc(o.value)}" ${o.value === e.ownership_type ? "selected" : ""}>${esc(o.label)}</option>`).join("")}</select></label>
+    <div class="field">能力の補正（今の部員と今後の新入生に効きます）</div>
+    <div class="adjust">${e.categories.map((c) => `<label>${esc(c.label)}<select id="ed-${c.key}">${steps.map((v) =>
+      `<option value="${v}" ${(e.ability[c.key] || 0) === v ? "selected" : ""}>${stepLabel(v)}</option>`).join("")}</select></label>`).join("")}</div>
+    ${history ? `<div class="field">変更の記録</div><table class="list">${history}</table>` : ""}`;
+  if (!await ask({ title: `「${d.name}」を編集する`, body, ok: "保存する" })) return;
+  const payload = {
+    display_name: $("ed-display").value.trim(),
+    short_name: $("ed-short").value.trim(),
+    ownership_type: $("ed-owner").value,
+    ability: Object.fromEntries(e.categories.map((c) => [c.key, Number($(`ed-${c.key}`).value)])),
+  };
+  const updated = await call("edit_school", d.school_id, payload);
+  if (!updated) return;
+  // 一覧の名前・能力も変わるので読み直す
+  state.schools.data = null;
+  showToast("保存しました");
+  renderPage();
 }
 
 function schoolOverview(d) {

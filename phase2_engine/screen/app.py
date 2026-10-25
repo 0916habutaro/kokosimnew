@@ -95,6 +95,12 @@ class ScreenApi:
         if job is not None:
             self._call(job)
 
+    def edit_school(self, school_id, payload) -> dict:
+        result = self._read(self._data.edit_school, school_id, payload)
+        # 補正を変えたら能力を計算し直しておく
+        self.warm_up()
+        return result
+
     def saves(self) -> dict:
         return self._read(self._data.saves)
 
