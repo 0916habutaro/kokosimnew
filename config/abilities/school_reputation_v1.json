@@ -2,7 +2,7 @@
   "config_id": "school_reputation_v1",
   "revision": 1,
   "status": "tuned_2026_10_25",
-  "description_ja": "学校の評判の初期値（ゲーム開始時点。game_definition.md §8「初期の勢力図」）。実際の甲子園の出場（historical_data/koshien_entrants.csv、1960年〜）・通算（koshien_records.csv）と直前の結果（2026年選抜・2025年夏・2025年秋）から点を出し、最近ほど重くする。評判の順位を入部品質の学校成分（school_intake_v1 の program_component と同じ平均・広がりの z）に変える。実際の記録は読むだけで、評判はゲームのデータ。",
+  "description_ja": "学校の評判の初期値（ゲーム開始時点。game_definition.md §10「初期の勢力図」）。実際の甲子園の出場（historical_data/koshien_entrants.csv、1915年〜）・通算（koshien_records.csv）と直前の結果（2026年選抜・2025年夏・2025年秋）から点を出し、最近ほど重くする。評判の順位を入部品質の学校成分（school_intake_v1 の program_component と同じ平均・広がりの z）に変える。実際の記録は読むだけで、評判はゲームのデータ。",
   "reference_year": 2026,
   "recency_half_life_years": 6.0,
   "appearance_points": {

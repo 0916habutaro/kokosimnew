@@ -82,7 +82,7 @@ ENTRANT_COLUMNS = (
 ENTRANT_KINDS = ("summer", "spring", "jingu")
 # played 出場、cancelled 選ばれたが大会が中止（出場に数える）、withdrawn 選ばれた後に辞退（数えない）
 ENTRANT_STATUSES = frozenset({"played", "cancelled", "withdrawn"})
-ENTRANT_FIRST_YEAR = 1960
+ENTRANT_FIRST_YEAR = 1915
 ALIAS_COLUMNS = ("prefecture_code", "team_name", "school_id", "notes")
 AUTUMN_REGIONAL_COLUMNS = ("year", "region_id", "team_name", "school_id", "source_id")
 
@@ -456,7 +456,8 @@ def validate_entrants(
     data_dir: Path, schools: list[dict], source_ids: set[str], records: list[dict],
 ) -> list[Issue]:
     """出場校一覧・校名の対応・2025年秋の地区大会。学校IDのある行は、学校の
-    都道府県が合い、出場の数が通算を超えず、通算に出場年の一覧があればその年に含まれる。"""
+    都道府県が合い、通算の行があり、出場の数が通算を超えず、通算に出場年の一覧が
+    あればその年に含まれる。"""
     issues: list[Issue] = []
     if not (data_dir / "koshien_entrants.csv").is_file():
         return issues
@@ -493,6 +494,8 @@ def validate_entrants(
     for (school_id, kind), years in sorted(counts.items()):
         record = listed.get((school_id, kind))
         if record is None:
+            # 照合済みの出場がある学校には通算の行がいる（画面の「〇回目」）
+            issues.append(Issue("entrants", 0, "NO_RECORD", f"{school_id}/{kind}"))
             continue
         if len(years) > int(record["appearances"]):
             issues.append(Issue("entrants", 0, "MORE_THAN_RECORD", f"{school_id}/{kind} {len(years)} > {record['appearances']}"))

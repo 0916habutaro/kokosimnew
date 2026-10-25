@@ -147,6 +147,9 @@ class KoshienValidationTests(unittest.TestCase):
         self.assertIn("YEAR", self.codes())
         self._entrants([{**row, "year": "2001", "prefecture_code": "14"}])
         self.assertIn("PREFECTURE", self.codes())
+        # 照合済みの出場があるのに通算の行がない
+        self._entrants([{**row, "year": "2001"}, {**row, "kind": "spring", "year": "2003", "edition": "75"}])
+        self.assertIn("NO_RECORD", self.codes())
         # 辞退は出場に数えない
         self._entrants([
             {**row, "year": "2001"}, {**row, "year": "2005", "edition": "87"},

@@ -81,8 +81,24 @@ class ActualKoshienTests(unittest.TestCase):
                 "SCHX1,spring,98,2,0,2,,0,,初戦敗退,,,S1,2026-10-23,\n",
                 encoding="utf-8",
             )
+            # 通算の行がない学校は、年ごとの出場から回数だけ数える（予備）
+            (Path(tmp) / "koshien_entrants.csv").write_text(
+                "kind,year,edition,prefecture_code,team_name,school_id,status,source_id\n"
+                "summer,2019,101,13,架空,SCHX1,played,S1\n"
+                "summer,1999,81,13,架空中,SCHX2,played,S1\n"
+                "summer,2004,86,13,架空,SCHX2,played,S1\n"
+                "spring,2022,94,13,架空,SCHX2,withdrawn,S1\n",
+                encoding="utf-8",
+            )
             actual = load_actual_koshien(path)
             self.assertEqual({}, load_actual_koshien(Path(tmp) / "none.csv"))
+        fallback = actual["SCHX2"]
+        self.assertEqual((2, 2004, True), (
+            fallback["summer"]["appearances"], fallback["summer"]["last_year"],
+            fallback["summer"]["counts_only"],
+        ))
+        self.assertNotIn("spring", fallback)  # 辞退は数えない
+        self.assertEqual(3, actual["SCHX1"]["summer"]["appearances"])  # 通算の行が優先
         summer = actual["SCHX1"]["summer"]
         self.assertEqual([2001, 2010, 2019], summer["years"])
         self.assertEqual([], actual["SCHX1"]["spring"]["years"])

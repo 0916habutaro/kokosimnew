@@ -18,6 +18,7 @@ from .paths import resolve_data_file
 from .randomness import shuffled
 from .repository import DataRepository
 from .senbatsu_selection import (
+    actual_last_koshien_years,
     load_selection_config,
     select_invitational,
     selection_region_ids,
@@ -201,6 +202,9 @@ class LiveSeasonDependencyRuntimeState:
     ] = field(default_factory=dict, repr=False)
     # 前の年度の3月の選抜の出場校（ゲーム内では試合をしない）。
     prior_invitational_entrant_ids: tuple[str, ...] = ()
+    # 学校 → 最後に甲子園（春夏）に出た年（前の年度までの実際の記録とゲーム内）。
+    # 空なら実際の記録（historical_data）から。21世紀枠の重みに使う
+    koshien_last_years: dict[str, int] = field(default_factory=dict, repr=False)
     # まだ履歴に保存していない試合の記録（スコア・個人成績）。
     # 「competition_id:match_id」→記録。選手で試合をするときに使う。
     pending_match_details: dict[str, dict] = field(
@@ -766,6 +770,21 @@ class LiveSeasonDependencyRuntimeState:
                 == str(rules_year(self.year))
             )
         }
+
+    def last_koshien_years(self) -> dict[str, int]:
+        """学校 → 最後に甲子園（春夏）に出た年。前の年度までの分に、この年度の
+        3月の選抜（前の年度の大会）と夏の甲子園の出場校を足す。"""
+        out = dict(
+            self.koshien_last_years
+            or actual_last_koshien_years(Path(self.repo.data_dir).parent / "historical_data")
+        )
+        for school_id in self.prior_invitational_entrant_ids:
+            out[school_id] = max(out.get(school_id, 0), self.year)
+        koshien = self._koshien()
+        if koshien is not None:
+            for school_id in koshien.runtime.entrant_school_ids:
+                out[school_id] = max(out.get(school_id, 0), self.year)
+        return out
 
     def _public_school_ids(self, century: Mapping) -> frozenset[str]:
         types = set(century["public_ownership_types"])
@@ -1819,6 +1838,7 @@ class LiveSeasonDependencyRuntimeState:
             self.annual_templates[competition_id]
         )
         basis: dict[str, str] = {}
+        last_years = self.last_koshien_years()
         annual.entrant_school_ids = select_invitational(
             self.selection_rules[competition_id],
             rankings,
@@ -1829,6 +1849,8 @@ class LiveSeasonDependencyRuntimeState:
             century_config=century,
             rng_seed=annual.rng_seed,
             basis=basis,
+            last_koshien_year=last_years,
+            year=self.year,
         )
         self.history.append({
             "action": "select_invitational",

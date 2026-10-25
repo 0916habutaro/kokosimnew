@@ -291,7 +291,8 @@ async function renderCompetitions(content) {
   const data = await call("competitions");
   if (!data) return;
   const f = state.competitions.filter;
-  if (!f.year) f.year = String(state.header.school_year);
+  // 年度が替わって選んでいた年度が一覧にないときは、今の年度に戻す
+  if (!f.year || !data.school_years.map(String).includes(f.year)) f.year = String(state.header.school_year);
   const years = data.school_years.map((y) => `<option value="${y}" ${String(y) === f.year ? "selected" : ""}>${y}年度</option>`).join("");
   const tabs = (items, key) => items.map(([value, label]) =>
     `<button class="tab ${f[key] === value ? "on" : ""}" data-key="${key}" data-value="${value}">${label}</button>`).join("");

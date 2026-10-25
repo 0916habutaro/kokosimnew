@@ -1,6 +1,6 @@
-"""学校の評判の初期値（ゲーム開始時点。game_definition.md §8「初期の勢力図」）。
+"""学校の評判の初期値（ゲーム開始時点。game_definition.md §10「初期の勢力図」）。
 
-実際の甲子園の出場（``historical_data/koshien_entrants.csv``、1960年〜）・通算
+実際の甲子園の出場（``historical_data/koshien_entrants.csv``、1915年〜）・通算
 （``koshien_records.csv``）と、直前の結果（2026年選抜・2025年夏・2025年秋）から
 学校ごとに点を出す。最近の出場ほど重く（``recency_half_life_years`` 年で半分）、
 甲子園に出たことのない学校は小さな乱数だけ。重みは
