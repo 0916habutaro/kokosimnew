@@ -336,7 +336,7 @@ EXE：`build_exe.bat`（中身は `kokosimnew.spec` の PyInstaller）で `dist\
 学校の評判（ゲーム開始時点の初期値）を実際の甲子園の出場から作り、選手の入部品質の学校成分（`school_intake` の `program_quality_z`）を評判から決める。学校の強さは選手から計算する（ADR-001・006 のまま）。
 
 **材料（実際のデータ。`historical_data/`、読むだけ）**
-- `koshien_entrants.csv`：1960〜2025年の夏・1960〜2026年の選抜・2022〜2025年の明治神宮大会の出場校（日本高野連の出場校一覧。参照ブランチ `reference/power-map-input-20261025` から取り込み）。2026年の夏はゲーム開始後の出来事なので入れない。学校IDは都道府県と校名で学校マスター・`koshien_records.csv` の旧校名（notes）・`koshien_team_aliases.csv`（主な旧校名の対応）と照合し、照合できない行（PL学園など今の学校マスターにない学校、継承が保留の学校）は空欄で残して使わない。2022年選抜の京都国際は辞退（`withdrawn`）、近江を繰り上げ出場として足した
+- `koshien_entrants.csv`：1915〜2025年の夏・1924〜2026年の選抜・2022〜2025年の明治神宮大会の出場校（1959年以前は2026-10-26に追加）（日本高野連の出場校一覧。参照ブランチ `reference/power-map-input-20261025` から取り込み）。2026年の夏はゲーム開始後の出来事なので入れない。学校IDは都道府県と校名で学校マスター・`koshien_records.csv` の旧校名（notes）・`koshien_team_aliases.csv`（主な旧校名の対応）と照合し、照合できない行（PL学園など今の学校マスターにない学校、継承が保留の学校）は空欄で残して使わない。2022年選抜の京都国際は辞退（`withdrawn`）、近江を繰り上げ出場として足した
 - `autumn_regional_entrants_2025.csv`：2025年秋の地区大会の出場校（二次資料）
 - `koshien_records.csv`（通算）、`data/initial_state/2026/prior_results.csv`（2025年秋の都道府県大会の上位）
 - 検証（`python -m historical_results.koshien`）：学校の都道府県が合う、出場の数が通算を超えない、通算に出場年の一覧があればその年に含まれる、ゲーム開始後の大会がない

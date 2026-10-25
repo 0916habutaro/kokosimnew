@@ -2,7 +2,8 @@
 
 実際の記録は ``historical_data/koshien_records.csv``（1行＝1校×夏／春の通算。
 夏は2025年、春は2026年の選抜まで）。ゲーム内の記録とは混ぜずに持ち、画面では
-合計と内訳を並べる。行がない学校はゲーム内の記録だけにする。
+合計と内訳を並べる。行がない学校はゲーム内の記録だけにする（年ごとの出場
+``koshien_entrants.csv`` に照合済みの出場がある学校は、出場回数だけそこから数える）。
 """
 from __future__ import annotations
 
@@ -11,6 +12,7 @@ from pathlib import Path
 
 
 RECORDS_PATH = Path("historical_data") / "koshien_records.csv"
+ENTRANTS_NAME = "koshien_entrants.csv"
 KINDS = ("summer", "spring")
 # 最高成績の比べ方（実際の記録の「3回戦」は3回戦で負けたこと）
 _RANKS = {
@@ -51,7 +53,28 @@ def load_actual(path: str | Path) -> dict[str, dict[str, dict]]:
                 "last_year": _int(row.get("last_appearance_year", "")),
                 "years": years,
             }
+    _add_entrant_counts(out, path.parent / ENTRANTS_NAME)
     return out
+
+
+def _add_entrant_counts(out: dict, path: Path) -> None:
+    """通算の行がない学校は、年ごとの出場（koshien_entrants.csv）から出場回数だけ数える（予備）。
+    勝敗は分からないので0とし、``counts_only`` を付ける。"""
+    if not path.is_file():
+        return
+    years: dict[tuple[str, str], list[int]] = {}
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            if row["school_id"] and row["kind"] in KINDS and row["status"] != "withdrawn":
+                years.setdefault((row["school_id"], row["kind"]), []).append(int(row["year"]))
+    for (school_id, kind), listed in years.items():
+        if kind in out.get(school_id, {}):
+            continue
+        out.setdefault(school_id, {})[kind] = {
+            "appearances": len(listed), "wins": 0, "losses": 0, "draws": 0,
+            "championships": 0, "best": "", "last_year": max(listed),
+            "years": sorted(listed), "counts_only": True,
+        }
 
 
 def combined(actual: dict | None, game: dict) -> dict:
