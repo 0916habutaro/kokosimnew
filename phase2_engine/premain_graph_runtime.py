@@ -52,6 +52,7 @@ class SeededCompetitionRuntimeState:
         qualifier_warnings: Sequence[str] = (),
         pre_main_match_resolver=None,
         main_match_resolver=None,
+        seed_entrants: Sequence[str] | None = None,
     ) -> "SeededCompetitionRuntimeState":
         if "SEED_EVENT" not in stage_by_code or "MAIN" not in stage_by_code:
             raise ValueError(
@@ -82,10 +83,11 @@ class SeededCompetitionRuntimeState:
             graph_type = "seed_main"
 
         sink: Dict[str, dict] = {}
+        # シード決めに出る学校（甲子園に出ている学校を除くことがある）
         seed_runtime = SeedEventRuntimeState.create(
             repo=repo,
             annual=annual,
-            entrants=entrants,
+            entrants=entrants if seed_entrants is None else seed_entrants,
             stage=stage_by_code["SEED_EVENT"],
             match_resolver=pre_main_match_resolver,
             resolved_match_sink=sink,
