@@ -14,6 +14,7 @@ from .brackets import (
 )
 from .models import AnnualCompetitionInput, CompetitionRun, Match, SeedAssignment, StageExecution
 from .main_tournament import bye_layout_for, run_main_single_elimination
+from .national_day_plan import plan_for, redraw_rounds
 from .randomness import shuffled
 from .repository import DataRepository
 from .direct_access_quota import effective_qualifier_group_output_slots
@@ -547,6 +548,14 @@ class TournamentEngine:
             reference_year=annual.year,
             bye_layout=bye_layout_for(
                 self.repo.competition(annual.competition_id).get("competition_type", "")
+            ),
+            redraw=redraw_rounds(
+                plan_for(
+                    self.repo.data_dir,
+                    self.repo.competition(annual.competition_id).get("competition_type", ""),
+                    len(main_entrants),
+                ),
+                0 if len(main_entrants) <= 1 else (len(main_entrants) - 1).bit_length(),
             ),
         )
         base_run.stage_executions.append(execution)

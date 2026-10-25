@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from typing import Dict, Iterable, List, Mapping, Sequence
 
 from .models import CompetitionRun, MatchResolution
+from .national_day_plan import match_dates, plan_for
 from .repository import DataRepository
 
 
@@ -138,6 +139,9 @@ class ScheduledCompetitionRuntime:
     # 全大会で共有し、季節の進行が甲子園の結果から毎日つくり直す）
     school_holds: Dict[str, str] = field(default_factory=dict, repr=False)
     respect_holds: bool = False
+    # 全国大会：試合ID → 計画の試合日（config/schedule/national_day_plans_v1.json）。
+    # あれば回戦の終わりを待たず、対戦が決まった試合から計画の日に入れる
+    match_plan: Dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_calendar_row(
@@ -206,6 +210,14 @@ class ScheduledCompetitionRuntime:
         )
         if school_days is not None:
             state.school_days = school_days
+        if hasattr(runtime, "match_ids_by_round") and hasattr(runtime, "redraw_rounds"):
+            plan = plan_for(
+                repo.data_dir,
+                repo.competition(competition_id).get("competition_type", ""),
+                len(runtime.entrant_school_ids),
+            )
+            if plan:
+                state.match_plan = match_dates(plan, runtime, state.calendar_dates)
         if school_holds is not None:
             state.school_holds = school_holds
             competition = repo.competition(competition_id)
@@ -421,6 +433,8 @@ class ScheduledCompetitionRuntime:
         if self.is_complete:
             self.calendar_gap_match_ids = []
             return []
+        if self.match_plan:
+            return self._schedule_planned()
         pending = self._pending_records()
         if pending:
             return pending
@@ -572,6 +586,29 @@ class ScheduledCompetitionRuntime:
             unresolved_gap
         )
         return assigned
+
+    def _schedule_planned(self) -> list[ScheduledRuntimeMatch]:
+        """対戦が決まった試合を、計画の日に入れる（全国大会）。"""
+        assigned = []
+        for row in sorted(self.runtime.ready_matches(), key=self._row_sort_key):
+            match_id = str(row["match_id"])
+            if match_id in self.matches or match_id not in self.match_plan:
+                continue
+            day = self.match_plan[match_id]
+            record = self._record_from_ready_row(
+                row, day, self.date_source_override or "national_day_plan_v1",
+            )
+            self.matches[match_id] = record
+            for team in (record.team1_id, record.team2_id):
+                if team:
+                    self.school_days.setdefault(team, set()).add(day)
+            assigned.append(record)
+        if assigned:
+            self.last_scheduled_date = max(
+                [self.last_scheduled_date] + [r.match_date for r in assigned]
+            )
+        self.calendar_gap_match_ids = []
+        return self._pending_records()
 
     def attach_ranking_sidecar(self, sidecar) -> None:
         """Attach an explicitly scheduled post-qualification event.

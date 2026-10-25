@@ -335,7 +335,7 @@ async function renderBracketPage(content, view) {
       ${view.tab === "entrants" ? "" : `<div class="tabs"><button class="btn small" id="z-out" title="縮小">−</button>
       <button class="btn small" id="z-fit" title="全体">全体</button>
       <button class="btn small" id="z-in" title="拡大">＋</button></div>`}</div>
-    ${view.tab === "entrants" ? `<div class="scroll">${entrantsTable(data.entrants)}</div>` : `<div class="body">
+    ${view.tab === "entrants" ? entrantsTable(data.entrants) : `<div class="body">
       <div class="paper-wrap" id="paper-wrap"></div>
       <aside class="side" id="b-side"><div class="empty">トーナメント表の試合（交点）を押すと<br>スコアが出ます。<br>学校名を押すと勝ち上がりが<br>青く表示されます。</div></aside>
     </div>`}`;
@@ -360,12 +360,17 @@ async function renderBracketPage(content, view) {
 }
 
 // 全国大会の出場校一覧（都道府県順、甲子園の通算〇回目つき）
+// 全国大会の出場校一覧：スクロールなしで1画面に収まるカードの並び
+// （夏49校＝7×7、選抜32校＝8×4、神宮10校＝5×2）
 function entrantsTable(rows) {
-  const counted = rows.some((r) => r.appearance);
-  return `<div class="panel"><table class="list"><tr><th>都道府県</th><th>学校</th>${counted ? "<th>出場</th>" : ""}</tr>
-    ${rows.map((r) => `<tr><td>${esc(r.prefecture)}</td><td><span class="link" data-school="${esc(r.school_id)}">${esc(r.name)}</span></td>
-      ${counted ? `<td>${r.appearance ? `<span class="num">${r.appearance.total}回目</span><span class="muted">${r.appearance.actual ? `（実際${r.appearance.actual}＋ゲーム${r.appearance.game}）` : ""}</span>` : ""}</td>` : ""}</tr>`).join("")}
-  </table></div>`;
+  const cols = rows.length > 32 ? 7 : rows.length > 16 ? 8 : Math.max(1, Math.ceil(rows.length / 2));
+  return `<div class="cards" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${Math.ceil(rows.length / cols)},1fr)">
+    ${rows.map((r) => `<div class="card link" data-school="${esc(r.school_id)}">
+      <div class="card-area">${esc(r.area)}</div>
+      <div class="card-name">${esc(r.name)}</div>
+      ${r.appearance_label ? `<div class="card-count${r.appearance_label === "初出場" ? " first" : ""}">${esc(r.appearance_label)}</div>` : ""}
+    </div>`).join("")}
+  </div>`;
 }
 
 function setZoom(zoom) {
@@ -392,12 +397,16 @@ function drawPaper() {
   const c = data.competition;
   const name = (id) => data.names[id] || "";
   const main = data.main;
-  const champion = main && main.champion_id;
+  const champion = main && (main.champion_id || main.champion_after_draw);
   paper.innerHTML = `<div class="title">${esc(c.name)}${champion ? `　<span class="champ">優勝 ${esc(name(champion))}</span>` : ""}</div>`;
   if (!main) {
     paper.innerHTML += `<div class="muted" style="color:#7a756a">本大会の組み合わせはまだ決まっていません。</div>`;
   } else {
-    paper.append(bracketSvg(main, name));
+    const row = document.createElement("div");
+    row.className = "paper-row";
+    row.append(bracketSvg(main, name));
+    if ((main.later_rounds || []).length) row.append(laterRounds(main.later_rounds, name));
+    paper.append(row);
   }
   wrap.replaceChildren(paper);
   if (data.other_matches.length) wrap.append(otherMatches(data.other_matches, name));
@@ -410,7 +419,8 @@ function bracketSvg(main, name) {
   const nameW = Math.max(NAME_W, Math.min(300, longest * 13 + 16));
   const X = (round) => nameW + round * COL_W;
   const Y = (y) => 26 + y * ROW + ROW / 2;
-  const width = X(main.total_rounds) + 150;
+  // 準々決勝から抽選し直す大会は、優勝校の欄の代わりに右へ回戦の列を並べる
+  const width = X(main.total_rounds) + ((main.later_rounds || []).length ? 24 : 150);
   const height = 26 + main.rows.length * ROW + 10;
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   svg.setAttribute("width", width * state.zoom);
@@ -454,6 +464,22 @@ function bracketSvg(main, name) {
     texts.append(svgEl("text", { x: xf + 34, y: yf + 5, class: "tname champion" }, name(champion)));
   }
   return svg;
+}
+
+// 前の回戦のあとに抽選する回戦（夏の甲子園の準々決勝から）。抽選前は「抽選待ち」
+function laterRounds(rounds, name) {
+  const box = document.createElement("div");
+  box.className = "later";
+  const view = state.competitions.view;
+  box.innerHTML = rounds.map((r) => `<div class="later-round"><div class="rlabel">${esc(r.round_name)}</div>
+    ${r.drawn ? r.matches.map((m) => `<div class="later-match click" data-id="${esc(m.match_id)}">
+      <div class="${m.winner_id && m.winner_id === m.team1_id ? "w" : ""}"><span>${esc(name(m.team1_id))}</span><b>${m.team1_score ?? ""}</b></div>
+      <div class="${m.winner_id && m.winner_id === m.team2_id ? "w" : ""}"><span>${esc(name(m.team2_id))}</span><b>${m.team2_score ?? ""}</b></div>
+      ${m.match_date ? `<small>${slashDate(m.match_date)}</small>` : ""}</div>`).join("")
+      : '<div class="later-wait">抽選待ち</div>'}</div>`).join("");
+  box.querySelectorAll(".later-match").forEach((el) => el.addEventListener("click", () =>
+    openMatch(view.year, view.id, el.dataset.id)));
+  return box;
 }
 
 function otherMatches(matches, name) {
@@ -817,13 +843,14 @@ function schoolOverview(d) {
     : '<span class="muted">能力は選手で試合をしているときに出ます</span>';
   const rows = d.this_year.map((r) => `<tr><td>${esc(r.competition_name)}</td><td class="n">${r.wins}-${r.losses}</td><td>${badge(r.score, r.finish)}</td></tr>`).join("");
   return `<div class="split">
-    <div class="panel"><h3>能力</h3>${a ? abilityRadar(a) : ""}<div class="bars">${bars}</div></div>
+    <div class="panel"><h3>能力</h3>${a ? `<div class="radar-row">${abilityRadar(a)}
+      <div class="overall-rank"><span>総合</span>${rankHtml(a.overall)}</div></div>` : ""}<div class="bars">${bars}</div></div>
     <div class="panel"><h3>${d.school_year}年度の成績</h3>${rows ? `<table class="list"><tr><th>大会</th><th class="n">勝敗</th><th>成績</th></tr>${rows}</table>` : '<div class="muted">まだ試合をしていません</div>'}</div>
   </div>`;
 }
 
-// 能力のレーダーチャート（打撃・投手・守備・走力・総合）
-const RADAR_AXES = [["overall", "総合"], ["batting", "打撃"], ["pitching", "投手"], ["defense", "守備"], ["running", "走力"]];
+// 能力のレーダーチャート（ミート・長打・走力・守備・エース・投手層）。総合は横に大きく出す
+const RADAR_AXES = [["contact", "ミート"], ["power", "長打"], ["running", "走力"], ["defense", "守備"], ["ace", "エース"], ["pitching_depth", "投手層"]];
 
 function abilityRadar(a) {
   const size = 260, center = size / 2, radius = 88;

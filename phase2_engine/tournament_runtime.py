@@ -12,8 +12,10 @@ from .main_tournament import (
     BYE_LAYOUT_SPREAD,
     bye_layout_for,
     generate_main_slots,
+    redraw_order,
     ordered_seed_ids,
 )
+from .national_day_plan import plan_for, redraw_rounds
 from .models import (
     AnnualCompetitionInput,
     CompetitionOutcome,
@@ -98,6 +100,9 @@ class MainTournamentRuntimeState:
     runner_up_school_id: str = ""
     draw_source: str = "deterministic_standard"
     warnings: List[str] = field(default_factory=list)
+    # 前の回戦が終わったあとに抽選する回戦 → 前の回戦を上から何組に分けて抽選するか
+    # （夏の甲子園の準々決勝・準決勝。config/schedule/national_day_plans_v1.json）
+    redraw_rounds: Dict[int, int] = field(default_factory=dict)
 
     @classmethod
     def create(
@@ -114,6 +119,7 @@ class MainTournamentRuntimeState:
         winner_overrides: Dict[str, str] | None = None,
         match_resolver=None,
         bye_layout: str = BYE_LAYOUT_SPREAD,
+        redraw_rounds: Dict[int, int] | None = None,
     ) -> "MainTournamentRuntimeState":
         entrants = list(dict.fromkeys(entrants))
         if not entrants:
@@ -160,6 +166,7 @@ class MainTournamentRuntimeState:
                 if slot_override is not None and len(slot_override)
                 else "deterministic_standard"
             ),
+            redraw_rounds=dict(redraw_rounds or {}),
         )
         state._build_bracket_skeleton()
         state._validate()
@@ -233,6 +240,11 @@ class MainTournamentRuntimeState:
             winner_overrides=annual.main_match_winner_overrides,
             match_resolver=match_resolver,
             bye_layout=bye_layout_for(competition.get("competition_type", "")),
+        )
+        # 全国大会：準々決勝以降を前の回戦のあとに抽選するか（日ごとの計画の設定）
+        state.redraw_rounds = redraw_rounds(
+            plan_for(repo.data_dir, competition.get("competition_type", ""), len(entrants)),
+            state.total_rounds,
         )
         if annual.direct_main_entry_school_ids:
             state.warnings.append(
@@ -359,6 +371,10 @@ class MainTournamentRuntimeState:
             self.champion_school_id = match.winner
             self.runner_up_school_id = match.loser
             return
+        if match.round_no + 1 in self.redraw_rounds:
+            # 次の回戦は、この回戦が全部終わってから抽選で組む
+            self._redraw_if_due(match.round_no + 1)
+            return
         next_match = self.matches[match.next_match_id]
         if match.next_match_side == "team1":
             if (
@@ -382,6 +398,28 @@ class MainTournamentRuntimeState:
             raise ValueError(
                 f"{match.match_id}: invalid next_match_side"
             )
+
+    def _redraw_if_due(self, round_no: int) -> None:
+        """前の回戦が全部終わっていれば、抽選してこの回戦の対戦を決める。"""
+        previous = [self.matches[m] for m in self.match_ids_by_round[round_no - 1]]
+        if any(m.status not in {MATCH_COMPLETED, MATCH_BYE} for m in previous):
+            return
+        order = redraw_order(
+            [m.winner for m in previous], self.redraw_rounds[round_no],
+            self.generation_seed, f"{self.competition_id}:{self.stage_id}:MAIN",
+            round_no,
+        )
+        for index, match_id in enumerate(self.match_ids_by_round[round_no]):
+            match = self.matches[match_id]
+            match.team1, match.team2 = order[index * 2], order[index * 2 + 1]
+
+    def is_drawn(self, round_no: int) -> bool:
+        """その回戦の対戦が決まっているか（抽選する回戦は、抽選が済んでいるか）。"""
+        return all(
+            self.matches[m].team1 and self.matches[m].team2
+            or self.matches[m].status in {MATCH_COMPLETED, MATCH_BYE}
+            for m in self.match_ids_by_round.get(round_no, [])
+        )
 
     def ready_matches(self) -> list[dict]:
         return [

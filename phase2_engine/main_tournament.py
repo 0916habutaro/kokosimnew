@@ -217,25 +217,40 @@ def _paired_bye_slots(
 ) -> List[str]:
     """2回戦の組（1回戦2試合分＝4枠）ごとに形を決める。
     BB：不戦勝どうし（2回戦から始まる2校が対戦）、BT：不戦勝の1校と1回戦の勝者、
-    TT：1回戦の勝者どうし。"""
+    TT：1回戦の勝者どうし。
+
+    組み合わせ表の並びは実際の夏の甲子園と同じく、上に BB をまとめ、次に BT
+    （2回戦から始まる学校が上、その下に相手の1回戦）、その下に TT。学校の位置は
+    抽選（乱数）。"""
     byes = bracket_size - len(teams)
     blocks = bracket_size // 4
     kinds = ["BB"] * (byes // 2) + ["BT"] * (byes % 2)
     kinds += ["TT"] * (blocks - len(kinds))
-    kinds = shuffled(kinds, base_seed, f"{namespace}:paired_bye_blocks")
-    rng = rng_for(base_seed, f"{namespace}:paired_bye_sides")
     layout: List[bool] = []  # True＝学校が入る枠
     for kind in kinds:
-        pairs = {"BB": ["B", "B"], "BT": ["B", "T"], "TT": ["T", "T"]}[kind]
-        if rng.random() < 0.5:
-            pairs.reverse()
-        for pair in pairs:
-            if pair == "T":
-                layout += [True, True]
-            else:
-                layout += [True, False] if rng.random() < 0.5 else [False, True]
+        if kind == "BB":
+            layout += [True, False, True, False]
+        elif kind == "BT":
+            layout += [True, False, True, True]
+        else:
+            layout += [True, True, True, True]
     drawn = iter(shuffled(list(teams), base_seed, f"{namespace}:unseeded_draw"))
     return [next(drawn) if filled else "" for filled in layout]
+
+
+def redraw_order(
+    winners: Sequence[str], groups: int, base_seed: int, namespace: str, round_no: int,
+) -> List[str]:
+    """前の回戦が終わったあとに抽選する回戦（夏の甲子園の準々決勝・準決勝）。
+
+    前の回戦の勝者を、組み合わせ表の上から ``groups`` 組に分け、組ごとに抽選して
+    並べ直す。並べ直した順に2校ずつがその回戦の対戦になる。"""
+    size = len(winners) // max(1, groups)
+    out: List[str] = []
+    for index in range(groups):
+        chunk = list(winners[index * size:(index + 1) * size])
+        out += shuffled(chunk, base_seed, f"{namespace}:redraw:R{round_no}:G{index + 1}")
+    return out
 
 
 def _round_name(round_no: int, total_rounds: int) -> str:
@@ -264,6 +279,7 @@ def run_main_single_elimination(
     resolved_match_sink: Dict[str, dict] | None = None,
     reference_year: int | None = None,
     bye_layout: str = BYE_LAYOUT_SPREAD,
+    redraw: Dict[int, int] | None = None,
 ) -> Tuple[StageExecution, CompetitionOutcome]:
     entrants = list(dict.fromkeys(entrants))
     if not entrants:
@@ -325,6 +341,11 @@ def run_main_single_elimination(
     match_ids_by_round: Dict[int, List[str]] = {}
 
     for round_no in range(1, total_rounds + 1):
+        if redraw and round_no in redraw:
+            current = redraw_order(
+                current, redraw[round_no], base_seed,
+                f"{competition_id}:{stage_id}:MAIN", round_no,
+            )
         round_matches: List[str] = []
         nxt: List[str] = []
         match_count = len(current) // 2

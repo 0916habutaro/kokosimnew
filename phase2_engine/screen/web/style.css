@@ -78,6 +78,24 @@ table.list td.n, table.list th.n { text-align: right; font-family: var(--num); }
 .paper { background: var(--paper); border-radius: 4px; box-shadow: 0 6px 24px rgba(0,0,0,.45); display: inline-block; padding: 18px 22px 22px; }
 .paper .title { color: var(--paper-ink); font-weight: 800; font-size: 16px; margin-bottom: 6px; }
 .paper .champ { color: var(--red); font-weight: 800; }
+/* 全国大会の出場校一覧（カード。1画面に収める） */
+.cards { flex: 1; min-height: 0; display: grid; gap: 8px; padding: 14px 18px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; display: flex; flex-direction: column; justify-content: center; min-height: 0; overflow: hidden; cursor: pointer; }
+.card:hover { border-color: var(--accent); }
+.card-area { color: var(--muted); font-size: 11px; }
+.card-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.card-count { font-size: 12px; color: var(--muted); }
+.card-count.first { color: var(--accent); }
+/* 抽選で決める回戦（準々決勝から）。トーナメント表の右に並べる */
+.paper-row { display: flex; align-items: flex-start; gap: 18px; }
+.later { display: flex; gap: 14px; padding-top: 4px; color: var(--paper-ink); }
+.later-round { display: flex; flex-direction: column; gap: 10px; min-width: 170px; }
+.later-round .rlabel { color: #7a756a; font-size: 11px; }
+.later-match { border: 1px solid var(--paper-line); border-radius: 4px; padding: 4px 8px; cursor: pointer; background: #fffdf6; }
+.later-match div { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.later-match div.w { color: var(--red); font-weight: 700; }
+.later-match small { color: #7a756a; font-size: 11px; }
+.later-wait { color: #7a756a; border: 1px dashed var(--paper-line); border-radius: 4px; padding: 10px; text-align: center; font-size: 13px; }
 svg text { font-family: var(--ui); }
 .seg { stroke: var(--paper-line); stroke-width: 1.2; fill: none; }
 .seg.win { stroke: var(--red); stroke-width: 2.4; }
@@ -191,6 +209,9 @@ nav button[disabled] { opacity: .35; cursor: default; }
 .r-S { color: #ff6b6b; fill: #ff6b6b; } .r-A { color: #f2b233; fill: #f2b233; } .r-B { color: #e6d36a; fill: #e6d36a; } .r-C { color: #7fd38a; fill: #7fd38a; }
 .r-D { color: #6ec1e4; fill: #6ec1e4; } .r-E { color: #8ea3b6; fill: #8ea3b6; } .r-F { color: #7b8794; fill: #7b8794; } .r-G { color: #5d6873; fill: #5d6873; }
 .radar { display: block; margin: 0 auto 8px; }
+.radar-row { display: flex; align-items: center; justify-content: center; gap: 18px; }
+.overall-rank { display: flex; flex-direction: column; align-items: center; color: var(--muted); font-size: 12px; }
+.overall-rank .rank { font-size: 56px; line-height: 1.1; }
 .radar .ring { fill: none; stroke: var(--line); stroke-width: 1; }
 .radar .shape { fill: rgba(242, 178, 51, 0.25); stroke: var(--accent); stroke-width: 2; }
 .radar text { fill: var(--muted); font-size: 12px; }
