@@ -10,13 +10,17 @@
 | `koshien_records.csv` | 1校×1種別の通算 | 画面が読む。出場ごとの行がある学校は `koshien_appearances.csv` から数えた値と一致する。通算だけの登録も可 |
 | `koshien_special_results.csv` | 主催者による裁定1件 | 不戦勝・不戦敗を試合結果W/L/Dから分離。算入未確定を `unknown` で保持（現段階はヘッダーのみ） |
 | `koshien_match_evidence.csv` | 実際の甲子園の試合に関する照合済み証拠1行 | 相手校・得失点・当時校名・回戦・資料IDを保存する継続的な史実証拠台帳。ゲーム結果や通算CSVに直接加算しない |
+| `koshien_entrants.csv` | 1大会の出場校1校（1960〜2025年の夏、1960〜2026年の選抜、2022〜2025年の明治神宮大会） | 初期の勢力図（学校の評判、`game_definition.md` §10）。日本高野連の出場校一覧から。当時の校名と都道府県で今の学校に照合し、照合できない行は `school_id` が空欄（使わない）。`status`：played 出場、cancelled 選出後に大会中止、withdrawn 選出後に辞退（出場に数えない） |
+| `koshien_team_aliases.csv` | 当時の校名1つ | 出場校一覧の照合に使った主な旧校名・略称と今の学校。`koshien_records.csv` の notes にある旧校名は自動で使った |
+| `autumn_regional_entrants_2025.csv` | 2025年秋の地区大会の出場校1校 | 初期の勢力図の「直前の実力」。二次資料（高校野球ドットコムの大会結果）。照合できない行は `school_id` が空欄 |
 
 - 範囲：夏は第107回（2025年）まで、春（選抜）は第98回（2026年）まで。ゲームは2026年4月に始まり、2026年の選抜は実際の大会なのでここに含む。ゲーム内の記録は夏は第108回、春は第99回から
 - 今の学校マスター（`data/master/schools.csv`）にある学校だけ。前身校・統合前の校名での出場は、高野連の「〇回目」の数え方に合わせて今の学校に含め、`notes` に書く
 - 大会が中止で試合のない出場（1918年の夏、2020年の選抜）は、出場回数に数え、勝敗には数えない。2020年の交流試合は勝敗に数えない
 - `results` は実施試合ごとの勝敗（W 勝ち、L 負け、D 引き分け）。不戦勝・不戦敗はW/Lへ混ぜず `koshien_special_results.csv` に裁定事実と通算算入（1／0／unknown）を別登録。`result` はその大会の成績（優勝／準優勝／ベスト4／ベスト8／3回戦／2回戦／1回戦。負けた回戦）。[共通設計](../docs/design/koshien_special_results.md) を参照
 - 出場ごとの記録がない学校は、`koshien_records.csv` に通算だけを置いてよい（`koshien_appearances.csv` に行がない）。その場合は出典の値をそのまま使い、`best_result` に「初戦敗退」（何回戦か不明）を使ってよい。準優勝の回数が分からないときは `runner_ups` を空欄にする。`appearance_years` も空欄でよい
-- 検証：`python -m historical_results.koshien`
+- 検証：`python -m historical_results.koshien`（出場校一覧は、学校の都道府県・通算の出場数・通算の出場年の一覧と食い違わないことも確かめる）
+- 出場校一覧の取り込み（2026-10-25）：参照ブランチ `reference/power-map-input-20261025` の `input/national_entrants_1960_2026.csv`（5,101行）と `input/autumn_regional_entrants_2025.csv`（121行）から。2026年の夏の49行は入れていない。照合できた行は出場校一覧4,778行・地区大会114行、できなかった行は274行・7行。2022年選抜の京都国際（選出後に辞退）と繰り上げの近江は朝日新聞の大会アーカイブで直した
 
 ### 集め終わった都道府県
 

@@ -15,6 +15,9 @@ a = Analysis(
         (str(ROOT / "data"), "data"),
         (str(ROOT / "config"), "config"),
         (str(ROOT / "historical_data" / "koshien_records.csv"), "historical_data"),
+        # 学校の評判の初期値（game_core/school_reputation.py）が読む
+        (str(ROOT / "historical_data" / "koshien_entrants.csv"), "historical_data"),
+        (str(ROOT / "historical_data" / "autumn_regional_entrants_2025.csv"), "historical_data"),
         (str(ROOT / "phase2_engine" / "screen" / "web"), "phase2_engine/screen/web"),
     ],
     excludes=["tkinter"],

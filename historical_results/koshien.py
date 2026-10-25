@@ -2,6 +2,10 @@
 
 - ``historical_data/koshien_appearances.csv``：1行＝1校の1回の出場（年・試合の勝敗・成績・出典）
 - ``historical_data/koshien_records.csv``：1行＝1校×1種別の通算（画面が読む）
+- ``historical_data/koshien_entrants.csv``：1行＝1大会の出場校1校（1960年〜、日本高野連の出場校一覧）。
+  初期の勢力図（学校の評判）が読む。学校IDは都道府県と校名で照合し、照合できない行は空欄
+- ``historical_data/koshien_team_aliases.csv``：出場校一覧の当時の校名 → 今の学校（照合の手がかり）
+- ``historical_data/autumn_regional_entrants_2025.csv``：2025年秋の地区大会の出場校
 
 通算は出場の記録から数えたものと一致しなければならない。ゲームの記録とは混ぜない。
 """
@@ -70,6 +74,17 @@ HISTORICAL_ATTRIBUTION_COLUMNS = (
     "source_id",
 )
 ATTRIBUTION_COUNT_VALUES = frozenset({"0", "1", "unknown"})
+
+ENTRANT_COLUMNS = (
+    "kind", "year", "edition", "prefecture_code", "team_name", "school_id",
+    "status", "source_id",
+)
+ENTRANT_KINDS = ("summer", "spring", "jingu")
+# played 出場、cancelled 選ばれたが大会が中止（出場に数える）、withdrawn 選ばれた後に辞退（数えない）
+ENTRANT_STATUSES = frozenset({"played", "cancelled", "withdrawn"})
+ENTRANT_FIRST_YEAR = 1960
+ALIAS_COLUMNS = ("prefecture_code", "team_name", "school_id", "notes")
+AUTUMN_REGIONAL_COLUMNS = ("year", "region_id", "team_name", "school_id", "source_id")
 
 
 @dataclass(frozen=True)
@@ -433,6 +448,73 @@ def validate(
                 error("records", line, "MISMATCH", f"{'/'.join(key)} {name}: {row[name]} != {value}")
     for key in sorted(set(totals) - keys):
         error("records", 0, "MISSING_RECORD", "/".join(key))
+    issues.extend(validate_entrants(data_dir, schools, source_ids, records))
+    return issues
+
+
+def validate_entrants(
+    data_dir: Path, schools: list[dict], source_ids: set[str], records: list[dict],
+) -> list[Issue]:
+    """出場校一覧・校名の対応・2025年秋の地区大会。学校IDのある行は、学校の
+    都道府県が合い、出場の数が通算を超えず、通算に出場年の一覧があればその年に含まれる。"""
+    issues: list[Issue] = []
+    if not (data_dir / "koshien_entrants.csv").is_file():
+        return issues
+    prefecture = {row["school_id"]: row.get("prefecture_code", "") for row in schools}
+    listed = {
+        (row["school_id"], row["kind"]): row for row in records
+    }
+    columns, rows = read_rows(data_dir / "koshien_entrants.csv")
+    if tuple(columns) != ENTRANT_COLUMNS:
+        return [Issue("entrants", 1, "SCHEMA", repr(columns))]
+    counts: dict[tuple[str, str], list[int]] = defaultdict(list)
+    seen: set[tuple] = set()
+    for line, row in enumerate(rows, 2):
+        if row["kind"] not in ENTRANT_KINDS or row["status"] not in ENTRANT_STATUSES:
+            issues.append(Issue("entrants", line, "VALUE", f"{row['kind']}/{row['status']}"))
+            continue
+        year = int(row["year"])
+        if year < ENTRANT_FIRST_YEAR or year > AS_OF_YEAR.get(row["kind"], 2025):
+            # ゲーム開始（2026年4月）より後の大会は入れない
+            issues.append(Issue("entrants", line, "YEAR", row["year"]))
+        if row["source_id"] not in source_ids:
+            issues.append(Issue("entrants", line, "UNKNOWN_SOURCE", row["source_id"]))
+        key = (row["kind"], row["year"], row["prefecture_code"], row["team_name"])
+        if key in seen:
+            issues.append(Issue("entrants", line, "DUPLICATE", "/".join(key)))
+        seen.add(key)
+        school_id = row["school_id"]
+        if not school_id:
+            continue
+        if prefecture.get(school_id) != row["prefecture_code"]:
+            issues.append(Issue("entrants", line, "PREFECTURE", school_id))
+        if row["kind"] in KINDS and row["status"] != "withdrawn":
+            counts[(school_id, row["kind"])].append(year)
+    for (school_id, kind), years in sorted(counts.items()):
+        record = listed.get((school_id, kind))
+        if record is None:
+            continue
+        if len(years) > int(record["appearances"]):
+            issues.append(Issue("entrants", 0, "MORE_THAN_RECORD", f"{school_id}/{kind} {len(years)} > {record['appearances']}"))
+        if record["appearance_years"]:
+            known = {int(y) for y in record["appearance_years"].split(";")}
+            extra = sorted(set(years) - known)
+            if extra:
+                issues.append(Issue("entrants", 0, "YEAR_NOT_IN_RECORD", f"{school_id}/{kind} {extra}"))
+    columns, rows = read_rows(data_dir / "koshien_team_aliases.csv")
+    if tuple(columns) != ALIAS_COLUMNS:
+        issues.append(Issue("aliases", 1, "SCHEMA", repr(columns)))
+    for line, row in enumerate(rows, 2):
+        if prefecture.get(row["school_id"]) != row["prefecture_code"]:
+            issues.append(Issue("aliases", line, "PREFECTURE", row["school_id"]))
+    columns, rows = read_rows(data_dir / "autumn_regional_entrants_2025.csv")
+    if tuple(columns) != AUTUMN_REGIONAL_COLUMNS:
+        issues.append(Issue("autumn_regional", 1, "SCHEMA", repr(columns)))
+    for line, row in enumerate(rows, 2):
+        if row["school_id"] and row["school_id"] not in prefecture:
+            issues.append(Issue("autumn_regional", line, "UNKNOWN_SCHOOL", row["school_id"]))
+        if row["source_id"] not in source_ids:
+            issues.append(Issue("autumn_regional", line, "UNKNOWN_SOURCE", row["source_id"]))
     return issues
 
 

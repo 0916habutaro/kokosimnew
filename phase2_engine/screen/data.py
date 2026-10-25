@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Callable
 
 from game_core.school_edits import SchoolAdjustmentModel
+from game_core.school_reputation import reputation_for
 
 from ..career_state import CareerState
 from ..paths import resolve_data_file
@@ -1210,6 +1211,10 @@ class GameScreenData:
             "official_name": self._official_name(school_id),
             "prefecture": self.prefectures.get(school.get("prefecture_code"), ""),
             "ownership": self._ownership(school_id),
+            # 評判（ゲーム開始時の初期値。game_core/school_reputation.py）のランク
+            "reputation_rank": reputation_for(str(self.config_root.parent)).rank(
+                school_id, self.session.plan.rng_seed,
+            ),
             "school_year": year,
             "abilities": abilities,
             "edit": self._edit_form(school_id),

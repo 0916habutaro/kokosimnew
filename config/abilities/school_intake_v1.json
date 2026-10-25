@@ -1,57 +1,57 @@
 {
   "config_id": "school_intake_v1",
-  "revision": 1,
+  "revision": 2,
   "status": "design_default_not_tuned",
-  "description_ja": "架空選手生成用の合成入部品質モデル。実在校の実力評価ではなく、学校間・年度間の選手流入差を再現するための暫定分布。",
+  "description_ja": "架空選手生成用の入部品質モデル。学校成分（program）は学校の評判（school_reputation_v1。実際の甲子園の出場などから作るゲーム開始時の評判）の順位を、この平均・広がりの z に変えたもの。年度ごとの当たり外れ（cohort）は乱数。選手の能力に足すだけで、学校の強さは選手から計算する。",
   "quality_model": {
     "program_component": {
+      "source": "reputation",
       "mean": 0.0,
       "stddev": 1.0,
-      "weight": 0.8
+      "weight": 0.975609756097561
     },
     "cohort_component": {
       "mean": 0.0,
       "stddev": 1.0,
-      "weight": 0.6
+      "weight": 0.219512195121951
     },
     "combined_clip": {
-      "min": -2.5,
-      "max": 2.5
+      "min": -3.5,
+      "max": 3.5
     }
   },
   "ability_adjustment_per_quality_z": {
     "batter": {
-      "contact": 4.5,
-      "power": 5.0,
-      "plate_discipline": 4.0,
-      "strikeout_resistance": 4.0,
-      "bunt": 2.0,
-      "speed": 2.5,
-      "baserunning": 3.0,
-      "stealing": 3.0,
-      "arm_strength": 3.0,
-      "fielding": 4.0,
-      "throwing": 3.5
+      "contact": 13.5,
+      "power": 15.0,
+      "plate_discipline": 12.0,
+      "strikeout_resistance": 12.0,
+      "bunt": 6.0,
+      "speed": 7.5,
+      "baserunning": 9.0,
+      "stealing": 9.0,
+      "arm_strength": 9.0,
+      "fielding": 12.0,
+      "throwing": 10.5
     },
     "catcher": {
-      "catching": 4.5,
-      "game_calling": 4.0
+      "catching": 13.5,
+      "game_calling": 12.0
     },
     "pitcher": {
-      "velocity_kmh": 2.0,
-      "control": 4.5,
-      "stamina": 3.5,
-      "stuff": 5.0,
-      "strikeout": 4.5,
-      "groundball": 3.5,
-      "composure": 3.0
+      "velocity_kmh": 6.0,
+      "control": 13.5,
+      "stamina": 10.5,
+      "stuff": 15.0,
+      "strikeout": 13.5,
+      "groundball": 10.5,
+      "composure": 9.0
     },
-    "primary_position_aptitude": 2.0,
-    "pitch_quality": 4.0,
-    "pitch_command": 4.0
+    "primary_position_aptitude": 6.0,
+    "pitch_quality": 12.0,
+    "pitch_command": 12.0
   },
   "rules": {
-    "synthetic_not_real_school_rating": true,
     "applied_before_team_strength": true,
     "direct_team_strength_bonus": false,
     "cohort_key": "entry_year",

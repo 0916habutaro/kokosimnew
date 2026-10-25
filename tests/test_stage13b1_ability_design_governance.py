@@ -219,9 +219,9 @@ class Stage13B1AbilityDesignGovernanceTests(unittest.TestCase):
                     catalog=self.catalog,
                 )
 
-    def test_intake_must_be_marked_synthetic(self):
+    def test_intake_program_source_must_be_known(self):
         payload = copy.deepcopy(self.intake.payload)
-        payload["rules"]["synthetic_not_real_school_rating"] = False
+        payload["quality_model"]["program_component"]["source"] = "unknown"
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "intake.json"
             path.write_text(

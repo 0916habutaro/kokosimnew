@@ -1,0 +1,44 @@
+{
+  "config_id": "school_reputation_v1",
+  "revision": 1,
+  "status": "tuned_2026_10_25",
+  "description_ja": "学校の評判の初期値（ゲーム開始時点。game_definition.md §8「初期の勢力図」）。実際の甲子園の出場（historical_data/koshien_entrants.csv、1960年〜）・通算（koshien_records.csv）と直前の結果（2026年選抜・2025年夏・2025年秋）から点を出し、最近ほど重くする。評判の順位を入部品質の学校成分（school_intake_v1 の program_component と同じ平均・広がりの z）に変える。実際の記録は読むだけで、評判はゲームのデータ。",
+  "reference_year": 2026,
+  "recency_half_life_years": 6.0,
+  "appearance_points": {
+    "summer": 1.0,
+    "spring": 0.8,
+    "jingu": 0.4
+  },
+  "career": {
+    "description_ja": "通算（koshien_records.csv）。年ごとの出場に含まれない分（1959年以前・照合できなかった出場）は、最後の出場年で減らして足す。勝ち数・優勝は最後の出場年で減らして足す",
+    "uncounted_appearance_points": 0.6,
+    "win_points": 0.08,
+    "championship_points": 0.6
+  },
+  "recent_points": {
+    "description_ja": "直前の結果（ゲーム開始の直前の実力）。年ごとの出場の点に足す",
+    "senbatsu_2026": 1.5,
+    "summer_2025": 1.0,
+    "autumn_regional_2025": 1.0,
+    "autumn_prefectural_best4": 0.6,
+    "autumn_prefectural_best8": 0.3
+  },
+  "noise": {
+    "description_ja": "全校に足す小さな乱数（0〜max の一様分布、ゲームの乱数の種で決まる）。甲子園に出たことのない学校の順位を決め、県の上位校が生まれる余地を残す",
+    "max": 0.4
+  },
+  "rng_namespace": "school_reputation_v1:noise:{school_id}",
+  "rank_labels": [
+    ["S", 0.995],
+    ["A", 0.98],
+    ["B", 0.93],
+    ["C", 0.8],
+    ["D", 0.5],
+    ["E", 0.0]
+  ],
+  "notes_ja": {
+    "recency_half_life_years": "何年前の出場で点が半分になるか（基準は reference_year）",
+    "rank_labels": "画面に出す評判のランク。全校の中の順位（下からの割合）がこの値以上ならそのランク"
+  }
+}

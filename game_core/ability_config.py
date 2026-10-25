@@ -400,9 +400,10 @@ def validate_school_intake(
     rules = payload.get("rules")
     if not isinstance(rules, dict):
         raise ValueError("school intake: rules required")
-    if rules.get("synthetic_not_real_school_rating") is not True:
+    # 学校成分は学校の評判から（reputation）か乱数（random）
+    if quality["program_component"].get("source", "random") not in ("reputation", "random"):
         raise ValueError(
-            "school intake: synthetic_not_real_school_rating must be true"
+            "school intake: program_component.source must be reputation or random"
         )
     if rules.get("applied_before_team_strength") is not True:
         raise ValueError(

@@ -18,6 +18,7 @@ from .abilities import (
 )
 from .ability_config import ConfigDocument, load_and_validate_ability_configs
 from .players import Player, PlayerRosterGenerator
+from .school_reputation import reputation_for
 
 
 @dataclass(frozen=True)
@@ -59,6 +60,9 @@ class SchoolIntakeModel:
         self.configs = load_and_validate_ability_configs(config_dir)
         self.config = self.configs["school_intake_v1"]
         self.params = self.config.payload
+        # 学校成分は学校の評判から（game_core/school_reputation.py）。リポジトリ
+        # （config・data・historical_data のある所）は config/abilities の2つ上
+        self._root = Path(config_dir).resolve().parent.parent
 
     @staticmethod
     def _config_fields(
@@ -89,10 +93,15 @@ class SchoolIntakeModel:
             school_id=school_id,
             entry_year=entry_year,
         )
-        program_z = rng_for(base_seed, program_namespace).gauss(
-            float(program["mean"]),
-            float(program["stddev"]),
-        )
+        program_z = None
+        if program.get("source") == "reputation":
+            program_z = reputation_for(str(self._root)).program_z(school_id, base_seed)
+        if program_z is None:
+            # 評判のない学校（学校マスターにない架空の学校など）は乱数
+            program_z = rng_for(base_seed, program_namespace).gauss(
+                float(program["mean"]),
+                float(program["stddev"]),
+            )
         cohort_z = rng_for(base_seed, cohort_namespace).gauss(
             float(cohort["mean"]),
             float(cohort["stddev"]),
