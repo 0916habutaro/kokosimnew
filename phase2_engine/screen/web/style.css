@@ -80,7 +80,11 @@ table.list td.n, table.list th.n { text-align: right; font-family: var(--num); }
 .paper .champ { color: var(--red); font-weight: 800; }
 /* 全国大会の出場校一覧（カード。1画面に収める） */
 .cards { flex: 1; min-height: 0; display: grid; gap: 8px; padding: 14px 18px; }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; display: flex; flex-direction: column; justify-content: center; min-height: 0; overflow: hidden; cursor: pointer; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; cursor: pointer; }
+.card-foot { flex: 1; min-height: 0; display: flex; align-items: center; gap: 4px; }
+.card-foot .card-count { flex: 1; min-width: 0; }
+.radar.mini { flex: none; margin: 0 0 0 auto; width: auto; height: 100%; max-height: 64px; aspect-ratio: 1; }
+.radar.mini .shape { stroke-width: 1.5; }
 .card:hover { border-color: var(--accent); }
 .card-area { color: var(--muted); font-size: 11px; }
 .card-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
