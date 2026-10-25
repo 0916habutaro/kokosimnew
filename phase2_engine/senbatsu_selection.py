@@ -4,15 +4,18 @@
   秋季地区大会の順位の上位から選ぶ（東京は東京都秋季大会）
 - 関東・東京の比較枠は、関東の次の順位の学校と東京の次の順位の学校から
   1校をくじで選ぶ
-- 21世紀枠は実際の流れに合わせる。都道府県推薦（秋の県大会ベスト16以上から
-  くじで1校。公立は重く、チームの強さが低いほど重い）→ 地区推薦（9地区。
-  関東・東京は1地区。秋の成績が良いほど重い）→ 最終（9校からくじで2校）。
-  一般の選考で選ばれた学校は候補から外す。重みは ``config/selection``
+- 21世紀枠は実際の流れに合わせる。都道府県推薦（秋の県大会の順位の範囲から
+  くじで1校。公立はずっと重く、甲子園に長く出ていないほど重く、チームの強さが
+  低いほど重い）→ 地区推薦（9地区。関東・東京は1地区。秋の成績が良いほど重く、
+  公立・甲子園から遠ざかっている学校も重い）
+  → 最終（9校からくじで2校）。一般の選考で選ばれた学校は候補から外す。
+  重みは ``config/selection``
 - 神宮枠（``bonus_quota`` の合計）は、その年の神宮大会で優勝した学校の地区に付ける。
   地区ごとの枠は ``base_quota``
 """
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
@@ -47,6 +50,8 @@ def select_invitational(
     century_config: Mapping | None = None,
     rng_seed: int,
     basis: dict[str, str] | None = None,
+    last_koshien_year: Mapping[str, int] | None = None,
+    year: int = 0,
 ) -> list[str]:
     """``rankings`` は地区 → 秋季地区大会の順位（優勝校が先頭）。
     ``jingu_region`` は神宮大会で優勝した学校の地区。
@@ -54,7 +59,8 @@ def select_invitational(
     ``strength_of`` は学校 → チームの強さ（分からなければ None）、
     ``century_config`` は ``config/selection`` の ``century``（どれも21世紀枠に使う）。
     ``basis`` を渡すと、学校 → 選ばれた枠（``"jingu"`` 神宮枠・``"century"`` 21世紀枠）を
-    入れる（画面の札）。"""
+    入れる（画面の札）。``last_koshien_year`` は学校 → 最後に甲子園（春夏）に出た年
+    （実際の記録とゲーム内）、``year`` は選考の年（秋の年）。"""
     basis = {} if basis is None else basis
     jingu_quota = sum(int(rule.get("bonus_quota") or 0) for rule in rules)
     selected: list[str] = []
@@ -111,6 +117,8 @@ def select_invitational(
             chosen,
             int(rule.get("base_quota") or 0),
             rng_seed,
+            last_koshien_year or {},
+            year,
         )
         basis.update(dict.fromkeys(picks, "century"))
         selected.extend(picks)
@@ -144,17 +152,34 @@ def _century_picks(
     chosen: set[str],
     quota: int,
     rng_seed: int,
+    last_koshien_year: Mapping[str, int],
+    year: int,
 ) -> list[str]:
     """都道府県推薦 → 地区推薦（9地区）→ 最終（2校）。どれもくじ。"""
-    top_n = int(config["prefecture_candidate_top_n"])
+    first_rank, last_rank = (int(x) for x in config["prefecture_candidate_ranks"])
     public_weight = float(config["public_weight_multiplier"])
     exponent = float(config["strength_exponent"])
     performance = config["region_performance_weights"]
+    gap_weights = sorted(
+        (int(years), float(weight))
+        for years, weight in config["appearance_gap_weights"]
+    )
+
+    def gap_weight(school_id: str) -> float:
+        """甲子園に最後に出てからの年数の重み（出たことがなければ never_appeared_weight）。"""
+        last = last_koshien_year.get(school_id)
+        if last is None:
+            return float(config["never_appeared_weight"])
+        gap = year - last
+        return next(
+            (weight for years, weight in reversed(gap_weights) if gap >= years),
+            gap_weights[0][1],
+        )
 
     def prefecture_pick(ranking: Sequence[str], key: str):
         candidates = [
             (index, school_id)
-            for index, school_id in enumerate(ranking[:top_n])
+            for index, school_id in enumerate(ranking[first_rank - 1:last_rank], first_rank - 1)
             if school_id not in chosen
         ]
         if not candidates:
@@ -168,6 +193,7 @@ def _century_picks(
         )
         weights = [
             (public_weight if school_id in public_school_ids else 1.0)
+            * gap_weight(school_id)
             * (
                 (weakest / strength) ** exponent
                 if weakest is not None else 1.0
@@ -198,9 +224,13 @@ def _century_picks(
         if prefecture_picks:
             _, school_id = _weighted_pick(
                 prefecture_picks,
+                # 秋の成績の重みに、公立・甲子園から遠ざかっている年数の重みも掛ける
+                # （都道府県の候補がみな最近出た学校でも、地区推薦でほぼ外れる）
                 [
                     float(performance[_performance_tier(index)])
-                    for index, _ in prefecture_picks
+                    * (public_weight if school_id in public_school_ids else 1.0)
+                    * gap_weight(school_id)
+                    for index, school_id in prefecture_picks
                 ],
                 rng_seed,
                 f"senbatsu:21st_century:area:{area}",
@@ -210,6 +240,29 @@ def _century_picks(
     return shuffled(
         recommended, rng_seed, "senbatsu:21st_century:draw"
     )[:quota]
+
+
+def actual_last_koshien_years(history_dir: str | Path) -> dict[str, int]:
+    """学校 → 実際に最後に甲子園（春夏）に出た年（``historical_data``。辞退は除く）。"""
+    history_dir = Path(history_dir)
+    out: dict[str, int] = {}
+
+    def note(school_id: str, year: str) -> None:
+        if school_id and year:
+            out[school_id] = max(out.get(school_id, 0), int(year))
+
+    for name, year_column in (
+        ("koshien_records.csv", "last_appearance_year"),
+        ("koshien_entrants.csv", "year"),
+    ):
+        path = history_dir / name
+        if not path.is_file():
+            continue
+        with path.open(encoding="utf-8-sig", newline="") as handle:
+            for row in csv.DictReader(handle):
+                if row.get("kind", "summer") in ("summer", "spring") and row.get("status") != "withdrawn":
+                    note(row["school_id"], row[year_column])
+    return out
 
 
 def load_selection_config(config_root: str | Path) -> dict:

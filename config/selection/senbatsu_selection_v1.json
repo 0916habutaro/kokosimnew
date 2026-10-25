@@ -1,11 +1,14 @@
 {
   "config_id": "senbatsu_selection_v1",
-  "revision": 1,
-  "status": "design_default_not_tuned",
+  "revision": 2,
+  "status": "tuned_2026_10_26",
   "description_ja": "選抜の21世紀枠のくじの重み（game_definition.md §8）。実際の選考を再現するものではなく、実際の流れ（都道府県推薦→地区推薦9校→2校）に近づけるための設計値。",
   "century": {
-    "prefecture_candidate_top_n": 16,
-    "public_weight_multiplier": 3.0,
+    "prefecture_candidate_ranks": [
+      3,
+      8
+    ],
+    "public_weight_multiplier": 30.0,
     "public_ownership_types": [
       "prefectural",
       "municipal",
@@ -16,7 +19,18 @@
       "pitching_strength": 0.4,
       "defense_strength": 0.2
     },
-    "strength_exponent": 4.0,
+    "strength_exponent": 1.0,
+    "never_appeared_weight": 1.0,
+    "appearance_gap_weights": [
+      [
+        0,
+        0.002
+      ],
+      [
+        20,
+        1.5
+      ]
+    ],
     "region_performance_weights": {
       "champion": 5.0,
       "runner_up": 4.0,
@@ -26,11 +40,13 @@
     }
   },
   "notes_ja": {
-    "prefecture_candidate_top_n": "都道府県推薦の候補：秋の県大会のこの順位以内（16＝ベスト16以上）",
+    "prefecture_candidate_ranks": "都道府県推薦の候補：秋の県大会のこの順位の範囲（3〜8位＝ベスト4・ベスト8の学校）。優勝・準優勝の学校は一般の選考の候補になるため外す",
     "public_weight_multiplier": "都道府県推薦のくじで、公立校の重みを私立校の何倍にするか",
     "public_ownership_types": "公立とみなす data/master/schools.csv の ownership_type",
     "strength_components": "チームの強さ：秋の県大会の出場メンバーの学校能力（team_strength）をこの重みで合わせる",
     "strength_exponent": "強さの効き方：重み ×（候補の中でいちばん弱い学校の強さ ÷ その学校の強さ）^この値。0なら強さは効かない",
+    "never_appeared_weight": "甲子園（春夏）に出たことのない学校の重み",
+    "appearance_gap_weights": "最後に甲子園（春夏、実際の記録とゲーム内）に出てからの年数 → 重み。[年数, 重み] の年数以上ならその重み（0〜19年は0.002でほぼ選ばれない、20年以上は1.5）。都道府県推薦と地区推薦の両方に掛ける。実際の21世紀枠（2001〜2026年）は初出場が64%、残りは前回から20年以上（game_definition.md §8）に合わせた",
     "region_performance_weights": "地区推薦のくじの重み：都道府県推薦校の秋の県大会の成績（東京・北海道は秋季地区大会）",
     "final_draw": "最終の2校は地区推薦の9校から同じ重みのくじで選ぶ（東日本・西日本の区別はしない）"
   }

@@ -35,10 +35,11 @@ CENTURY_RULES = RULES[:-1] + [{
     "base_quota": "2", "bonus_quota": "0",
     "selection_method": "21st_century_selection",
 }]
+# 都道府県推薦の候補は秋の県大会の3〜8位
 PREFECTURAL = {
-    "REG01": [["a1", "p1", "c1"]],
-    "REG03": [["k1", "c2"], ["c3"]],
-    "REG04": [["t1", "c4"]],
+    "REG01": [["a1", "x1", "p1", "c1"]],
+    "REG03": [["k1", "x2", "c2"], ["x3", "x4", "c3"]],
+    "REG04": [["t1", "x5", "c4"]],
 }
 PUBLIC = {"a1", "c1", "c2", "c3", "c4", "k1", "t1"}
 RANKINGS = {
@@ -78,59 +79,80 @@ class SenbatsuSelectionTests(unittest.TestCase):
         )
         century = selected[-2:]
         self.assertEqual(9, len(selected))
-        # 一般の選考で選ばれた a1・k1・t1 は候補にならない。私立（p1）も候補。
+        # 一般の選考で選ばれた a1・k1・t1 は候補にならない（2位以内なので元から外れる）。
+        # 私立（p1）も候補。
         # 推薦は地区ごとに1校（関東と東京は1つの地区）なので、A地区から1校、
         # 関東・東京から1校
         self.assertEqual(1, len(set(century) & {"c1", "p1"}))
         self.assertEqual(1, len(set(century) & {"c2", "c3", "c4"}))
 
-    def test_school_outside_best16_is_not_a_candidate(self):
-        ranking = [f"x{i}" for i in range(17)]
-        selected = select_invitational(
-            CENTURY_RULES, RANKINGS, jingu_region="REG03",
-            prefectural_rankings={"REG01": [ranking]},
-            public_school_ids={"x16"}, century_config=CENTURY, rng_seed=3,
-        )
-        self.assertNotIn("x16", selected)
-        self.assertEqual(8, len(selected))
+    def test_only_third_to_eighth_place_are_candidates(self):
+        ranking = [f"x{i}" for i in range(12)]
+        for outside in ("x0", "x1", "x8"):
+            selected = select_invitational(
+                CENTURY_RULES, RANKINGS, jingu_region="REG03",
+                prefectural_rankings={"REG01": [ranking]},
+                public_school_ids={outside}, century_config=CENTURY, rng_seed=3,
+            )
+            self.assertNotIn(outside, selected)
+            self.assertEqual(8, len(selected))
 
     def test_public_and_weak_schools_are_drawn_more_often(self):
-        # 都道府県推薦のくじ：公立は私立の3倍、強さが低いほど重い
+        # 都道府県推薦のくじ：公立は私立の30倍、強さが低いほど重い
         counts = {"public": 0, "weak": 0}
         for seed in range(400):
             picked = select_invitational(
                 CENTURY_RULES, RANKINGS, jingu_region="REG03",
-                prefectural_rankings={"REG01": [["pub", "pri"]]},
+                prefectural_rankings={"REG01": [["r1", "r2", "pub", "pri"]]},
                 public_school_ids={"pub"}, century_config=CENTURY,
                 rng_seed=seed,
             )[-1]
             counts["public"] += picked == "pub"
             picked = select_invitational(
                 CENTURY_RULES, RANKINGS, jingu_region="REG03",
-                prefectural_rankings={"REG01": [["strong", "weak"]]},
+                prefectural_rankings={"REG01": [["r1", "r2", "strong", "weak"]]},
                 strength_of={"strong": 60.0, "weak": 40.0}.get,
                 century_config=CENTURY, rng_seed=seed,
             )[-1]
             counts["weak"] += picked == "weak"
-        self.assertAlmostEqual(0.75, counts["public"] / 400, delta=0.07)
-        # (60/40)^4 ≒ 5.1倍
-        self.assertAlmostEqual(5.06 / 6.06, counts["weak"] / 400, delta=0.07)
+        self.assertAlmostEqual(30 / 31, counts["public"] / 400, delta=0.04)
+        # (60/40)^1 ＝ 1.5倍
+        self.assertAlmostEqual(1.5 / 2.5, counts["weak"] / 400, delta=0.07)
+
+    def test_recent_koshien_schools_are_rarely_drawn(self):
+        # 甲子園に出たことがない・20年以上前・20年以内の重みは config の値
+        weights = dict((years, weight) for years, weight in CENTURY["appearance_gap_weights"])
+        never, old, recent = CENTURY["never_appeared_weight"], weights[20], weights[0]
+        total = never + old + recent
+        counts = {"never": 0, "old": 0, "recent": 0}
+        for seed in range(600):
+            picked = select_invitational(
+                CENTURY_RULES, RANKINGS, jingu_region="REG03",
+                prefectural_rankings={"REG01": [["r1", "r2", "never", "old", "recent"]]},
+                century_config=CENTURY, rng_seed=seed,
+                last_koshien_year={"old": 1990, "recent": 2015}, year=2026,
+            )[-1]
+            counts[picked] += 1
+        self.assertAlmostEqual(never / total, counts["never"] / 600, delta=0.06)
+        self.assertAlmostEqual(old / total, counts["old"] / 600, delta=0.06)
+        self.assertLess(counts["recent"], 5)
 
     def test_better_autumn_result_is_drawn_more_often_in_area(self):
-        # 地区推薦のくじ：秋の成績が良いほど重い（優勝5：ベスト16 1）
+        # 地区推薦のくじ：秋の成績が良いほど重い
         wins = 0
         for seed in range(400):
             picked = select_invitational(
                 CENTURY_RULES, RANKINGS, jingu_region="REG03",
                 prefectural_rankings={"REG01": [
-                    ["champ"], [f"y{i}" for i in range(9)],
+                    ["r1", "r2", "champ"], [f"y{i}" for i in range(8)],
                 ]},
-                public_school_ids={"champ", "y8"},
+                public_school_ids={"champ", "y7"},
                 century_config={**CENTURY, "public_weight_multiplier": 1e9},
                 rng_seed=seed,
             )[-1]
             wins += picked == "champ"
-        self.assertAlmostEqual(5 / 6, wins / 400, delta=0.07)
+        # ベスト4（3位）3：ベスト8（8位）2
+        self.assertAlmostEqual(3 / 5, wins / 400, delta=0.07)
 
     def test_same_seed_gives_same_selection(self):
         self.assertEqual(

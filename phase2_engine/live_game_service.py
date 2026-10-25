@@ -853,6 +853,8 @@ class LiveGameService:
                 open_before_school_year=True,
                 school_days=previous.school_days,
             )
+            # 甲子園に最後に出た年は前の年度から引き継ぐ（21世紀枠の重み）
+            state.koshien_last_years = previous.last_koshien_years()
             if season is not None:
                 season.attach(state)
             return plan, state
