@@ -1,0 +1,12 @@
+出典ID,資料名,用途,URL,注記
+HS1960-S1,日本高野連・選抜 第31〜35回,1960〜1963年春,https://www.jhbf.or.jp/senbatsu/outing/31-35.html,1959年と同一ページ。1960年以降だけを抽出
+HS1960-S2,日本高野連・選抜 第36〜40回,1964〜1968年春,https://www.jhbf.or.jp/senbatsu/outing/36-40.html,1965年東京欄の2校を分離
+HS1960-S3,日本高野連・選抜 第41〜45回,1969年春,https://www.jhbf.or.jp/senbatsu/outing/41-45.html,1970〜1973年と同一ページ
+HS1960-U1,日本高野連・選手権 第41〜45回,1960〜1963年夏,https://www.jhbf.or.jp/sensyuken/outing/41-45.html,1963年記念大会は48代表
+HS1960-U2,日本高野連・選手権 第46〜50回,1964〜1968年夏,https://www.jhbf.or.jp/sensyuken/outing/46-50.html,1968年記念大会は48代表
+HS1960-U3,日本高野連・選手権 第51〜55回,1969年夏,https://www.jhbf.or.jp/sensyuken/outing/51-55.html,1970〜1973年と同一ページ
+HS1960-M1,日本高野連・選抜大会入場者数,春の大会参加校数を再確認,https://www.jhbf.or.jp/senbatsu/spectators/,公式校数照合
+HS1960-M2,日本高野連・選手権 大会小史,夏の記念大会・代表枠確認,https://www.jhbf.or.jp/sensyuken/history/,1963/1968年の48代表
+HS1960-M3,小さ子社「甲子園の眺め方」付属オープンデータ,夏の都道府県決勝校との別資料照合,https://github.com/chiisagosha/opendata/blob/master/koshien/finalist1948-2022.csv,参考資料。合同地方大会は県決勝優勝校が全国出場とは限らない
+HS1960-M4,1965年選抜大会・出場校情報,東京2校の識別再確認,https://data-man.com/kokoyakyu/meeting/1965/spring/school-list/,二次資料。公式校数に合わせて誤連結を解消
+HS1960-M5,日本高野連・地方大会区分変遷,1960年代の合同地区判定保留,https://www.jhbf.or.jp/sensyuken/outing/local.html,代表地区名の精密帰属は次工程
