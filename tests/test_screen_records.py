@@ -79,7 +79,8 @@ class TodayAndRecordsTests(unittest.TestCase):
             )
             # カードの地区名と「初出場」「〇年連続〇回目」「〇年ぶり〇回目」
             self.assertTrue(row["area"])
-            self.assertIn("abilities", row)  # 選手で試合をしない進め方では空
+            self.assertTrue(row["region_id"].startswith("REG"))
+            self.assertEqual("", row["basis_label"])  # 夏に21世紀枠・神宮枠はない
             label = row["appearance_label"]
             if row["appearance"]["total"] == 1:
                 self.assertEqual("初出場", label)
@@ -88,6 +89,16 @@ class TodayAndRecordsTests(unittest.TestCase):
         # 北海道・東京は代表の大会の地区名（北北海道・東東京など）
         areas = {row["area"] for row in entrants if row["prefecture_code"] in ("01", "13")}
         self.assertEqual(4, len(areas))
+        # トーナメント表の校名も代表の地区名（「京都」は「京」にならない）
+        names = self.data.bracket(2026, koshien)["names"]
+        for row in entrants:
+            self.assertTrue(names[row["school_id"]].endswith(f"（{row['area']}）"))
+        self.assertIn("京都", {row["area"] for row in entrants})
+        # 右の詳細：夏の地方大会の勝ち上がり（優勝して出場）
+        detail = self.data.entrant(2026, koshien, entrants[0]["school_id"])
+        self.assertEqual("優勝", detail["results"][-1]["finish"])
+        self.assertEqual(detail["results"][-1]["wins"], len(detail["results"][-1]["games"]))
+        self.assertIn("batting_average", detail["stats"])
         # 都道府県大会には付けない・出場校一覧もない
         local = next(
             row["competition_id"] for row in self.data.competitions()["competitions"]
@@ -122,6 +133,53 @@ class TodayAndRecordsTests(unittest.TestCase):
             self.assertIn((row["competition_id"], row["match_id"]), matches)
         per_competition = [row["competition_id"] for row in featured]
         self.assertTrue(all(per_competition.count(cid) <= 2 for cid in per_competition))
+
+
+class AutumnEntrantTests(unittest.TestCase):
+    """秋の地区大会の校名の順位と、選抜の出場校一覧の枠の札。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        repo = DataRepository(DATA_ROOT)
+        cls.service = LiveGameService(
+            repo, DATA_ROOT, save_root=cls.tmp.name, autosave_after_action=False,
+        )
+        cls.session = cls.service.new_game(
+            "autumn", rng_seed=20261022, save_initial=False,
+        )
+        cls.service.advance_through(cls.session, "2026-12-01")
+        cls.data = GameScreenData(cls.service, cls.session)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def _by_type(self, kind):
+        return next(
+            cid for cid, c in self.service.repo.competitions.items()
+            if c.get("competition_type") == kind
+        )
+
+    def test_regional_names_have_prefectural_rank(self):
+        ranked = 0
+        for cid, competition in self.service.repo.competitions.items():
+            if (competition.get("competition_level") != "regional"
+                    or competition.get("season_segment") != "autumn"):
+                continue
+            names = self.data.bracket(2026, cid)["names"]
+            ranked += sum(name.endswith("位）") for name in names.values())
+        self.assertGreater(ranked, 50)
+
+    def test_invitational_entrants_have_selection_labels(self):
+        senbatsu = self._by_type("national_invitational")
+        entrants = self.data.bracket(2026, senbatsu)["entrants"]
+        labels = [row["basis_label"] for row in entrants if row["basis_label"]]
+        self.assertEqual(["21世紀枠", "21世紀枠", "神宮枠"], sorted(labels))
+        # 右の詳細は秋の大会の成績
+        detail = self.data.entrant(2026, senbatsu, entrants[0]["school_id"])
+        self.assertTrue(detail["results"])
+        self.assertTrue(all("秋" in r["competition_name"] for r in detail["results"]))
 
 
 if __name__ == "__main__":

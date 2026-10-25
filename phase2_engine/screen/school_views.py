@@ -203,6 +203,33 @@ def year_results(rows: list[dict], competitions: dict, total_rounds: dict,
     return out
 
 
+def team_totals(school_id: str, details) -> dict:
+    """試合の個人成績を足したチームの成績（チーム打率・本塁打・防御率）。
+
+    ``details`` は試合ごとの個人成績（ない試合は None）。打数や投球回が
+    なければその値は None。防御率は9回あたりの自責点。"""
+    at_bats = hits = home_runs = outs = earned = games = 0
+    for detail in details:
+        if not detail:
+            continue
+        games += 1
+        for stat in detail.get("batter_stats") or ():
+            if stat.get("school_id") == school_id:
+                at_bats += int(stat.get("at_bats") or 0)
+                hits += int(stat.get("hits") or 0)
+                home_runs += int(stat.get("home_runs") or 0)
+        for stat in detail.get("pitcher_stats") or ():
+            if stat.get("school_id") == school_id:
+                outs += int(stat.get("outs_recorded") or 0)
+                earned += int(stat.get("earned_runs") or 0)
+    return {
+        "games": games,
+        "batting_average": round(hits / at_bats, 3) if at_bats else None,
+        "home_runs": home_runs if games else None,
+        "era": round(earned * 27 / outs, 2) if outs else None,
+    }
+
+
 def best_result(results: list[dict]) -> dict | None:
     if not results:
         return None

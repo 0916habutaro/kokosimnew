@@ -46,12 +46,16 @@ def select_invitational(
     strength_of: Callable[[str], float | None] | None = None,
     century_config: Mapping | None = None,
     rng_seed: int,
+    basis: dict[str, str] | None = None,
 ) -> list[str]:
     """``rankings`` は地区 → 秋季地区大会の順位（優勝校が先頭）。
     ``jingu_region`` は神宮大会で優勝した学校の地区。
     ``prefectural_rankings`` は地区 → その地区の秋の県大会の順位の一覧、
     ``strength_of`` は学校 → チームの強さ（分からなければ None）、
-    ``century_config`` は ``config/selection`` の ``century``（どれも21世紀枠に使う）。"""
+    ``century_config`` は ``config/selection`` の ``century``（どれも21世紀枠に使う）。
+    ``basis`` を渡すと、学校 → 選ばれた枠（``"jingu"`` 神宮枠・``"century"`` 21世紀枠）を
+    入れる（画面の札）。"""
+    basis = {} if basis is None else basis
     jingu_quota = sum(int(rule.get("bonus_quota") or 0) for rule in rules)
     selected: list[str] = []
     chosen: set[str] = set()
@@ -67,6 +71,9 @@ def select_invitational(
         if region == jingu_region:
             quota += jingu_quota
         picks = next_ranked(region)[:quota]
+        if region == jingu_region:
+            # 地区の基本枠の次の学校が神宮枠
+            basis.update(dict.fromkeys(picks[int(rule.get("base_quota") or 0):], "jingu"))
         if len(picks) != quota:
             raise ValueError(
                 f"senbatsu selection {region}: "
@@ -105,6 +112,7 @@ def select_invitational(
             int(rule.get("base_quota") or 0),
             rng_seed,
         )
+        basis.update(dict.fromkeys(picks, "century"))
         selected.extend(picks)
         chosen.update(picks)
     return selected
