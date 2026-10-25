@@ -1,0 +1,24 @@
+{
+  "config_id": "game_rules_v1",
+  "revision": 1,
+  "status": "rules_2026_10_26",
+  "description_ja": "高校野球の試合の規定（game_definition.md §11）。タイブレークと得点差コールド。どの大会・どの試合に使うかもここで決める。",
+  "tiebreak": {
+    "start_inning": 10,
+    "runners": ["first", "second"],
+    "source_ja": "2023年春から延長10回から無死一・二塁（日本高野連。高校野球ドットコム https://www.hb-nippon.com/articles/7271）。打順は前の回から続き、一塁は先頭打者の1人前、二塁は2人前の打者。タイブレークで塁に置いた走者の得点は自責点にしない"
+  },
+  "mercy_rule": {
+    "thresholds": [[5, 10], [7, 7]],
+    "levels": ["local", "regional"],
+    "exclude_rounds_from_end": 1,
+    "prefecture_exclude_rounds_from_end": {"14": 2},
+    "source_ja": "5回終了で10点差以上・7回終了で7点差以上（高校野球特別規則）。甲子園（選抜・選手権）と明治神宮大会には適用しない。都道府県大会・地区大会の決勝は適用しない。神奈川は準決勝から適用しない（J:COM 高校野球観戦ナビ https://www2.myjcom.jp/special/tv/sports/baseball/highschool/column_hsbb/calledgame/）"
+  },
+  "notes_ja": {
+    "thresholds": "[回, 点差]：その回が終わった時点（後攻が勝っているときは表が終わった時点）で点差がこれ以上なら試合終了",
+    "levels": "コールドを使う大会の区分（competitions.csv の competition_level）",
+    "exclude_rounds_from_end": "本大会（MAIN）の最後の何回戦はコールドにしないか（1＝決勝だけ）",
+    "prefecture_exclude_rounds_from_end": "都道府県ごとの例外（都道府県コード → 最後の何回戦）"
+  }
+}

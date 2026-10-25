@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
+import re
 from copy import deepcopy
 from dataclasses import replace
 from typing import Callable
@@ -10,7 +12,7 @@ from phase2_engine.repository import DataRepository
 
 from .match_contract import MatchSimulationInput, TeamMatchInput
 from .highlights import game_highlights
-from .match_simulator import MatchSimulator
+from .match_simulator import GameRules, MatchSimulator
 from .membership import CompetitionMembers
 from .players import PlayerRosterGenerator, SchoolRoster, validate_school_roster
 from .school_intake import SchoolAwarePlayerAbilityGenerator
@@ -51,6 +53,15 @@ class AbilityMatchResolver:
         )
         self.team_generator = TeamStrengthGenerator(ability_config_dir)
         self.simulator = MatchSimulator(match_config_dir)
+        # 試合の規定（タイブレーク・コールド）。ファイルがなければ使わない
+        rules_path = Path(match_config_dir) / "game_rules_v1.json"
+        self.game_rules = (
+            json.loads(rules_path.read_text(encoding="utf-8"))
+            if rules_path.is_file() else None
+        )
+        # 進行中の年度の状態（本大会の何回戦か・あと何回戦かを見る）。
+        # live_members.PlayerSeason.attach で入れる
+        self.season_state = None
         self._fixed_team_generation_seed = team_generation_seed
         self._season_reference_year: int | None = None
         self._season_team_generation_seed: int | None = None
@@ -281,6 +292,51 @@ class AbilityMatchResolver:
             self._abilities[key] = snapshot
         return snapshot
 
+    def rules_for(self, competition_id: str, match_id: str) -> GameRules:
+        """その試合の規定。タイブレークはすべての試合。コールドは都道府県大会・
+        地区大会で、本大会の決勝（神奈川は準決勝から）を除く。"""
+        config = self.game_rules
+        if not config:
+            return GameRules()
+        tiebreak = config.get("tiebreak") or {}
+        mercy_rule = config.get("mercy_rule") or {}
+        competition = self.repo.competitions.get(competition_id, {})
+        mercy: tuple[tuple[int, int], ...] = ()
+        if competition.get("competition_level") in mercy_rule.get("levels", ()):
+            exclude = int(mercy_rule.get("exclude_rounds_from_end", 1))
+            if competition.get("competition_level") == "local":
+                exclude = int(
+                    (mercy_rule.get("prefecture_exclude_rounds_from_end") or {}).get(
+                        competition.get("prefecture_code", ""), exclude,
+                    )
+                )
+            rounds_left = self._rounds_left(competition_id, match_id)
+            if rounds_left is None or rounds_left >= exclude:
+                mercy = tuple(
+                    (int(inning), int(margin))
+                    for inning, margin in mercy_rule.get("thresholds", ())
+                )
+        return GameRules(
+            tiebreak_start_inning=(
+                int(tiebreak["start_inning"]) if tiebreak.get("start_inning") else None
+            ),
+            mercy=mercy,
+        )
+
+    def _rounds_left(self, competition_id: str, match_id: str) -> int | None:
+        """本大会の試合なら、決勝まであと何回戦か（決勝は0）。分からなければ None。"""
+        found = re.search(r"-MAIN-R(\d+)-", match_id)
+        state = self.season_state
+        if found is None or state is None:
+            return None
+        scheduled = state.competitions.get(competition_id)
+        runtime = getattr(scheduled, "runtime", None)
+        main = getattr(runtime, "main_runtime", runtime)
+        total = getattr(main, "total_rounds", None)
+        if not total:
+            return None
+        return int(total) - int(found.group(1))
+
     def __call__(
         self,
         *,
@@ -329,7 +385,9 @@ class AbilityMatchResolver:
             team2=team2_input,
             team_generation_seed=team_generation_seed,
         )
-        result = self.simulator.simulate(match_input)
+        result = self.simulator.simulate(
+            match_input, rules=self.rules_for(competition_id, match_id),
+        )
         highlights = game_highlights(result.events)
         if self.detail_sink is not None:
             full = replace(result, events=()).to_dict()
