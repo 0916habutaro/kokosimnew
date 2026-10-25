@@ -59,7 +59,9 @@ select, input[type=search], input[type=date] { height: 32px; background: #0b1117
 
 /* 表 */
 table.list { width: 100%; border-collapse: collapse; }
-table.list th { text-align: left; color: var(--muted); font-weight: 400; font-size: 12px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--panel2); position: sticky; top: 0; }
+table.list th { text-align: left; color: var(--muted); font-weight: 400; font-size: 12px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--panel2); position: sticky; top: 0; z-index: 1; }
+/* 一覧の枠（.scroll）の上の余白の分だけ上で止め、スクロールした行が見出しの上にのぞかないようにする */
+.scroll table.list th { top: -16px; }
 table.list td { padding: 7px 10px; border-bottom: 1px solid #1a2631; }
 table.list tr.click { cursor: pointer; }
 table.list tr.click:hover td { background: #18242f; }

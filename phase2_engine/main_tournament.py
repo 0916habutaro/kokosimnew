@@ -5,7 +5,18 @@ from math import ceil, log2
 from typing import Dict, Iterable, List, Sequence, Tuple
 
 from .models import CompetitionOutcome, Match, MatchResolution, SeedAssignment, StageExecution
-from .randomness import shuffled
+from .randomness import rng_for, shuffled
+
+
+BYE_LAYOUT_SPREAD = "spread"
+BYE_LAYOUT_PAIRED = "paired"
+# 不戦勝の置き方（game_definition.md §8）。夏の甲子園は、2回戦から始まる学校
+# どうしが2回戦で対戦する形（49校なら1回戦17試合、2回戦16試合）
+BYE_LAYOUTS = {"national_championship": BYE_LAYOUT_PAIRED}
+
+
+def bye_layout_for(competition_type: str) -> str:
+    return BYE_LAYOUTS.get(competition_type or "", BYE_LAYOUT_SPREAD)
 
 
 def next_power_of_two(n: int) -> int:
@@ -100,17 +111,29 @@ def generate_main_slots(
     base_seed: int,
     namespace: str,
     slot_override: Sequence[str] | None = None,
+    bye_layout: str = BYE_LAYOUT_SPREAD,
 ) -> Tuple[List[str], Dict[str, int]]:
     """Build a fixed power-of-two bracket.
 
     Empty string denotes a first-round bye. When no exact annual slot override is
     provided, seeds are spread using standard seed positions; byes preferentially sit
     opposite seeded teams, and all remaining teams are reproducibly shuffled.
+
+    ``bye_layout=BYE_LAYOUT_PAIRED``（夏の甲子園）：2回戦から始まる学校どうしが
+    2回戦で対戦するよう不戦勝を2つずつ組にし、奇数なら1校だけ1回戦の勝者と
+    当たる。組と学校の位置は抽選（乱数）で決める。
     """
     teams = list(dict.fromkeys(entrants))
     if len(teams) != len(entrants):
         raise ValueError("duplicate MAIN entrant")
     bracket_size = next_power_of_two(len(teams))
+    if (
+        bye_layout == BYE_LAYOUT_PAIRED
+        and not (slot_override is not None and len(slot_override))
+        and not seed_ids
+        and bracket_size >= 4
+    ):
+        return _paired_bye_slots(teams, bracket_size, base_seed, namespace), {}
     if slot_override is not None and len(slot_override):
         slots = list(slot_override)
         if len(slots) != bracket_size:
@@ -189,6 +212,32 @@ def generate_main_slots(
     return slots, seed_slots
 
 
+def _paired_bye_slots(
+    teams: Sequence[str], bracket_size: int, base_seed: int, namespace: str,
+) -> List[str]:
+    """2回戦の組（1回戦2試合分＝4枠）ごとに形を決める。
+    BB：不戦勝どうし（2回戦から始まる2校が対戦）、BT：不戦勝の1校と1回戦の勝者、
+    TT：1回戦の勝者どうし。"""
+    byes = bracket_size - len(teams)
+    blocks = bracket_size // 4
+    kinds = ["BB"] * (byes // 2) + ["BT"] * (byes % 2)
+    kinds += ["TT"] * (blocks - len(kinds))
+    kinds = shuffled(kinds, base_seed, f"{namespace}:paired_bye_blocks")
+    rng = rng_for(base_seed, f"{namespace}:paired_bye_sides")
+    layout: List[bool] = []  # True＝学校が入る枠
+    for kind in kinds:
+        pairs = {"BB": ["B", "B"], "BT": ["B", "T"], "TT": ["T", "T"]}[kind]
+        if rng.random() < 0.5:
+            pairs.reverse()
+        for pair in pairs:
+            if pair == "T":
+                layout += [True, True]
+            else:
+                layout += [True, False] if rng.random() < 0.5 else [False, True]
+    drawn = iter(shuffled(list(teams), base_seed, f"{namespace}:unseeded_draw"))
+    return [next(drawn) if filled else "" for filled in layout]
+
+
 def _round_name(round_no: int, total_rounds: int) -> str:
     rounds_left = total_rounds - round_no
     if rounds_left == 0:
@@ -214,6 +263,7 @@ def run_main_single_elimination(
     match_resolver=None,
     resolved_match_sink: Dict[str, dict] | None = None,
     reference_year: int | None = None,
+    bye_layout: str = BYE_LAYOUT_SPREAD,
 ) -> Tuple[StageExecution, CompetitionOutcome]:
     entrants = list(dict.fromkeys(entrants))
     if not entrants:
@@ -233,6 +283,7 @@ def run_main_single_elimination(
         base_seed=base_seed,
         namespace=f"{competition_id}:{stage_id}:MAIN",
         slot_override=slot_override,
+        bye_layout=bye_layout,
     )
     bracket_size = len(slots)
     total_rounds = 0 if bracket_size == 1 else int(log2(bracket_size))

@@ -54,11 +54,17 @@ class ScreenDataTests(unittest.TestCase):
         self.assertTrue(header["active_competitions"])
 
     def test_featured_matches_come_from_several_competitions(self):
-        # 4月1日は春季東京都大会の試合だけなので、上限の2試合だけ出る
+        # 1つの大会からは上限まで。上限の範囲で選べるだけ選ぶ
         featured = self.data.featured_matches()
-        limit = self.data.config["featured_match"]["max_per_competition"]
-        self.assertEqual(1, len({m["competition_id"] for m in self.data.today_matches()}))
-        self.assertEqual(limit, len(featured))
+        rule = self.data.config["featured_match"]
+        limit = rule["max_per_competition"]
+        today = [m["competition_id"] for m in self.data.today_matches()]
+        picked = [m["competition_id"] for m in featured]
+        self.assertTrue(all(picked.count(cid) <= limit for cid in picked))
+        self.assertEqual(
+            min(rule["count"], sum(min(limit, today.count(cid)) for cid in set(today))),
+            len(featured),
+        )
 
     def test_advance_one_day(self):
         result = self.data.advance("day")

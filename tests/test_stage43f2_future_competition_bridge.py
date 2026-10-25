@@ -84,27 +84,30 @@ class Stage43F2FutureCompetitionBridgeTests(unittest.TestCase):
         self.assertEqual("provisional_game_schedule",
                          preview.scheduled.calendar_status)
         self.assertFalse(preview.scheduled.is_complete)
+        # 1回戦16試合は、決勝から後ろへ割り当てた残りの日に分かれる
         rows = preview.scheduled.matches_for_date("2027-03-19")
-        self.assertEqual(16, len(rows))
+        self.assertTrue(0 < len(rows) < 16)
         self.assertTrue(all(r["date_source"] == "game_projection_v1"
                             for r in rows))
         self.assertEqual("2027-03-19", preview.scheduled.next_scheduled_date())
 
     def test_game_runs_next_wave_with_continuing_player_ids_and_a_stats(self):
         preview = self.prepare()
+        first_day = len(preview.scheduled.matches_for_date("2027-03-19"))
         out = preview.play_next_date()
         self.assertEqual(2027, out["year"])
-        self.assertEqual(16, out["played_match_count"])
+        self.assertEqual(first_day, out["played_match_count"])
         self.assertEqual("2027-03-19", out["date"])
         self.assertEqual("game_projection_v1", out["date_source"])
         self.assertFalse(out["is_complete"])
         completed = preview.scheduled.completed_results()
-        self.assertEqual(16, len(completed))
+        self.assertEqual(first_day, len(completed))
         self.assertTrue(all(row["status"] == "completed"
                             and row["date_source"] == "game_projection_v1"
                             and row["score_source"] == "ability_model_v1"
                             for row in completed.values()))
-        one = next(iter(preview.scheduled.matches.values()))
+        one = next(m for m in preview.scheduled.matches.values()
+                   if m.status == "completed")
         detail = one.ability_detail
         self.assertIsNotNone(detail)
         self.assertEqual(2027, detail["reference_year"])

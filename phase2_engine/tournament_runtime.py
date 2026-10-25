@@ -9,6 +9,8 @@ from typing import Callable, Dict, List, Sequence
 from .brackets import random_winner_resolver
 from .main_tournament import (
     _round_name,
+    BYE_LAYOUT_SPREAD,
+    bye_layout_for,
     generate_main_slots,
     ordered_seed_ids,
 )
@@ -111,6 +113,7 @@ class MainTournamentRuntimeState:
         slot_override: Sequence[str] | None = None,
         winner_overrides: Dict[str, str] | None = None,
         match_resolver=None,
+        bye_layout: str = BYE_LAYOUT_SPREAD,
     ) -> "MainTournamentRuntimeState":
         entrants = list(dict.fromkeys(entrants))
         if not entrants:
@@ -129,6 +132,7 @@ class MainTournamentRuntimeState:
             base_seed=generation_seed,
             namespace=f"{competition_id}:{stage_id}:MAIN",
             slot_override=slot_override,
+            bye_layout=bye_layout,
         )
         bracket_size = len(slots)
         total_rounds = (
@@ -228,6 +232,7 @@ class MainTournamentRuntimeState:
             ),
             winner_overrides=annual.main_match_winner_overrides,
             match_resolver=match_resolver,
+            bye_layout=bye_layout_for(competition.get("competition_type", "")),
         )
         if annual.direct_main_entry_school_ids:
             state.warnings.append(
@@ -385,6 +390,18 @@ class MainTournamentRuntimeState:
             for match_id in self.match_ids_by_round[round_no]
             if self.matches[match_id].status == MATCH_READY
         ]
+
+    def remaining_rounds(self) -> list[tuple[int, int]]:
+        """まだ終わっていない回戦と、その回戦の試合数（不戦勝を除く）。"""
+        out = []
+        for round_no in range(1, self.total_rounds + 1):
+            count = sum(
+                self.matches[match_id].status in (MATCH_READY, MATCH_WAITING)
+                for match_id in self.match_ids_by_round[round_no]
+            )
+            if count:
+                out.append((round_no, count))
+        return out
 
     def waiting_matches(self) -> list[dict]:
         return [

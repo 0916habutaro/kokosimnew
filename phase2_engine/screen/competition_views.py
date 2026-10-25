@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+from ..competition_schedule_runtime import SCHEDULE_PENDING
 from ..tournament_runtime import MATCH_BYE, MainTournamentRuntimeState
 
 
@@ -48,6 +49,15 @@ def _level(competition: dict) -> str:
     return "local" if level not in ("national", "regional") else level
 
 
+def has_started(scheduled, today: str) -> bool:
+    """最初の試合日を迎えたか、1試合でも終わっていれば始まっている。
+    日程だけ組まれて最初の試合日より前の大会は「これから」。"""
+    return any(
+        match.status != SCHEDULE_PENDING or match.match_date <= today
+        for match in scheduled.matches.values()
+    )
+
+
 def competition_list(
     seasons: dict, plans: dict, repo, names, short_names,
 ) -> list[dict]:
@@ -60,12 +70,14 @@ def competition_list(
             entry = plan.entries.get(cid) if plan is not None else None
             calendar = season.calendar_rows.get(cid, {})
             scheduled = season.competitions.get(cid)
-            if scheduled is None:
-                status = "upcoming"
-            elif scheduled.is_complete:
+            if scheduled is not None and scheduled.is_complete:
                 status = "completed"
-            else:
+            elif scheduled is not None and has_started(
+                scheduled, season.current_date.isoformat()
+            ):
                 status = "active"
+            else:
+                status = "upcoming"
             main = main_runtime(scheduled) if scheduled is not None else None
             champion = main.champion_school_id if main is not None else ""
             name = (
