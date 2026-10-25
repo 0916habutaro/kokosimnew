@@ -79,17 +79,30 @@ table.list td.n, table.list th.n { text-align: right; font-family: var(--num); }
 .paper .title { color: var(--paper-ink); font-weight: 800; font-size: 16px; margin-bottom: 6px; }
 .paper .champ { color: var(--red); font-weight: 800; }
 /* 全国大会の出場校一覧（カード。1画面に収める） */
-.cards { flex: 1; min-height: 0; display: grid; gap: 8px; padding: 14px 18px; }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; cursor: pointer; }
-.card-foot { flex: 1; min-height: 0; display: flex; align-items: center; gap: 4px; }
-.card-foot .card-count { flex: 1; min-width: 0; }
-.radar.mini { flex: none; margin: 0 0 0 auto; width: auto; height: 100%; max-height: 64px; aspect-ratio: 1; }
-.radar.mini .shape { stroke-width: 1.5; }
-.card:hover { border-color: var(--accent); }
-.card-area { color: var(--muted); font-size: 11px; }
-.card-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
-.card-count { font-size: 12px; color: var(--muted); }
-.card-count.first { color: var(--accent); }
+/* 出場校一覧：左に2列の一覧、右に詳細 */
+.elist { flex: 1; min-width: 0; display: grid; grid-auto-flow: column; grid-template-columns: 1fr 1fr; column-gap: 14px; padding: 8px 14px; }
+.erow { display: flex; align-items: center; gap: 6px; min-height: 0; padding: 0 6px; border-bottom: 1px solid var(--line); cursor: pointer; font-size: 14px; }
+.erow:hover, .erow.on { background: var(--panel); }
+.erow.on { outline: 1px solid var(--accent); }
+.ename { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
+.ecount { flex: none; width: 8.5em; color: var(--muted); font-size: 12px; text-align: center; white-space: nowrap; }
+.ecount.first { color: var(--accent); }
+.basis { flex: none; font-size: 11px; padding: 0 4px; border-radius: 3px; background: #7a3cc2; color: #fff; white-space: nowrap; }
+.area-tag { flex: none; width: 4.6em; text-align: center; font-size: 12px; font-weight: 700; border-radius: 3px; color: #10161d; background: #9aa5b1; white-space: nowrap; }
+.area-tag.REG01 { background: #e9a46b; }
+.area-tag.REG02 { background: #7fd17f; }
+.area-tag.REG03 { background: #6aa8ff; }
+.area-tag.REG04 { background: #f0d264; }
+.area-tag.REG05 { background: #6fd6d6; }
+.area-tag.REG06 { background: #c7a5f0; }
+.area-tag.REG07 { background: #f2e96b; }
+.area-tag.REG08 { background: #f08f8f; }
+.area-tag.REG09 { background: #8fc4e8; }
+.area-tag.REG10 { background: #ff8a5c; }
+.estats { margin: 8px 0 4px; }
+#e-side h4 { margin: 12px 0 4px; font-size: 13px; }
+#e-side .btn { margin-top: 12px; }
+
 /* 抽選で決める回戦（準々決勝から）。トーナメント表の右に並べる */
 .paper-row { display: flex; align-items: flex-start; gap: 18px; }
 .later { display: flex; gap: 14px; padding-top: 4px; color: var(--paper-ink); }
@@ -226,3 +239,6 @@ nav button[disabled] { opacity: .35; cursor: default; }
 .ask-body .adjust select { height: 30px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; }
 .ask-body div.field { margin-top: 12px; color: var(--text); }
 .ask-body select { margin-left: 0; }
+#e-side .radar-row { gap: 4px; }
+#e-side .radar { width: 210px; height: 210px; margin: 0; }
+#e-side .overall-rank .rank { font-size: 48px; }

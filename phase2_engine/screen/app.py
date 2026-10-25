@@ -62,6 +62,9 @@ class ScreenApi:
     def bracket(self, school_year, competition_id) -> dict:
         return self._read(self._data.bracket, school_year, competition_id)
 
+    def entrant(self, school_year, competition_id, school_id) -> dict:
+        return self._read(self._data.entrant, school_year, competition_id, school_id)
+
     def match(self, school_year, competition_id, match_id) -> dict:
         return self._read(
             self._data.match, school_year, competition_id, match_id,

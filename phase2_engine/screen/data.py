@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import csv
 from datetime import date, timedelta
 import json
 from pathlib import Path
@@ -13,6 +14,7 @@ from typing import Callable
 from game_core.school_edits import SchoolAdjustmentModel
 
 from ..career_state import CareerState
+from ..paths import resolve_data_file
 from ..save_slots import SAVE_KIND_MANUAL
 from ..school_edits import SchoolEdits
 from .competition_views import (
@@ -37,6 +39,7 @@ from .save_views import next_slot_id, recovery_rows, slot_rows
 from .school_names import EditedNames, SchoolNames, prefecture_names
 from .school_views import (
     SchoolAbilities,
+    team_totals,
     best_result,
     koshien_summary,
     normalized_rows,
@@ -45,6 +48,7 @@ from .school_views import (
 
 
 CONFIG_PATH = Path("screen") / "screen_v1.json"
+BASIS_LABELS = {"century": "21世紀枠", "jingu": "神宮枠"}
 WEEKDAYS = "月火水木金土日"
 
 ADVANCE_DAY = "day"
@@ -77,6 +81,16 @@ def load_screen_config(config_root: str | Path) -> dict:
     return data
 
 
+def _csv_rows(data_dir, name: str) -> list[dict]:
+    with resolve_data_file(data_dir, name).open(encoding="utf-8-sig", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
+def _prefecture_short(name: str) -> str:
+    """都道府県名から「都・府・県」を除く（東京都→東京、京都府→京都）。北海道はそのまま。"""
+    return name[:-1] if name.endswith(("都", "府", "県")) else name
+
+
 def date_label(day: date) -> str:
     return f"{day.year}年{day.month}月{day.day}日（{WEEKDAYS[day.weekday()]}）"
 
@@ -105,6 +119,21 @@ class GameScreenData:
             config_root.parent / KOSHIEN_RECORDS_PATH
         )
         self.prefectures = prefecture_names(service.repo.data_dir)
+        # 地区大会の校名に添える「石川1位」（都道府県大会の順位から）
+        self._feeder_rules: dict[str, list[dict]] = {}
+        for row in _csv_rows(service.repo.data_dir, "regional_feeder_rules.csv"):
+            if row.get("source_type") == "prefectural_result":
+                self._feeder_rules.setdefault(row["destination_competition_id"], []).append(row)
+        self._entry_tags: dict[tuple, dict[str, str]] = {}
+        # 都道府県 → 地区（秋の地区割り。出場校一覧の札の色）
+        self._regions = {
+            row["prefecture_code"]: row["region_id"]
+            for row in sorted(
+                _csv_rows(service.repo.data_dir, "prefecture_region_memberships.csv"),
+                key=lambda row: row.get("effective_year", ""),
+            )
+            if row.get("season_segment") == "autumn"
+        }
         self.abilities = self._new_abilities()
         self.adjustment_model = SchoolAdjustmentModel(config_root)
         self._closed_years: dict[int, dict] = {}
@@ -337,7 +366,9 @@ class GameScreenData:
             "other_matches": others,
             # 大会の最初の試合の日の名前
             "names": {
-                school_id: self.team_name(school_id, competition_id, first_day)
+                school_id: self.team_name(
+                    school_id, competition_id, first_day, int(school_year),
+                )
                 for school_id in ids if school_id
             },
         }
@@ -370,7 +401,7 @@ class GameScreenData:
         out = match_detail(
             data, detail,
             lambda school_id: self.team_name(
-                school_id, competition_id, data.get("match_date", ""),
+                school_id, competition_id, data.get("match_date", ""), int(school_year),
             ),
             lambda school_id: self._players(season, competition_id, school_id),
         )
@@ -406,8 +437,8 @@ class GameScreenData:
                 **{key: value for key, value in _match_fields(row).items()},
                 "round_name": row.round_name if row.stage_code == "MAIN"
                 else self.stage_label(row.match_id, row.group_name),
-                "team1_name": self.team_name(row.team1_id, cid, row.match_date),
-                "team2_name": self.team_name(row.team2_id, cid, row.match_date),
+                "team1_name": self.team_name(row.team1_id, cid, row.match_date, year),
+                "team2_name": self.team_name(row.team2_id, cid, row.match_date, year),
             }
             for year, cid, row in rows
             if row.match_date == target
@@ -432,8 +463,8 @@ class GameScreenData:
         # この大会の暦の年（選抜は年度の翌年の3月）
         this_year = year + 1 if kind == "spring" else year
         areas = self._summer_areas(year) if kind == "summer" else {}
+        basis = self._selection_basis(year, competition_id)
         schools = self.service.repo.schools
-        abilities = self._entrant_abilities(year, main.entrant_school_ids)
         rows = []
         for school_id in main.entrant_school_ids:
             row = {
@@ -445,10 +476,14 @@ class GameScreenData:
                 "prefecture_code": schools.get(school_id, {}).get("prefecture_code", ""),
                 # 地区名：夏は代表の大会（北北海道・東東京など）、ほかは都道府県
                 "area": areas.get(school_id) or self.prefecture_short(school_id),
+                # 地区名の札の色（地方ごと）
+                "region_id": self._regions.get(
+                    schools.get(school_id, {}).get("prefecture_code"), ""
+                ),
+                # 選抜の21世紀枠・神宮枠
+                "basis_label": BASIS_LABELS.get(basis.get(school_id, ""), ""),
                 "appearance": None,
                 "appearance_label": "",
-                # カードの小さなレーダー（今の部員の能力。今の年度の大会だけ）
-                "abilities": abilities.get(school_id),
             }
             if kind:
                 actual = self.actual_koshien.get(school_id, {}).get(kind, {})
@@ -462,6 +497,83 @@ class GameScreenData:
                 )
             rows.append(row)
         return sorted(rows, key=lambda row: (row["prefecture_code"], row["name"]))
+
+    def _selection_basis(self, year: int, competition_id: str) -> dict[str, str]:
+        """選抜の出場校 → 選ばれた枠（jingu・century）。選考の記録から。"""
+        season = _seasons(self.state).get(year)
+        for entry in getattr(season, "history", None) or ():
+            if (
+                entry.get("action") == "select_invitational"
+                and entry.get("competition_id") == competition_id
+            ):
+                return dict(entry.get("selection_basis") or {})
+        return {}
+
+    def entrant(self, school_year, competition_id: str, school_id: str) -> dict:
+        """出場校一覧の右の詳細：総合ランク・レーダー・予選の成績と勝ち上がり。
+
+        予選は、夏の甲子園なら夏の地方大会、選抜・神宮なら秋の都道府県大会と地区大会。"""
+        year = int(school_year)
+        competition = self.service.repo.competitions.get(competition_id, {})
+        segment = (
+            "summer" if competition.get("competition_type") == "national_championship"
+            else "autumn"
+        )
+        results = sorted(
+            (
+                r for r in self._results(year).get(school_id, [])
+                if r["segment"] == segment and r["level"] in ("local", "regional")
+            ),
+            key=lambda r: r["first_date"],
+        )
+        ids = {r["competition_id"] for r in results}
+        games = [
+            m for m in self.school_matches(school_id, year)["matches"]
+            if m["competition_id"] in ids
+        ]
+        totals = team_totals(
+            school_id,
+            (self._match_record(year, m["competition_id"], m["match_id"]) for m in games),
+        )
+        return {
+            "school_id": school_id,
+            "name": self.names(school_id),
+            "prefecture": self.prefectures.get(
+                self.service.repo.schools.get(school_id, {}).get("prefecture_code"), ""
+            ),
+            "abilities": self._entrant_abilities(year, [school_id]).get(school_id),
+            "stats": totals,
+            "results": [
+                {
+                    "competition_name": r["competition_name"],
+                    "finish": r["finish"],
+                    "wins": r["wins"],
+                    "losses": r["losses"],
+                    "games": [
+                        {key: m[key] for key in (
+                            "match_id", "match_date", "round_name", "won",
+                            "score", "opponent_score", "opponent_name",
+                        )} | {"competition_id": m["competition_id"]}
+                        for m in games if m["competition_id"] == r["competition_id"]
+                    ],
+                }
+                for r in results
+            ],
+        }
+
+    def _match_record(self, year: int, competition_id: str, match_id: str) -> dict | None:
+        """試合の個人成績（終わった試合）。まだ書き出していない試合はセーブの中から。"""
+        season = _seasons(self.state).get(year)
+        if season is not None:
+            detail = season.pending_match_details.get(f"{competition_id}:{match_id}")
+            if detail is not None:
+                return detail
+        try:
+            return self.service.historical_match(
+                self.session.slot_id, year, competition_id, match_id,
+            )
+        except (KeyError, ValueError, OSError):
+            return None
 
     def _entrant_abilities(self, year: int, school_ids) -> dict:
         """出場校の能力。能力は今の部員から出すので、前の年度の大会には出さない。"""
@@ -489,22 +601,65 @@ class GameScreenData:
             out[main.champion_school_id] = short.replace("夏・", "").removesuffix("大会")
         return out
 
-    def team_name(self, school_id: str, competition_id: str, day: str = "") -> str:
+    def team_name(
+        self, school_id: str, competition_id: str, day: str = "", year: int | None = None,
+    ) -> str:
         """試合に出す校名。全国大会・地区大会では都道府県を添える（横浜（神奈川））。
-        日を渡すと、その日の名前（学校の編集で名前を変える前の試合は当時の名前）。"""
+        夏の甲子園は代表の地区名（東東京など）、地区大会は都道府県大会の順位
+        （金沢商（石川1位））。日を渡すと、その日の名前（学校の編集で名前を変える前の
+        試合は当時の名前）。``year`` は大会の年度（省くと今の年度）。"""
         name = self.names(school_id, day)
         level = self.service.repo.competitions.get(competition_id, {}).get(
             "competition_level", ""
         )
         if not name or level not in ("national", "regional"):
             return name
-        return f"{name}（{self.prefecture_short(school_id)}）"
+        tag = self.entry_tags(competition_id, year).get(school_id)
+        return f"{name}（{tag or self.prefecture_short(school_id)}）"
+
+    def entry_tags(self, competition_id: str, year: int | None = None) -> dict[str, str]:
+        """学校 → 校名に添える札（夏の甲子園の地区名・地区大会の都道府県の順位）。"""
+        year = year or self._current_year()
+        key = (year, competition_id, self.state.current_date)
+        if key not in self._entry_tags:
+            competition = self.service.repo.competitions.get(competition_id, {})
+            if competition.get("competition_type") == "national_championship":
+                tags = self._summer_areas(year)
+            elif competition.get("competition_level") == "regional":
+                tags = self._feeder_ranks(year, competition_id)
+            else:
+                tags = {}
+            self._entry_tags = {
+                k: v for k, v in self._entry_tags.items() if k[2] == key[2]
+            }
+            self._entry_tags[key] = tags
+        return self._entry_tags[key]
+
+    def _feeder_ranks(self, year: int, competition_id: str) -> dict[str, str]:
+        """地区大会に出た学校 → 「石川1位」（その都道府県大会の順位）。"""
+        season = _seasons(self.state).get(year)
+        if season is None:
+            return {}
+        out: dict[str, str] = {}
+        for rule in self._feeder_rules.get(competition_id, ()):
+            scheduled = season.competitions.get(rule["source_competition_id"])
+            if scheduled is None or not scheduled.is_complete:
+                continue
+            outcome = scheduled.to_competition_run().outcome
+            if outcome is None:
+                continue
+            limit = max(int(rule.get("rank_to") or 0), int(rule.get("quota") or 0))
+            prefecture = _prefecture_short(
+                self.prefectures.get(rule.get("source_prefecture_code"), "")
+            )
+            for index, school_id in enumerate(outcome.final_ranking_school_ids[:limit]):
+                out.setdefault(school_id, f"{prefecture}{index + 1}位")
+        return out
 
     def prefecture_short(self, school_id: str) -> str:
-        """「神奈川」「東京」「北海道」（都・府・県を除く）。"""
+        """「神奈川」「東京」「京都」「北海道」（都・府・県を除く）。"""
         code = self.service.repo.schools.get(school_id, {}).get("prefecture_code")
-        name = self.prefectures.get(code, "")
-        return name if name == "北海道" else name.rstrip("都府県")
+        return _prefecture_short(self.prefectures.get(code, ""))
 
     def stage_label(self, match_id: str, group_name: str = "") -> str:
         """MAIN 以外の試合の段階（「地区予選　川崎・横浜北地区」など）。"""
@@ -538,7 +693,7 @@ class GameScreenData:
         out = match_detail(
             row, detail,
             lambda school_id: self.team_name(
-                school_id, competition_id, row.get("match_date", ""),
+                school_id, competition_id, row.get("match_date", ""), year,
             ),
             lambda _: {},
         )
@@ -641,8 +796,8 @@ class GameScreenData:
             "round_name": row.get("round_name", "") if row.get("stage_code") == "MAIN"
             else self.stage_label(row["match_id"], row.get("group_name", "")),
             "team1_id": row["team1_id"], "team2_id": row["team2_id"],
-            "team1_name": self.team_name(row["team1_id"], cid, row.get("match_date", "")),
-            "team2_name": self.team_name(row["team2_id"], cid, row.get("match_date", "")),
+            "team1_name": self.team_name(row["team1_id"], cid, row.get("match_date", ""), year),
+            "team2_name": self.team_name(row["team2_id"], cid, row.get("match_date", ""), year),
             "team1_score": row.get("team1_score"),
             "team2_score": row.get("team2_score"),
             "winner_id": row.get("winner_id", ""),

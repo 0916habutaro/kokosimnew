@@ -1818,6 +1818,7 @@ class LiveSeasonDependencyRuntimeState:
         annual = deepcopy(
             self.annual_templates[competition_id]
         )
+        basis: dict[str, str] = {}
         annual.entrant_school_ids = select_invitational(
             self.selection_rules[competition_id],
             rankings,
@@ -1827,6 +1828,7 @@ class LiveSeasonDependencyRuntimeState:
             strength_of=self._autumn_strength_of(prefectural_sources),
             century_config=century,
             rng_seed=annual.rng_seed,
+            basis=basis,
         )
         self.history.append({
             "action": "select_invitational",
@@ -1836,6 +1838,8 @@ class LiveSeasonDependencyRuntimeState:
             "entrant_school_ids": list(
                 annual.entrant_school_ids
             ),
+            # 学校 → 選ばれた枠（jingu 神宮枠・century 21世紀枠）
+            "selection_basis": basis,
         })
         return annual
 

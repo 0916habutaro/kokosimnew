@@ -216,7 +216,17 @@ class SchoolNameTests(unittest.TestCase):
             ({"display_name": "滋賀県立大津高等学校", "ownership_type": "prefectural"}, "滋賀県", "大津"),
             ({"display_name": "北海道えりも高", "ownership_type": "prefectural"}, "北海道", "えりも"),
             ({"display_name": "日高", "ownership_type": "prefectural"}, "和歌山県", "日高"),
-            ({"display_name": "沼津市立沼津高等学校", "ownership_type": "municipal"}, "静岡県", "市立沼津"),
+            ({"display_name": "沼津市立沼津高等学校", "ownership_type": "municipal",
+              "municipality": "沼津市"}, "静岡県", "市沼津"),
+            # 新聞の略し方（架空の校名）
+            ({"display_name": "甲乙市立甲乙商業高等学校", "ownership_type": "municipal",
+              "municipality": "甲乙市"}, "静岡県", "甲乙商"),
+            ({"display_name": "私立丙丁学院高等学校", "ownership_type": "private"}, "静岡県", "丙丁学院"),
+            ({"display_name": "丙丁大学附属高等学校", "ownership_type": "private"}, "静岡県", "丙丁大付"),
+            ({"display_name": "丙丁大学付属戊己高等学校", "ownership_type": "private"}, "静岡県", "丙丁大戊己"),
+            ({"display_name": "日本大学第九高等学校", "ownership_type": "private"}, "静岡県", "日大九"),
+            ({"display_name": "丙丁工業大学戊己高等学校", "ownership_type": "private"}, "静岡県", "丙丁工大戊己"),
+            ({"display_name": "丙丁農業高等学校", "ownership_type": "prefectural"}, "静岡県", "丙丁農"),
             ({"display_name": "釧路工業高等専門学校", "ownership_type": "national"}, "北海道", "釧路工業高専"),
             ({"display_name": "都立青鳥特別支援学校", "ownership_type": "prefectural"}, "東京都", "青鳥特別支援学校"),
         ]

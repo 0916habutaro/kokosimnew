@@ -335,7 +335,7 @@ async function renderBracketPage(content, view) {
       ${view.tab === "entrants" ? "" : `<div class="tabs"><button class="btn small" id="z-out" title="縮小">−</button>
       <button class="btn small" id="z-fit" title="全体">全体</button>
       <button class="btn small" id="z-in" title="拡大">＋</button></div>`}</div>
-    ${view.tab === "entrants" ? entrantsTable(data.entrants) : `<div class="body">
+    ${view.tab === "entrants" ? entrantsView(data.entrants) : `<div class="body">
       <div class="paper-wrap" id="paper-wrap"></div>
       <aside class="side" id="b-side"><div class="empty">トーナメント表の試合（交点）を押すと<br>スコアが出ます。<br>学校名を押すと勝ち上がりが<br>青く表示されます。</div></aside>
     </div>`}`;
@@ -345,7 +345,9 @@ async function renderBracketPage(content, view) {
     renderPage();
   }));
   if (view.tab === "entrants") {
-    content.querySelectorAll(".link[data-school]").forEach((a) => a.addEventListener("click", () => openSchool(a.dataset.school)));
+    content.querySelectorAll(".erow").forEach((row) => row.addEventListener("click", () => showEntrant(view, row.dataset.entrant)));
+    const first = data.entrants.find((r) => r.school_id === view.entrant) || data.entrants[0];
+    if (first) showEntrant(view, first.school_id);
     return;
   }
   $("z-in").addEventListener("click", () => setZoom(state.zoom * 1.2));
@@ -359,20 +361,43 @@ async function renderBracketPage(content, view) {
   drawPaper();
 }
 
-// 全国大会の出場校一覧：スクロールなしで1画面に収まるカードの並び
-// （夏49校＝7×7、選抜32校＝8×4、神宮10校＝5×2）。カードの右下に能力の小さなレーダー
-function entrantsTable(rows) {
-  const cols = rows.length > 32 ? 7 : rows.length > 16 ? 8 : Math.max(1, Math.ceil(rows.length / 2));
-  return `<div class="cards" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${Math.ceil(rows.length / cols)},1fr)">
-    ${rows.map((r) => `<div class="card link" data-school="${esc(r.school_id)}">
-      <div class="card-area">${esc(r.area)}</div>
-      <div class="card-name">${esc(r.name)}</div>
-      <div class="card-foot">
-        <div class="card-count${r.appearance_label === "初出場" ? " first" : ""}">${esc(r.appearance_label)}</div>
-        ${r.abilities ? abilityRadar(r.abilities, true) : ""}
-      </div>
-    </div>`).join("")}
+// 全国大会の出場校一覧：左に一覧（2列、スクロールなしで全校）、右に選んだ学校の詳細
+function entrantsView(rows) {
+  const perColumn = Math.ceil(rows.length / 2);
+  return `<div class="body">
+    <div class="elist" style="grid-template-rows:repeat(${perColumn},1fr)">
+      ${rows.map((r) => `<div class="erow" data-entrant="${esc(r.school_id)}">
+        <span class="ename" title="${esc(r.name)}">${esc(r.name)}</span>
+        ${r.basis_label ? `<span class="basis">${esc(r.basis_label)}</span>` : ""}
+        <span class="ecount${r.appearance_label === "初出場" ? " first" : ""}">${esc(r.appearance_label)}</span>
+        <span class="area-tag ${esc(r.region_id)}">${esc(r.area)}</span>
+      </div>`).join("")}
+    </div>
+    <aside class="side" id="e-side"></aside>
   </div>`;
+}
+
+async function showEntrant(view, schoolId) {
+  document.querySelectorAll(".erow").forEach((row) => row.classList.toggle("on", row.dataset.entrant === schoolId));
+  const d = await call("entrant", view.year, view.id, schoolId);
+  const side = $("e-side");
+  if (!d || !side) return;
+  view.entrant = schoolId;
+  const a = d.abilities;
+  const st = d.stats;
+  const avg = (v) => v === null ? "—" : v.toFixed(3).replace(/^0/, "");
+  const results = d.results.map((r) => `<h4>${esc(r.competition_name)}　<span class="muted">${esc(r.finish)}（${r.wins}勝${r.losses}敗）</span></h4>
+    <table class="list small">${r.games.map((g) => `<tr class="click" data-cid="${esc(g.competition_id)}" data-mid="${esc(g.match_id)}">
+      <td>${esc(g.round_name)}</td><td class="${g.won ? "w" : "l"}">${g.won ? "○" : "●"}</td>
+      <td class="num">${g.score === null ? "" : `${g.score}-${g.opponent_score}`}</td><td>${esc(g.opponent_name)}</td></tr>`).join("")}</table>`).join("");
+  side.innerHTML = `<h3>${esc(d.name)}</h3><div class="muted">${esc(d.prefecture)}</div>
+    ${a ? `<div class="radar-row">${abilityRadar(a)}<div class="overall-rank"><span>総合</span>${rankHtml(a.overall)}</div></div>`
+      : '<div class="muted">能力は今の年度の大会だけ出ます</div>'}
+    <div class="estats">チーム打率 <b class="num">${avg(st.batting_average)}</b>　本塁打 <b class="num">${st.home_runs ?? "—"}</b>　防御率 <b class="num">${st.era === null ? "—" : st.era.toFixed(2)}</b></div>
+    ${results || '<div class="muted">予選の成績はありません</div>'}
+    <button class="btn" id="e-school">学校の詳細へ</button>`;
+  $("e-school").addEventListener("click", () => openSchool(schoolId));
+  side.querySelectorAll("tr.click").forEach((tr) => tr.addEventListener("click", () => openMatch(view.year, tr.dataset.cid, tr.dataset.mid)));
 }
 
 function setZoom(zoom) {
@@ -422,7 +447,9 @@ function bracketSvg(main, name) {
   const X = (round) => nameW + round * COL_W;
   const Y = (y) => 26 + y * ROW + ROW / 2;
   // 準々決勝から抽選し直す大会は、優勝校の欄の代わりに右へ回戦の列を並べる
-  const width = X(main.total_rounds) + ((main.later_rounds || []).length ? 24 : 150);
+  // 優勝校の欄は校名（都道府県の順位つきを含む）の長さに合わせる
+  const championW = main.champion_id ? name(main.champion_id).length * 14 + 50 : 150;
+  const width = X(main.total_rounds) + ((main.later_rounds || []).length ? 24 : Math.max(150, championW));
   const height = 26 + main.rows.length * ROW + 10;
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   svg.setAttribute("width", width * state.zoom);
@@ -854,9 +881,8 @@ function schoolOverview(d) {
 // 能力のレーダーチャート（ミート・長打・走力・守備・エース・投手層）。総合は横に大きく出す
 const RADAR_AXES = [["contact", "ミート"], ["power", "長打"], ["running", "走力"], ["defense", "守備"], ["ace", "エース"], ["pitching_depth", "投手層"]];
 
-// small＝出場校のカード用（軸の名前を出さない）
-function abilityRadar(a, small = false) {
-  const size = small ? 64 : 260, center = size / 2, radius = small ? 28 : 88;
+function abilityRadar(a) {
+  const size = 260, center = size / 2, radius = 88;
   const point = (i, r) => {
     const angle = -Math.PI / 2 + (i * 2 * Math.PI) / RADAR_AXES.length;
     return [center + Math.cos(angle) * r, center + Math.sin(angle) * r];
@@ -865,11 +891,11 @@ function abilityRadar(a, small = false) {
   const rings = [0.25, 0.5, 0.75, 1].map((f) => `<polygon points="${ring(radius * f)}" class="ring"/>`).join("");
   const spokes = RADAR_AXES.map((_, i) => `<line x1="${center}" y1="${center}" x2="${point(i, radius)[0]}" y2="${point(i, radius)[1]}" class="ring"/>`).join("");
   const shape = RADAR_AXES.map(([k], i) => point(i, radius * abilityScale(a[k])).join(",")).join(" ");
-  const labels = small ? "" : RADAR_AXES.map(([k, l], i) => {
+  const labels = RADAR_AXES.map(([k, l], i) => {
     const [x, y] = point(i, radius + 22);
     return `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle">${l} <tspan class="r-${rankOf(a[k])}">${rankOf(a[k])}</tspan></text>`;
   }).join("");
-  return `<svg class="radar${small ? " mini" : ""}" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">${rings}${spokes}<polygon points="${shape}" class="shape"/>${labels}</svg>`;
+  return `<svg class="radar" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">${rings}${spokes}<polygon points="${shape}" class="shape"/>${labels}</svg>`;
 }
 
 function schoolYearly(d) {
