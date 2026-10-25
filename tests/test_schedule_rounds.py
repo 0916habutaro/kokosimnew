@@ -8,7 +8,7 @@ import unittest
 
 from phase2_engine import DataRepository, LiveGameService
 from phase2_engine.main_tournament import BYE_LAYOUT_PAIRED, generate_main_slots
-from phase2_engine.national_day_plan import load_plans, match_dates, round_number
+from phase2_engine.national_day_plan import draw_separation, load_plans, match_dates, round_number
 from phase2_engine.tournament_runtime import MainTournamentRuntimeState
 
 
@@ -94,6 +94,57 @@ class DayPlanTests(unittest.TestCase):
         self.assertEqual(sorted(first[:3]), sorted(m for m, d in planned.items() if d == dates[0]))
         # 計画の日が足りない年は使わない
         self.assertEqual({}, match_dates(plan, runtime, dates[:5]))
+
+
+class SeparationTests(unittest.TestCase):
+    """選抜の抽選：同じ都道府県は決勝まで、同じ地区は準々決勝まで当たらない。"""
+
+    def _keys(self):
+        # 地区ごとの校数（実際の選抜に近い形）。同じ地区の中に同じ都道府県の2校を含める
+        sizes = {"RA": 7, "RB": 6, "RC": 5, "RD": 4, "RE": 3, "RF": 3, "RG": 2, "RH": 1, "RI": 1}
+        keys = {}
+        for region, count in sizes.items():
+            for i in range(count):
+                keys[f"SCHX{region}{i}"] = (f"{region}-P{0 if i < 2 else i}", region)
+        return keys
+
+    def test_same_region_and_prefecture_are_kept_apart(self):
+        keys = self._keys()
+        self.assertEqual(32, len(keys))
+        for seed in range(30):
+            slots, _ = generate_main_slots(
+                list(keys), seed_ids=[], base_seed=seed, namespace="x",
+                separation={"keys": keys, "prefecture_block": 16, "region_block": 4},
+            )
+            self.assertEqual(sorted(keys), sorted(slots))
+            where = {sid: index for index, sid in enumerate(slots)}
+            for a in keys:
+                for b in keys:
+                    if a >= b:
+                        continue
+                    if keys[a][0] == keys[b][0]:
+                        self.assertNotEqual(where[a] // 16, where[b] // 16, (seed, a, b))
+                    if keys[a][1] == keys[b][1]:
+                        self.assertNotEqual(where[a] // 4, where[b] // 4, (seed, a, b))
+            # 2校・4校の地区は上下・4分の1に分かれる
+            for region, block in (("RG", 16), ("RD", 8)):
+                blocks = [where[sid] // block for sid in keys if keys[sid][1] == region]
+                self.assertEqual(len(blocks), len(set(blocks)), (seed, region))
+
+    def test_separation_uses_autumn_regions(self):
+        repo = DataRepository(DATA_ROOT)
+        by_pref = {}
+        for sid, row in repo.schools.items():
+            by_pref.setdefault(row["prefecture_code"], sid)
+        codes = ["13", "14", "27"] + [c for c in sorted(by_pref) if c not in ("13", "14", "27")]
+        entrants = [by_pref[code] for code in codes[:32]]
+        separation = draw_separation(repo, "national_invitational", entrants)
+        self.assertEqual((16, 4), (separation["prefecture_block"], separation["region_block"]))
+        keys = separation["keys"]
+        # 抽選では関東と東京を一つの地区として扱う
+        self.assertEqual(keys[by_pref["13"]][1], keys[by_pref["14"]][1])
+        self.assertNotEqual(keys[by_pref["13"]][1], keys[by_pref["27"]][1])
+        self.assertIsNone(draw_separation(repo, "national_championship", entrants))
 
 
 class RoundDateTests(unittest.TestCase):

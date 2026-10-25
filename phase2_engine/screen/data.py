@@ -433,6 +433,7 @@ class GameScreenData:
         this_year = year + 1 if kind == "spring" else year
         areas = self._summer_areas(year) if kind == "summer" else {}
         schools = self.service.repo.schools
+        abilities = self._entrant_abilities(year, main.entrant_school_ids)
         rows = []
         for school_id in main.entrant_school_ids:
             row = {
@@ -446,6 +447,8 @@ class GameScreenData:
                 "area": areas.get(school_id) or self.prefecture_short(school_id),
                 "appearance": None,
                 "appearance_label": "",
+                # カードの小さなレーダー（今の部員の能力。今の年度の大会だけ）
+                "abilities": abilities.get(school_id),
             }
             if kind:
                 actual = self.actual_koshien.get(school_id, {}).get(kind, {})
@@ -459,6 +462,15 @@ class GameScreenData:
                 )
             rows.append(row)
         return sorted(rows, key=lambda row: (row["prefecture_code"], row["name"]))
+
+    def _entrant_abilities(self, year: int, school_ids) -> dict:
+        """出場校の能力。能力は今の部員から出すので、前の年度の大会には出さない。"""
+        members = self._today_members()
+        if year != self._current_year() or members is None:
+            return {}
+        chosen = {sid: members[sid] for sid in school_ids if sid in members}
+        self.abilities.compute(chosen, year, self.session.plan.rng_seed)
+        return self.abilities.get(chosen, year)[0]
 
     def _summer_areas(self, year: int) -> dict[str, str]:
         """夏の代表校 → 代表になった大会の地区名（北北海道・東東京・青森…）。"""

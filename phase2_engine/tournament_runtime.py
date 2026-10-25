@@ -15,7 +15,7 @@ from .main_tournament import (
     redraw_order,
     ordered_seed_ids,
 )
-from .national_day_plan import plan_for, redraw_rounds
+from .national_day_plan import draw_separation, plan_for, redraw_rounds
 from .models import (
     AnnualCompetitionInput,
     CompetitionOutcome,
@@ -120,6 +120,7 @@ class MainTournamentRuntimeState:
         match_resolver=None,
         bye_layout: str = BYE_LAYOUT_SPREAD,
         redraw_rounds: Dict[int, int] | None = None,
+        separation: dict | None = None,
     ) -> "MainTournamentRuntimeState":
         entrants = list(dict.fromkeys(entrants))
         if not entrants:
@@ -139,6 +140,7 @@ class MainTournamentRuntimeState:
             namespace=f"{competition_id}:{stage_id}:MAIN",
             slot_override=slot_override,
             bye_layout=bye_layout,
+            separation=separation,
         )
         bracket_size = len(slots)
         total_rounds = (
@@ -240,6 +242,9 @@ class MainTournamentRuntimeState:
             winner_overrides=annual.main_match_winner_overrides,
             match_resolver=match_resolver,
             bye_layout=bye_layout_for(competition.get("competition_type", "")),
+            separation=draw_separation(
+                repo, competition.get("competition_type", ""), entrants,
+            ),
         )
         # 全国大会：準々決勝以降を前の回戦のあとに抽選するか（日ごとの計画の設定）
         state.redraw_rounds = redraw_rounds(

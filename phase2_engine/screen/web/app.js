@@ -359,16 +359,18 @@ async function renderBracketPage(content, view) {
   drawPaper();
 }
 
-// 全国大会の出場校一覧（都道府県順、甲子園の通算〇回目つき）
 // 全国大会の出場校一覧：スクロールなしで1画面に収まるカードの並び
-// （夏49校＝7×7、選抜32校＝8×4、神宮10校＝5×2）
+// （夏49校＝7×7、選抜32校＝8×4、神宮10校＝5×2）。カードの右下に能力の小さなレーダー
 function entrantsTable(rows) {
   const cols = rows.length > 32 ? 7 : rows.length > 16 ? 8 : Math.max(1, Math.ceil(rows.length / 2));
   return `<div class="cards" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${Math.ceil(rows.length / cols)},1fr)">
     ${rows.map((r) => `<div class="card link" data-school="${esc(r.school_id)}">
       <div class="card-area">${esc(r.area)}</div>
       <div class="card-name">${esc(r.name)}</div>
-      ${r.appearance_label ? `<div class="card-count${r.appearance_label === "初出場" ? " first" : ""}">${esc(r.appearance_label)}</div>` : ""}
+      <div class="card-foot">
+        <div class="card-count${r.appearance_label === "初出場" ? " first" : ""}">${esc(r.appearance_label)}</div>
+        ${r.abilities ? abilityRadar(r.abilities, true) : ""}
+      </div>
     </div>`).join("")}
   </div>`;
 }
@@ -852,8 +854,9 @@ function schoolOverview(d) {
 // 能力のレーダーチャート（ミート・長打・走力・守備・エース・投手層）。総合は横に大きく出す
 const RADAR_AXES = [["contact", "ミート"], ["power", "長打"], ["running", "走力"], ["defense", "守備"], ["ace", "エース"], ["pitching_depth", "投手層"]];
 
-function abilityRadar(a) {
-  const size = 260, center = size / 2, radius = 88;
+// small＝出場校のカード用（軸の名前を出さない）
+function abilityRadar(a, small = false) {
+  const size = small ? 64 : 260, center = size / 2, radius = small ? 28 : 88;
   const point = (i, r) => {
     const angle = -Math.PI / 2 + (i * 2 * Math.PI) / RADAR_AXES.length;
     return [center + Math.cos(angle) * r, center + Math.sin(angle) * r];
@@ -862,11 +865,11 @@ function abilityRadar(a) {
   const rings = [0.25, 0.5, 0.75, 1].map((f) => `<polygon points="${ring(radius * f)}" class="ring"/>`).join("");
   const spokes = RADAR_AXES.map((_, i) => `<line x1="${center}" y1="${center}" x2="${point(i, radius)[0]}" y2="${point(i, radius)[1]}" class="ring"/>`).join("");
   const shape = RADAR_AXES.map(([k], i) => point(i, radius * abilityScale(a[k])).join(",")).join(" ");
-  const labels = RADAR_AXES.map(([k, l], i) => {
+  const labels = small ? "" : RADAR_AXES.map(([k, l], i) => {
     const [x, y] = point(i, radius + 22);
     return `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle">${l} <tspan class="r-${rankOf(a[k])}">${rankOf(a[k])}</tspan></text>`;
   }).join("");
-  return `<svg class="radar" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">${rings}${spokes}<polygon points="${shape}" class="shape"/>${labels}</svg>`;
+  return `<svg class="radar${small ? " mini" : ""}" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">${rings}${spokes}<polygon points="${shape}" class="shape"/>${labels}</svg>`;
 }
 
 function schoolYearly(d) {

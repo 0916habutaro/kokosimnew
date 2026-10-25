@@ -9,6 +9,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from .paths import resolve_data_file
+
 
 CONFIG_PATH = Path("schedule") / "national_day_plans_v1.json"
 
@@ -73,3 +75,32 @@ def match_dates(plan: dict, main, calendar_dates: list[str]) -> dict[str, str]:
     if any(queues.values()):
         return {}
     return out
+
+
+def draw_separation(repo, competition_type: str, entrants) -> dict | None:
+    """大会前の抽選で同じ都道府県・同じ地区の学校を分ける設定（計画の ``separate``）。
+
+    地区は秋の地区割り（``prefecture_region_memberships.csv``、選抜の選考と同じ）。"""
+    plan = plan_for(repo.data_dir, competition_type, len(entrants))
+    rule = (plan or {}).get("separate")
+    if not rule:
+        return None
+    total_rounds = (len(entrants) - 1).bit_length()
+    merge = rule.get("merge_regions") or {}
+    regions = {}
+    for row in sorted(
+        repo._read(resolve_data_file(repo.data_dir, "prefecture_region_memberships.csv")),
+        key=lambda row: row.get("effective_year", ""),
+    ):
+        if row.get("season_segment") == "autumn":
+            regions[row["prefecture_code"]] = merge.get(row["region_id"], row["region_id"])
+    keys = {}
+    for school_id in entrants:
+        prefecture = repo.schools.get(school_id, {}).get("prefecture_code", "")
+        keys[school_id] = (prefecture or school_id, regions.get(prefecture, school_id))
+    return {
+        "keys": keys,
+        # 早くても r 回戦で当たる＝2^(r-1) 枠ごとの別のブロック
+        "prefecture_block": 2 ** (round_number(rule["prefecture"], total_rounds) - 1),
+        "region_block": 2 ** (round_number(rule["region"], total_rounds) - 1),
+    }

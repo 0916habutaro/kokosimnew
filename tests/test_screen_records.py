@@ -79,6 +79,7 @@ class TodayAndRecordsTests(unittest.TestCase):
             )
             # カードの地区名と「初出場」「〇年連続〇回目」「〇年ぶり〇回目」
             self.assertTrue(row["area"])
+            self.assertIn("abilities", row)  # 選手で試合をしない進め方では空
             label = row["appearance_label"]
             if row["appearance"]["total"] == 1:
                 self.assertEqual("初出場", label)

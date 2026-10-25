@@ -112,6 +112,7 @@ def generate_main_slots(
     namespace: str,
     slot_override: Sequence[str] | None = None,
     bye_layout: str = BYE_LAYOUT_SPREAD,
+    separation: dict | None = None,
 ) -> Tuple[List[str], Dict[str, int]]:
     """Build a fixed power-of-two bracket.
 
@@ -122,11 +123,23 @@ def generate_main_slots(
     ``bye_layout=BYE_LAYOUT_PAIRED``（夏の甲子園）：2回戦から始まる学校どうしが
     2回戦で対戦するよう不戦勝を2つずつ組にし、奇数なら1校だけ1回戦の勝者と
     当たる。組と学校の位置は抽選（乱数）で決める。
+
+    ``separation``（選抜）：同じ都道府県・同じ地区の学校を組み合わせ表の別の
+    ゾーン・ブロックに振り分けてから抽選する（``separated_slots``）。
     """
     teams = list(dict.fromkeys(entrants))
     if len(teams) != len(entrants):
         raise ValueError("duplicate MAIN entrant")
     bracket_size = next_power_of_two(len(teams))
+    if (
+        separation
+        and not (slot_override is not None and len(slot_override))
+        and not seed_ids
+        and len(teams) == bracket_size
+    ):
+        slots = separated_slots(teams, base_seed=base_seed, namespace=namespace, **separation)
+        if slots is not None:
+            return slots, {}
     if (
         bye_layout == BYE_LAYOUT_PAIRED
         and not (slot_override is not None and len(slot_override))
@@ -238,6 +251,79 @@ def _paired_bye_slots(
     return [next(drawn) if filled else "" for filled in layout]
 
 
+def separated_slots(
+    teams: Sequence[str],
+    *,
+    keys: Dict[str, Tuple[str, str]],
+    prefecture_block: int,
+    region_block: int,
+    base_seed: int,
+    namespace: str,
+    attempts: int = 50,
+) -> List[str] | None:
+    """同じ都道府県の学校は ``prefecture_block`` 枠ごとの別のブロックへ、同じ地区の
+    学校は ``region_block`` 枠ごとの別のブロックへ振り分けて抽選する（選抜）。
+
+    ``keys`` は学校ID →（都道府県, 地区）。学校の多い地区から順に、組み合わせ表を
+    上下に分け、その地区の学校が少ない側へ入れていく（同数なら抽選）。そのため
+    同じ地区の学校は上下・4分の1・8分の1に均等に分かれる（試行の前半は均等を
+    必ず守り、後半は守れなければ偏りを許す）。ブロックの中の
+    位置は抽選。振り分けられなければ None。"""
+    size = len(teams)
+    leaf = min(prefecture_block, region_block)
+    if size < 2 or size % leaf or leaf < 1:
+        return None
+    by_region: Dict[str, List[str]] = defaultdict(list)
+    for school_id in teams:
+        by_region[keys.get(school_id, ("", school_id))[1]].append(school_id)
+    for attempt in range(attempts):
+        ns = f"{namespace}:separated:{attempt}"
+        regions = shuffled(sorted(by_region), base_seed, f"{ns}:regions")
+        regions.sort(key=lambda region: -len(by_region[region]))
+        leaves: List[List[str]] = [[] for _ in range(size // leaf)]
+        placed = True
+        for region in regions:
+            for school_id in shuffled(by_region[region], base_seed, f"{ns}:{region}"):
+                prefecture = keys.get(school_id, (school_id, ""))[0]
+                start, width = 0, len(leaves)
+                while width > 1:
+                    width //= 2
+                    options = []
+                    for child in (start, start + width):
+                        inside = [sid for part in leaves[child:child + width] for sid in part]
+                        if len(inside) >= width * leaf:
+                            continue
+                        slots_wide = width * leaf
+                        if slots_wide <= prefecture_block and any(
+                            keys.get(sid, (sid, ""))[0] == prefecture for sid in inside
+                        ):
+                            continue
+                        same = sum(keys.get(sid, ("", sid))[1] == region for sid in inside)
+                        if slots_wide <= region_block and same:
+                            continue
+                        # 前半の試行は均等（地区の校数に比例した数まで）を必ず守る
+                        even = -(-len(by_region[region]) * slots_wide // size)
+                        if attempt < attempts // 2 and same >= even:
+                            continue
+                        options.append((same, child))
+                    if not options:
+                        placed = False
+                        break
+                    options = shuffled(options, base_seed, f"{ns}:{school_id}:{start}:{width}")
+                    start = min(options, key=lambda option: option[0])[1]
+                if not placed:
+                    break
+                leaves[start].append(school_id)
+            if not placed:
+                break
+        if placed:
+            out: List[str] = []
+            for index, part in enumerate(leaves):
+                out += shuffled(part, base_seed, f"{ns}:leaf:{index}")
+            return out
+    return None
+
+
 def redraw_order(
     winners: Sequence[str], groups: int, base_seed: int, namespace: str, round_no: int,
 ) -> List[str]:
@@ -280,6 +366,7 @@ def run_main_single_elimination(
     reference_year: int | None = None,
     bye_layout: str = BYE_LAYOUT_SPREAD,
     redraw: Dict[int, int] | None = None,
+    separation: dict | None = None,
 ) -> Tuple[StageExecution, CompetitionOutcome]:
     entrants = list(dict.fromkeys(entrants))
     if not entrants:
@@ -300,6 +387,7 @@ def run_main_single_elimination(
         namespace=f"{competition_id}:{stage_id}:MAIN",
         slot_override=slot_override,
         bye_layout=bye_layout,
+        separation=separation,
     )
     bracket_size = len(slots)
     total_rounds = 0 if bracket_size == 1 else int(log2(bracket_size))
