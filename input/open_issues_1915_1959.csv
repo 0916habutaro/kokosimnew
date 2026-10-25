@@ -1,0 +1,11 @@
+対象,分類,内容,ゲーム側の扱い／追加監査,URL
+1918年夏,中止・選出,代表校14件を収録したが全国大会は開催されなかった,勝敗・実施試合・実出場回数への自動加算は禁止,https://www.jhbf.or.jp/sensyuken/history/
+1941年夏,途中中止,地方大会進行中に中止。代表校行を登録しない,欠損ではなく中止ステータスで保持,https://www.jhbf.or.jp/sensyuken/outing/26-30.html
+1942～1945年夏,戦時中断,大会開催なし,0件のまま履歴管理,https://www.jhbf.or.jp/sensyuken/outing/26-30.html
+1942～1946年春,戦時中断,選抜開催なし,1947年・第19回から再開,https://www.jhbf.or.jp/senbatsu/outing/16-20.html
+朝鮮・台湾・満州,当時の出場枠,都道府県とは別の歴史的出場枠として61件収録,現行学校マスターとは独立して管理,https://www.jhbf.or.jp/sensyuken/outing/11-15.html
+旧制学校と学制改革,歴史学校ID,校名変更・分離・合併が多数。日本語名だけで現在校へ自動対応不可,当時校ID／ゲーム校IDの継承を別途監査,https://www.jhbf.or.jp/sensyuken/outing/31-35.html
+慶応普通・慶応商工など,学校系列,同一回次の複数チーム出場があり得る,同名系列を自動統合しない,https://www.jhbf.or.jp/senbatsu/outing/16-20.html
+1915～1959全体,収録範囲,各大会の校数一致・学校名キー重複0,別資料による全校名独立二重照合は未実施,https://www.jhbf.or.jp/sensyuken/outing/local.html
+1960～2026年統合,既存データ,以前の統合CSV本体がこの実行環境に存在しない,同じ18列スキーマの追加ファイルを保持。実ファイル統合は未実施,
+1948以前の校名,所在地表記,学校名は日本高野連表記。所在地・歴史代表枠と一致しない場合がある,単純な現在県コードからの帰属推定を避ける,https://www.jhbf.or.jp/sensyuken/outing/local.html
