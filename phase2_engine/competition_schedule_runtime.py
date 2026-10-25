@@ -134,6 +134,10 @@ class ScheduledCompetitionRuntime:
     school_days: Dict[str, set] = field(default_factory=dict, repr=False)
     # 試合を空いている日へ回したことがあるか（日程が足りなくなったときの扱い）
     spread_matches: bool = False
+    # 学校 → この日まで試合を入れない（甲子園に出ている学校の秋季大会。
+    # 全大会で共有し、季節の進行が甲子園の結果から毎日つくり直す）
+    school_holds: Dict[str, str] = field(default_factory=dict, repr=False)
+    respect_holds: bool = False
 
     @classmethod
     def from_calendar_row(
@@ -144,6 +148,7 @@ class ScheduledCompetitionRuntime:
         *,
         stage_date_lists: Mapping[str, Sequence[str]] | None = None,
         school_days: Dict[str, set] | None = None,
+        school_holds: Dict[str, str] | None = None,
     ) -> "ScheduledCompetitionRuntime":
         competition_id = getattr(
             runtime,
@@ -201,6 +206,12 @@ class ScheduledCompetitionRuntime:
         )
         if school_days is not None:
             state.school_days = school_days
+        if school_holds is not None:
+            state.school_holds = school_holds
+            competition = repo.competition(competition_id)
+            state.respect_holds = competition.get("season_segment") == "autumn" and (
+                competition.get("competition_level") != "national"
+            )
         state.ensure_next_wave_scheduled()
         return state
 
@@ -520,6 +531,19 @@ class ScheduledCompetitionRuntime:
                         + window
                         + [day for day in dates if day > window_end or day == window_end]
                     )
+                hold = max(
+                    (self.school_holds.get(team, "") for team in teams),
+                    default="",
+                ) if self.respect_holds else ""
+                if hold:
+                    # 甲子園に出ている学校は、敗退した日の翌日より後にする
+                    later = [day for day in candidates if day > hold]
+                    if not later:
+                        later = [
+                            day for day in self._reserve_dates(stage_code, hold)
+                            if day not in used_dates
+                        ] or [(date.fromisoformat(hold) + timedelta(days=1)).isoformat()]
+                    candidates = later
                 target = next(
                     (
                         day for day in candidates

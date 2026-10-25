@@ -8,6 +8,8 @@ from datetime import date, timedelta
 from typing import Mapping, Sequence
 
 from .competition_schedule_runtime import (
+    SCHEDULE_COMPLETED,
+    SCHEDULE_PENDING,
     ScheduledCompetitionRuntime,
     _iso_date,
 )
@@ -45,6 +47,10 @@ DEPENDENCY_BLOCKED_DATE = "blocked_date_dependency"
 JINGU = "jingu"
 # 選抜の選考に使う秋の県大会（21世紀枠）の印
 PREFECTURAL = "prefectural:"
+# 夏の甲子園と、その出場校が予選・シード決めを免除される秋季大会
+KOSHIEN_TYPE = "national_championship"
+KOSHIEN_EXEMPT_TYPES = ("autumn_prefectural",)
+KOSHIEN_EXEMPT_STAGES = ("SEED_EVENT", "BRANCH_QUALIFIER", "PRELIMINARY_QUALIFIER")
 
 
 @dataclass(frozen=True)
@@ -203,6 +209,17 @@ class LiveSeasonDependencyRuntimeState:
     )
     # 学校ごとの試合の日。全大会で共有し、年度の重なりでは前の年度と共有する。
     school_days: dict[str, set] = field(
+        default_factory=dict,
+        repr=False,
+    )
+    # 夏の甲子園に出ている学校 → この日まで秋季大会の試合を入れない
+    # （敗退した日。勝ち残っている間は甲子園の最後の試合の日）
+    school_holds: dict[str, str] = field(
+        default_factory=dict,
+        repr=False,
+    )
+    # 大会をつくったときの入力（甲子園の出場校が決まったときに作り直すため）
+    activated_annuals: dict[str, AnnualCompetitionInput] = field(
         default_factory=dict,
         repr=False,
     )
@@ -852,6 +869,110 @@ class LiveSeasonDependencyRuntimeState:
                 activation_date="",
             )
 
+    # ---- 夏の甲子園に出ている学校の秋季大会（game_definition.md §8） ----
+
+    def _koshien(self) -> ScheduledCompetitionRuntime | None:
+        for cid, scheduled in self.competitions.items():
+            if self.repo.competition(cid).get("competition_type") == KOSHIEN_TYPE:
+                return scheduled
+        return None
+
+    def _with_koshien_exemption(
+        self, competition_id: str, annual: AnnualCompetitionInput,
+    ) -> AnnualCompetitionInput:
+        """甲子園の間に始まる予選・シード決めを、甲子園に出ている学校は免除する。"""
+        competition = self.repo.competition(competition_id)
+        koshien = self._koshien()
+        if (
+            koshien is None
+            or competition.get("competition_type") not in KOSHIEN_EXEMPT_TYPES
+        ):
+            return annual
+        teams = [
+            school_id for school_id in koshien.runtime.entrant_school_ids
+            if school_id in set(annual.entrant_school_ids)
+        ]
+        last_day = max(koshien.calendar_dates) if koshien.calendar_dates else ""
+        calendar = self.calendar_rows[competition_id]
+        stage_dates = self.stage_date_lists.get(competition_id) or {}
+        codes = []
+        for stage in self.repo.stages(competition_id):
+            code = stage["stage_code"]
+            if code not in KOSHIEN_EXEMPT_STAGES:
+                continue
+            dates = stage_dates.get(code) or (
+                (calendar.get("game_date_list") or "").split(";")[:1]
+            )
+            if dates and dates[0] and dates[0] <= last_day:
+                codes.append(code)
+        if not teams or not codes:
+            return annual
+        annual = deepcopy(annual)
+        annual.koshien_exempt_school_ids = teams
+        annual.koshien_exempt_stage_codes = codes
+        # 免除する段階の組の出場校（入力で決めてある組）からも外す。
+        # 夏の優勝校のシードのように、すでに免除の扱いがある学校はそのまま
+        skip = set(teams) - set(annual.seed_event_bypass_school_ids)
+        for stage in self.repo.stages(competition_id):
+            if stage["stage_code"] not in codes:
+                continue
+            for group in self.repo.groups_by_stage.get(stage["stage_id"], []):
+                gid = group["stage_group_id"]
+                if gid in annual.group_entrant_school_ids:
+                    annual.group_entrant_school_ids[gid] = [
+                        school_id
+                        for school_id in annual.group_entrant_school_ids[gid]
+                        if school_id not in skip
+                    ]
+        return annual
+
+    def _refresh_koshien_holds(self) -> None:
+        """甲子園の結果から、秋季大会に試合を入れない日を決め直す。"""
+        koshien = self._koshien()
+        self.school_holds.clear()
+        if koshien is None:
+            return
+        last_day = max(
+            [day for day in koshien.calendar_dates]
+            + [m.match_date for m in koshien.matches.values() if m.match_date]
+        )
+        alive = set(koshien.runtime.entrant_school_ids)
+        for match in koshien.matches.values():
+            if match.status == SCHEDULE_COMPLETED and match.loser_id:
+                self.school_holds[match.loser_id] = match.completed_on or match.match_date
+                alive.discard(match.loser_id)
+        for school_id in alive:
+            # 優勝・準優勝の学校と、まだ勝ち残っている学校は甲子園の最後の日まで
+            self.school_holds[school_id] = last_day
+
+    def _rebuild_for_koshien(self, today: str) -> None:
+        """甲子園の出場校が決まったら、まだ始まっていない秋季大会を免除つきで作り直す。"""
+        for cid, scheduled in sorted(self.competitions.items()):
+            annual = self.activated_annuals.get(cid)
+            if annual is None or scheduled.is_complete:
+                continue
+            if any(
+                match.status != SCHEDULE_PENDING or match.match_date <= today
+                for match in scheduled.matches.values()
+            ):
+                continue
+            exempt = self._with_koshien_exemption(cid, annual)
+            # 免除がなくても、甲子園の出場校の試合を甲子園の間に組んであれば組み直す
+            clashes = scheduled.respect_holds and any(
+                match.match_date <= self.school_holds.get(team, "")
+                for match in scheduled.matches.values()
+                for team in (match.team1_id, match.team2_id)
+                if team
+            )
+            if exempt is annual and not clashes:
+                continue
+            # 組んであった最初の試合の日を学校の予定から外してから作り直す
+            for match in scheduled.matches.values():
+                for team in (match.team1_id, match.team2_id):
+                    self.school_days.get(team, set()).discard(match.match_date)
+            del self.competitions[cid]
+            self._activate_competition(cid, exempt, activation_date=today)
+
     def _activate_competition(
         self,
         competition_id: str,
@@ -859,6 +980,9 @@ class LiveSeasonDependencyRuntimeState:
         *,
         activation_date: str,
     ) -> bool:
+        base_annual = deepcopy(annual)
+        annual = self._with_koshien_exemption(competition_id, annual)
+        self._refresh_koshien_holds()
         scheduled = (
             self.engine
             .prepare_scheduled_competition_runtime(
@@ -872,6 +996,7 @@ class LiveSeasonDependencyRuntimeState:
                     )
                 ),
                 school_days=self.school_days,
+                school_holds=self.school_holds,
             )
         )
         next_date = scheduled.next_scheduled_date()
@@ -895,6 +1020,7 @@ class LiveSeasonDependencyRuntimeState:
         self.competitions[
             competition_id
         ] = scheduled
+        self.activated_annuals[competition_id] = base_annual
         self.status_by_competition[
             competition_id
         ] = (
@@ -902,6 +1028,9 @@ class LiveSeasonDependencyRuntimeState:
             if scheduled.is_complete
             else DEPENDENCY_ACTIVE
         )
+        if self.repo.competition(competition_id).get("competition_type") == KOSHIEN_TYPE:
+            self._refresh_koshien_holds()
+            self._rebuild_for_koshien(activation_date or self.current_date.isoformat())
         self.activated_on[
             competition_id
         ] = activation_date
@@ -1969,6 +2098,9 @@ class LiveSeasonDependencyRuntimeState:
                 ] = DEPENDENCY_COMPLETED
                 continue
             scheduled.play_date(target)
+            if self.repo.competition(cid).get("competition_type") == KOSHIEN_TYPE:
+                # 甲子園の結果で、秋季大会に試合を入れない日が変わる
+                self._refresh_koshien_holds()
             if scheduled.is_complete:
                 self.status_by_competition[
                     cid

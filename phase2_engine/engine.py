@@ -170,6 +170,9 @@ class TournamentEngine:
                 direct,
             )
         )
+        qualifier_entrants, direct = self._koshien_exempt_from_qualifier(
+            annual, entrants, qualifier_entrants, direct, qualifier_codes[0],
+        )
         return QualifierMainRuntimeState.create(
             repo=self.repo,
             annual=annual,
@@ -262,11 +265,23 @@ class TournamentEngine:
                     direct,
                 )
             )
+            qualifier_entrants, direct = self._koshien_exempt_from_qualifier(
+                annual, entrants, qualifier_entrants, direct, qualifier_codes[0],
+            )
+        # 甲子園に出ている学校はシード決めに出ない（次の段階から出る）。
+        # シード決めの免除がすでにある学校（夏の優勝校のシード）はそのまま
+        seed_entrants = entrants
+        if "SEED_EVENT" in annual.koshien_exempt_stage_codes:
+            skip = set(annual.koshien_exempt_school_ids) - set(
+                annual.seed_event_bypass_school_ids
+            )
+            seed_entrants = [x for x in entrants if x not in skip]
 
         return SeededCompetitionRuntimeState.create(
             repo=self.repo,
             annual=annual,
             entrants=entrants,
+            seed_entrants=seed_entrants,
             direct=direct,
             stage_by_code=stage_by_code,
             qualifier_entrants=qualifier_entrants,
@@ -275,6 +290,25 @@ class TournamentEngine:
                 self.pre_main_match_resolver
             ),
             main_match_resolver=self.main_match_resolver,
+        )
+
+    @staticmethod
+    def _koshien_exempt_from_qualifier(
+        annual: AnnualCompetitionInput,
+        entrants,
+        qualifier_entrants,
+        direct,
+        qualifier_code: str,
+    ):
+        """甲子園に出ている学校を予選から外し、本大会から出す。"""
+        if qualifier_code not in annual.koshien_exempt_stage_codes:
+            return list(qualifier_entrants), list(direct)
+        exempt = [
+            x for x in annual.koshien_exempt_school_ids if x in set(entrants)
+        ]
+        return (
+            [x for x in qualifier_entrants if x not in set(exempt)],
+            list(dict.fromkeys(list(direct) + exempt)),
         )
 
     def prepare_competition_runtime(
@@ -313,6 +347,7 @@ class TournamentEngine:
         *,
         stage_date_lists=None,
         school_days=None,
+        school_holds=None,
     ):
         """Prepare a lazy competition runtime and bind its next ready wave to dates."""
         from .competition_schedule_runtime import (
@@ -328,6 +363,7 @@ class TournamentEngine:
             calendar_row,
             stage_date_lists=stage_date_lists,
             school_days=school_days,
+            school_holds=school_holds,
         )
 
     def _pre_main_resolution_kwargs(self, annual: AnnualCompetitionInput) -> dict:

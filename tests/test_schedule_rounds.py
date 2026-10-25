@@ -73,6 +73,36 @@ class RoundDateTests(unittest.TestCase):
             checked += 1
         self.assertEqual(49, checked)
 
+    def test_koshien_teams_play_autumn_games_after_elimination(self):
+        koshien = next(
+            scheduled for cid, scheduled in self.season.competitions.items()
+            if self.repo.competition(cid).get("competition_type") == "national_championship"
+        )
+        last_day = max(m.match_date for m in koshien.matches.values())
+        out_on = {
+            m.loser_id: m.completed_on
+            for m in koshien.matches.values() if m.status == "completed"
+        }
+        teams = set(koshien.runtime.entrant_school_ids)
+        exempt_seen = 0
+        for cid, scheduled in self.season.competitions.items():
+            if self.repo.competition(cid).get("season_segment") != "autumn":
+                continue
+            annual = getattr(scheduled.runtime, "annual", None)
+            exempt = set(getattr(annual, "koshien_exempt_school_ids", []))
+            codes = set(getattr(annual, "koshien_exempt_stage_codes", []))
+            exempt_seen += bool(exempt)
+            for match in scheduled.matches.values():
+                for team in {match.team1_id, match.team2_id} & teams:
+                    # 敗退した日の翌日より後（優勝・準優勝は決勝の翌日より後）
+                    self.assertGreater(match.match_date, out_on.get(team, last_day), cid)
+                    # 甲子園の間に始まる予選・シード決めには出ない
+                    if team in exempt:
+                        self.assertNotIn(match.stage_code, codes, cid)
+        self.assertGreater(exempt_seen, 0)
+        # 甲子園の日程は動かさない
+        self.assertEqual(koshien.calendar_dates[-1], last_day)
+
     def test_summer_koshien_bracket_shape(self):
         from phase2_engine.screen.competition_views import main_runtime
 

@@ -128,3 +128,8 @@ class AnnualCompetitionInput:
     main_bracket_slots: List[str] = field(default_factory=list)
     # Optional real-result replay: match_id -> winning school_id for MAIN matches.
     main_match_winner_overrides: Dict[str, str] = field(default_factory=dict)
+    # 夏の甲子園に出ている学校（game_definition.md §8）。甲子園の間に始まる段階
+    # （koshien_exempt_stage_codes の予選・シード決め）は免除し、次の段階から出る。
+    # 予選なら本大会から、シード決めならシード決めに出ずに次の段階へ。
+    koshien_exempt_school_ids: List[str] = field(default_factory=list)
+    koshien_exempt_stage_codes: List[str] = field(default_factory=list)
