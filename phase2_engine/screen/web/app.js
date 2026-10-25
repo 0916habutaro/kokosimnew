@@ -813,6 +813,7 @@ async function renderSchoolDetail(content, schoolId) {
   if (!d) return;
   content.innerHTML = `<div class="head"><button class="btn small" id="sd-back">← 学校の一覧</button>
       <h2>${esc(d.name)}</h2><span class="muted">${esc(d.prefecture)}・${esc(d.ownership)}　${esc(d.official_name)}</span>
+      ${d.reputation_rank ? `<span class="muted">評判</span><span class="rank r-${d.reputation_rank}">${d.reputation_rank}</span>` : ""}
       ${d.edit && Object.keys(d.edit.ability).length ? '<span class="badge">補正あり</span>' : ""}
       <div class="spacer"></div><button class="btn small" id="sd-edit">編集…</button></div>
     <div class="dtabs">${SCHOOL_TABS.map(([k, l]) => `<button class="dtab ${st.tab === k ? "on" : ""}" data-k="${k}">${l}</button>`).join("")}</div>

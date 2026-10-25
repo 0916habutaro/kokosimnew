@@ -166,6 +166,7 @@ class SchoolScreenTests(unittest.TestCase):
         top = max(listing, key=lambda row: row["best_score"])
         detail = self.data.school(top["school_id"])
         self.assertEqual(top["name"], detail["name"])
+        self.assertIn(detail["reputation_rank"], ("S", "A", "B", "C", "D", "E"))
         self.assertEqual([2026], detail["years"])
         self.assertEqual(top["wins"], detail["yearly"][0]["wins"])
         for kind in ("summer", "spring"):

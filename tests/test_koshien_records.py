@@ -9,6 +9,7 @@ from pathlib import Path
 from historical_results.koshien import (
     APPEARANCE_COLUMNS, RECORD_COLUMNS, SPECIAL_RESULT_COLUMNS,
     HISTORICAL_SCHOOL_COLUMNS, HISTORICAL_TEAM_COLUMNS, HISTORICAL_ATTRIBUTION_COLUMNS,
+    ENTRANT_COLUMNS, ALIAS_COLUMNS, AUTUMN_REGIONAL_COLUMNS,
     aggregate, summarize_adjudications, summarize_historical_attributions, validate,
 )
 
@@ -119,6 +120,40 @@ class KoshienValidationTests(unittest.TestCase):
     def test_as_of_edition(self):
         self.record["as_of_edition"] = "108"
         self.assertIn("AS_OF", self.codes())
+
+    def _entrants(self, rows):
+        self.schools.write_text(
+            "school_id,official_name,prefecture_code\nSCH000001,架空高校,13\n", encoding="utf-8",
+        )
+        for name, columns, data in (
+            ("koshien_entrants.csv", ENTRANT_COLUMNS, rows),
+            ("koshien_team_aliases.csv", ALIAS_COLUMNS, []),
+            ("autumn_regional_entrants_2025.csv", AUTUMN_REGIONAL_COLUMNS, []),
+        ):
+            with (self.root / name).open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=columns)
+                writer.writeheader()
+                writer.writerows(data)
+
+    def test_entrants_follow_the_record(self):
+        row = dict(kind="summer", edition="83", prefecture_code="13", team_name="架空高校",
+                   school_id="SCH000001", status="played", source_id="HS9001")
+        self._entrants([{**row, "year": "2001"}, {**row, "year": "2005", "edition": "87"}])
+        self.assertEqual(set(), self.codes())
+        # 通算の出場年の一覧にない年・ゲーム開始後の夏・都道府県の違い
+        self._entrants([{**row, "year": "2003"}])
+        self.assertIn("YEAR_NOT_IN_RECORD", self.codes())
+        self._entrants([{**row, "year": "2026"}])
+        self.assertIn("YEAR", self.codes())
+        self._entrants([{**row, "year": "2001", "prefecture_code": "14"}])
+        self.assertIn("PREFECTURE", self.codes())
+        # 辞退は出場に数えない
+        self._entrants([
+            {**row, "year": "2001"}, {**row, "year": "2005", "edition": "87"},
+            {**row, "year": "2003", "edition": "85", "status": "withdrawn"},
+        ])
+        self.record["appearance_years"] = ""
+        self.assertEqual(set(), self.codes())
 
 
     @staticmethod

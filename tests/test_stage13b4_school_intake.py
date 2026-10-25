@@ -91,9 +91,12 @@ class Stage13B4SchoolIntakeTests(unittest.TestCase):
         cls.aware_generator = SchoolAwarePlayerAbilityGenerator(CONFIG_DIR)
         cls.team_generator = TeamStrengthGenerator(CONFIG_DIR)
 
-    def test_config_is_explicitly_synthetic_and_pre_team_strength(self):
+    def test_config_uses_reputation_and_pre_team_strength(self):
         rules = self.model.params["rules"]
-        self.assertTrue(rules["synthetic_not_real_school_rating"])
+        self.assertEqual(
+            "reputation",
+            self.model.params["quality_model"]["program_component"]["source"],
+        )
         self.assertTrue(rules["applied_before_team_strength"])
         self.assertFalse(rules["direct_team_strength_bonus"])
         self.assertEqual("entry_year", rules["cohort_key"])
@@ -176,7 +179,7 @@ class Stage13B4SchoolIntakeTests(unittest.TestCase):
             IntakeAdjustedPlayerAbilitySnapshot,
         )
         self.assertEqual("school_intake_v1", snapshot.intake_config_id)
-        self.assertEqual(1, snapshot.intake_config_revision)
+        self.assertEqual(2, snapshot.intake_config_revision)
         self.assertEqual(64, len(snapshot.intake_config_sha256))
         self.assertEqual(player.player_id, snapshot.player_id)
 
@@ -251,7 +254,7 @@ class Stage13B4SchoolIntakeTests(unittest.TestCase):
             "school_intake_v1",
             team.school_intake_config_id,
         )
-        self.assertEqual(1, team.school_intake_config_revision)
+        self.assertEqual(2, team.school_intake_config_revision)
         self.assertEqual(64, len(team.school_intake_config_sha256 or ""))
 
     def test_mixing_baseline_and_intake_snapshots_is_rejected(self):
