@@ -31,6 +31,7 @@ from .live_season_save import (
     plan_fingerprint,
 )
 from .repository import DataRepository
+from .runtime_snapshot import dump_runtime_state, load_closed_season
 from .save_slots import (
     SAVE_KIND_AUTOSAVE,
     SAVE_KIND_MANUAL,
@@ -627,6 +628,8 @@ class LiveGameService:
         # 遊んでいるセーブの学校の編集（能力の補正）。選手の能力をつくる部品が
         # この dict を見る。セーブを開くたびに中身を入れ替える
         self.school_adjustments: dict[str, dict[str, int]] = {}
+        # 閉じた年度の大会の進行（見るだけ）。(セーブ, 年度) → (状態, 大会名)
+        self._closed_seasons: dict[tuple[str, int], object] = {}
 
     def _use_school_edits(self, edits: SchoolEdits) -> None:
         self.school_adjustments.clear()
@@ -870,9 +873,23 @@ class LiveGameService:
         for year in state.finished_years():
             self._sync_history(session)
             season = state.seasons[year]
-            sealed = self._history_archive(session.slot_id).seal_year(
+            archive = self._history_archive(session.slot_id)
+            sealed = archive.seal_year(
                 year,
                 expected_match_count=len(season.completed_results()),
+            )
+            # 閉じた年度の大会の進行を残す（画面で見るだけ）。試合の記録は
+            # 履歴に書き出したので持たない
+            plan = state.plans.get(year)
+            season.pending_match_details = {}
+            archive.store_closed_season(
+                year,
+                dump_runtime_state(season),
+                {
+                    cid: entry.display_name
+                    for cid, entry in (plan.entries.items() if plan is not None else ())
+                    if entry.display_name
+                },
             )
             state.drop(year)
             closed.append(sealed)
@@ -1027,6 +1044,24 @@ class LiveGameService:
         return self._history_archive(slot_id).get_match(
             year, competition_id, match_id
         )
+
+    def forget_closed_seasons(self) -> None:
+        """閉じた年度の読み込みを捨てる（セーブを切り替えたとき）。"""
+        self._closed_seasons.clear()
+
+    def closed_season(self, slot_id: str, year: int, rng_seed: int):
+        """閉じた年度の大会の進行（見るだけ）と大会名。残っていなければ None。"""
+        key = (slot_id, year)
+        if key not in self._closed_seasons:
+            stored = self._history_archive(slot_id).closed_season(year)
+            self._closed_seasons[key] = (
+                (
+                    load_closed_season(stored[0], self.repo, self.data_dir, rng_seed),
+                    stored[1],
+                )
+                if stored is not None else None
+            )
+        return self._closed_seasons[key]
 
     def historical_match_index(self, slot_id: str, year: int) -> list[dict]:
         return self._history_archive(slot_id).match_index(year)

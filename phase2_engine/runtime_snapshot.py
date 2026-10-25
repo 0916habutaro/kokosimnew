@@ -112,3 +112,31 @@ def load_runtime_state(data: bytes, plans: dict, *, engines=None):
         raise RuntimeSnapshotError(
             f"cannot restore runtime snapshot: {exc}"
         ) from exc
+
+
+class _ReadOnlyUnpickler(_Unpickler):
+    """閉じた年度を見るだけのとき。試合の進め方（engine）はつながない。"""
+
+    def persistent_load(self, pid):
+        if pid in self._external:
+            return self._external[pid]
+        if ":" in str(pid):
+            return None
+        return super().persistent_load(pid)
+
+
+def load_closed_season(data: bytes, repo, data_dir, rng_seed: int):
+    """閉じた年度の状態（``dump_runtime_state`` で書いたもの）を、見るだけの形で戻す。"""
+    if not data.startswith(SNAPSHOT_FORMAT):
+        raise RuntimeSnapshotError("unknown runtime snapshot format")
+    try:
+        raw = zlib.decompress(data[len(SNAPSHOT_FORMAT):])
+        external = {
+            _REPO: repo,
+            _FACTORY: StructuralAnnualInputFactory(repo, data_dir, rng_seed),
+        }
+        return _ReadOnlyUnpickler(io.BytesIO(raw), external).load()
+    except (zlib.error, pickle.UnpicklingError, EOFError) as exc:
+        raise RuntimeSnapshotError(
+            f"cannot restore closed season: {exc}"
+        ) from exc

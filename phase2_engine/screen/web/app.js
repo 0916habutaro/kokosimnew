@@ -288,11 +288,16 @@ async function renderRecords(content) {
 async function renderCompetitions(content) {
   const view = state.competitions.view;
   if (view) return renderBracketPage(content, view);
-  const data = await call("competitions");
-  if (!data) return;
   const f = state.competitions.filter;
-  // 年度が替わって選んでいた年度が一覧にないときは、今の年度に戻す
-  if (!f.year || !data.school_years.map(String).includes(f.year)) f.year = String(state.header.school_year);
+  if (!f.year) f.year = String(state.header.school_year);
+  // 閉じた年度（前の年度）も選べる。見るだけ
+  let data = await call("competitions", f.year);
+  if (!data) return;
+  if (!data.school_years.map(String).includes(f.year)) {
+    f.year = String(state.header.school_year);
+    data = await call("competitions", f.year);
+    if (!data) return;
+  }
   const years = data.school_years.map((y) => `<option value="${y}" ${String(y) === f.year ? "selected" : ""}>${y}年度</option>`).join("");
   const tabs = (items, key) => items.map(([value, label]) =>
     `<button class="tab ${f[key] === value ? "on" : ""}" data-key="${key}" data-value="${value}">${label}</button>`).join("");
@@ -324,7 +329,12 @@ async function renderCompetitions(content) {
 
 async function renderBracketPage(content, view) {
   const data = await call("bracket", view.year, view.id);
-  if (!data) return;
+  if (!data) {
+    // 開いていた大会が見られないとき（記録のない年度など）は大会の一覧に戻す
+    if (state.busy) return;
+    state.competitions.view = null;
+    return renderCompetitions(content);
+  }
   state.bracket = data;
   const c = data.competition;
   content.innerHTML = `<div class="head">
@@ -388,9 +398,9 @@ async function showEntrant(view, schoolId) {
   const st = d.stats;
   const avg = (v) => v === null ? "—" : v.toFixed(3).replace(/^0/, "");
   const results = d.results.map((r) => `<h4>${esc(r.competition_name)}　<span class="muted">${esc(r.finish)}（${r.wins}勝${r.losses}敗）</span></h4>
-    <table class="list small">${r.games.map((g) => `<tr class="click" data-cid="${esc(g.competition_id)}" data-mid="${esc(g.match_id)}">
-      <td>${esc(g.round_name)}</td><td class="${g.won ? "w" : "l"}">${g.won ? "○" : "●"}</td>
-      <td class="num">${g.score === null ? "" : `${g.score}-${g.opponent_score}`}</td><td>${esc(g.opponent_name)}</td></tr>`).join("")}</table>`).join("");
+    <table class="list small egames">${r.games.map((g) => `<tr class="click" data-cid="${esc(g.competition_id)}" data-mid="${esc(g.match_id)}">
+      <td title="${esc(g.round_name)}">${esc(g.round_name)}</td><td class="${g.won ? "w" : "l"}">${g.won ? "○" : "●"}</td>
+      <td class="num">${g.score === null ? "" : `${g.score}-${g.opponent_score}`}</td><td title="${esc(g.opponent_name)}">${esc(g.opponent_name)}</td></tr>`).join("")}</table>`).join("");
   side.innerHTML = `<h3>${esc(d.name)}</h3><div class="muted">${esc(d.prefecture)}</div>
     ${a ? `<div class="radar-row">${abilityRadar(a)}<div class="overall-rank"><span>総合</span>${rankHtml(a.overall)}</div></div>`
       : '<div class="muted">能力は今の年度の大会だけ出ます</div>'}

@@ -57,6 +57,12 @@ CREATE INDEX IF NOT EXISTS idx_history_school1_year
     ON historical_matches(team1_id, year, competition_id, match_id);
 CREATE INDEX IF NOT EXISTS idx_history_school2_year
     ON historical_matches(team2_id, year, competition_id, match_id);
+-- 閉じた年度の大会の進行（見るだけ。トーナメント表・出場校一覧を出すため）
+CREATE TABLE IF NOT EXISTS closed_seasons (
+    year INTEGER PRIMARY KEY,
+    snapshot BLOB NOT NULL,
+    names_json TEXT NOT NULL
+);
 """
 
 
@@ -579,6 +585,27 @@ class HistoricalMatchArchive:
                 (year, competition_id, match_id),
             ).fetchone()
             return expand_payload(json.loads(row[0])) if row else None
+
+    def store_closed_season(self, year: int, snapshot: bytes, names: Mapping[str, str]) -> None:
+        """閉じた年度の大会の進行（``runtime_snapshot.dump_runtime_state``）と大会名。"""
+        with self._connection() as conn:
+            conn.executescript(_SCHEMA)
+            with conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO closed_seasons VALUES (?, ?, ?)",
+                    (year, snapshot, _canonical(dict(names))),
+                )
+
+    def closed_season(self, year: int) -> tuple[bytes, dict[str, str]] | None:
+        if not self.db_path.is_file():
+            return None
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.executescript(_SCHEMA)
+            row = conn.execute(
+                "SELECT snapshot, names_json FROM closed_seasons WHERE year = ?",
+                (year,),
+            ).fetchone()
+        return (bytes(row[0]), json.loads(row[1])) if row else None
 
     def match_index(self, year: int) -> list[dict]:
         """その年度の全試合の要約（成績表用。個人成績などは読まない）。"""

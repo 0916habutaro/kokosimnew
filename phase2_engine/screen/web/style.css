@@ -101,6 +101,12 @@ table.list td.n, table.list th.n { text-align: right; font-family: var(--num); }
 .area-tag.REG10 { background: #ff8a5c; }
 .estats { margin: 8px 0 4px; }
 #e-side h4 { margin: 12px 0 4px; font-size: 13px; }
+/* 予選の勝ち上がり：列の幅を決め、長い回戦名・校名は省略して1行に */
+#e-side .egames { width: 100%; table-layout: fixed; }
+#e-side .egames td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 4px; padding-right: 4px; }
+#e-side .egames td:nth-child(1) { width: 38%; }
+#e-side .egames td:nth-child(2) { width: 1.8em; text-align: center; }
+#e-side .egames td:nth-child(3) { width: 3.6em; text-align: center; }
 #e-side .btn { margin-top: 12px; }
 
 /* 抽選で決める回戦（準々決勝から）。トーナメント表の右に並べる */

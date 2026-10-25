@@ -56,8 +56,8 @@ class ScreenApi:
     def header(self) -> dict:
         return self._read(self._data.header)
 
-    def competitions(self) -> dict:
-        return self._read(self._data.competitions)
+    def competitions(self, school_year=None) -> dict:
+        return self._read(self._data.competitions, school_year)
 
     def bracket(self, school_year, competition_id) -> dict:
         return self._read(self._data.bracket, school_year, competition_id)
