@@ -218,6 +218,7 @@ class ScheduledCompetitionRuntime:
             )
             if plan:
                 state.match_plan = match_dates(plan, runtime, state.calendar_dates)
+                state._hold_planned_days()
         if school_holds is not None:
             state.school_holds = school_holds
             competition = repo.competition(competition_id)
@@ -586,6 +587,26 @@ class ScheduledCompetitionRuntime:
             unresolved_gap
         )
         return assigned
+
+    def _hold_planned_days(self) -> None:
+        """計画の日を、その試合に出る可能性のある学校の予定に先に入れる。
+
+        あとの回戦の試合は対戦が決まってから記録するので、そのままでは同じ時期の
+        ほかの大会（選抜と九州の春季県大会など）が同じ日に試合を組んでしまう。
+        組み合わせ表の線でつながる回戦（抽選し直す回戦より前）だけ。"""
+        runtime = self.runtime
+        redraw = getattr(runtime, "redraw_rounds", {}) or {}
+        last = min(redraw) - 1 if redraw else runtime.total_rounds
+        slots = list(runtime.initial_slots)
+        for round_no in range(1, last + 1):
+            width = 2 ** round_no
+            for index, match_id in enumerate(runtime.match_ids_by_round[round_no]):
+                day = self.match_plan.get(match_id)
+                if not day:
+                    continue
+                for team in slots[index * width:(index + 1) * width]:
+                    if team:
+                        self.school_days.setdefault(team, set()).add(day)
 
     def _schedule_planned(self) -> list[ScheduledRuntimeMatch]:
         """対戦が決まった試合を、計画の日に入れる（全国大会）。"""
