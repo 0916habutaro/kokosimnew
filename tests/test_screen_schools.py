@@ -8,6 +8,7 @@ import unittest
 from phase2_engine import DataRepository, LiveGameService
 from phase2_engine.screen.data import GameScreenData, load_screen_config
 from phase2_engine.screen.koshien_records import (
+    appearance_label,
     combined as koshien_combined,
     load_actual as load_actual_koshien,
     result_rank,
@@ -98,6 +99,14 @@ class ActualKoshienTests(unittest.TestCase):
         self.assertEqual(2, only_game["total"]["appearances"])
         self.assertGreater(result_rank("ベスト8"), result_rank("2回戦敗退"))
         self.assertGreater(result_rank("3回戦"), result_rank("初戦敗退"))
+
+    def test_appearance_labels(self):
+        self.assertEqual("初出場", appearance_label(None, set(), 2027, 1))
+        listed = {"years": [2019, 2024, 2025], "last_year": 2025}
+        self.assertEqual("4年連続5回目", appearance_label(listed, {2026}, 2027, 5))
+        self.assertEqual("8年ぶり2回目", appearance_label({"years": [2019], "last_year": 2019}, set(), 2027, 2))
+        # 出場した年の一覧がなく、前年に出ている学校は「2年連続」
+        self.assertEqual("2年連続4回目", appearance_label({"years": [], "last_year": 2026}, set(), 2027, 4))
 
 
 class AbilityTests(unittest.TestCase):

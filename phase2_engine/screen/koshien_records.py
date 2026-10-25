@@ -81,6 +81,28 @@ def combined(actual: dict | None, game: dict) -> dict:
     }
 
 
+def appearance_label(actual: dict | None, game_years, this_year: int, total: int) -> str:
+    """出場校一覧の「初出場」「3年連続5回目」「12年ぶり3回目」。
+
+    回数は実際の記録＋ゲーム内。実際の記録に出場した年の一覧がない学校は、
+    最後に出た年だけを使う（前年に出ていれば少なくとも2年連続とわかる）。"""
+    if total <= 1:
+        return "初出場"
+    actual = actual or {}
+    years = set(game_years) | set(actual.get("years") or [])
+    if actual.get("last_year"):
+        years.add(int(actual["last_year"]))
+    years = {y for y in years if y < this_year}
+    if not years:
+        return f"{total}回目"
+    if this_year - 1 in years:
+        streak = 1
+        while this_year - streak - 1 in years:
+            streak += 1
+        return f"{streak + 1}年連続{total}回目"
+    return f"{this_year - max(years)}年ぶり{total}回目"
+
+
 def count_label(actual: int, game: int) -> dict:
     """記録の画面の「〇回目」と内訳。"""
     return {"total": actual + game, "actual": actual, "game": game}

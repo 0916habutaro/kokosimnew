@@ -58,6 +58,20 @@ def has_started(scheduled, today: str) -> bool:
     )
 
 
+def _first_day(season, competition_id: str, calendar: dict, scheduled) -> str:
+    """大会の期間の初日。地区予選など本大会より前の段階があれば、その最初の試合日。"""
+    days = [calendar.get("start_date", "")]
+    days += [
+        dates[0]
+        for dates in (getattr(season, "stage_date_lists", {}) or {}).get(competition_id, {}).values()
+        if dates
+    ]
+    if scheduled is not None:
+        days += [m.match_date for m in scheduled.matches.values() if m.match_date]
+    days = [day for day in days if day]
+    return min(days) if days else ""
+
+
 def competition_list(
     seasons: dict, plans: dict, repo, names, short_names,
 ) -> list[dict]:
@@ -95,7 +109,7 @@ def competition_list(
                 "level": _level(competition),
                 "level_label": LEVEL_LABELS[_level(competition)],
                 "prefecture_code": competition.get("prefecture_code", ""),
-                "start_date": calendar.get("start_date", ""),
+                "start_date": _first_day(season, cid, calendar, scheduled),
                 "end_date": calendar.get("end_date", ""),
                 "status": status,
                 "status_label": STATUS_LABELS[status],
@@ -189,24 +203,62 @@ def bracket_layout(main: MainTournamentRuntimeState, scheduled) -> dict:
         nodes[match_id] = result
         return result
 
-    if main.total_rounds:
-        final_id = main._match_id(main.total_rounds, 1)
-        final = node(final_id)
-    else:
-        final = None
+    # 準々決勝などを前の回戦のあとに抽選する大会（夏の甲子園）は、抽選の前の
+    # 回戦までを線でつなぎ、そこから先は抽選が済んだ対戦だけを別に出す
+    redraw = sorted(getattr(main, "redraw_rounds", {}) or {})
+    tree_rounds = redraw[0] - 1 if redraw else main.total_rounds
+    final = None
+    if tree_rounds == main.total_rounds and main.total_rounds:
+        final = node(main._match_id(main.total_rounds, 1))
+    elif tree_rounds:
+        for match_id in main.match_ids_by_round[tree_rounds]:
+            node(match_id)
     round_names = {
         match["round"]: match["round_name"] for match in drawn
     }
+    later = [
+        {
+            "round": round_no,
+            "round_name": _round_name_of(main, round_no),
+            "drawn": main.is_drawn(round_no),
+            "matches": [
+                _later_match(main.matches[match_id], scheduled_matches.get(match_id))
+                for match_id in main.match_ids_by_round[round_no]
+            ],
+        }
+        for round_no in range(tree_rounds + 1, main.total_rounds + 1)
+    ]
     return {
-        "total_rounds": main.total_rounds,
+        "total_rounds": tree_rounds,
         "rows": rows,
         "matches": sorted(drawn, key=lambda m: (m["round"], m["y"])),
         "round_names": [
             round_names.get(number, f"{number}回戦")
-            for number in range(1, main.total_rounds + 1)
+            for number in range(1, tree_rounds + 1)
         ],
         "final_y": final["y"] if final else 0.0,
-        "champion_id": main.champion_school_id,
+        "champion_id": main.champion_school_id if final else "",
+        "later_rounds": later,
+        "champion_after_draw": main.champion_school_id if not final else "",
+    }
+
+
+def _round_name_of(main, round_no: int) -> str:
+    ids = main.match_ids_by_round.get(round_no) or []
+    return main.matches[ids[0]].round_name if ids else f"{round_no}回戦"
+
+
+def _later_match(bracket_match, row) -> dict:
+    """抽選で決める回戦の試合（抽選前は学校が空）。"""
+    return {
+        "match_id": bracket_match.match_id,
+        "team1_id": bracket_match.team1,
+        "team2_id": bracket_match.team2,
+        "winner_id": bracket_match.winner,
+        "team1_score": getattr(row, "team1_score", None),
+        "team2_score": getattr(row, "team2_score", None),
+        "match_date": getattr(row, "match_date", ""),
+        "status": bracket_match.status,
     }
 
 

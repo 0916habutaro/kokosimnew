@@ -28,6 +28,7 @@ from .competition_names import CompetitionNames
 from .koshien_records import (
     KINDS as KOSHIEN_KINDS,
     RECORDS_PATH as KOSHIEN_RECORDS_PATH,
+    appearance_label,
     combined as koshien_combined,
     count_label,
     load_actual as load_actual_koshien,
@@ -428,6 +429,9 @@ class GameScreenData:
         kind = {"national_championship": "summer",
                 "national_invitational": "spring"}.get(competition.get("competition_type"))
         before = self._koshien_counts(year - 1) if kind else None
+        # この大会の暦の年（選抜は年度の翌年の3月）
+        this_year = year + 1 if kind == "spring" else year
+        areas = self._summer_areas(year) if kind == "summer" else {}
         schools = self.service.repo.schools
         rows = []
         for school_id in main.entrant_school_ids:
@@ -438,7 +442,10 @@ class GameScreenData:
                     schools.get(school_id, {}).get("prefecture_code"), ""
                 ),
                 "prefecture_code": schools.get(school_id, {}).get("prefecture_code", ""),
+                # 地区名：夏は代表の大会（北北海道・東東京など）、ほかは都道府県
+                "area": areas.get(school_id) or self.prefecture_short(school_id),
                 "appearance": None,
+                "appearance_label": "",
             }
             if kind:
                 actual = self.actual_koshien.get(school_id, {}).get(kind, {})
@@ -446,8 +453,29 @@ class GameScreenData:
                     actual.get("appearances", 0),
                     before[kind]["appearances"].get(school_id, 0) + 1,
                 )
+                row["appearance_label"] = appearance_label(
+                    actual, before[kind]["years"].get(school_id, set()),
+                    this_year, row["appearance"]["total"],
+                )
             rows.append(row)
         return sorted(rows, key=lambda row: (row["prefecture_code"], row["name"]))
+
+    def _summer_areas(self, year: int) -> dict[str, str]:
+        """夏の代表校 → 代表になった大会の地区名（北北海道・東東京・青森…）。"""
+        season = _seasons(self.state).get(year)
+        if season is None:
+            return {}
+        out = {}
+        for cid, scheduled in season.competitions.items():
+            competition = self.service.repo.competitions.get(cid, {})
+            if competition.get("competition_type") != "summer_local_qualifier":
+                continue
+            main = main_runtime(scheduled)
+            if main is None or not main.champion_school_id:
+                continue
+            short = self.competition_names(cid, competition.get("competition_name", cid))
+            out[main.champion_school_id] = short.replace("夏・", "").removesuffix("大会")
+        return out
 
     def team_name(self, school_id: str, competition_id: str, day: str = "") -> str:
         """試合に出す校名。全国大会・地区大会では都道府県を添える（横浜（神奈川））。
@@ -733,7 +761,8 @@ class GameScreenData:
     def _koshien_counts(self, year: int) -> dict:
         """その年度までのゲーム内の甲子園（夏・春）の出場・優勝の回数。"""
         counts = {
-            kind: {"appearances": {}, "championships": {}} for kind in KOSHIEN_KINDS
+            kind: {"appearances": {}, "championships": {}, "years": {}}
+            for kind in KOSHIEN_KINDS
         }
         kinds = {"national_championship": "summer", "national_invitational": "spring"}
         for each in self._years():
@@ -744,6 +773,10 @@ class GameScreenData:
                     kind = kinds.get(row["type"])
                     if not kind:
                         continue
+                    # 出場した年（暦の年。選抜は年度の翌年の3月）
+                    counts[kind]["years"].setdefault(school_id, set()).add(
+                        int(row["first_date"][:4])
+                    )
                     for key, hit in (("appearances", True),
                                      ("championships", row["finish"] == "優勝")):
                         if hit:

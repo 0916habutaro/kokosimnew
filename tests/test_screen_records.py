@@ -77,6 +77,16 @@ class TodayAndRecordsTests(unittest.TestCase):
                  "actual": actual.get("appearances", 0), "game": 1},
                 row["appearance"],
             )
+            # カードの地区名と「初出場」「〇年連続〇回目」「〇年ぶり〇回目」
+            self.assertTrue(row["area"])
+            label = row["appearance_label"]
+            if row["appearance"]["total"] == 1:
+                self.assertEqual("初出場", label)
+            else:
+                self.assertTrue(label.endswith(f"{row['appearance']['total']}回目"), label)
+        # 北海道・東京は代表の大会の地区名（北北海道・東東京など）
+        areas = {row["area"] for row in entrants if row["prefecture_code"] in ("01", "13")}
+        self.assertEqual(4, len(areas))
         # 都道府県大会には付けない・出場校一覧もない
         local = next(
             row["competition_id"] for row in self.data.competitions()["competitions"]
