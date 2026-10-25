@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from phase2_engine.randomness import rng_for
@@ -21,6 +21,17 @@ from .match_contract import (
     validate_match_simulation_input,
     validate_match_simulation_result,
 )
+
+
+@dataclass(frozen=True)
+class GameRules:
+    """試合の規定（config/match/game_rules_v1.json）。
+
+    ``tiebreak_start_inning``：この回から無死一・二塁で始める（None なら使わない）。
+    ``mercy``：（回, 点差）。その回が終わった時点で点差がこれ以上なら試合終了。"""
+
+    tiebreak_start_inning: int | None = None
+    mercy: tuple[tuple[int, int], ...] = ()
 
 
 class MatchSimulator:
@@ -571,8 +582,10 @@ class MatchSimulator:
         match_input: MatchSimulationInput,
         *,
         regulation_innings: int | None = None,
+        rules: GameRules | None = None,
     ) -> MatchSimulationResult:
         validate_match_simulation_input(match_input)
+        rules = rules or GameRules()
         regulation = (
             int(regulation_innings)
             if regulation_innings is not None
@@ -662,6 +675,18 @@ class MatchSimulator:
                 runs_before_half = team_runs[offense_id]
                 outs = 0
                 bases: list[str | None] = [None, None, None]
+                # タイブレーク：打順は続け、先頭打者の1人前が一塁、2人前が二塁。
+                # 置いた走者の得点は自責点にしない
+                placed: set[str] = set()
+                if (
+                    rules.tiebreak_start_inning is not None
+                    and inning >= rules.tiebreak_start_inning
+                ):
+                    order = lineups[offense_id]
+                    lead = lineup_index[offense_id]
+                    bases[0] = order[(lead - 1) % len(order)]
+                    bases[1] = order[(lead - 2) % len(order)]
+                    placed = {bases[0], bases[1]}
 
                 while outs < 3:
                     staff = pitcher_orders[defense_id]
@@ -805,7 +830,7 @@ class MatchSimulator:
                     if event_type != "reached_on_error":
                         pitcher_stat["earned_runs"] = (
                             int(pitcher_stat["earned_runs"])
-                            + len(scored)
+                            + len([r for r in scored if r not in placed])
                         )
                     if hit:
                         pitcher_stat["hits_allowed"] = (
@@ -879,9 +904,20 @@ class MatchSimulator:
                     break
 
                 ending_half = half
+                # 得点差コールド：その回が終わった時点（後攻が勝っていれば表が
+                # 終わった時点）で点差が決まった数以上
+                margin = team_runs[team2_id] - team_runs[team1_id]
+                called = any(
+                    inning >= mercy_inning
+                    and (abs(margin) if half == "bottom" else margin) >= mercy_margin
+                    for mercy_inning, mercy_margin in rules.mercy
+                )
+                if called and half == "bottom":
+                    game_over = True
+                    break
                 if (
                     half == "top"
-                    and inning >= regulation
+                    and (inning >= regulation or called)
                     and team_runs[team2_id] > team_runs[team1_id]
                 ):
                     # Home team is already ahead: final bottom was never played.

@@ -151,6 +151,8 @@ class PlayerSeason:
         pending = state.pending_match_details
         pending.update(self.resolver.detail_sink)
         self.resolver.detail_sink = pending
+        # 試合の規定（コールドを使わない決勝など）を決めるのに大会の進行を見る
+        self.resolver.season_state = state
 
 
 def player_engine(repo, plan) -> PlayerSeason:

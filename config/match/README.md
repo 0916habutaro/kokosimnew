@@ -19,6 +19,13 @@ Stage 13C以降の能力ベース試合シミュレーションに関する機�
   - batter / pitcher / teamの保存count
   - reconciliation規則
 
+## 試合の規定（段階3、2026-10-26）
+
+- `game_rules_v1.json`
+  - タイブレーク（10回から無死一・二塁。打順は続ける）
+  - 得点差コールド（5回10点差・7回7点差。都道府県大会・地区大会で、本大会の決勝を除く。神奈川は準決勝から除く）
+  - 試合ごとの規定は `game_core/tournament_bridge.py` の `AbilityMatchResolver.rules_for` が決め、`MatchSimulator.simulate(..., rules=...)` に渡す
+
 ## version / revision
 
 意味・構造の破壊的変更はv2。
