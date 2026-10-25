@@ -59,6 +59,8 @@ select, input[type=search], input[type=date] { height: 32px; background: #0b1117
 
 /* 表 */
 table.list { width: 100%; border-collapse: collapse; }
+table.list.fixed { table-layout: fixed; }
+table.list.fixed td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 table.list th { text-align: left; color: var(--muted); font-weight: 400; font-size: 12px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--panel2); position: sticky; top: 0; z-index: 1; }
 /* 一覧の枠（.scroll）の上の余白の分だけ上で止め、スクロールした行が見出しの上にのぞかないようにする */
 .scroll table.list th { top: -16px; }
@@ -146,7 +148,7 @@ svg text { font-family: var(--ui); }
 
 /* 学校の一覧（見えている行だけ描く） */
 .grid { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.ghead, .grow { display: grid; grid-template-columns: 80px minmax(150px, 1fr) 72px 58px 58px 58px 58px 58px 70px 190px; align-items: center; }
+.ghead, .grow { display: grid; grid-template-columns: 80px minmax(150px, 1fr) 72px 52px 52px 52px 52px 52px 70px 62px 190px; align-items: center; }
 .ghead { height: 36px; background: var(--panel2); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }
 .ghead div { padding: 0 10px; cursor: pointer; white-space: nowrap; }
 .ghead div:hover { color: var(--text); }
@@ -183,3 +185,14 @@ table.list tr.current td { background: #16222d; }
 .note { color: var(--muted); font-size: 12px; padding: 10px 18px; }
 .ask-body label.field { display: block; margin-top: 10px; color: var(--text); }
 nav button[disabled] { opacity: .35; cursor: default; }
+
+/* 学校能力のランク（S〜G） */
+.rank { display: inline-block; min-width: 22px; text-align: center; font-family: var(--num); font-weight: 700; border-radius: 4px; padding: 0 4px; }
+.r-S { color: #ff6b6b; fill: #ff6b6b; } .r-A { color: #f2b233; fill: #f2b233; } .r-B { color: #e6d36a; fill: #e6d36a; } .r-C { color: #7fd38a; fill: #7fd38a; }
+.r-D { color: #6ec1e4; fill: #6ec1e4; } .r-E { color: #8ea3b6; fill: #8ea3b6; } .r-F { color: #7b8794; fill: #7b8794; } .r-G { color: #5d6873; fill: #5d6873; }
+.radar { display: block; margin: 0 auto 8px; }
+.radar .ring { fill: none; stroke: var(--line); stroke-width: 1; }
+.radar .shape { fill: rgba(242, 178, 51, 0.25); stroke: var(--accent); stroke-width: 2; }
+.radar text { fill: var(--muted); font-size: 12px; }
+.radar tspan { font-weight: 700; }
+.stat b .rank { font-size: inherit; }

@@ -44,6 +44,9 @@ class ScreenDataTests(unittest.TestCase):
             ["today", "competitions", "matches", "schools", "records", "saves"],
             [item["id"] for item in shell["menu"]],
         )
+        # 能力のランクの境目（S から順に下がる）
+        ranks = list(shell["ability_ranks"].values())
+        self.assertEqual(sorted(ranks, reverse=True), ranks)
         header = shell["header"]
         self.assertEqual("2026-04-01", header["date"])
         self.assertEqual("2026年4月1日（水）", header["date_label"])
