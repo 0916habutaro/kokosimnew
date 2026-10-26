@@ -9,6 +9,7 @@ import csv
 from datetime import date, timedelta
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Callable
 
 from game_core.school_edits import SchoolAdjustmentModel
@@ -309,19 +310,46 @@ class GameScreenData:
         return {self.session.plan.year: self.session.plan}
 
     def _season(self, school_year) -> object:
-        season = _seasons(self.state).get(int(school_year))
+        season = self._season_of(int(school_year))
         if season is None:
-            raise ValueError("その年度は進行中ではありません")
+            raise ValueError("その年度の大会の記録はありません")
         return season
 
-    def competitions(self) -> dict:
-        rows = competition_list(
-            _seasons(self.state), self._plans(), self.service.repo,
-            self.names, self.competition_names,
+    def _season_of(self, year: int):
+        """進行中の年度の状態、なければ閉じた年度の状態（見るだけ）。どちらもなければ None。"""
+        season = _seasons(self.state).get(year)
+        if season is not None:
+            return season
+        closed = self.service.closed_season(
+            self.session.slot_id, year, self.session.plan.rng_seed,
         )
+        return closed[0] if closed is not None else None
+
+    def _plan_of(self, year: int):
+        """その年度の大会の表示名（閉じた年度は閉じたときに残した名前）。"""
+        plan = self._plans().get(year)
+        if plan is not None:
+            return plan
+        closed = self.service.closed_season(
+            self.session.slot_id, year, self.session.plan.rng_seed,
+        )
+        names = closed[1] if closed is not None else {}
+        return SimpleNamespace(entries={
+            cid: SimpleNamespace(display_name=name) for cid, name in names.items()
+        })
+
+    def competitions(self, school_year=None) -> dict:
+        """その年度（省くと今の年度）の大会。閉じた年度は見るだけ。"""
+        year = int(school_year) if school_year else self._current_year()
+        season = self._season_of(year)
+        rows = competition_list(
+            {year: season}, {year: self._plan_of(year)}, self.service.repo,
+            self.names, self.competition_names,
+        ) if season is not None else []
         return {
+            "school_year": year,
             "competitions": rows,
-            "school_years": sorted({row["school_year"] for row in rows}),
+            "school_years": self._years(),
         }
 
     def bracket(self, school_year, competition_id: str) -> dict:
@@ -330,7 +358,7 @@ class GameScreenData:
         listing = {
             row["competition_id"]: row
             for row in competition_list(
-                {int(school_year): season}, self._plans(),
+                {int(school_year): season}, {int(school_year): self._plan_of(int(school_year))},
                 self.service.repo, names, self.competition_names,
             )
         }
@@ -501,7 +529,7 @@ class GameScreenData:
 
     def _selection_basis(self, year: int, competition_id: str) -> dict[str, str]:
         """選抜の出場校 → 選ばれた枠（jingu・century）。選考の記録から。"""
-        season = _seasons(self.state).get(year)
+        season = self._season_of(year)
         for entry in getattr(season, "history", None) or ():
             if (
                 entry.get("action") == "select_invitational"
@@ -587,7 +615,7 @@ class GameScreenData:
 
     def _summer_areas(self, year: int) -> dict[str, str]:
         """夏の代表校 → 代表になった大会の地区名（北北海道・東東京・青森…）。"""
-        season = _seasons(self.state).get(year)
+        season = self._season_of(year)
         if season is None:
             return {}
         out = {}
@@ -638,7 +666,7 @@ class GameScreenData:
 
     def _feeder_ranks(self, year: int, competition_id: str) -> dict[str, str]:
         """地区大会に出た学校 → 「石川1位」（その都道府県大会の順位）。"""
-        season = _seasons(self.state).get(year)
+        season = self._season_of(year)
         if season is None:
             return {}
         out: dict[str, str] = {}
@@ -668,7 +696,7 @@ class GameScreenData:
         return f"{stage}　{group_name}" if group_name else stage
 
     def _competition_name(self, season, competition_id: str, fallback: str) -> str:
-        plan = self._plans().get(season.year)
+        plan = self._plan_of(season.year)
         entry = plan.entries.get(competition_id) if plan is not None else None
         return (entry.display_name if entry is not None else "") or fallback
 
@@ -683,6 +711,23 @@ class GameScreenData:
         return {player.player_id: player for player in members.players}
 
 
+    def _roster_players(self, year: int, school_id: str) -> dict:
+        """閉じた年度の試合の選手名。名簿（年度ごと、選手IDは変わらない）から。
+        3月の大会もあるので前後の年度の名簿も見る。選手で試合をしないときは空。"""
+        season = self.state.primary if isinstance(self.state, CareerState) else self.state
+        resolver = getattr(season.engine, "main_match_resolver", None)
+        rosters = getattr(getattr(getattr(resolver, "member_provider", None), "members", None), "rosters", None)
+        if rosters is None:
+            return {}
+        players = {}
+        for roster_year in (year - 1, year, year + 1):
+            try:
+                roster = rosters.roster(roster_year, school_id)
+            except ValueError:
+                continue
+            players.update({player.player_id: player for player in roster.players})
+        return players
+
     def _closed_match(self, year: int, competition_id: str, match_id: str) -> dict:
         """閉じた年度の試合（試合の履歴から）。"""
         detail = self.service.historical_match(
@@ -696,7 +741,7 @@ class GameScreenData:
             lambda school_id: self.team_name(
                 school_id, competition_id, row.get("match_date", ""), year,
             ),
-            lambda _: {},
+            lambda school_id: self._roster_players(year, school_id),
         )
         out["school_year"] = year
         out["competition_name"] = self.competition_names(
@@ -1295,6 +1340,7 @@ class GameScreenData:
         """別のセーブに切り替える。前のセーブの集計は捨てる。"""
         self.session = session
         self._closed_years = {}
+        self.service.forget_closed_seasons()
         self.names.edits = self._load_edits()
         self.abilities = self._new_abilities()
 
