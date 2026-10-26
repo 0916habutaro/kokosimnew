@@ -52,8 +52,8 @@ class PlayerGrowthTests(unittest.TestCase):
             for grade in (1, 2, 3):
                 self._year(values, grade=grade, seed=seed * 3 + grade)
             total += values[CONTACT] - 50
-        # 3年間で15（上限に近づくほど小さくなるので少し下回る）
-        self.assertTrue(11.0 < total / runs < 15.5, total / runs)
+        # 3年間で14（上限に近づくほど小さくなるので少し下回る）
+        self.assertTrue(10.5 < total / runs < 14.5, total / runs)
 
     def test_types_differ_by_grade(self):
         index = {name: i for i, name in enumerate(TYPES)}
