@@ -1,6 +1,6 @@
 {
   "config_id": "school_reputation_v1",
-  "revision": 1,
+  "revision": 2,
   "status": "tuned_2026_10_25",
   "description_ja": "学校の評判の初期値（ゲーム開始時点。game_definition.md §10「初期の勢力図」）。実際の甲子園の出場（historical_data/koshien_entrants.csv、1915年〜）・通算（koshien_records.csv）と直前の結果（2026年選抜・2025年夏・2025年秋）から点を出し、最近ほど重くする。評判の順位を入部品質の学校成分（school_intake_v1 の program_component と同じ平均・広がりの z）に変える。実際の記録は読むだけで、評判はゲームのデータ。",
   "reference_year": 2026,
@@ -24,6 +24,18 @@
     "autumn_prefectural_best4": 0.6,
     "autumn_prefectural_best8": 0.3
   },
+  "summer_local": {
+    "description_ja": "夏の地方大会の全試合（historical_data/summer_local_games.csv、2021〜2025年）。県の中の強さ（レーティング）と毎年の勝ち上がり",
+    "elo": {"initial": 1500, "k": 24, "year_carry": 0.7},
+    "rating_points_per_400": 1.2,
+    "finish_points": {"1": 1.5, "2": 1.0, "4": 0.6, "8": 0.4, "16": 0.15},
+    "finish_half_life_years": 3.0
+  },
+  "prefecture_strength": {
+    "description_ja": "県どうしの差。その県の学校の甲子園（春夏）の通算勝率（koshien_records.csv）から",
+    "elo_offset_per_win_rate": 1000,
+    "finish_scale_per_win_rate": 2.0
+  },
   "noise": {
     "description_ja": "全校に足す小さな乱数（0〜max の一様分布、ゲームの乱数の種で決まる）。甲子園に出たことのない学校の順位を決め、県の上位校が生まれる余地を残す",
     "max": 0.4
@@ -39,6 +51,11 @@
   ],
   "notes_ja": {
     "recency_half_life_years": "何年前の出場で点が半分になるか（基準は reference_year）",
-    "rank_labels": "画面に出す評判のランク。全校の中の順位（下からの割合）がこの値以上ならそのランク"
+    "rank_labels": "画面に出す評判のランク。全校の中の順位（下からの割合）がこの値以上ならそのランク",
+    "summer_local.elo": "勝ち負けと点差のレーティング。k は1試合で動く大きさ、year_carry は年度が変わるときに初期値から離れている分を残す割合（最近ほど重く）",
+    "summer_local.rating_points_per_400": "レーティングが初期値より400高いときの点（県どうしの差を足したあと）",
+    "summer_local.finish_points": "その年の勝ち上がり（1 優勝・2 準優勝・4 ベスト4・8 ベスト8・16 ベスト16）の点。finish_half_life_years 年前の点は半分",
+    "prefecture_strength.elo_offset_per_win_rate": "甲子園の通算勝率が5割から0.1高い県の学校は、レーティングをこの値の0.1倍だけ上げる",
+    "prefecture_strength.finish_scale_per_win_rate": "勝ち上がりの点に掛ける 1＋この値×（通算勝率−0.5）"
   }
 }
