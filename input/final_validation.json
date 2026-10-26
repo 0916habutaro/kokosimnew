@@ -1,0 +1,23 @@
+{
+  "original_351_rows_unchanged": true,
+  "original_count_351": true,
+  "row_count_reconciles": true,
+  "twelve_columns": true,
+  "no_duplicate_match_keys": true,
+  "coverage_294_unique_tournaments": true,
+  "coverage_counts_reconcile": true,
+  "summary_counts_reconcile": true,
+  "all_results_include_draws": true,
+  "all_games_original_351_values_preserved": true,
+  "no_duplicate_all_game_keys": true,
+  "all_original_games_relocated_in_sources": true,
+  "all_294_tournaments_structurally_consistent": true,
+  "national_elimination_counts_match_all_years": true,
+  "new_sources_primary_or_documented_gap_fill": true,
+  "result_date_year_matches": true,
+  "confirmed_scores_winner_greater": true,
+  "tiebreak_not_in_regulation_innings": true,
+  "flags_only_confirmed_values_or_blank": true,
+  "original_files_byte_preserved": true,
+  "zip_csv_matches_delivered_csv": true
+}

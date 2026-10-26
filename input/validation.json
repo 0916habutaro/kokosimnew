@@ -1,0 +1,21 @@
+{
+  "original": 351,
+  "added": 20191,
+  "total": 20542,
+  "collected_regions": 294,
+  "source_internal_consistent": 294,
+  "exceptions": 0,
+  "conflicts": 0,
+  "matched_name_variants": 34,
+  "unknown_innings": 35,
+  "unknown_tiebreak": 364,
+  "duplicates_merged": 0,
+  "original_rows_unchanged": true,
+  "drawn_games": 5,
+  "all_results": 20547,
+  "tournaments_all_three_detail_fields_confirmed": 201,
+  "supplemental_results": 1,
+  "all_results_unconfirmed_non_special": 330,
+  "special_results_with_blanks": 35,
+  "original_rows_with_reconfirmation_pending": 5
+}
