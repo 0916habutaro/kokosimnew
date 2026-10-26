@@ -406,7 +406,7 @@ def match_detail(row: dict, detail: dict | None, names, players) -> dict:
                 **{key: stat.get(key, 0) for key in (
                     "batters_faced", "hits_allowed", "runs_allowed",
                     "earned_runs", "walks", "strikeouts",
-                    "home_runs_allowed",
+                    "home_runs_allowed", "pitches",
                 )},
             }
             for stat in detail.get("pitcher_stats") or ()

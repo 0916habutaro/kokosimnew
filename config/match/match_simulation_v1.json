@@ -1,6 +1,6 @@
 {
   "config_id": "match_simulation_v1",
-  "revision": 2,
+  "revision": 3,
   "status": "design_default_not_tuned",
   "description_ja": "Stage 13C-2 初期能力ベース試合モデル。打席結果・走者進塁・投手運用の暫定値であり、実在高校野球へ校正済みではない。",
   "score_source": "ability_model_v1",
@@ -86,7 +86,27 @@
     "reliever_bf_base": 9.0,
     "reliever_stamina_effect": 0.05,
     "minimum_bf_before_change": 3,
-    "runs_allowed_quick_hook": 6
+    "runs_allowed_quick_hook": 6,
+    "starter_minimum_pitches": 100,
+    "reliever_minimum_pitches": 20,
+    "emergency_pitcher_ability": 20
+  },
+  "pitch_count": {
+    "description_ja": "1打席の球数。[最少, 上乗せの最大]。上乗せは0〜最大から等しい確率で選ぶ。設計の初期値（実際の打席ごとの球数には合わせていない）",
+    "by_event": {
+      "strikeout": [3, 4],
+      "walk": [4, 3],
+      "hit_by_pitch": [1, 4],
+      "single": [1, 5],
+      "double": [1, 5],
+      "triple": [1, 5],
+      "home_run": [1, 5],
+      "field_out": [1, 5],
+      "fielder_choice": [1, 5],
+      "reached_on_error": [1, 5],
+      "sacrifice_bunt": [1, 3],
+      "sacrifice_fly": [1, 5]
+    }
   },
   "rules": {
     "team_strength_direct_bonus_for_score": false,
@@ -100,6 +120,7 @@
   "rng_namespace_policy": {
     "match": "match_v1:{competition_id}:{reference_year}:{match_id}",
     "plate_appearance": "plate_appearance_v1:{match_id}:{plate_appearance_no}",
-    "event": "event_v1:{match_id}:{event_no}"
+    "event": "event_v1:{match_id}:{event_no}",
+    "pitches": "pitches_v1:{match_id}:{plate_appearance_no}"
   }
 }

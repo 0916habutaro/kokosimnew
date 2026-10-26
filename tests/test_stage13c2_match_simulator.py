@@ -388,8 +388,8 @@ class Stage13C2MatchSimulatorTests(unittest.TestCase):
         self.assertIn('default=240', source)
         self.assertIn('default=1000', source)
 
-    def test_match_config_is_revision_2_and_not_claimed_tuned(self):
-        self.assertEqual(2, self.simulator.config.revision)
+    def test_match_config_is_revision_3_and_not_claimed_tuned(self):
+        self.assertEqual(3, self.simulator.config.revision)
         self.assertEqual(
             "design_default_not_tuned",
             self.simulator.config.payload["status"],

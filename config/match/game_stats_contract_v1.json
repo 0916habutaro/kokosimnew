@@ -29,7 +29,8 @@
     "home_runs_allowed",
     "walks",
     "strikeouts",
-    "hit_batters"
+    "hit_batters",
+    "pitches"
   ],
   "team_fields": [
     "runs",

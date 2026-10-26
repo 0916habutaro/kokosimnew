@@ -29,6 +29,10 @@ class PlayerSeasonServiceTests(unittest.TestCase):
             )
             # 開始前（3月）の試合の記録は、まだ履歴に保存していない
             self.assertTrue(session.state.pending_match_details)
+            # 開始前の試合の球数も数える（球数制限。試合の日 → 球数）
+            log = session.state.primary.pitch_log
+            self.assertTrue(log)
+            self.assertTrue(all(day < "2026-04-01" for days in log.values() for day in days))
             session.state.advance_through("2026-04-04")
             service.save_game(session)
             self.assertEqual({}, session.state.pending_match_details)
@@ -54,6 +58,7 @@ class PlayerSeasonServiceTests(unittest.TestCase):
             self.assertLess(save.stat().st_size, 5_000_000)
 
             loaded = service.load_game("players")
+            self.assertEqual(session.state.primary.pitch_log, loaded.state.primary.pitch_log)
             self.assertEqual(
                 session.state.completed_results(),
                 loaded.state.completed_results(),

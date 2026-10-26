@@ -1,8 +1,8 @@
 {
   "config_id": "game_rules_v1",
-  "revision": 1,
+  "revision": 2,
   "status": "rules_2026_10_26",
-  "description_ja": "高校野球の試合の規定（game_definition.md §11）。タイブレークと得点差コールド。どの大会・どの試合に使うかもここで決める。",
+  "description_ja": "高校野球の試合の規定（game_definition.md §11）。タイブレーク・得点差コールド・球数制限。どの大会・どの試合に使うかもここで決める。",
   "tiebreak": {
     "start_inning": 10,
     "runners": ["first", "second"],
@@ -10,15 +10,21 @@
   },
   "mercy_rule": {
     "thresholds": [[5, 10], [7, 7]],
-    "levels": ["local", "regional"],
+    "levels": ["local", "prefectural", "regional"],
     "exclude_rounds_from_end": 1,
     "prefecture_exclude_rounds_from_end": {"14": 2},
     "source_ja": "5回終了で10点差以上・7回終了で7点差以上（高校野球特別規則）。甲子園（選抜・選手権）と明治神宮大会には適用しない。都道府県大会・地区大会の決勝は適用しない。神奈川は準決勝から適用しない（J:COM 高校野球観戦ナビ https://www2.myjcom.jp/special/tv/sports/baseball/highschool/column_hsbb/calledgame/）"
+  },
+  "pitch_limit": {
+    "pitches": 500,
+    "days": 7,
+    "source_ja": "1人の投手が投げられるのは1週間（試合の日を含む7日間）に500球まで。日本高野連・都道府県高野連が主催するすべての公式戦。2020年春から試行、2025年から高校野球特別規則（高校野球ドットコム https://www.hb-nippon.com/articles/2629）。上限に届いた打者の打撃が終わるまでは投げられ、次の打者から交代する（センバツLIVE！ https://news.yahoo.co.jp/articles/0df36cffe66cbcf8e7fa7b297250d82b0d2cbd3b）"
   },
   "notes_ja": {
     "thresholds": "[回, 点差]：その回が終わった時点（後攻が勝っているときは表が終わった時点）で点差がこれ以上なら試合終了",
     "levels": "コールドを使う大会の区分（competitions.csv の competition_level）",
     "exclude_rounds_from_end": "本大会（MAIN）の最後の何回戦はコールドにしないか（1＝決勝だけ）",
-    "prefecture_exclude_rounds_from_end": "都道府県ごとの例外（都道府県コード → 最後の何回戦）"
+    "prefecture_exclude_rounds_from_end": "都道府県ごとの例外（都道府県コード → 最後の何回戦）",
+    "pitch_limit": "すべての大会で使う。年度をまたいでも数える（3月の選抜と4月の春季大会）"
   }
 }

@@ -730,12 +730,12 @@ class LiveGameService:
                 raise ValueError("既存セーブへ新規ゲームを上書きできません")
             self.career_persistence.prepare(plan, engine, self.resolver_contract)
         engine, season = self._engine(plan, engine)
+        # 開始前の試合（3月に始まる春季大会など）にも球数制限・コールドを使う
         first = plan.build_runtime(
             engine=engine,
             start_date=start_date,
+            on_created=season.attach if season is not None else None,
         )
-        if season is not None:
-            season.attach(first)
         state = CareerState(
             {plan.year: first},
             current_date=first.current_date,
@@ -850,16 +850,22 @@ class LiveGameService:
                 prior_results=prior_results_from_season(previous),
             ).build_plan()
             engine, season = self._engine(plan, None)
+
+            def on_created(state):
+                # 球数制限は年度をまたいで数える（3月の選抜と4月の春季大会）
+                state.pitch_log = previous.pitch_log
+                if season is not None:
+                    season.attach(state)
+
             state = plan.build_runtime(
                 engine=engine,
                 start_date=day.isoformat(),
                 open_before_school_year=True,
                 school_days=previous.school_days,
+                on_created=on_created,
             )
             # 甲子園に最後に出た年は前の年度から引き継ぐ（21世紀枠の重み）
             state.koshien_last_years = previous.last_koshien_years()
-            if season is not None:
-                season.attach(state)
             return plan, state
 
         return open_season

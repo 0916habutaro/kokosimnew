@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -72,6 +73,59 @@ class MatchSimulator:
             key=lambda entry: entry.order,
         )
         return tuple(entry.player_id for entry in entries)
+
+    def _game_staff(
+        self,
+        team: TeamMatchInput,
+        allowances: Mapping[str, int] | None,
+    ) -> tuple[tuple[str, ...], int]:
+        """この試合で投げる順と、そのうち投手陣の人数。球数制限（``allowances``：
+        あと何球投げられるか）があれば、残りの少ない投手は先発にせず、投げられない
+        投手は外す。後ろに野手を並べ、球数制限で投手がいなくなったときだけ使う。"""
+        staff = self._pitcher_order(team)
+        if allowances is None:
+            return staff, len(staff)
+        usage = self.params["pitching_usage"]
+        left = lambda player_id: allowances.get(player_id, math.inf)  # noqa: E731
+        able = [
+            player_id for player_id in staff
+            if left(player_id) >= int(usage["reliever_minimum_pitches"])
+        ]
+        starter = next(
+            (
+                player_id for player_id in able
+                if left(player_id) >= int(usage["starter_minimum_pitches"])
+            ),
+            able[0] if able else None,
+        )
+        order = [starter] if starter else []
+        order += [player_id for player_id in able if player_id != starter]
+        fielders = sorted(
+            (
+                player for player in team.player_abilities
+                if player.player_id not in staff and left(player.player_id) > 0
+            ),
+            key=lambda player: (-player.arm_strength, player.player_id),
+        )
+        return tuple(order) + tuple(player.player_id for player in fielders), len(order)
+
+    def _as_pitcher(
+        self,
+        player: PlayerAbilitySnapshot,
+    ) -> PlayerAbilitySnapshot:
+        """投手の能力のない野手が投げるときの能力（``emergency_pitcher_ability``）。"""
+        if player.stuff is not None:
+            return player
+        value = int(self.params["pitching_usage"]["emergency_pitcher_ability"])
+        return replace(
+            player,
+            control=value, stamina=value, stuff=value,
+            strikeout=value, groundball=value, composure=value,
+        )
+
+    def _pitches(self, event_type: str, rng) -> int:
+        minimum, extra = self.params["pitch_count"]["by_event"][event_type]
+        return int(minimum) + rng.randint(0, int(extra))
 
     @staticmethod
     def _clamp_probability(
@@ -541,6 +595,7 @@ class MatchSimulator:
             "walks": 0,
             "strikeouts": 0,
             "hit_batters": 0,
+            "pitches": 0,
         }
 
     def _record_batter_event(
@@ -583,7 +638,10 @@ class MatchSimulator:
         *,
         regulation_innings: int | None = None,
         rules: GameRules | None = None,
+        pitch_allowances: Mapping[str, int] | None = None,
     ) -> MatchSimulationResult:
+        """``pitch_allowances``：選手 → この試合であと何球投げられるか（球数制限）。
+        届いたら次の打者から投げない。None なら制限なし。"""
         validate_match_simulation_input(match_input)
         rules = rules or GameRules()
         regulation = (
@@ -613,9 +671,15 @@ class MatchSimulator:
             school_id: self._lineup(team)
             for school_id, team in teams.items()
         }
-        pitcher_orders = {
-            school_id: self._pitcher_order(team)
+        game_staffs = {
+            school_id: self._game_staff(team, pitch_allowances)
             for school_id, team in teams.items()
+        }
+        pitcher_orders = {
+            school_id: order for school_id, (order, _) in game_staffs.items()
+        }
+        staff_sizes = {
+            school_id: size for school_id, (_, size) in game_staffs.items()
         }
         lineup_index = {team1_id: 0, team2_id: 0}
         pitcher_index = {team1_id: 0, team2_id: 0}
@@ -699,14 +763,21 @@ class MatchSimulator:
                                 defense_id,
                             )
                         )
-                    pitcher = player_maps[defense_id][pitcher_id]
+                    pitcher = self._as_pitcher(player_maps[defense_id][pitcher_id])
                     pitcher_stat = pitcher_rows[defense_id][pitcher_id]
 
-                    if self._should_change_pitcher(
+                    limit_reached = (
+                        pitch_allowances is not None
+                        and int(pitcher_stat["pitches"])
+                        >= pitch_allowances.get(pitcher_id, math.inf)
+                    )
+                    if (
+                        limit_reached and current_index + 1 < len(staff)
+                    ) or self._should_change_pitcher(
                         pitcher=pitcher,
                         stats=pitcher_stat,
                         starter=current_index == 0,
-                        has_next=current_index + 1 < len(staff),
+                        has_next=current_index + 1 < staff_sizes[defense_id],
                     ):
                         pitcher_index[defense_id] += 1
                         current_index = pitcher_index[defense_id]
@@ -718,7 +789,9 @@ class MatchSimulator:
                                     defense_id,
                                 )
                             )
-                        pitcher = player_maps[defense_id][pitcher_id]
+                        pitcher = self._as_pitcher(
+                            player_maps[defense_id][pitcher_id]
+                        )
                         pitcher_stat = pitcher_rows[defense_id][pitcher_id]
 
                     lineup = lineups[offense_id]
@@ -818,6 +891,16 @@ class MatchSimulator:
 
                     pitcher_stat["batters_faced"] = (
                         int(pitcher_stat["batters_faced"]) + 1
+                    )
+                    pitcher_stat["pitches"] = int(pitcher_stat["pitches"]) + self._pitches(
+                        event_type,
+                        rng_for(
+                            match_input.generation_seed,
+                            self.params["rng_namespace_policy"]["pitches"].format(
+                                match_id=match_input.match_id,
+                                plate_appearance_no=pa_no,
+                            ),
+                        ),
                     )
                     pitcher_stat["outs_recorded"] = (
                         int(pitcher_stat["outs_recorded"])
