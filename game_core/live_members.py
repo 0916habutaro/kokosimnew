@@ -162,7 +162,10 @@ def new_roster_book(repo, rng_seed: int) -> RosterBook:
     """新規開始の名簿（最初の年度の部員は使うときに乱数の種からつくる）。"""
     from phase2_engine.season_catalog import TEMPLATE_YEAR
 
-    return RosterBook(repo.team, first_year=TEMPLATE_YEAR, career_seed=rng_seed)
+    return RosterBook(
+        repo.team, first_year=TEMPLATE_YEAR, career_seed=rng_seed,
+        school_ids=sorted(sid for sid in repo.schools if sid in repo.school_to_program),
+    )
 
 
 def player_engine(repo, plan) -> PlayerSeason:

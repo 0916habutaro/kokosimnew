@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import date
 import pickle
 import unittest
 
@@ -20,6 +21,10 @@ class _NoGeneration:
 
     def generate(self, *args):
         raise AssertionError("abilities must come from the save")
+
+    @property
+    def intake_model(self):
+        raise AssertionError("growth state must come from the save")
 
     def __getattr__(self, name):
         if name == "base_generator":
@@ -55,7 +60,7 @@ class RosterBookTests(unittest.TestCase):
                 for player, other in zip(roster.players, again.players):
                     self.assertEqual(self.book.ability(player), loaded.ability(other))
 
-    def test_promotion_keeps_identity_and_adds_the_grade_difference(self):
+    def test_promotion_keeps_identity_and_abilities(self):
         before = {p.player_id: p for p in self.book.roster(2026, "SCH-A").players}
         after = self.book.roster(2027, "SCH-A").players
         returning = [p for p in after if p.player_id in before]
@@ -71,22 +76,46 @@ class RosterBookTests(unittest.TestCase):
                 (old.display_name, old.hometown_prefecture_code),
                 (player.display_name, player.hometown_prefecture_code),
             )
+            # 能力は選手ごとに1つ（成長しなければ変わらない）
             then, now = self.book.ability(old), self.book.ability(player)
-            # grade_adjustment（1年 -5・2年 0・3年 +5）の差を足す
-            self.assertEqual(min(100, then.contact + 5), now.contact)
-            self.assertEqual(then.position_aptitude, now.position_aptitude)
-            self.assertEqual(2027, now.reference_year)
+            self.assertEqual(then.contact, now.contact)
+            self.assertEqual(player.academic_year, now.academic_year)
 
-    def test_march_before_the_first_year_uses_the_first_abilities_one_grade_back(self):
-        first = self.book.roster(2026, "SCH-B")
+    def test_march_before_the_first_year_uses_the_first_abilities(self):
+        first = {p.player_id: p for p in self.book.roster(2026, "SCH-B").players}
         before = self.book.roster(2025, "SCH-B")
         self.assertEqual(15, len(before.players))
-        by_id = {p.player_id: p for p in first.players}
         for player in before.players:
-            now = self.book.ability(by_id[player.player_id])
-            then = self.book.ability(player)
-            self.assertEqual(max(1, now.contact - 5), then.contact)
-            self.assertEqual(player.academic_year, then.academic_year)
+            self.assertEqual(
+                self.book.ability(first[player.player_id]).contact,
+                self.book.ability(player).contact,
+            )
+
+    def test_growth_raises_abilities_and_is_saved(self):
+        book = _book()
+        players = book.roster(2026, "SCH-A").players
+        start = {p.player_id: book.ability(p) for p in players}
+        state = book.state(players[0])
+        type_and_potential = (state.growth_type, state.potential)
+        book.record_games("SCH-A", players[:9])
+        self.assertEqual(1, book.state(players[0]).games)
+        for month in (4, 5, 6, 8, 12):
+            book.grow(date(2026, month, 28))
+        self.assertEqual(5, book.version)
+        self.assertEqual(0, book.state(players[0]).games)
+        self.assertEqual(type_and_potential, (state.growth_type, state.potential))
+        gains = [
+            book.ability(p).contact - start[p.player_id].contact for p in players
+        ]
+        self.assertTrue(all(gain >= 0 for gain in gains))
+        self.assertGreater(sum(gains) / len(gains), 1.0)
+        loaded = self._loaded(book)
+        for player in players:
+            self.assertEqual(book.ability(player), loaded.ability(player))
+            self.assertEqual(
+                (book.state(player).growth_type, book.state(player).potential),
+                (loaded.state(player).growth_type, loaded.state(player).potential),
+            )
 
     def test_forgetting_a_closed_year_keeps_the_next_year(self):
         book = _book()
