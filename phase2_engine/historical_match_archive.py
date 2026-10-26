@@ -8,6 +8,8 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import threading
+import zlib
 from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Iterable, Mapping
@@ -47,10 +49,6 @@ CREATE TABLE IF NOT EXISTS historical_matches (
 );
 CREATE INDEX IF NOT EXISTS idx_history_date
     ON historical_matches(year, match_date, competition_id, match_id);
-CREATE INDEX IF NOT EXISTS idx_history_team1
-    ON historical_matches(year, team1_id, match_date, competition_id, match_id);
-CREATE INDEX IF NOT EXISTS idx_history_team2
-    ON historical_matches(year, team2_id, match_date, competition_id, match_id);
 -- Multi-decade school history filters by school equality *before* the
 -- 50/100-year range. Existing year-first indexes remain for yearly views.
 CREATE INDEX IF NOT EXISTS idx_history_school1_year
@@ -63,12 +61,21 @@ CREATE TABLE IF NOT EXISTS closed_seasons (
     snapshot BLOB NOT NULL,
     names_json TEXT NOT NULL
 );
--- 閉じた年度の名簿（選手の名前・出身・学年など。試合の選手名を出すため）
+-- 閉じた年度の名簿（選手の名前・出身・学年と年度末の能力・成長の状態。
+-- game_core/roster_book.py の closed_record で詰めて圧縮したもの）
 CREATE TABLE IF NOT EXISTS closed_rosters (
     year INTEGER NOT NULL,
     school_id TEXT NOT NULL,
-    players_json TEXT NOT NULL,
+    record BLOB NOT NULL,
     PRIMARY KEY (year, school_id)
+);
+-- 終わった大会の試合の記録をまとめて圧縮したもの（match_id → payload_json の
+-- JSON を zlib）。まとめた試合の historical_matches.payload_json は空にする
+CREATE TABLE IF NOT EXISTS packed_competitions (
+    year INTEGER NOT NULL,
+    competition_id TEXT NOT NULL,
+    payloads BLOB NOT NULL,
+    PRIMARY KEY (year, competition_id)
 );
 """
 
@@ -295,6 +302,12 @@ def _history_payload(year: int, record: Mapping[str, object]) -> dict:
         # 試合経過の要点（得点が入った打席・投手交代。game_core/highlights.py）
         "highlights": highlights,
     }
+
+
+# 最近開いた大会のまとめた試合の記録（(ファイル, 年度, 大会ID) → match_id → payload_json）
+_PACKED_CACHE: dict[tuple[str, int, str], dict[str, str]] = {}
+_PACKED_CACHE_SIZE = 8
+_PACKED_LOCK = threading.Lock()
 
 
 class HistoricalMatchArchive:
@@ -591,7 +604,71 @@ class HistoricalMatchArchive:
                    WHERE year=? AND competition_id=? AND match_id=?""",
                 (year, competition_id, match_id),
             ).fetchone()
-            return expand_payload(json.loads(row[0])) if row else None
+            if row is None:
+                return None
+            raw = row[0] or self._packed(conn, year, competition_id)[match_id]
+            return expand_payload(json.loads(raw))
+
+    def _packed(self, conn, year: int, competition_id: str) -> dict[str, str]:
+        """まとめて圧縮した大会の試合の記録（最近開いた大会はとっておく）。"""
+        key = (str(self.db_path), year, competition_id)
+        with _PACKED_LOCK:
+            cached = _PACKED_CACHE.get(key)
+        if cached is None:
+            row = conn.execute(
+                "SELECT payloads FROM packed_competitions WHERE year=? AND competition_id=?",
+                (year, competition_id),
+            ).fetchone()
+            cached = json.loads(zlib.decompress(row[0])) if row else {}
+            with _PACKED_LOCK:
+                _PACKED_CACHE[key] = cached
+                while len(_PACKED_CACHE) > _PACKED_CACHE_SIZE:
+                    _PACKED_CACHE.pop(next(iter(_PACKED_CACHE)))
+        return cached
+
+    def packed_competitions(self, year: int) -> set[str]:
+        if not self.db_path.is_file():
+            return set()
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.executescript(_SCHEMA)
+            return {
+                row[0] for row in conn.execute(
+                    "SELECT competition_id FROM packed_competitions WHERE year=?", (year,),
+                )
+            }
+
+    def pack_competition(self, year: int, competition_id: str) -> int:
+        """終わった大会の試合の記録をまとめて圧縮する。まとめた試合の数を返す。"""
+        with self._connection() as conn:
+            conn.executescript(_SCHEMA)
+            with conn:
+                conn.execute("BEGIN IMMEDIATE")
+                rows = conn.execute(
+                    """SELECT match_id, payload_json, record_sha256 FROM historical_matches
+                       WHERE year=? AND competition_id=? AND payload_json != ''""",
+                    (year, competition_id),
+                ).fetchall()
+                if not rows:
+                    return 0
+                payloads = dict(self._packed(conn, year, competition_id))
+                for match_id, raw, digest in rows:
+                    if _digest(raw) != digest:
+                        raise HistoricalMatchConflictError(
+                            f"archived match changed: {competition_id}/{match_id}"
+                        )
+                    payloads[match_id] = raw
+                conn.execute(
+                    "INSERT OR REPLACE INTO packed_competitions VALUES (?, ?, ?)",
+                    (year, competition_id, zlib.compress(_canonical(payloads).encode("utf-8"), 9)),
+                )
+                conn.execute(
+                    """UPDATE historical_matches SET payload_json=''
+                       WHERE year=? AND competition_id=?""",
+                    (year, competition_id),
+                )
+                with _PACKED_LOCK:
+                    _PACKED_CACHE.pop((str(self.db_path), year, competition_id), None)
+                return len(rows)
 
     def store_closed_season(self, year: int, snapshot: bytes, names: Mapping[str, str]) -> None:
         """閉じた年度の大会の進行（``runtime_snapshot.dump_runtime_state``）と大会名。"""
@@ -614,29 +691,29 @@ class HistoricalMatchArchive:
             ).fetchone()
         return (bytes(row[0]), json.loads(row[1])) if row else None
 
-    def store_closed_rosters(self, year: int, rosters: Mapping[str, list[dict]]) -> None:
-        """閉じた年度の名簿（学校ID → 選手の ``Player.to_dict()``）。"""
+    def store_closed_rosters(self, year: int, rosters: Mapping[str, bytes]) -> None:
+        """閉じた年度の名簿（学校ID → ``RosterBook.closed_record``）。"""
         with self._connection() as conn:
             conn.executescript(_SCHEMA)
             with conn:
                 conn.executemany(
                     "INSERT OR REPLACE INTO closed_rosters VALUES (?, ?, ?)",
                     [
-                        (year, school_id, _canonical(players))
-                        for school_id, players in sorted(rosters.items())
+                        (year, school_id, record)
+                        for school_id, record in sorted(rosters.items())
                     ],
                 )
 
-    def closed_roster(self, year: int, school_id: str) -> list[dict] | None:
+    def closed_roster(self, year: int, school_id: str) -> bytes | None:
         if not self.db_path.is_file():
             return None
         with closing(sqlite3.connect(self.db_path)) as conn:
             conn.executescript(_SCHEMA)
             row = conn.execute(
-                "SELECT players_json FROM closed_rosters WHERE year = ? AND school_id = ?",
+                "SELECT record FROM closed_rosters WHERE year = ? AND school_id = ?",
                 (year, school_id),
             ).fetchone()
-        return json.loads(row[0]) if row else None
+        return bytes(row[0]) if row else None
 
     def match_index(self, year: int) -> list[dict]:
         """その年度の全試合の要約（成績表用。個人成績などは読まない）。"""
@@ -675,10 +752,13 @@ class HistoricalMatchArchive:
         args.extend((limit, offset))
         with closing(sqlite3.connect(self.db_path)) as conn:
             rows = conn.execute(
-                f"""SELECT payload_json FROM historical_matches
+                f"""SELECT payload_json, competition_id, match_id FROM historical_matches
                     WHERE {filters}
                     ORDER BY match_date, competition_id, match_id
                     LIMIT ? OFFSET ?""",
                 args,
             ).fetchall()
-            return [expand_payload(json.loads(row[0])) for row in rows]
+            return [
+                expand_payload(json.loads(raw or self._packed(conn, year, cid)[mid]))
+                for raw, cid, mid in rows
+            ]

@@ -12,7 +12,9 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import date
+import json
 import threading
+import zlib
 from typing import Callable, Iterable
 
 from phase2_engine.models import Team
@@ -185,6 +187,9 @@ class RosterBook:
         self._packed: dict[tuple[int, str], tuple] = {}
         # 学校ID → (入学年度, 番号) → 能力と成長の状態
         self._states: dict[str, dict[tuple[int, int], PlayerState]] = {}
+        # 年度 → 学校ID → 年度末（3月の成長のあと）の能力と成長の状態（詰めた形）。
+        # 閉じた年度の名簿と一緒に履歴に書き出すまで持つ
+        self._year_end: dict[int, dict[str, bytes]] = {}
         self.bind(
             team_for, generator=generator, ability_generator=ability_generator, growth=growth,
         )
@@ -208,6 +213,7 @@ class RosterBook:
             "closed_through": self.closed_through,
             "version": self.version,
             "_packed": self._packed,
+            "_year_end": self._year_end,
             "_states": {
                 school_id: _pack_states(self.first_year, states)
                 for school_id, states in self._states.items()
@@ -438,8 +444,47 @@ class RosterBook:
                         month=month.month, rng=rng,
                     )
                     state.games = 0
+            if month.month == 3:
+                self._year_end[year] = {
+                    school_id: self._pack_roster_states(year, school_id)
+                    for school_id in self.schools(year)
+                }
             self.version += 1
             self._abilities = {}
+
+    def _pack_roster_states(self, year: int, school_id: str) -> bytes:
+        states = self._states[school_id]
+        return _pack_states(self.first_year, {
+            key: states[key]
+            for key in (
+                (p.entry_year, p.roster_no) for p in self.roster(year, school_id).players
+            )
+        })
+
+    def drop_year_end(self, year: int) -> None:
+        """年度末の能力を履歴に書き出したら、セーブからは手放す。"""
+        with self._lock:
+            self._year_end.pop(year, None)
+
+    def closed_record(self, year: int, school_id: str) -> bytes:
+        """閉じた年度の名簿（名前・出身など）と年度末の能力・成長の状態を詰めて圧縮した
+        もの（試合履歴の ``closed_rosters`` に入れる）。開始前の年度には能力がない。"""
+        with self._lock:
+            packed = (
+                pack_school(self.roster(year, school_id), first_year=self.first_year)
+                if year == self.first_year - 1 else self._packed[(year, school_id)]
+            )
+            school_name, program_id, cohort_policy, source, names, small = packed
+            header = json.dumps({
+                "year": year, "school_id": school_id, "first_year": self.first_year,
+                "career_seed": self.career_seed, "school_name": school_name,
+                "program_id": program_id, "cohort_policy": cohort_policy,
+                "name_source": source, "names": names, "small": len(small),
+            }, ensure_ascii=False).encode("utf-8")
+            states = self._year_end.get(year, {}).get(school_id, b"")
+            return zlib.compress(
+                len(header).to_bytes(4, "big") + header + small + states, 9,
+            )
 
     # ---- 閉じた年度 ----
 
@@ -465,4 +510,47 @@ class RosterBook:
                 key: value for key, value in self._rosters.items() if key[0] > year
             }
             self._abilities = {}
+            self._year_end.pop(year, None)
             self.closed_through = max(self.closed_through, year)
+
+
+def decode_closed_record(blob: bytes) -> list[dict]:
+    """``RosterBook.closed_record`` を選手ごとの dict（``Player.to_dict()`` に、年度末の
+    能力 ``abilities``（1項目1バイトの並び）・成長の型 ``growth_type``・潜在能力
+    ``potential`` を足したもの）に戻す。能力のない年度は ``abilities`` が None。"""
+    from .player_growth import POTENTIAL_SCALE, TYPES
+
+    data = zlib.decompress(blob)
+    size = int.from_bytes(data[:4], "big")
+    header = json.loads(data[4:4 + size].decode("utf-8"))
+    small = data[4 + size:4 + size + header["small"]]
+    states = _unpack_states(header["first_year"], data[4 + size + header["small"]:])
+    packed = (
+        header["school_name"], header["program_id"], header["cohort_policy"],
+        header["name_source"], header["names"], small,
+    )
+    year, school_id = header["year"], header["school_id"]
+    first_year, seed = header["first_year"], header["career_seed"]
+    out = []
+    for (entry_year, roster_no, name, source, hometown, position, bats, throws) in unpack_school(
+        packed, first_year=first_year,
+    ):
+        player_id = (
+            _player_id(seed, first_year, school_id, roster_no) if entry_year <= first_year
+            else _newcomer_id(seed, entry_year, school_id, roster_no)
+        )
+        state = states.get((entry_year, roster_no))
+        out.append({
+            **Player(
+                player_id=player_id, school_id=school_id, program_id=header["program_id"],
+                display_name=name, name_source=source, hometown_prefecture_code=hometown,
+                academic_year=year - entry_year + 1, entry_year=entry_year,
+                roster_no=roster_no, primary_position=position,
+                position_group=_position_group(position), bats=bats, throws=throws,
+                roster_status="active_core", generation_seed=seed,
+            ).to_dict(),
+            "abilities": list(state.values) if state is not None else None,
+            "growth_type": TYPES[state.growth_type] if state is not None else None,
+            "potential": state.potential / POTENTIAL_SCALE if state is not None else None,
+        })
+    return out

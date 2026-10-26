@@ -107,6 +107,28 @@ class Stage43CHistoricalArchiveTests(unittest.TestCase):
         )
         self.assertEqual(1, len(self.archive.list_matches(2026)))
 
+    def test_finished_competition_is_packed_and_reads_the_same(self):
+        rows = [make_record(f"M{i}") for i in range(1, 4)]
+        self.sync(rows)
+        before = [self.archive.get_match(2026, "CMP-1", f"M{i}") for i in range(1, 4)]
+        listed = self.archive.list_matches(2026)
+        self.assertEqual(3, self.archive.pack_competition(2026, "CMP-1"))
+        self.assertEqual({"CMP-1"}, self.archive.packed_competitions(2026))
+        with closing(sqlite3.connect(self.path)) as conn:
+            self.assertEqual(
+                [("",)] * 3,
+                conn.execute("SELECT payload_json FROM historical_matches").fetchall(),
+            )
+        reopened = HistoricalMatchArchive(self.path)
+        self.assertEqual(
+            before, [reopened.get_match(2026, "CMP-1", f"M{i}") for i in range(1, 4)],
+        )
+        self.assertEqual(listed, reopened.list_matches(2026))
+        # まとめたあとも同じ試合の再保存はそのまま通り、年度の封印も同じ
+        self.assertEqual({"inserted": 0, "already_archived": 3}, self.sync(rows))
+        self.assertEqual(0, self.archive.pack_competition(2026, "CMP-1"))
+        self.assertEqual(3, self.archive.seal_year(2026, expected_match_count=3)["match_count"])
+
     def test_changed_result_never_overwrites_old_record(self):
         old = make_record()
         self.sync([old])

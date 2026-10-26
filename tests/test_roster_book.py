@@ -117,6 +117,28 @@ class RosterBookTests(unittest.TestCase):
                 (loaded.state(player).growth_type, loaded.state(player).potential),
             )
 
+    def test_closed_record_keeps_names_and_year_end_abilities(self):
+        from game_core.roster_book import decode_closed_record
+
+        book = _book()
+        roster = book.roster(2026, "SCH-A")
+        book.grow(date(2027, 3, 15))
+        rows = decode_closed_record(book.closed_record(2026, "SCH-A"))
+        self.assertEqual(
+            [p.to_dict() for p in roster.players],
+            [{k: v for k, v in row.items() if k not in ("abilities", "growth_type", "potential")}
+             for row in rows],
+        )
+        for player, row in zip(roster.players, rows):
+            self.assertEqual(list(book.state(player).values), row["abilities"])
+            self.assertIn(row["growth_type"], ("early", "normal", "late"))
+        # 年度末の能力は履歴に書き出したらセーブから手放す。開始前の年度は名前だけ
+        book.drop_year_end(2026)
+        self.assertIsNone(decode_closed_record(book.closed_record(2026, "SCH-A"))[0]["abilities"])
+        before = decode_closed_record(book.closed_record(2025, "SCH-A"))
+        self.assertEqual(15, len(before))
+        self.assertTrue(all(row["abilities"] is None for row in before))
+
     def test_forgetting_a_closed_year_keeps_the_next_year(self):
         book = _book()
         book.roster(2026, "SCH-A")
