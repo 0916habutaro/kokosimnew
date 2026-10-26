@@ -75,5 +75,46 @@ class ReputationTests(unittest.TestCase):
         self.assertNotEqual(profile.cohort_quality_z, other.cohort_quality_z)
 
 
+class SummerLocalTests(unittest.TestCase):
+    """夏の地方大会の結果（県の中の強さと勝ち上がり）。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.reputation = reputation_for(str(ROOT))
+        with (ROOT / "data" / "master" / "schools.csv").open(encoding="utf-8-sig") as handle:
+            cls.prefecture = {
+                row["school_id"]: row["prefecture_code"] for row in csv.DictReader(handle)
+            }
+
+    def test_best8_regulars_rank_near_the_top_of_their_prefecture(self):
+        finishes = self.reputation.local_finishes
+        by_prefecture: dict[str, list[str]] = {}
+        for school_id in self.reputation.school_ids:
+            by_prefecture.setdefault(self.prefecture[school_id], []).append(school_id)
+        regulars = inside = 0
+        for schools in by_prefecture.values():
+            top = sorted(schools, key=lambda sid: -self.reputation.score(sid, 7))[:10]
+            for school_id in schools:
+                if sum(1 for n in finishes.get(school_id, {}).values() if n <= 8) >= 3:
+                    regulars += 1
+                    inside += school_id in top
+        self.assertGreater(regulars, 200)
+        self.assertGreater(inside / regulars, 0.85)
+
+    def test_champions_are_rated_above_the_start(self):
+        initial = self.reputation.config["summer_local"]["elo"]["initial"]
+        champions = [
+            sid for sid, years in self.reputation.local_finishes.items() if years.get(2025) == 1
+        ]
+        self.assertGreater(len(champions), 40)
+        self.assertTrue(all(self.reputation.local_ratings[sid] > initial for sid in champions))
+
+    def test_prefecture_offset_follows_koshien_win_rate(self):
+        offsets = self.reputation.prefecture_offsets
+        self.assertEqual(47, len(offsets))
+        self.assertGreater(max(offsets.values()), 0)
+        self.assertLess(min(offsets.values()), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

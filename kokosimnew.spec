@@ -18,6 +18,7 @@ a = Analysis(
         # 学校の評判の初期値（game_core/school_reputation.py）が読む
         (str(ROOT / "historical_data" / "koshien_entrants.csv"), "historical_data"),
         (str(ROOT / "historical_data" / "autumn_regional_entrants_2025.csv"), "historical_data"),
+        (str(ROOT / "historical_data" / "summer_local_games.csv"), "historical_data"),
         (str(ROOT / "phase2_engine" / "screen" / "web"), "phase2_engine/screen/web"),
     ],
     excludes=["tkinter"],
