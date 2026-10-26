@@ -4,6 +4,8 @@
   学校IDは都道府県と校名で学校マスターに照合し、連合チームと照合できない校名は空欄
 - ``historical_data/summer_local_team_aliases.csv``：校名の表記（略称・改称前の校名など）→ 今の学校。
   学校の短い表示名・正式名と同じ表記のものは載せない
+- ``historical_data/summer_local_union_members.csv``：連合チーム（校名を「・」でつないだもの）の構成校。
+  構成校ごとに照合し、照合できない校名は学校IDが空欄。「〇〇連合」のように分けられない名前は載せない
 
 初期の勢力図（学校の評判、``game_core/school_reputation.py``）が、県の中の強さと毎年の勝ち上がりを
 数えるのに使う。ゲームの記録とは混ぜない。検証：``python -m historical_results.summer_local``
@@ -24,6 +26,8 @@ GAME_COLUMNS = (
     "called", "tiebreak", "source_id", "source_url",
 )
 ALIAS_COLUMNS = ("prefecture_code", "team_name", "school_id", "notes")
+UNION_FILE = "summer_local_union_members.csv"
+UNION_COLUMNS = ("prefecture_code", "team_name", "member_name", "school_id")
 # decided 勝敗決定、walkover 不戦勝、forfeit 没収試合、draw 引き分け（再試合は別の行）
 RESULT_TYPES = frozenset({"decided", "walkover", "forfeit", "draw"})
 YES_NO = frozenset({"yes", "no", ""})
@@ -36,6 +40,13 @@ REPRESENTATIVES = 49
 
 def read_games(data_dir: Path = DATA_DIR) -> list[dict[str, str]]:
     path = data_dir / GAMES_FILE
+    if not path.is_file():
+        return []
+    return read_rows(path)[1]
+
+
+def read_union_members(data_dir: Path = DATA_DIR) -> list[dict[str, str]]:
+    path = data_dir / UNION_FILE
     if not path.is_file():
         return []
     return read_rows(path)[1]
@@ -153,6 +164,27 @@ def validate(
         if decided.get(year, 0) != count - REPRESENTATIVES:
             error("summer_local", 0, "GAME_COUNT", f"{year}: {decided.get(year, 0)} != {count - REPRESENTATIVES}")
     issues.extend(_validate_brackets(games))
+    union_teams = {
+        (game["prefecture_code"], game[f"{side}_team"])
+        for game in games for side in ("top", "bottom") if not game[f"{side}_school_id"]
+    }
+    if (data_dir / UNION_FILE).is_file():
+        columns, members = read_rows(data_dir / UNION_FILE)
+        if tuple(columns) != UNION_COLUMNS:
+            error("summer_local_unions", 1, "SCHEMA", repr(columns))
+            members = []
+        for line, row in enumerate(members, 2):
+            if (row["prefecture_code"], row["team_name"]) not in union_teams:
+                error("summer_local_unions", line, "UNKNOWN_TEAM", row["team_name"])
+            if row["member_name"] not in row["team_name"].split("・"):
+                error("summer_local_unions", line, "MEMBER", row["member_name"])
+            if row["school_id"]:
+                if prefecture.get(row["school_id"]) != row["prefecture_code"]:
+                    error("summer_local_unions", line, "PREFECTURE", row["school_id"])
+                key = (row["prefecture_code"], row["member_name"])
+                if named.get(key, {row["school_id"]}) != {row["school_id"]}:
+                    error("summer_local_unions", line, "AMBIGUOUS_NAME", row["member_name"])
+                named[key].add(row["school_id"])
     columns, aliases = read_rows(data_dir / ALIASES_FILE)
     if tuple(columns) != ALIAS_COLUMNS:
         error("summer_local_aliases", 1, "SCHEMA", repr(columns))

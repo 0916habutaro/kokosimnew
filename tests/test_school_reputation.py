@@ -37,14 +37,17 @@ class ReputationTests(unittest.TestCase):
         with (ROOT / "historical_data" / "koshien_records.csv").open(encoding="utf-8-sig") as handle:
             ever = {row["school_id"] for row in csv.DictReader(handle)}
         ever |= {row["school_id"] for row in _entrants()}
-        # 甲子園に出たことがなく、直前の結果（2025年秋など）もない学校
+        # 甲子園に出たことがなく、地方大会でも県の平均より弱い学校
+        initial = self.reputation.config["summer_local"]["elo"]["initial"]
         never = [
             sid for sid in self.reputation.school_ids
-            if sid not in ever and sid not in self.reputation.base
+            if sid not in ever and self.reputation.local_ratings.get(sid, initial) < initial
+            and not any(n <= 16 for n in self.reputation.local_finishes.get(sid, {}).values())
         ]
+        self.assertGreater(len(never), 500)
         z = lambda sid: self.reputation.program_z(sid, 7)  # noqa: E731
         self.assertGreater(min(z(sid) for sid in recent), max(z(sid) for sid in never))
-        # 乱数だけの学校は、昔に1回だけ出た学校と並ぶことはあっても B より上にならない
+        # 弱い学校は、昔に1回だけ出た学校と並ぶことはあっても B より上にならない
         self.assertTrue(all(self.reputation.rank(sid, 7) in ("C", "D", "E") for sid in never))
         top = max(self.reputation.school_ids, key=z)
         self.assertEqual("S", self.reputation.rank(top, 7))
@@ -58,7 +61,8 @@ class ReputationTests(unittest.TestCase):
         )
 
     def test_noise_depends_on_the_seed(self):
-        never = [sid for sid in self.reputation.school_ids if sid not in self.reputation.base]
+        # 点の少ない学校（地方大会の試合がない学校など）は乱数で順位が入れ替わる
+        never = sorted(self.reputation.school_ids, key=lambda sid: self.reputation.base[sid])[:300]
         order = lambda seed: sorted(never, key=lambda sid: self.reputation.score(sid, seed))  # noqa: E731
         self.assertNotEqual(order(1)[:20], order(2)[:20])
 
@@ -108,6 +112,26 @@ class SummerLocalTests(unittest.TestCase):
         ]
         self.assertGreater(len(champions), 40)
         self.assertTrue(all(self.reputation.local_ratings[sid] > initial for sid in champions))
+
+    def test_union_members_and_schools_without_games(self):
+        ratings = self.reputation.local_ratings
+        config = self.reputation.config["summer_local"]
+        self.assertGreater(len(self.reputation.union_rated), 100)
+        # 試合のない学校は県の中の下位の値で、県の平均より下
+        for school_id in self.reputation.no_data:
+            code = self.prefecture[school_id]
+            values = sorted(
+                v for sid, v in ratings.items()
+                if self.prefecture[sid] == code and sid not in self.reputation.no_data
+            )
+            self.assertLess(ratings[school_id], values[len(values) // 2])
+        self.assertLess(config["no_data_rating_quantile"], 0.5)
+        # 連合チームで出た学校は、県の中のレーティングで下半分が多い
+        below = [
+            sid for sid in self.reputation.union_rated
+            if ratings[sid] < config["elo"]["initial"]
+        ]
+        self.assertGreater(len(below) / len(self.reputation.union_rated), 0.8)
 
     def test_prefecture_offset_follows_koshien_win_rate(self):
         offsets = self.reputation.prefecture_offsets
