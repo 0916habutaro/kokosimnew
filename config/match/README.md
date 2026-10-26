@@ -25,6 +25,10 @@ Stage 13C以降の能力ベース試合シミュレーションに関する機�
   - タイブレーク（10回から無死一・二塁。打順は続ける）
   - 得点差コールド（5回10点差・7回7点差。都道府県大会・地区大会で、本大会の決勝を除く。神奈川は準決勝から除く）
   - 試合ごとの規定は `game_core/tournament_bridge.py` の `AbilityMatchResolver.rules_for` が決め、`MatchSimulator.simulate(..., rules=...)` に渡す
+  - 球数制限（`pitch_limit`：試合の日を含む7日間に500球まで）。投げた球数は年度の状態の `pitch_log`（選手 → 日 → 球数）に残し、`AbilityMatchResolver` が試合ごとに「あと何球投げられるか」を `simulate(..., pitch_allowances=...)` に渡す
+- `match_simulation_v1.json`（revision 3）
+  - `pitch_count`：1打席の球数（打席の結果ごとに［最少, 上乗せの最大］）
+  - `pitching_usage` の `starter_minimum_pitches`（残りがこれより少ない投手は先発させない）・`reliever_minimum_pitches`（これより少ない投手は投げさせない）・`emergency_pitcher_ability`（投手が足りず野手が投げるときの投手の能力）
 
 ## version / revision
 

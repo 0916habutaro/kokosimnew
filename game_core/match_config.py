@@ -259,6 +259,9 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         "reliever_stamina_effect",
         "minimum_bf_before_change",
         "runs_allowed_quick_hook",
+        "starter_minimum_pitches",
+        "reliever_minimum_pitches",
+        "emergency_pitcher_ability",
     ):
         value = pitching_usage.get(key)
         if (
@@ -270,11 +273,25 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
                 f"match simulation: invalid pitching_usage {key}"
             )
 
+    by_event = (payload.get("pitch_count") or {}).get("by_event")
+    if not isinstance(by_event, dict) or not by_event:
+        raise ValueError("match simulation: pitch_count.by_event required")
+    for event_type, pair in by_event.items():
+        if (
+            not isinstance(pair, list) or len(pair) != 2
+            or any(not isinstance(v, int) or isinstance(v, bool) for v in pair)
+            or pair[0] < 1 or pair[1] < 0
+        ):
+            raise ValueError(
+                f"match simulation: invalid pitch_count {event_type}"
+            )
+
     namespaces = payload.get("rng_namespace_policy")
     if set(namespaces or {}) != {
         "match",
         "plate_appearance",
         "event",
+        "pitches",
     }:
         raise ValueError(
             "match simulation: RNG namespace keys mismatch"
@@ -283,6 +300,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         "match": ("{competition_id}", "{reference_year}", "{match_id}"),
         "plate_appearance": ("{match_id}", "{plate_appearance_no}"),
         "event": ("{match_id}", "{event_no}"),
+        "pitches": ("{match_id}", "{plate_appearance_no}"),
     }
     for key, placeholders in required_placeholders.items():
         template = str(namespaces[key])
@@ -387,6 +405,7 @@ def validate_game_stats_contract(document: ConfigDocument) -> None:
         "walks",
         "strikeouts",
         "hit_batters",
+        "pitches",
     }
     expected_team = {"runs", "hits", "errors"}
 

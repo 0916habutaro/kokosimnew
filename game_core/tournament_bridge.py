@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 from copy import deepcopy
 from dataclasses import replace
+from datetime import timedelta
 from typing import Callable
 
 from phase2_engine.models import MatchResolution
@@ -62,6 +63,8 @@ class AbilityMatchResolver:
         # 進行中の年度の状態（本大会の何回戦か・あと何回戦かを見る）。
         # live_members.PlayerSeason.attach で入れる
         self.season_state = None
+        # 球数の記録の古い日を消した（記録, 日）。1日に1回だけ消す
+        self._pitch_log_pruned = None
         self._fixed_team_generation_seed = team_generation_seed
         self._season_reference_year: int | None = None
         self._season_team_generation_seed: int | None = None
@@ -323,6 +326,54 @@ class AbilityMatchResolver:
             mercy=mercy,
         )
 
+    def _match_day(self):
+        """試合の日（進行中の年度の今日）。状態につないでいなければ None。"""
+        return getattr(self.season_state, "current_date", None)
+
+    def _pitch_rule(self) -> tuple[int, int] | None:
+        rule = (self.game_rules or {}).get("pitch_limit")
+        if not rule:
+            return None
+        return int(rule["pitches"]), int(rule["days"])
+
+    def _pitch_allowances(self, teams, day) -> dict[str, int] | None:
+        """選手 → この試合であと何球投げられるか（その日を含む直近の日数で上限まで）。"""
+        rule = self._pitch_rule()
+        log = getattr(self.season_state, "pitch_log", None)
+        if rule is None or day is None or log is None:
+            return None
+        limit, days = rule
+        first = (day - timedelta(days=days - 1)).isoformat()
+        last = day.isoformat()
+        return {
+            player.player_id: max(0, limit - sum(
+                count for on, count in log.get(player.player_id, {}).items()
+                if first <= on <= last
+            ))
+            for team in teams
+            for player in team.player_abilities
+        }
+
+    def _record_pitches(self, result, day) -> None:
+        """投げた球数を日ごとに残す。上限の日数より前の記録は消す。"""
+        rule = self._pitch_rule()
+        log = getattr(self.season_state, "pitch_log", None)
+        if rule is None or day is None or log is None:
+            return
+        first = (day - timedelta(days=rule[1] - 1)).isoformat()
+        if self._pitch_log_pruned != (id(log), day):
+            for player_id in list(log):
+                kept = {on: n for on, n in log[player_id].items() if on >= first}
+                if kept:
+                    log[player_id] = kept
+                else:
+                    del log[player_id]
+            self._pitch_log_pruned = (id(log), day)
+        for stat in result.pitcher_stats:
+            if stat.pitches:
+                days = log.setdefault(stat.player_id, {})
+                days[day.isoformat()] = days.get(day.isoformat(), 0) + stat.pitches
+
     def _rounds_left(self, competition_id: str, match_id: str) -> int | None:
         """本大会の試合なら、決勝まであと何回戦か（決勝は0）。分からなければ None。"""
         found = re.search(r"-MAIN-R(\d+)-", match_id)
@@ -385,9 +436,15 @@ class AbilityMatchResolver:
             team2=team2_input,
             team_generation_seed=team_generation_seed,
         )
+        day = self._match_day()
         result = self.simulator.simulate(
-            match_input, rules=self.rules_for(competition_id, match_id),
+            match_input,
+            rules=self.rules_for(competition_id, match_id),
+            pitch_allowances=self._pitch_allowances(
+                (team1_input, team2_input), day,
+            ),
         )
+        self._record_pitches(result, day)
         highlights = game_highlights(result.events)
         if self.detail_sink is not None:
             full = replace(result, events=()).to_dict()

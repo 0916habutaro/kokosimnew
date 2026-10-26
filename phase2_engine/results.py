@@ -157,6 +157,7 @@ def _save_match_simulation_results(
             "walks",
             "strikeouts",
             "hit_batters",
+            "pitches",
         ],
         pitcher_rows,
     )

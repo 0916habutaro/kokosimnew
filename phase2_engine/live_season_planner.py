@@ -276,6 +276,7 @@ class LiveSeasonGraphPlan:
         start_date: str | None = None,
         open_before_school_year: bool = False,
         school_days: dict | None = None,
+        on_created=None,
     ) -> LiveSeasonDependencyRuntimeState:
         structural_factory = (
             StructuralAnnualInputFactory(
@@ -319,6 +320,7 @@ class LiveSeasonGraphPlan:
                 prior_invitational_entrant_ids=(
                     self.prior_invitational_entrant_ids
                 ),
+                on_created=on_created,
             )
         )
 

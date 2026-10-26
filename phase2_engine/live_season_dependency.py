@@ -5,7 +5,7 @@ import csv
 from pathlib import Path
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from typing import Mapping, Sequence
+from typing import Callable, Mapping, Sequence
 
 from .competition_schedule_runtime import (
     SCHEDULE_COMPLETED,
@@ -211,6 +211,9 @@ class LiveSeasonDependencyRuntimeState:
         default_factory=dict,
         repr=False,
     )
+    # 選手 → 試合の日 → 投げた球数（球数制限。直近の日数分だけ残す）。
+    # 年度の重なりでは前の年度と共有する
+    pitch_log: dict[str, dict[str, int]] = field(default_factory=dict, repr=False)
     # 学校ごとの試合の日。全大会で共有し、年度の重なりでは前の年度と共有する。
     school_days: dict[str, set] = field(
         default_factory=dict,
@@ -319,7 +322,10 @@ class LiveSeasonDependencyRuntimeState:
         prior_invitational_entrant_ids: (
             Sequence[str]
         ) = (),
+        on_created: Callable[["LiveSeasonDependencyRuntimeState"], None] | None = None,
     ) -> "LiveSeasonDependencyRuntimeState":
+        """``on_created``：状態をつくった直後（開始前の試合をする前）に呼ぶ
+        （選手で試合をする部品を状態につなぐ。球数制限・コールドの判断に使う）。"""
         if not annual_templates:
             raise ValueError(
                 "annual_templates is required"
@@ -633,6 +639,8 @@ class LiveSeasonDependencyRuntimeState:
             regional_playoffs=regional_playoffs,
             selection_rules=selection_rules,
         )
+        if on_created is not None:
+            on_created(state)
         state._initialize_statuses()
         state._activate_roots()
         state._activate_ready_destinations(

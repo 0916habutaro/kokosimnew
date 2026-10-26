@@ -122,6 +122,7 @@ class PitcherGameStats:
     walks: int = 0
     strikeouts: int = 0
     hit_batters: int = 0
+    pitches: int = 0
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -243,14 +244,6 @@ def match_contract_provenance(
         stats_config_sha256=stats.canonical_sha256,
         score_source=str(match.payload["score_source"]),
     )
-
-
-def _staff_ids(team) -> set[str]:
-    """投手陣の選手（投手がいない学校では野手が入る。team_strength 参照）。"""
-    return {
-        entry.player_id
-        for entry in team.team_strength.pitching_staff.entries
-    }
 
 
 def _player_map(team: TeamMatchInput) -> dict[str, PlayerAbilitySnapshot]:
@@ -556,10 +549,6 @@ def validate_match_event(
         raise ValueError(
             f"match event {event.event_no}: pitcher not on defense team"
         )
-    if event.pitcher_id not in _staff_ids(defense_team):
-        raise ValueError(
-            f"match event {event.event_no}: pitcher_id must be on the staff"
-        )
 
     if event.runs_scored < 0:
         raise ValueError(
@@ -760,15 +749,6 @@ def validate_match_simulation_result(
         if row.school_id not in known or row.player_id not in known[row.school_id]:
             raise ValueError(
                 f"pitcher stats: unknown player {row.player_id}"
-            )
-        team = (
-            match_input.team1
-            if row.school_id == match_input.team1.school_id
-            else match_input.team2
-        )
-        if row.player_id not in _staff_ids(team):
-            raise ValueError(
-                f"pitcher stats: player {row.player_id} is not on the staff"
             )
 
     batter_ids = {row.player_id for row in batters}
