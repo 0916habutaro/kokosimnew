@@ -69,6 +69,7 @@ def make_roster(
                 program_id=f"{school_id}:PRG",
                 display_name=f"選手{index:02d}",
                 name_source="test",
+                hometown_prefecture_code="13",
                 academic_year=grade,
                 entry_year=year - grade + 1,
                 roster_no=index,

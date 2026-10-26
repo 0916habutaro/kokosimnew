@@ -72,6 +72,7 @@ def _make_roster(
                 program_id=f"{school_id}:PRG",
                 display_name=f"監査選手{index:02d}",
                 name_source="stage13b4_audit",
+                hometown_prefecture_code="13",
                 academic_year=grade,
                 entry_year=reference_year - grade + 1,
                 roster_no=index,

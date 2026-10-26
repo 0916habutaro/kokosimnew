@@ -9,6 +9,7 @@ import unittest
 
 from game_core.career_rosters import advance_school_roster, advance_rosters
 from game_core.tournament_bridge import AbilityMatchResolver
+from game_core.player_names import PlayerIdentity
 from game_core.players import (
     GRADE_COUNTS, PlayerRosterGenerator, validate_school_roster, write_players_csv
 )
@@ -210,8 +211,10 @@ class Stage43ECareerRostersTests(unittest.TestCase):
         self.archive.advance_and_save(
             self.team, next_year=2027, career_seed=self.seed
         )
-        def changed_name_provider(team, year, roster_no, rng):
-            return f"別名{roster_no}", "changed_test"
+        def changed_name_provider(team, base_seed, rng, taken):
+            return PlayerIdentity(
+                f"別名{len(taken)}", "changed_test", team.prefecture_code,
+            )
         with self.assertRaises(CareerRosterConflictError):
             self.archive.advance_and_save(
                 self.team, next_year=2027, career_seed=self.seed,

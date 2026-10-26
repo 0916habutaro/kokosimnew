@@ -67,6 +67,7 @@ def make_roster_abilities(
             program_id="PRG_TEAM_TEST",
             display_name=f"選手{index:02d}",
             name_source="test",
+            hometown_prefecture_code="13",
             academic_year=grade,
             entry_year=year - grade + 1,
             roster_no=index,

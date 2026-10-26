@@ -1220,6 +1220,7 @@ class GameScreenData:
             roster = [
                 {
                     "name": player.display_name,
+                    "hometown": self.prefectures.get(player.hometown_prefecture_code, ""),
                     "grade": player.academic_year,
                     "position": POSITION_LABELS.get(player.primary_position, ""),
                     "bats": player.bats, "throws": player.throws,

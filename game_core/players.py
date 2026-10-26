@@ -5,11 +5,13 @@ import hashlib
 import random
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Callable, Iterable, Iterator
+from typing import Callable, Collection, Iterable, Iterator
 
 from phase2_engine.models import Team
 from phase2_engine.randomness import rng_for
 from phase2_engine.repository import DataRepository
+
+from .player_names import PlayerIdentity, name_generator
 
 
 CORE_ROSTER_SIZE = 20
@@ -34,6 +36,8 @@ class Player:
     program_id: str
     display_name: str
     name_source: str
+    # 出身の都道府県（data/master/prefectures.csv のコード）
+    hometown_prefecture_code: str
     academic_year: int
     entry_year: int
     roster_no: int
@@ -74,7 +78,10 @@ class SchoolRoster:
         }
 
 
-NameProvider = Callable[[Team, int, int, random.Random], tuple[str, str]]
+# (学校, 乱数の種, 乱数, 同じ学校の部員の名前) → 名前と出身
+NameProvider = Callable[
+    [Team, int, random.Random, Collection[str]], PlayerIdentity
+]
 
 
 def _position_group(position: str) -> str:
@@ -89,14 +96,31 @@ def _position_group(position: str) -> str:
     raise ValueError(f"unknown position: {position}")
 
 
-def _placeholder_name(
+def player_names(
     team: Team,
-    reference_year: int,
-    roster_no: int,
+    base_seed: int,
     rng: random.Random,
-) -> tuple[str, str]:
-    del team, reference_year, rng
-    return f"仮選手{roster_no:02d}", "placeholder_v1"
+    taken: Collection[str],
+) -> PlayerIdentity:
+    """選手名と出身（game_core/player_names.py）。"""
+    return name_generator()(team, base_seed, rng, taken)
+
+
+def draw_identity(
+    provider: NameProvider,
+    team: Team,
+    base_seed: int,
+    rng: random.Random,
+    taken: Collection[str],
+) -> PlayerIdentity:
+    identity = provider(team, base_seed, rng, taken)
+    if not identity.display_name or not identity.name_source:
+        raise ValueError(f"{team.school_id}: name provider returned empty identity")
+    if not identity.hometown_prefecture_code:
+        raise ValueError(f"{team.school_id}: hometown is required")
+    if identity.display_name in taken:
+        raise ValueError(f"{team.school_id}: duplicate player name in school")
+    return identity
 
 
 def _player_id(
@@ -125,7 +149,7 @@ class PlayerRosterGenerator:
         *,
         name_provider: NameProvider | None = None,
     ):
-        self.name_provider = name_provider or _placeholder_name
+        self.name_provider = name_provider or player_names
         self._validate_contract()
 
     @staticmethod
@@ -167,6 +191,7 @@ class PlayerRosterGenerator:
         position_rng.shuffle(positions)
 
         players: list[Player] = []
+        taken: set[str] = set()
         for index in range(CORE_ROSTER_SIZE):
             roster_no = index + 1
             academic_year = grade_slots[index]
@@ -179,20 +204,21 @@ class PlayerRosterGenerator:
                 ),
             )
 
-            display_name, name_source = self.name_provider(
+            # 名前は別の乱数（名前を選び直しても投打が変わらない）
+            identity = draw_identity(
+                self.name_provider,
                 team,
-                reference_year,
-                roster_no,
-                player_rng,
+                base_seed,
+                rng_for(
+                    base_seed,
+                    (
+                        f"player_names_v1:{reference_year}:"
+                        f"{team.school_id}:player:{roster_no}"
+                    ),
+                ),
+                taken,
             )
-            if not display_name:
-                raise ValueError(
-                    f"{team.school_id}/{roster_no}: display_name is required"
-                )
-            if not name_source:
-                raise ValueError(
-                    f"{team.school_id}/{roster_no}: name_source is required"
-                )
+            taken.add(identity.display_name)
 
             throws_left_probability = 0.20 if position == "P" else 0.10
             throws = (
@@ -213,8 +239,9 @@ class PlayerRosterGenerator:
                     ),
                     school_id=team.school_id,
                     program_id=team.program_id,
-                    display_name=display_name,
-                    name_source=name_source,
+                    display_name=identity.display_name,
+                    name_source=identity.name_source,
+                    hometown_prefecture_code=identity.hometown_prefecture_code,
                     academic_year=academic_year,
                     entry_year=reference_year - academic_year + 1,
                     roster_no=roster_no,
@@ -278,6 +305,10 @@ def validate_school_roster(roster: SchoolRoster) -> None:
     player_ids = [player.player_id for player in roster.players]
     if len(player_ids) != len(set(player_ids)):
         raise ValueError(f"{roster.school_id}: duplicate player_id")
+
+    names = [player.display_name for player in roster.players]
+    if len(names) != len(set(names)):
+        raise ValueError(f"{roster.school_id}: duplicate player name")
 
     roster_numbers = [player.roster_no for player in roster.players]
     if sorted(roster_numbers) != list(range(1, CORE_ROSTER_SIZE + 1)):
