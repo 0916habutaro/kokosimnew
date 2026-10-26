@@ -22,7 +22,7 @@ import math
 from pathlib import Path
 from statistics import NormalDist
 
-from historical_results.summer_local import finishes, winner_loser
+from historical_results.summer_local import finishes, read_union_members, winner_loser
 from phase2_engine.randomness import rng_for
 
 
@@ -57,6 +57,9 @@ class SchoolReputation:
         self.base = self._base_points(root / "historical_data", root / "data")
         self.prefecture_offsets: dict[str, float] = {}
         self.local_ratings: dict[str, float] = {}
+        # 連合チームのレーティングを当てた学校・地方大会の試合のない学校（県の下位の値）
+        self.union_rated: set[str] = set()
+        self.no_data: set[str] = set()
         self.local_finishes: dict[str, dict[int, int]] = {}
         self._add_summer_local(root / "historical_data")
         self._by_seed: dict[int, tuple[dict[str, float], dict[str, float]]] = {}
@@ -126,7 +129,15 @@ class SchoolReputation:
             code: float(strength["elo_offset_per_win_rate"]) * (rate - 0.5)
             for code, rate in win_rate.items()
         }
-        self.local_ratings = self._elo(games, elo)
+        quantile = float(config["no_data_rating_quantile"])
+        # 連合チームは、単独で出た学校の県の下位（no_data_rating_quantile）から始める
+        first = self._elo(games, elo)
+        low = self._prefecture_low(
+            {key: value for key, value in first.items() if ":" not in key}, prefecture_of, quantile,
+        )
+        self.local_ratings = self._school_ratings(
+            games, self._elo(games, elo, low), read_union_members(history), prefecture_of, quantile,
+        )
         points: dict[str, float] = defaultdict(float)
         for school_id, rating in self.local_ratings.items():
             offset = self.prefecture_offsets.get(prefecture_of.get(school_id, ""), 0.0)
@@ -157,6 +168,55 @@ class SchoolReputation:
         for school_id, value in points.items():
             self.base[school_id] = self.base.get(school_id, 0.0) + value
 
+    def _school_ratings(
+        self,
+        games: list[dict],
+        ratings: dict[str, float],
+        unions: list[dict],
+        prefecture_of: dict[str, str],
+        no_data_quantile: float,
+    ) -> dict[str, float]:
+        """学校ID → レーティング。単独で出ていない学校は、構成校として出た連合チームの
+        レーティング（いちばん最近の年）。それでも試合のない学校は、県の中で下から
+        ``no_data_quantile`` の位置の値（県の平均ではなく下位とみなす）。"""
+        out = {key: value for key, value in ratings.items() if ":" not in key}
+        last_year: dict[tuple[str, str], int] = {}
+        for game in games:
+            for side in ("top", "bottom"):
+                key = (game["prefecture_code"], game[f"{side}_team"])
+                last_year[key] = max(last_year.get(key, 0), int(game["year"]))
+        from_union: dict[str, tuple[int, float]] = {}
+        for row in unions:
+            school_id = row["school_id"]
+            team = f"{row['prefecture_code']}:{row['team_name']}"
+            if not school_id or school_id in out or team not in ratings:
+                continue
+            year = last_year.get((row["prefecture_code"], row["team_name"]), 0)
+            if school_id not in from_union or year > from_union[school_id][0]:
+                from_union[school_id] = (year, ratings[team])
+        out.update({school_id: rating for school_id, (_, rating) in from_union.items()})
+        self.union_rated = set(from_union)
+        low = self._prefecture_low(out, prefecture_of, no_data_quantile)
+        self.no_data = {
+            school_id for school_id in self.school_ids
+            if school_id not in out and prefecture_of.get(school_id) in low
+        }
+        out.update({school_id: low[prefecture_of[school_id]] for school_id in self.no_data})
+        return out
+
+    @staticmethod
+    def _prefecture_low(
+        ratings: dict[str, float], prefecture_of: dict[str, str], quantile: float,
+    ) -> dict[str, float]:
+        """都道府県 → 県の中で下から ``quantile`` の位置のレーティング。"""
+        by_prefecture: dict[str, list[float]] = defaultdict(list)
+        for school_id, rating in ratings.items():
+            by_prefecture[prefecture_of.get(school_id, "")].append(rating)
+        return {
+            code: sorted(values)[int(quantile * (len(values) - 1))]
+            for code, values in by_prefecture.items()
+        }
+
     @staticmethod
     def _prefecture_win_rates(history: Path, prefecture_of: dict[str, str]) -> dict[str, float]:
         """都道府県 → 甲子園（春夏）の通算勝率（koshien_records.csv の勝ち・負け）。"""
@@ -170,12 +230,15 @@ class SchoolReputation:
         return {code: wins[code] / games[code] for code in games if games[code]}
 
     @staticmethod
-    def _elo(games: list[dict], config: dict) -> dict[str, float]:
+    def _elo(
+        games: list[dict], config: dict, union_start: dict[str, float] | None = None,
+    ) -> dict[str, float]:
         """学校ID → 夏の地方大会のレーティング（県の中の強さ。最後の年度のあと）。
 
         日付の順に、勝ち負けと点差で更新する。年度が変わるたびに初期値へ
         ``year_carry`` の割合だけ戻し、最近の結果ほど重くする。連合チーム・照合できない
-        学校も相手として数えるが、結果は返さない。"""
+        学校は「都道府県コード:校名」で返す。連合チーム（校名に「・」）は ``union_start``
+        （都道府県 → 初めの値）から始める。"""
         initial = float(config["initial"])
         k = float(config["k"])
         carry = float(config["year_carry"])
@@ -194,7 +257,13 @@ class SchoolReputation:
                 game[f"{side}_school_id"] or f"{game['prefecture_code']}:{team}"
                 for side, team in ((winner_side, result[0]), (loser_side, result[1]))
             ]
-            high, low = (ratings.get(key, initial) for key in keys)
+            for key in keys:
+                if key not in ratings:
+                    code, _, team = key.partition(":")
+                    ratings[key] = (
+                        (union_start or {}).get(code, initial) if "・" in team else initial
+                    )
+            high, low = (ratings[key] for key in keys)
             expected = 1.0 / (1.0 + 10 ** ((low - high) / 400.0))
             margin = abs(int(game["top_score"]) - int(game["bottom_score"]))
             # 点差が大きいほど大きく動かす（格上が大差で勝っても動きすぎないように割る）
@@ -202,7 +271,7 @@ class SchoolReputation:
             change = k * multiplier * (1.0 - expected)
             ratings[keys[0]] = high + change
             ratings[keys[1]] = low - change
-        return {key: value for key, value in ratings.items() if ":" not in key}
+        return ratings
 
     def _for_seed(self, base_seed: int) -> tuple[dict[str, float], dict[str, float]]:
         if base_seed not in self._by_seed:

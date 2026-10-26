@@ -1621,7 +1621,7 @@ year,prefecture_code,tournament,round_label,game_date,top_team,top_school_id,bot
 2021,46,2021年全国高校野球選手権鹿児島大会,1回戦,2021-07-06,錦江湾,SCH000435,鹿児島南,SCH000433,0,3,bottom,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2021/chihou/kagoshima/kagoshima20210706.html
 2021,46,2021年全国高校野球選手権鹿児島大会,1回戦,2021-07-06,頴娃,SCH000446,沖永良部,SCH000497,7,3,top,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2021/chihou/kagoshima/kagoshima20210706.html
 2021,46,2021年全国高校野球選手権鹿児島大会,1回戦,2021-07-06,鹿児島水産,SCH000449,鹿児島工,SCH000423,3,6,bottom,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2021/chihou/kagoshima/kagoshima20210706.html
-2021,46,2021年全国高校野球選手権鹿児島大会,1回戦,2021-07-06,曽於,SCH000480,ラ・サール,,10,9,top,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2021/chihou/kagoshima/kagoshima20210706.html
+2021,46,2021年全国高校野球選手権鹿児島大会,1回戦,2021-07-06,曽於,SCH000480,ラ・サール,SCH000439,10,9,top,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2021/chihou/kagoshima/kagoshima20210706.html
 2021,46,2021年全国高校野球選手権鹿児島大会,1回戦,2021-07-06,加世田,SCH000450,鹿屋農,SCH000485,2,9,bottom,decided,8,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2021/chihou/kagoshima/kagoshima20210706.html
 2021,46,2021年全国高校野球選手権鹿児島大会,1回戦,2021-07-07,鹿児島情報,SCH000434,伊集院,SCH000456,9,3,top,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2021/chihou/kagoshima/kagoshima20210707.html
 2021,46,2021年全国高校野球選手権鹿児島大会,1回戦,2021-07-07,市来農芸,SCH000457,国分,SCH000475,2,14,bottom,decided,5,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2021/chihou/kagoshima/kagoshima20210707.html
@@ -2054,7 +2054,7 @@ year,prefecture_code,tournament,round_label,game_date,top_team,top_school_id,bot
 2021,04,2021年全国高校野球選手権宮城大会,2回戦,2021-07-08,古川黎明,SCH001872,仙台育英,SCH001901,0,11,bottom,decided,5,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2021/chihou/miyagi/miyagi20210708.html
 2021,04,2021年全国高校野球選手権宮城大会,1回戦,2021-07-08,石巻好文館,SCH001916,仙台向山,SCH001914,6,0,top,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2021/chihou/miyagi/miyagi20210708.html
 2021,04,2021年全国高校野球選手権宮城大会,2回戦,2021-07-09,仙台商,SCH001893,小牛田農林,SCH001876,9,0,top,decided,8,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2021/chihou/miyagi/miyagi20210709.html
-2021,04,2021年全国高校野球選手権宮城大会,2回戦,2021-07-09,宮城水産,,富谷,SCH001891,2,12,bottom,decided,6,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2021/chihou/miyagi/miyagi20210709.html
+2021,04,2021年全国高校野球選手権宮城大会,2回戦,2021-07-09,宮城水産,SCH001875,富谷,SCH001891,2,12,bottom,decided,6,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2021/chihou/miyagi/miyagi20210709.html
 2021,04,2021年全国高校野球選手権宮城大会,2回戦,2021-07-10,気仙沼向洋,SCH001898,仙台三,SCH001870,5,6,bottom,decided,11,no,,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2021/chihou/miyagi/miyagi20210710.html
 2021,04,2021年全国高校野球選手権宮城大会,2回戦,2021-07-10,気仙沼,SCH001894,東陵,SCH001906,0,7,bottom,decided,7,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2021/chihou/miyagi/miyagi20210710.html
 2021,04,2021年全国高校野球選手権宮城大会,2回戦,2021-07-10,岩ケ崎・岩出山・迫桜,,塩釜,SCH001923,1,8,bottom,decided,7,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2021/chihou/miyagi/miyagi20210710.html
@@ -5135,7 +5135,7 @@ year,prefecture_code,tournament,round_label,game_date,top_team,top_school_id,bot
 2022,46,2022年全国高校野球選手権鹿児島大会,1回戦,2022-07-09,加世田,SCH000450,松陽,SCH000438,1,8,bottom,decided,8,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2022/chihou/kagoshima/kagoshima20220709.html
 2022,46,2022年全国高校野球選手権鹿児島大会,1回戦,2022-07-09,れいめい,SCH000462,川内,SCH000460,10,1,top,decided,8,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2022/chihou/kagoshima/kagoshima20220709.html
 2022,46,2022年全国高校野球選手権鹿児島大会,1回戦,2022-07-09,国分,SCH000475,出水,SCH000463,8,2,top,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2022/chihou/kagoshima/kagoshima20220709.html
-2022,46,2022年全国高校野球選手権鹿児島大会,1回戦,2022-07-09,ラ・サール,,川薩清修館,SCH000469,1,4,bottom,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2022/chihou/kagoshima/kagoshima20220709.html
+2022,46,2022年全国高校野球選手権鹿児島大会,1回戦,2022-07-09,ラ・サール,SCH000439,川薩清修館,SCH000469,1,4,bottom,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2022/chihou/kagoshima/kagoshima20220709.html
 2022,46,2022年全国高校野球選手権鹿児島大会,1回戦,2022-07-09,池田,SCH000437,鹿屋工,SCH000486,11,0,top,decided,6,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2022/chihou/kagoshima/kagoshima20220709.html
 2022,46,2022年全国高校野球選手権鹿児島大会,1回戦,2022-07-10,市来農芸,SCH000457,伊集院,SCH000456,0,10,bottom,decided,5,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2022/chihou/kagoshima/kagoshima20220710.html
 2022,46,2022年全国高校野球選手権鹿児島大会,1回戦,2022-07-10,鹿児島,SCH000425,出水商,SCH000465,11,1,top,decided,5,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2022/chihou/kagoshima/kagoshima20220710.html
@@ -8583,7 +8583,7 @@ year,prefecture_code,tournament,round_label,game_date,top_team,top_school_id,bot
 2023,46,2023年全国高校野球選手権鹿児島大会,1回戦,2023-07-07,出水商,SCH000465,薩南工,SCH000453,4,3,top,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2023/chihou/kagoshima/kagoshima20230707.html
 2023,46,2023年全国高校野球選手権鹿児島大会,1回戦,2023-07-08,頴娃,SCH000446,鹿児島,SCH000425,1,3,bottom,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2023/chihou/kagoshima/kagoshima20230708.html
 2023,46,2023年全国高校野球選手権鹿児島大会,1回戦,2023-07-08,加世田,SCH000450,種子島中央,SCH000489,8,5,top,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2023/chihou/kagoshima/kagoshima20230708.html
-2023,46,2023年全国高校野球選手権鹿児島大会,1回戦,2023-07-08,市来農芸,SCH000457,ラ・サール,,0,10,bottom,decided,5,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2023/chihou/kagoshima/kagoshima20230708.html
+2023,46,2023年全国高校野球選手権鹿児島大会,1回戦,2023-07-08,市来農芸,SCH000457,ラ・サール,SCH000439,0,10,bottom,decided,5,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2023/chihou/kagoshima/kagoshima20230708.html
 2023,46,2023年全国高校野球選手権鹿児島大会,1回戦,2023-07-08,鹿屋,SCH000484,鹿児島中央,SCH000432,5,4,top,decided,11,no,yes,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2023/chihou/kagoshima/kagoshima20230708.html
 2023,46,2023年全国高校野球選手権鹿児島大会,1回戦,2023-07-08,出水工,SCH000464,鹿児島水産,SCH000449,3,8,bottom,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2023/chihou/kagoshima/kagoshima20230708.html
 2023,46,2023年全国高校野球選手権鹿児島大会,1回戦,2023-07-08,沖永良部,SCH000497,鹿児島玉龍,SCH000431,0,3,bottom,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2023/chihou/kagoshima/kagoshima20230708.html
@@ -8604,7 +8604,7 @@ year,prefecture_code,tournament,round_label,game_date,top_team,top_school_id,bot
 2023,46,2023年全国高校野球選手権鹿児島大会,2回戦,2023-07-11,鹿児島水産,SCH000449,鹿屋,SCH000484,1,6,bottom,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2023/chihou/kagoshima/kagoshima20230711.html
 2023,46,2023年全国高校野球選手権鹿児島大会,2回戦,2023-07-11,出水中央,SCH000466,鹿児島工,SCH000423,7,3,top,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2023/chihou/kagoshima/kagoshima20230711.html
 2023,46,2023年全国高校野球選手権鹿児島大会,2回戦,2023-07-11,樟南,SCH000429,鹿屋農,SCH000485,6,0,top,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2023/chihou/kagoshima/kagoshima20230711.html
-2023,46,2023年全国高校野球選手権鹿児島大会,2回戦,2023-07-12,池田,SCH000437,ラ・サール,,10,3,top,decided,7,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2023/chihou/kagoshima/kagoshima20230712.html
+2023,46,2023年全国高校野球選手権鹿児島大会,2回戦,2023-07-12,池田,SCH000437,ラ・サール,SCH000439,10,3,top,decided,7,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2023/chihou/kagoshima/kagoshima20230712.html
 2023,46,2023年全国高校野球選手権鹿児島大会,2回戦,2023-07-12,鹿児島実,SCH000424,鹿児島商,SCH000430,8,7,top,decided,10,no,yes,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2023/chihou/kagoshima/kagoshima20230712.html
 2023,46,2023年全国高校野球選手権鹿児島大会,2回戦,2023-07-12,鹿児島情報,SCH000434,鹿児島玉龍,SCH000431,0,3,bottom,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2023/chihou/kagoshima/kagoshima20230712.html
 2023,46,2023年全国高校野球選手権鹿児島大会,2回戦,2023-07-12,枕崎,SCH000448,徳之島,SCH000495,16,10,top,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2023/chihou/kagoshima/kagoshima20230712.html
@@ -11983,7 +11983,7 @@ year,prefecture_code,tournament,round_label,game_date,top_team,top_school_id,bot
 2024,46,2024年全国高校野球選手権鹿児島大会,1回戦,2024-07-09,市来農芸,SCH000457,種子島,SCH000488,0,16,bottom,decided,5,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2024/chihou/kagoshima/kagoshima20240709.html
 2024,46,2024年全国高校野球選手権鹿児島大会,1回戦,2024-07-09,枕崎,SCH000448,志布志,SCH000481,10,7,top,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2024/chihou/kagoshima/kagoshima20240709.html
 2024,46,2024年全国高校野球選手権鹿児島大会,1回戦,2024-07-09,吹上,SCH000454,徳之島,SCH000495,0,7,bottom,decided,8,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2024/chihou/kagoshima/kagoshima20240709.html
-2024,46,2024年全国高校野球選手権鹿児島大会,1回戦,2024-07-09,伊集院,SCH000456,ラ・サール,,6,0,top,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2024/chihou/kagoshima/kagoshima20240709.html
+2024,46,2024年全国高校野球選手権鹿児島大会,1回戦,2024-07-09,伊集院,SCH000456,ラ・サール,SCH000439,6,0,top,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2024/chihou/kagoshima/kagoshima20240709.html
 2024,46,2024年全国高校野球選手権鹿児島大会,1回戦,2024-07-09,大島,SCH000491,鹿児島実,SCH000424,4,7,bottom,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2024/chihou/kagoshima/kagoshima20240709.html
 2024,46,2024年全国高校野球選手権鹿児島大会,1回戦,2024-07-10,加世田常潤・串木野・薩摩中央・鶴翔,,川内商工,SCH000461,3,29,bottom,decided,5,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2024/chihou/kagoshima/kagoshima20240710.html
 2024,46,2024年全国高校野球選手権鹿児島大会,1回戦,2024-07-10,加治木,SCH000471,錦江湾,SCH000435,6,4,top,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2024/chihou/kagoshima/kagoshima20240710.html
@@ -15331,7 +15331,7 @@ year,prefecture_code,tournament,round_label,game_date,top_team,top_school_id,bot
 2025,46,2025年全国高校野球選手権鹿児島大会,1回戦,2025-07-07,国分,SCH000475,指宿,SCH000444,7,3,top,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2025/chihou/kagoshima/kagoshima20250707.html
 2025,46,2025年全国高校野球選手権鹿児島大会,1回戦,2025-07-08,大口・鹿児島第一・蒲生・串良商,,鹿児島工,SCH000423,1,18,bottom,decided,5,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2025/chihou/kagoshima/kagoshima20250708.html
 2025,46,2025年全国高校野球選手権鹿児島大会,1回戦,2025-07-08,国分中央,SCH000476,鹿児島,SCH000425,0,1,bottom,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2025/chihou/kagoshima/kagoshima20250708.html
-2025,46,2025年全国高校野球選手権鹿児島大会,1回戦,2025-07-08,ラ・サール,,加治木,SCH000471,0,10,bottom,decided,5,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2025/chihou/kagoshima/kagoshima20250708.html
+2025,46,2025年全国高校野球選手権鹿児島大会,1回戦,2025-07-08,ラ・サール,SCH000439,加治木,SCH000471,0,10,bottom,decided,5,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2025/chihou/kagoshima/kagoshima20250708.html
 2025,46,2025年全国高校野球選手権鹿児島大会,1回戦,2025-07-08,指宿商,SCH000445,曽於,SCH000480,4,2,top,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2025/chihou/kagoshima/kagoshima20250708.html
 2025,46,2025年全国高校野球選手権鹿児島大会,1回戦,2025-07-09,市来農芸,SCH000457,出水工,SCH000464,0,21,bottom,decided,5,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2025/chihou/kagoshima/kagoshima20250709.html
 2025,46,2025年全国高校野球選手権鹿児島大会,1回戦,2025-07-09,川薩清修館,SCH000469,奄美,SCH000492,8,0,top,decided,7,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2025/chihou/kagoshima/kagoshima20250709.html
@@ -16299,7 +16299,7 @@ year,prefecture_code,tournament,round_label,game_date,top_team,top_school_id,bot
 2025,27,2025年全国高校野球選手権大阪大会,2回戦,2025-07-11,城東工科・東大阪みらい工科,,日新,SCH003144,10,3,top,decided,8,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2025/chihou/osaka/osaka20250711.html
 2025,27,2025年全国高校野球選手権大阪大会,2回戦,2025-07-11,浪速,SCH003185,狭山・藤井寺工科・金剛,,9,0,top,decided,7,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2025/chihou/osaka/osaka20250711.html
 2025,27,2025年全国高校野球選手権大阪大会,2回戦,2025-07-11,堺上・和泉総合,,上宮太子,SCH003148,0,3,bottom,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2025/chihou/osaka/osaka20250711.html
-2025,27,2025年全国高校野球選手権大阪大会,2回戦,2025-07-11,金光八尾,SCH003174,大阪農芸,,22,2,top,decided,5,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2025/chihou/osaka/osaka20250711.html
+2025,27,2025年全国高校野球選手権大阪大会,2回戦,2025-07-11,金光八尾,SCH003174,大阪農芸,SCH003209,22,2,top,decided,5,yes,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2025/chihou/osaka/osaka20250711.html
 2025,27,2025年全国高校野球選手権大阪大会,2回戦,2025-07-11,三国丘,SCH003127,八尾,SCH003134,4,2,top,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2025/chihou/osaka/osaka20250711.html
 2025,27,2025年全国高校野球選手権大阪大会,2回戦,2025-07-11,堺工科,SCH003199,明星,SCH003191,1,3,bottom,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2025/chihou/osaka/osaka20250711.html
 2025,27,2025年全国高校野球選手権大阪大会,2回戦,2025-07-12,成城,SCH003090,大阪府立いちりつ,SCH003050,0,2,bottom,decided,9,no,no,HS0512,https://www.nikkansports.com/baseball/highschool/sensyuken/2025/chihou/osaka/osaka20250712.html

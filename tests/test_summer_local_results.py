@@ -9,6 +9,7 @@ import unittest
 from historical_results.summer_local import (
     ALIAS_COLUMNS,
     GAME_COLUMNS,
+    UNION_COLUMNS,
     finishes,
     read_games,
     validate,
@@ -118,6 +119,21 @@ class ValidateTests(unittest.TestCase):
         codes = self._codes(games + [late], [("99", "架空3", "SCHX1", "")])
         for code in ("AMBIGUOUS_NAME", "PREFECTURE", "SCORE", "YEAR", "NOT_USED"):
             self.assertIn(code, codes)
+
+    def test_union_members(self):
+        games = _bracket()
+        games[0]["bottom_team"] = "架空2・架空10"
+        with (self.root / "summer_local_union_members.csv").open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(UNION_COLUMNS)
+            writer.writerows([
+                ["99", "架空2・架空10", "架空2", "SCHX2"],
+                ["99", "架空2・架空10", "架空11", ""],  # 構成校の名前が合わない
+                ["99", "架空3・架空4", "架空3", ""],  # 試合にない連合チーム
+            ])
+        codes = self._codes(games)
+        self.assertIn("MEMBER", codes)
+        self.assertIn("UNKNOWN_TEAM", codes)
 
     def test_bracket_errors(self):
         games = _bracket()
