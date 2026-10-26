@@ -626,6 +626,13 @@ class HistoricalMatchArchive:
                     _PACKED_CACHE.pop(next(iter(_PACKED_CACHE)))
         return cached
 
+    def vacuum(self) -> None:
+        """まとめて圧縮したあとの空きを詰めてファイルを小さくする（年度を閉じるとき）。"""
+        if not self.db_path.is_file():
+            return
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.execute("VACUUM")
+
     def packed_competitions(self, year: int) -> set[str]:
         if not self.db_path.is_file():
             return set()

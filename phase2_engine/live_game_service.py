@@ -923,6 +923,9 @@ class LiveGameService:
                         for school_id in rosters.schools(year)
                     })
                 rosters.drop_year_end(year)
+            if self.career_persistence is None:
+                # 終わった大会の試合の記録はまとめて圧縮したので、その空きを詰める
+                archive.vacuum()
             state.drop(year)
             closed.append(sealed)
         self._release_rosters(session)
