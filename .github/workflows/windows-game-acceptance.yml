@@ -61,6 +61,8 @@ jobs:
             'test_stage43d_career_year_boundary.py',
             'test_stage43e_career_rosters.py',
             'test_player_season.py',
+            'test_player_career_year.py',
+            'test_roster_book.py',
             'test_career_overlap.py',
             'test_screen_data.py',
             'test_screen_competitions.py',

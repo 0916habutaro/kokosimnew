@@ -63,6 +63,13 @@ CREATE TABLE IF NOT EXISTS closed_seasons (
     snapshot BLOB NOT NULL,
     names_json TEXT NOT NULL
 );
+-- 閉じた年度の名簿（選手の名前・出身・学年など。試合の選手名を出すため）
+CREATE TABLE IF NOT EXISTS closed_rosters (
+    year INTEGER NOT NULL,
+    school_id TEXT NOT NULL,
+    players_json TEXT NOT NULL,
+    PRIMARY KEY (year, school_id)
+);
 """
 
 
@@ -606,6 +613,30 @@ class HistoricalMatchArchive:
                 (year,),
             ).fetchone()
         return (bytes(row[0]), json.loads(row[1])) if row else None
+
+    def store_closed_rosters(self, year: int, rosters: Mapping[str, list[dict]]) -> None:
+        """閉じた年度の名簿（学校ID → 選手の ``Player.to_dict()``）。"""
+        with self._connection() as conn:
+            conn.executescript(_SCHEMA)
+            with conn:
+                conn.executemany(
+                    "INSERT OR REPLACE INTO closed_rosters VALUES (?, ?, ?)",
+                    [
+                        (year, school_id, _canonical(players))
+                        for school_id, players in sorted(rosters.items())
+                    ],
+                )
+
+    def closed_roster(self, year: int, school_id: str) -> list[dict] | None:
+        if not self.db_path.is_file():
+            return None
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.executescript(_SCHEMA)
+            row = conn.execute(
+                "SELECT players_json FROM closed_rosters WHERE year = ? AND school_id = ?",
+                (year, school_id),
+            ).fetchone()
+        return json.loads(row[0]) if row else None
 
     def match_index(self, year: int) -> list[dict]:
         """その年度の全試合の要約（成績表用。個人成績などは読まない）。"""

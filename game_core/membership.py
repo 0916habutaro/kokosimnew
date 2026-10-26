@@ -12,78 +12,17 @@ game_definition.md §8：
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import date
 from typing import Callable, Mapping
 
-from phase2_engine.models import Team
 from phase2_engine.school_year import school_year_of
 
-from .career_rosters import advance_school_roster
-from .players import Player, PlayerRosterGenerator, SchoolRoster
+from .players import Player
+from .roster_book import RosterBook
 
 
 NEW_TEAM_SEGMENTS = frozenset({"autumn"})
-
-
-class RosterBook:
-    """年度ごとの名簿。最初の年度は生成し、以降は前の年度から進級・入学でつくる。"""
-
-    def __init__(
-        self,
-        team_for: Callable[[str], Team],
-        *,
-        first_year: int,
-        career_seed: int,
-        generator: PlayerRosterGenerator | None = None,
-    ):
-        self.team_for = team_for
-        self.first_year = first_year
-        self.career_seed = career_seed
-        self.generator = generator or PlayerRosterGenerator()
-        self._rosters: dict[tuple[int, str], SchoolRoster] = {}
-
-    def roster(self, year: int, school_id: str) -> SchoolRoster:
-        key = (year, school_id)
-        cached = self._rosters.get(key)
-        if cached is not None:
-            return cached
-        if year < self.first_year - 1:
-            raise ValueError(f"no roster before {self.first_year - 1}: {year}")
-        team = self.team_for(school_id)
-        if year == self.first_year - 1:
-            roster = self._before_first_year(school_id)
-        elif year == self.first_year:
-            roster = self.generator.generate_school(
-                team, year, self.career_seed
-            )
-        else:
-            roster = advance_school_roster(
-                self.roster(year - 1, school_id),
-                team,
-                next_year=year,
-                career_seed=self.career_seed,
-                generator=self.generator,
-            ).roster
-        self._rosters[key] = roster
-        return roster
-
-    def _before_first_year(self, school_id: str) -> SchoolRoster:
-        """ゲーム開始の前の年度（3月に始まる大会用）。
-
-        最初の年度の2・3年生を1学年戻したもの。卒業した3年生と、まだ
-        入学していない新入生はいない。
-        """
-        first = self.roster(self.first_year, school_id)
-        return replace(
-            first,
-            reference_year=self.first_year - 1,
-            players=[
-                replace(player, academic_year=player.academic_year - 1)
-                for player in first.players
-                if player.academic_year >= 2
-            ],
-        )
 
 
 @dataclass(frozen=True)

@@ -12,6 +12,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Callable
 
+from game_core.players import Player
 from game_core.school_edits import SchoolAdjustmentModel
 from game_core.school_reputation import reputation_for
 
@@ -713,14 +714,19 @@ class GameScreenData:
 
     def _roster_players(self, year: int, school_id: str) -> dict:
         """閉じた年度の試合の選手名。名簿（年度ごと、選手IDは変わらない）から。
-        3月の大会もあるので前後の年度の名簿も見る。選手で試合をしないときは空。"""
-        season = self.state.primary if isinstance(self.state, CareerState) else self.state
-        resolver = getattr(season.engine, "main_match_resolver", None)
-        rosters = getattr(getattr(getattr(resolver, "member_provider", None), "members", None), "rosters", None)
+        3月の大会もあるので前後の年度の名簿も見る。閉じた年度の名簿は試合の履歴に
+        書き出してある。選手で試合をしないときは空。"""
+        rosters = getattr(self.state, "rosters", None)
         if rosters is None:
             return {}
         players = {}
         for roster_year in (year - 1, year, year + 1):
+            if roster_year <= rosters.closed_through:
+                rows = self.service.closed_roster(
+                    self.session.slot_id, roster_year, school_id,
+                ) or []
+                players.update({row["player_id"]: Player(**row) for row in rows})
+                continue
             try:
                 roster = rosters.roster(roster_year, school_id)
             except ValueError:
@@ -1354,6 +1360,8 @@ class GameScreenData:
         return SchoolAbilities(
             self.config_root, self.config["school_overall_weights"],
             getattr(self.service, "school_adjustments", None),
+            # 選手の能力はセーブに入った名簿から
+            rosters=getattr(self.state, "rosters", None) if self.session else None,
         )
 
     def saves(self) -> dict:

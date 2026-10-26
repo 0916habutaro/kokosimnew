@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, fields, replace
 from pathlib import Path
 from typing import Iterable, Iterator
 
@@ -141,6 +141,9 @@ class SchoolAwarePlayerAbilityGenerator:
         # 遊んでいるセーブの補正（同じ dict）を渡す。空なら補正しない
         self.school_adjustments: dict[str, dict[str, int]] = {}
         self._adjustment_model = None
+        # セーブに入った名簿（game_core/roster_book.py）。つなぐと能力をつくらずに
+        # 名簿の能力を使う（学校の編集の補正はここで足す）
+        self.source = None
 
     def _adjust_scalar(
         self,
@@ -262,22 +265,26 @@ class SchoolAwarePlayerAbilityGenerator:
         player: Player,
         reference_year: int,
         base_seed: int,
-    ) -> IntakeAdjustedPlayerAbilitySnapshot:
-        base = self.base_generator.generate(
-            player,
-            reference_year,
-            base_seed,
-        )
-        profile = self.intake_model.profile(
-            school_id=player.school_id,
-            entry_year=player.entry_year,
-            base_seed=base_seed,
-        )
-        snapshot = self._adjust_snapshot(
-            base=base,
-            player=player,
-            profile=profile,
-        )
+    ) -> PlayerAbilitySnapshot:
+        if self.source is not None:
+            snapshot = self.source.ability(player)
+            # 3月に始まる大会は前の年度の名簿の能力で、大会の年度として戦う
+            if snapshot.reference_year != reference_year:
+                snapshot = replace(snapshot, reference_year=reference_year)
+        else:
+            snapshot = self._adjust_snapshot(
+                base=self.base_generator.generate(
+                    player,
+                    reference_year,
+                    base_seed,
+                ),
+                player=player,
+                profile=self.intake_model.profile(
+                    school_id=player.school_id,
+                    entry_year=player.entry_year,
+                    base_seed=base_seed,
+                ),
+            )
         steps = self.school_adjustments.get(player.school_id)
         if steps:
             if self._adjustment_model is None:

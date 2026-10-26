@@ -54,9 +54,10 @@ class PlayerSeasonServiceTests(unittest.TestCase):
                 for key in session.state.completed_results()
             ))
 
-            # セーブには試合の決め方や名簿を入れない
+            # セーブには名簿（選手の名前・出身・能力）が入る。試合の決め方は入れない
             save = Path(tmp) / "players" / "manual.json"
-            self.assertLess(save.stat().st_size, 5_000_000)
+            self.assertLess(save.stat().st_size, 8_000_000)
+            self.assertTrue(session.state.rosters.schools(2026))
 
             loaded = service.load_game("players")
             self.assertEqual(session.state.primary.pitch_log, loaded.state.primary.pitch_log)
@@ -72,8 +73,7 @@ class PlayerSeasonServiceTests(unittest.TestCase):
             )
             service.save_game(loaded)
 
-            # 選手名と出身は乱数の種で決まり、読み込んでも同じ（名簿はセーブに入れず、
-            # セーブの乱数の種からつくる）。画面の部員一覧・試合の個人成績に出る
+            # 読み込んでも名簿（選手名・出身・能力）は同じ。画面の部員一覧・試合の個人成績に出る
             screen = GameScreenData(service, session)
             again = GameScreenData(service, loaded)
             school_id = archived["batter_stats"][0]["school_id"]
