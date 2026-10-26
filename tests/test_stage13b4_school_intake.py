@@ -179,7 +179,7 @@ class Stage13B4SchoolIntakeTests(unittest.TestCase):
             IntakeAdjustedPlayerAbilitySnapshot,
         )
         self.assertEqual("school_intake_v1", snapshot.intake_config_id)
-        self.assertEqual(2, snapshot.intake_config_revision)
+        self.assertEqual(3, snapshot.intake_config_revision)
         self.assertEqual(64, len(snapshot.intake_config_sha256))
         self.assertEqual(player.player_id, snapshot.player_id)
 
@@ -254,7 +254,7 @@ class Stage13B4SchoolIntakeTests(unittest.TestCase):
             "school_intake_v1",
             team.school_intake_config_id,
         )
-        self.assertEqual(2, team.school_intake_config_revision)
+        self.assertEqual(3, team.school_intake_config_revision)
         self.assertEqual(64, len(team.school_intake_config_sha256 or ""))
 
     def test_mixing_baseline_and_intake_snapshots_is_rejected(self):
