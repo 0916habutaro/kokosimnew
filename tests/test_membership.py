@@ -19,7 +19,7 @@ TEAM = Team(
     school_id="SCH-TEST",
     program_id="PRG-TEST",
     display_name="架空高校",
-    prefecture_code="99",
+    prefecture_code="13",
 )
 
 
@@ -184,7 +184,7 @@ class SmallRosterLineupTests(unittest.TestCase):
             p for p in self.roster.players if p.primary_position != "P"
         ][:10]
         other = RosterBook(
-            lambda school_id: Team("SCH-OTHER", "PRG-OTHER", "架空第二高校", "99"),
+            lambda school_id: Team("SCH-OTHER", "PRG-OTHER", "架空第二高校", "13"),
             first_year=2026, career_seed=7,
         ).roster(2026, "SCH-OTHER")
         other_team = TeamMatchInput(

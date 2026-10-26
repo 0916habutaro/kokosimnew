@@ -950,8 +950,8 @@ function schoolKoshien(d) {
 
 function schoolMembers(d) {
   if (!d.members.length) return '<div class="empty">部員は選手で試合をしているときに出ます。</div>';
-  return `<div class="panel"><table class="list"><tr><th>名前</th><th>学年</th><th>守備位置</th><th>投打</th></tr>
-    ${d.members.map((m) => `<tr><td>${esc(m.name)}</td><td>${m.grade}年</td><td>${esc(m.position)}</td><td>${HANDS[m.throws] || m.throws}投${HANDS[m.bats] || m.bats}打</td></tr>`).join("")}
+  return `<div class="panel"><table class="list"><tr><th>名前</th><th>学年</th><th>出身</th><th>守備位置</th><th>投打</th></tr>
+    ${d.members.map((m) => `<tr><td>${esc(m.name)}</td><td>${m.grade}年</td><td>${esc(m.hometown)}</td><td>${esc(m.position)}</td><td>${HANDS[m.throws] || m.throws}投${HANDS[m.bats] || m.bats}打</td></tr>`).join("")}
   </table></div>`;
 }
 

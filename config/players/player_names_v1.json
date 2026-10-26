@@ -1,0 +1,24 @@
+{
+  "config_id": "player_names_v1",
+  "revision": 1,
+  "description_ja": "選手の名前と出身の都道府県（game_definition.md §3.5）。苗字は出身の都道府県の苗字データ（data/generation/player_names/surnames.csv）から件数で重み付けして選ぶ。名前（given_names.json）は先頭の人気の名前を重くし、残りは同じ重み。出身は基本は学校の所在県で、私立は評判のランク（school_reputation_v1 の rank_labels）が高いほど県外の割合を上げる。",
+  "given_names": {
+    "popular_count": 53,
+    "popular_weight": 40.0,
+    "other_weight": 1.0
+  },
+  "out_of_prefecture_rate": {
+    "private": {"S": 0.45, "A": 0.3, "B": 0.15, "C": 0.06, "D": 0.03, "E": 0.02},
+    "public": 0.01
+  },
+  "display_separator": " ",
+  "max_name_attempts": 200,
+  "notes_ja": {
+    "given_names.popular_weight": "先頭 popular_count 件の名前1つあたりの重み（残りの名前1つは other_weight）。40 だと人気の名前が全体の約18%",
+    "out_of_prefecture_rate.private": "私立（学校マスターの ownership_type が private）の、評判のランクごとの県外出身の割合。評判はゲーム開始時の値（school_reputation_v1）",
+    "out_of_prefecture_rate.public": "公立・国立などの県外出身の割合（評判によらない）",
+    "県外の出身地": "学校の所在県以外から、苗字データの件数の合計（人口の目安）で重み付けして選ぶ",
+    "設置者": "学校マスターの設置者を使う。セーブの中で設置者を編集しても、今いる選手の名前・出身は変わらない",
+    "max_name_attempts": "同じ学校で同姓同名にならないように選び直す回数の上限"
+  }
+}

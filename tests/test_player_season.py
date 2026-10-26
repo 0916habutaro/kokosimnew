@@ -10,6 +10,7 @@ from phase2_engine import (
     DataRepository,
     LiveGameService,
 )
+from phase2_engine.screen.data import GameScreenData
 
 
 DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
@@ -70,6 +71,20 @@ class PlayerSeasonServiceTests(unittest.TestCase):
                 loaded.state.completed_results(),
             )
             service.save_game(loaded)
+
+            # 選手名と出身は乱数の種で決まり、読み込んでも同じ（名簿はセーブに入れず、
+            # セーブの乱数の種からつくる）。画面の部員一覧・試合の個人成績に出る
+            screen = GameScreenData(service, session)
+            again = GameScreenData(service, loaded)
+            school_id = archived["batter_stats"][0]["school_id"]
+            members = screen.school(school_id)["members"]
+            self.assertEqual(members, again.school(school_id)["members"])
+            self.assertEqual(20, len({m["name"] for m in members}))
+            self.assertTrue(all(" " in m["name"] and m["hometown"] for m in members))
+            detail = screen.match(2026, competition_id, match_id)
+            batting = [b for rows in detail["batting"].values() for b in rows]
+            self.assertTrue(batting)
+            self.assertTrue(all(" " in b["name"] for b in batting))
 
 
 if __name__ == "__main__":

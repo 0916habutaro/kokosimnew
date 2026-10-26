@@ -14,7 +14,7 @@ from phase2_engine.randomness import rng_for
 
 from .players import (
     CORE_ROSTER_SIZE, Player, PlayerRosterGenerator, SchoolRoster,
-    _position_group, validate_school_roster,
+    _position_group, draw_identity, validate_school_roster,
 )
 
 
@@ -90,6 +90,8 @@ def advance_school_roster(
         for p in previous.players if p.academic_year in (1, 2)
     )
     newcomers: list[Player] = []
+    # 同じ学校の中で同姓同名にならないように（残る部員と新入生どうし）
+    taken = {p.display_name for p in continued}
     for former in graduates:
         slot = former.roster_no
         pos = former.primary_position
@@ -97,11 +99,15 @@ def advance_school_roster(
             career_seed,
             f"career_roster_v1:{next_year}:{team.school_id}:slot:{slot}",
         )
-        name, source = generator.name_provider(
-            team, next_year, slot, rng
+        identity = draw_identity(
+            generator.name_provider, team, career_seed,
+            rng_for(
+                career_seed,
+                f"player_names_v1:career:{next_year}:{team.school_id}:slot:{slot}",
+            ),
+            taken,
         )
-        if not isinstance(name, str) or not name or not source:
-            raise ValueError("newcomer name provider returned empty identity")
+        taken.add(identity.display_name)
         throws_left = 0.20 if pos == "P" else 0.10
         throws = "L" if rng.random() < throws_left else "R"
         roll = rng.random()
@@ -112,8 +118,9 @@ def advance_school_roster(
             ),
             school_id=team.school_id,
             program_id=team.program_id,
-            display_name=name,
-            name_source=source,
+            display_name=identity.display_name,
+            name_source=identity.name_source,
+            hometown_prefecture_code=identity.hometown_prefecture_code,
             academic_year=1,
             entry_year=next_year,
             roster_no=slot,

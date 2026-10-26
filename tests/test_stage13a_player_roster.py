@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from game_core.player_names import PlayerIdentity
 from game_core.players import (
     CORE_ROSTER_SIZE,
     GRADE_COUNTS,
@@ -150,7 +151,7 @@ class Stage13APlayerRosterFoundationTests(unittest.TestCase):
                 player.entry_year,
             )
 
-    def test_placeholder_name_contract_is_explicit(self):
+    def test_generated_names_have_hometown_and_are_unique_in_school(self):
         roster = self.generator.generate_for_school_id(
             self.repo,
             self.school_ids[0],
@@ -158,14 +159,23 @@ class Stage13APlayerRosterFoundationTests(unittest.TestCase):
             self.seed,
         )
         self.assertTrue(
-            all(player.name_source == "placeholder_v1" for player in roster.players)
+            all(player.name_source == "player_names_v1" for player in roster.players)
         )
-        self.assertEqual("仮選手01", roster.players[0].display_name)
+        names = [player.display_name for player in roster.players]
+        self.assertEqual(len(names), len(set(names)))
+        self.assertTrue(all(" " in name for name in names))
+        self.assertTrue(all(player.hometown_prefecture_code for player in roster.players))
+        again = self.generator.generate_for_school_id(
+            self.repo, self.school_ids[0], 2026, self.seed,
+        )
+        self.assertEqual(roster, again)
 
-    def test_custom_name_provider_can_replace_placeholder(self):
-        def provider(team, year, roster_no, rng):
-            del team, year, rng
-            return f"テスト選手{roster_no:02d}", "test_provider"
+    def test_custom_name_provider_can_replace_default(self):
+        def provider(team, base_seed, rng, taken):
+            del base_seed, rng
+            return PlayerIdentity(
+                f"テスト選手{len(taken) + 1:02d}", "test_provider", team.prefecture_code,
+            )
 
         generator = PlayerRosterGenerator(name_provider=provider)
         roster = generator.generate_for_school_id(
@@ -176,6 +186,15 @@ class Stage13APlayerRosterFoundationTests(unittest.TestCase):
         )
         self.assertEqual("テスト選手01", roster.players[0].display_name)
         self.assertEqual("test_provider", roster.players[0].name_source)
+
+    def test_provider_returning_a_taken_name_is_rejected(self):
+        def provider(team, base_seed, rng, taken):
+            return PlayerIdentity("同じ 名前", "test_provider", team.prefecture_code)
+
+        with self.assertRaisesRegex(ValueError, "duplicate player name"):
+            PlayerRosterGenerator(name_provider=provider).generate_for_school_id(
+                self.repo, self.school_ids[0], 2026, self.seed,
+            )
 
     def test_validate_school_roster_accepts_generated_roster(self):
         roster = self.generator.generate_for_school_id(

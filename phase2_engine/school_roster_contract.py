@@ -8,9 +8,10 @@ from typing import Protocol
 
 from game_core.career_rosters import advance_school_roster
 from game_core.players import PlayerRosterGenerator, validate_school_roster
+from game_core.player_names import NAME_SOURCE
 from .career_roster_archive import _digest, _json
 
-RECIPE = 'placeholder_v1/career_roster_v1/player_career_newcomer_v1'
+RECIPE = 'player_names_v1/career_roster_v1/player_career_newcomer_v1'
 
 
 @dataclass(frozen=True)
@@ -56,7 +57,7 @@ def accept_roster_source(rosters, repo, *, year, career_seed, evidence,
                 or not team.program_id or not team.prefecture_code
                 or (r.program_id, r.school_name) != (team.program_id, team.display_name)
                 or any(p.generation_seed != career_seed or type(p.generation_seed) is not int
-                       or p.name_source != 'placeholder_v1' for p in r.players)):
+                       or p.name_source != NAME_SOURCE for p in r.players)):
             raise ValueError('saved school/year/seed/name-provider differs')
         ids = {p.player_id for p in r.players}
         if seen & ids:

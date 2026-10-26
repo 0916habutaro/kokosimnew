@@ -46,6 +46,7 @@ def make_player(
         program_id="PRG_GOLDEN",
         display_name=player_id,
         name_source="test",
+        hometown_prefecture_code="13",
         academic_year=grade,
         entry_year=2026 - grade + 1,
         roster_no=roster_no,
