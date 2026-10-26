@@ -1,8 +1,8 @@
 {
   "config_id": "match_simulation_v1",
-  "revision": 3,
-  "status": "design_default_not_tuned",
-  "description_ja": "Stage 13C-2 初期能力ベース試合モデル。打席結果・走者進塁・投手運用の暫定値であり、実在高校野球へ校正済みではない。",
+  "revision": 4,
+  "status": "tuned_2026_10_26",
+  "description_ja": "能力ベースの試合モデル（打席結果・走者進塁・投手運用）。能力の効き（ability_effect_scale）と1打席の球数（pitch_count）は、夏の地方大会の実際の試合（historical_data/summer_local_games.csv、2021〜2025年）の得点・点差・コールド・延長・完封と、甲子園の完投投手の球数に合わせた（game_definition.md §11）。打席結果の基準の確率は未調整。",
   "score_source": "ability_model_v1",
   "team_order": {
     "team1": "top_offense",

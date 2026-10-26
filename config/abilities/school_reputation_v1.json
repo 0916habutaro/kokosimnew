@@ -38,7 +38,7 @@
   },
   "noise": {
     "description_ja": "全校に足す小さな乱数（0〜max の一様分布、ゲームの乱数の種で決まる）。甲子園に出たことのない学校の順位を決め、県の上位校が生まれる余地を残す",
-    "max": 0.8
+    "max": 0.4
   },
   "rng_namespace": "school_reputation_v1:noise:{school_id}",
   "rank_labels": [

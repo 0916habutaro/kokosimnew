@@ -1,8 +1,8 @@
 {
   "config_id": "school_intake_v1",
-  "revision": 2,
-  "status": "design_default_not_tuned",
-  "description_ja": "架空選手生成用の入部品質モデル。学校成分（program）は学校の評判（school_reputation_v1。実際の甲子園の出場などから作るゲーム開始時の評判）の順位を、この平均・広がりの z に変えたもの。年度ごとの当たり外れ（cohort）は乱数。選手の能力に足すだけで、学校の強さは選手から計算する。",
+  "revision": 3,
+  "status": "tuned_2026_10_26",
+  "description_ja": "架空選手生成用の入部品質モデル。学校成分（program）は学校の評判（school_reputation_v1。実際の甲子園の出場などから作るゲーム開始時の評判）の順位を、この平均・広がりの z に変えたもの。年度ごとの当たり外れ（cohort）は乱数。学校成分と cohort の重みは 0.75:0.25（分散の割合）で、夏の甲子園の初出場・2年続けて出る学校の数と地方大会の点差に合わせた（game_definition.md §11）。選手の能力に足すだけで、学校の強さは選手から計算する。",
   "quality_model": {
     "program_component": {
       "source": "reputation",
