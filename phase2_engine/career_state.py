@@ -171,6 +171,9 @@ class CareerState:
         self._record_day(played)
         previous = self.current_date
         self.current_date = previous + timedelta(days=1)
+        # 月が変わったら、終わった月の分だけ選手を成長させる（game_core/player_growth.py）
+        if self.rosters is not None and self.current_date.month != previous.month:
+            self.rosters.grow(previous)
         opened = self._open_next_season()
         return {
             "from_date": previous.isoformat(),

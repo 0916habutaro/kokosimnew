@@ -84,6 +84,7 @@ class AbilityMatchResolver:
             TeamMatchInput,
         ] = {}
         self._abilities: dict[tuple, object] = {}
+        self._source_version = None
         self._initial_roster_scope = None
 
     def prepare_initial_rosters(self, *, reference_year: int,
@@ -266,6 +267,12 @@ class AbilityMatchResolver:
         reference_year: int,
         team_seed: int,
     ) -> TeamMatchInput:
+        # 成長で能力が変わったら作り直す（試合はその日の能力で行う）
+        version = getattr(self.ability_generator.source, "version", None)
+        if version != self._source_version:
+            self._competition_teams.clear()
+            self._abilities.clear()
+            self._source_version = version
         key = (competition_id, team_seed, school_id)
         cached = self._competition_teams.get(key)
         if cached is not None:
@@ -294,6 +301,22 @@ class AbilityMatchResolver:
             )
             self._abilities[key] = snapshot
         return snapshot
+
+    def _record_games(self, competition_id: str, result) -> None:
+        """公式戦に出た選手を名簿に記録する（毎月の成長で少し伸びる）。"""
+        source = self.ability_generator.source
+        if source is None or self.member_provider is None:
+            return
+        played = {
+            s.player_id for s in result.batter_stats if s.plate_appearances > 0
+        } | {
+            s.player_id for s in result.pitcher_stats if s.batters_faced > 0
+        }
+        for school_id in (result.team1_school_id, result.team2_school_id):
+            members = self.member_provider(competition_id, school_id).players
+            source.record_games(
+                school_id, [p for p in members if p.player_id in played],
+            )
 
     def rules_for(self, competition_id: str, match_id: str) -> GameRules:
         """その試合の規定。タイブレークはすべての試合。コールドは都道府県大会・
@@ -445,6 +468,7 @@ class AbilityMatchResolver:
             ),
         )
         self._record_pitches(result, day)
+        self._record_games(competition_id, result)
         highlights = game_highlights(result.events)
         if self.detail_sink is not None:
             full = replace(result, events=()).to_dict()

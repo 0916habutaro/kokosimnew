@@ -48,11 +48,16 @@ class SchoolAbilities:
         self._lock = threading.Lock()
         self._cache: dict[str, tuple[tuple, dict]] = {}
         self._player_cache: dict[tuple, object] = {}
+        self._player_version = None
+
+    def _version(self):
+        """名簿の能力が成長で変わった回数（変わったら計算し直す）。"""
+        return getattr(self._abilities.source, "version", None)
 
     def compute(self, members: dict, year: int, team_seed: int) -> None:
         """``members`` は学校ID → 部員（Player の並び）。"""
         for school_id, players in members.items():
-            key = (year, tuple(player.player_id for player in players))
+            key = (year, self._version(), tuple(player.player_id for player in players))
             with self._lock:
                 cached = self._cache.get(school_id)
             if cached is not None and cached[0] == key:
@@ -62,6 +67,11 @@ class SchoolAbilities:
                 self._cache[school_id] = (key, values)
 
     def _school(self, players, year: int, team_seed: int) -> dict | None:
+        version = self._version()
+        if version != self._player_version:
+            # 成長で能力が変わった。前の能力は捨てる
+            self._player_cache = {}
+            self._player_version = version
         snapshots = []
         for player in players:
             pkey = (player.player_id, year)
@@ -89,7 +99,7 @@ class SchoolAbilities:
         with self._lock:
             for school_id, players in members.items():
                 cached = self._cache.get(school_id)
-                key = (year, tuple(player.player_id for player in players))
+                key = (year, self._version(), tuple(player.player_id for player in players))
                 if cached is not None and cached[0] == key:
                     out[school_id] = cached[1]
         return out, len(out) == len(members)
