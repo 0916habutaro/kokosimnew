@@ -44,13 +44,13 @@
       "field_out": 0.450
     },
     "ability_effect_scale": {
-      "strikeout": 0.012,
-      "walk": 0.010,
-      "single": 0.010,
-      "extra_base_hit": 0.011,
-      "home_run": 0.014,
-      "error": 0.012,
-      "field_out": 0.007
+      "strikeout": 0.0144,
+      "walk": 0.012,
+      "single": 0.012,
+      "extra_base_hit": 0.0132,
+      "home_run": 0.0168,
+      "error": 0.0144,
+      "field_out": 0.0084
     },
     "probability_floor": 0.0001,
     "defense_center": 50.0
@@ -94,18 +94,18 @@
   "pitch_count": {
     "description_ja": "1打席の球数。[最少, 上乗せの最大]。上乗せは0〜最大から等しい確率で選ぶ。設計の初期値（実際の打席ごとの球数には合わせていない）",
     "by_event": {
-      "strikeout": [3, 4],
+      "strikeout": [3, 3],
       "walk": [4, 3],
       "hit_by_pitch": [1, 4],
-      "single": [1, 5],
-      "double": [1, 5],
-      "triple": [1, 5],
-      "home_run": [1, 5],
-      "field_out": [1, 5],
-      "fielder_choice": [1, 5],
-      "reached_on_error": [1, 5],
+      "single": [1, 4],
+      "double": [1, 4],
+      "triple": [1, 4],
+      "home_run": [1, 4],
+      "field_out": [1, 4],
+      "fielder_choice": [1, 4],
+      "reached_on_error": [1, 4],
       "sacrifice_bunt": [1, 3],
-      "sacrifice_fly": [1, 5]
+      "sacrifice_fly": [1, 4]
     }
   },
   "rules": {

@@ -8,12 +8,12 @@
       "source": "reputation",
       "mean": 0.0,
       "stddev": 1.0,
-      "weight": 0.975609756097561
+      "weight": 0.916515138991168
     },
     "cohort_component": {
       "mean": 0.0,
       "stddev": 1.0,
-      "weight": 0.219512195121951
+      "weight": 0.4
     },
     "combined_clip": {
       "min": -3.5,
