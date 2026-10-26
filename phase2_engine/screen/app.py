@@ -88,6 +88,9 @@ class ScreenApi:
     def school_matches(self, school_id, school_year) -> dict:
         return self._read(self._data.school_matches, school_id, school_year)
 
+    def player(self, school_id, player_id) -> dict:
+        return self._read(self._data.player, school_id, player_id)
+
     def warm_up(self) -> None:
         """学校の能力を別のスレッドで計算しておく（一覧を開いたときに待たない）。"""
         threading.Thread(target=self._warm_up, daemon=True).start()

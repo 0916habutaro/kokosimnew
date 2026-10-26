@@ -260,6 +260,10 @@ class RosterBook:
             out[f"{prefix}_sha256"] = document.canonical_sha256
         return out
 
+    def pitch_types(self) -> list[str]:
+        """能力の並びの球種の番号 → 球種。"""
+        return self._pitch_types()
+
     def _pitch_types(self) -> list[str]:
         return list(self._base().params["pitch_repertoire"]["pitch_types"])
 
