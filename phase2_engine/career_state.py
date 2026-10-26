@@ -45,6 +45,7 @@ class CareerState:
         current_date: date,
         open_season: SeasonOpener | None = None,
         plans: dict[int, object] | None = None,
+        rosters=None,
     ):
         if not seasons:
             raise ValueError("career needs at least one season")
@@ -59,14 +60,18 @@ class CareerState:
         # 書き出さない。読込時につなぎ直す）
         self.open_season = open_season
         self.plans = dict(plans or {})
+        # 全国の名簿（選手の名前・出身・能力。game_core/roster_book.py）。
+        # 選手で試合をするときだけ。セーブに入る
+        self.rosters = rosters
 
-    # セーブには年度の状態と日付だけを書き出す
+    # セーブには年度の状態・日付・名簿を書き出す
     def __getstate__(self):
         return {
             "seasons": self.seasons,
             "current_date": self.current_date,
             "start_date": self.start_date,
             "history": self.history,
+            "rosters": self.rosters,
         }
 
     def __setstate__(self, data):
@@ -90,6 +95,7 @@ class CareerState:
     def __getattr__(self, name):
         if name.startswith("__") or name in (
             "seasons", "current_date", "plans", "open_season", "history",
+            "rosters",
         ):
             raise AttributeError(name)
         return getattr(self.primary, name)

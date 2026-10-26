@@ -54,7 +54,7 @@ class LiveSeasonMembers:
     メンバーを最初に必要になったときに決めて固定する。
     """
 
-    def __init__(self, plan, rosters: RosterBook):
+    def __init__(self, plan, rosters: RosterBook | None):
         self.plan = plan
         self.starts = competition_start_dates(plan)
         self.segments = {
@@ -146,8 +146,11 @@ class PlayerSeason:
         # 状態ができる前（開始前の試合）の試合記録
         self.resolver.detail_sink = {}
 
-    def attach(self, state) -> None:
+    def attach(self, state, rosters) -> None:
+        """進行中の年度の状態と、セーブに入った名簿（``CareerState.rosters``）をつなぐ。"""
         self.members.attach(state)
+        self.members.members.rosters = rosters
+        self.resolver.ability_generator.source = rosters
         pending = state.pending_match_details
         pending.update(self.resolver.detail_sink)
         self.resolver.detail_sink = pending
@@ -155,21 +158,21 @@ class PlayerSeason:
         self.resolver.season_state = state
 
 
+def new_roster_book(repo, rng_seed: int) -> RosterBook:
+    """新規開始の名簿（最初の年度の部員は使うときに乱数の種からつくる）。"""
+    from phase2_engine.season_catalog import TEMPLATE_YEAR
+
+    return RosterBook(repo.team, first_year=TEMPLATE_YEAR, career_seed=rng_seed)
+
+
 def player_engine(repo, plan) -> PlayerSeason:
     """選手で試合をする engine。進行中の状態ができたら ``attach`` する。"""
     from phase2_engine.engine import TournamentEngine
-    from phase2_engine.season_catalog import TEMPLATE_YEAR
 
     from .tournament_bridge import AbilityMatchResolver
 
-    members = LiveSeasonMembers(
-        plan,
-        RosterBook(
-            repo.team,
-            first_year=TEMPLATE_YEAR,
-            career_seed=plan.rng_seed,
-        ),
-    )
+    # 名簿は attach でつなぐ（セーブに入っている。new_roster_book でつくる）
+    members = LiveSeasonMembers(plan, None)
     resolver = AbilityMatchResolver(
         repo,
         team_generation_seed=plan.rng_seed,

@@ -20,7 +20,7 @@ from .career_state import CareerState
 from .school_edits import SchoolEdits
 from .initial_state import PriorResults
 from .prior_season import prior_results_from_season
-from .school_year import in_school_year
+from .school_year import in_school_year, school_year_of
 from .year_transition import require_year_end, year_end_readiness
 from .live_season_planner import (
     LiveSeasonGraphPlanner,
@@ -730,17 +730,22 @@ class LiveGameService:
                 raise ValueError("既存セーブへ新規ゲームを上書きできません")
             self.career_persistence.prepare(plan, engine, self.resolver_contract)
         engine, season = self._engine(plan, engine)
+        rosters = self._new_rosters(int(rng_seed)) if season is not None else None
         # 開始前の試合（3月に始まる春季大会など）にも球数制限・コールドを使う
         first = plan.build_runtime(
             engine=engine,
             start_date=start_date,
-            on_created=season.attach if season is not None else None,
+            on_created=(
+                (lambda created: season.attach(created, rosters))
+                if season is not None else None
+            ),
         )
         state = CareerState(
             {plan.year: first},
             current_date=first.current_date,
-            open_season=self._season_opener(int(rng_seed)),
+            open_season=self._season_opener(int(rng_seed), rosters),
             plans={plan.year: plan},
+            rosters=rosters,
         )
         session = LiveGameSession(
             slot_id=slot,
@@ -819,10 +824,15 @@ class LiveGameService:
             engine_for_plan=engine_for_plan,
         )
         if isinstance(state, CareerState):
-            state.open_season = self._season_opener(rng_seed)
+            rosters = getattr(state, "rosters", None)
+            if rosters is not None:
+                rosters.bind(self.repo.team)
+            state.open_season = self._season_opener(rng_seed, rosters)
             for year, season in seasons.items():
                 if season is not None:
-                    season.attach(state.seasons[year])
+                    if rosters is None:
+                        raise ValueError("選手で試合をするセーブに名簿がありません")
+                    season.attach(state.seasons[year], rosters)
         session = LiveGameSession(
             slot_id=(
                 self.slots.validate_slot_id(
@@ -840,7 +850,12 @@ class LiveGameService:
         self._sync_history(session)
         return session
 
-    def _season_opener(self, rng_seed: int):
+    def _new_rosters(self, rng_seed: int):
+        from game_core.live_members import new_roster_book
+
+        return new_roster_book(self.repo, rng_seed)
+
+    def _season_opener(self, rng_seed: int, rosters=None):
         """秋の大会の後に翌年度の大会表をつくって開く（年度の重なり）。"""
 
         def open_season(year: int, day: date, previous):
@@ -855,7 +870,7 @@ class LiveGameService:
                 # 球数制限は年度をまたいで数える（3月の選抜と4月の春季大会）
                 state.pitch_log = previous.pitch_log
                 if season is not None:
-                    season.attach(state)
+                    season.attach(state, rosters)
 
             state = plan.build_runtime(
                 engine=engine,
@@ -899,7 +914,44 @@ class LiveGameService:
             )
             state.drop(year)
             closed.append(sealed)
+        self._release_rosters(session)
         return closed
+
+    def _release_rosters(self, session: LiveGameSession) -> None:
+        """前の年度の名簿を、その年度に始まった大会（3月に始まる春季県大会など）が
+        すべて終わったら履歴に書き出して、セーブの名簿から手放す。"""
+        state = session.state
+        rosters = getattr(state, "rosters", None)
+        if rosters is None:
+            return
+        for year in rosters.years():
+            if year >= state.school_year or self._roster_in_use(state, year):
+                return
+            archive = self._history_archive(session.slot_id)
+            # 最初の年度は、開始前の年度（3月の大会の部員）の名簿も
+            for each in ([year - 1, year] if year == rosters.first_year else [year]):
+                archive.store_closed_rosters(each, {
+                    school_id: [p.to_dict() for p in rosters.roster(each, school_id).players]
+                    for school_id in rosters.schools(year)
+                })
+            rosters.forget(year)
+
+    @staticmethod
+    def _roster_in_use(state, year: int) -> bool:
+        """その年度（4月〜翌3月）に始まった大会で、まだ終わっていないものがあるか。"""
+        from game_core.live_members import competition_start_dates
+
+        for season_year, season in state.seasons.items():
+            plan = state.plans.get(season_year)
+            if plan is None:
+                return True
+            for cid, start in competition_start_dates(plan).items():
+                if school_year_of(start) != year:
+                    continue
+                scheduled = season.competitions.get(cid)
+                if scheduled is None or not scheduled.is_complete:
+                    return True
+        return False
 
     def _engine(self, plan, engine):
         """選手で試合をする契約なら、その engine（と状態につなぐ部品）をつくる。"""
@@ -1050,6 +1102,10 @@ class LiveGameService:
         return self._history_archive(slot_id).get_match(
             year, competition_id, match_id
         )
+
+    def closed_roster(self, slot_id: str, year: int, school_id: str) -> list[dict] | None:
+        """閉じた年度の名簿（選手の ``Player.to_dict()``）。"""
+        return self._history_archive(slot_id).closed_roster(year, school_id)
 
     def forget_closed_seasons(self) -> None:
         """閉じた年度の読み込みを捨てる（セーブを切り替えたとき）。"""

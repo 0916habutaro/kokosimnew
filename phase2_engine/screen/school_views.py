@@ -32,7 +32,7 @@ class SchoolAbilities:
     """学校ID → 能力。部員（選手IDの並び）が同じなら前の結果を使う。"""
 
     def __init__(self, config_root: str | Path, overall_weights: dict,
-                 adjustments: dict | None = None):
+                 adjustments: dict | None = None, *, rosters=None):
         from game_core.school_intake import SchoolAwarePlayerAbilityGenerator
         from game_core.team_strength import TeamStrengthGenerator
 
@@ -41,6 +41,8 @@ class SchoolAbilities:
         # 学校の編集の補正（試合と同じ dict）。補正を変えたら作り直す
         if adjustments is not None:
             self._abilities.school_adjustments = adjustments
+        # セーブに入った名簿（game_core/roster_book.py）。あれば能力をそこから読む
+        self._abilities.source = rosters
         self._teams = TeamStrengthGenerator(ability_dir)
         self._weights = dict(overall_weights)
         self._lock = threading.Lock()
