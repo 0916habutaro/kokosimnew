@@ -27,8 +27,8 @@
   "summer_local": {
     "description_ja": "夏の地方大会の全試合（historical_data/summer_local_games.csv、2021〜2025年）。県の中の強さ（レーティング）と毎年の勝ち上がり",
     "elo": {"initial": 1500, "k": 24, "year_carry": 0.7},
-    "rating_points_per_400": 1.2,
-    "finish_points": {"1": 1.5, "2": 1.0, "4": 0.6, "8": 0.4, "16": 0.15},
+    "rating_points_per_400": 0.8,
+    "finish_points": {"1": 1.0, "2": 0.6, "4": 0.4, "8": 0.25, "16": 0.1},
     "finish_half_life_years": 3.0
   },
   "prefecture_strength": {
