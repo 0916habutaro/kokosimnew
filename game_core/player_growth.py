@@ -90,7 +90,7 @@ class PlayerGrowth:
         if rng.random() < gain - whole:
             whole += 1
         if whole:
-            values[index] = min(high, values[index] + whole)
+            values[index] = max(values[index], min(high, values[index] + whole))
 
     def grow(
         self,

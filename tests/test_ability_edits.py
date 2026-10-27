@@ -85,6 +85,15 @@ class AbilityEditTests(unittest.TestCase):
         self.assertGreaterEqual(b.ability(p).contact, 70)
         self.assertEqual(1, len(b.state(p).injuries))
 
+    def test_growth_does_not_lower_manually_edited_velocity_above_growth_cap(self):
+        b = book()
+        p = next(p for p in b.roster(2026, 'SCH-A').players if p.primary_position == 'P')
+        edited = self.editor.player(b.base_ability(p), {'velocity_kmh': 165}, b.pitch_types())
+        b.edit_abilities([p], [edited], day='2026-05-01', source='player')
+        b.state(p).games = 255
+        b.grow(date(2026, 5, 31))
+        self.assertEqual(165, b.base_ability(p).velocity_kmh)
+
     def test_team_target_is_computed_from_players_without_future_bonus(self):
         b = book(); players = b.roster(2026, 'SCH-A').players
         before = self.editor.overall([b.ability(p) for p in players])
