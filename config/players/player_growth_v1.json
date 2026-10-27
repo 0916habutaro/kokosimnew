@@ -1,6 +1,6 @@
 {
   "config_id": "player_growth_v1",
-  "revision": 1,
+  "revision": 2,
   "description_ja": "選手の成長（game_definition.md §3.1）。毎月の初めに前の月の分を伸ばす。1か月の伸び = 3年間の伸び（abilities）× 潜在能力 × その月の重み（months）× 成長の型の学年の重み（types）÷ 型ごとの3年間の重みの合計 × 上限に近いほど小さくなる係数（headroom）。公式戦に出ると少し足す（games）。端数は乱数で切り上げ・切り捨て（平均は変わらない）。",
   "abilities": {
     "description_ja": "潜在能力 1.0 の選手が、入学（1年の4月）から3年の3月までの3年間に伸びる量の目安。上にない能力（守備位置の適性など）は伸びない",
@@ -34,13 +34,13 @@
     "description_ja": "上限に近いほど伸びにくい。係数 = (上限 - 今の値) ÷ (上限 - 基準)。基準の値で1、上限で0。min〜max に収める（低い選手はやや伸びやすい）",
     "cap": 100,
     "pivot": 50,
-    "velocity_cap": 165,
+    "velocity_cap": 160,
     "velocity_pivot": 135,
     "min": 0.1,
     "max": 1.5
   },
   "games": {
-    "description_ja": "公式戦の出場1試合あたりの伸び（headroom を掛ける）。打者は打席に立った試合で打撃・走塁・守備の能力、投手は投げた試合で投手の能力",
+    "description_ja": "公式戦の出場1試合あたりの伸び（headroom を掛け、能力ごとの3年間の伸び ÷ default の割合を掛ける。球速は 8÷14）。打者は打席に立った試合で打撃・走塁・守備の能力、投手は投げた試合で投手の能力",
     "batter": 0.12,
     "pitcher": 0.15
   },

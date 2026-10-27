@@ -36,6 +36,7 @@ class PlayerGrowth:
         totals = self.config["abilities"]
         default = float(totals["default"])
         self.totals = [float(totals.get(name, default)) for name in SCALARS]
+        self.default_total = default
         self.pitch_totals = (float(totals["pitch_quality"]), float(totals["pitch_command"]))
         months = {int(k): float(v) for k, v in self.config["months"].items() if k.isdigit()}
         year_weight = sum(months.values())
@@ -125,6 +126,8 @@ class PlayerGrowth:
                 head = self._headroom(value, cap, pivot)
                 high = int(cap)
             games_gain = pitcher_games if index in self.pitcher_indexes else batter_games
+            # 試合の分も能力ごとの伸びの大きさに合わせる（球速は3年間の伸びが小さい）
+            games_gain *= self.totals[index] / self.default_total
             self._add(values, index, (self.totals[index] * share + games_gain) * head, rng, high)
         if position == "P":
             for offset in range(PITCH_OFFSET, len(values), 4):
