@@ -38,6 +38,15 @@ from .koshien_records import (
     count_label,
     load_actual as load_actual_koshien,
 )
+from .player_views import (
+    GROWTH_LABELS,
+    ability_rows,
+    ability_values,
+    rank,
+    season_stats,
+    snapshot_values,
+    trend_keys,
+)
 from .save_views import next_slot_id, recovery_rows, slot_rows
 from .school_names import EditedNames, SchoolNames, prefecture_names
 from .school_views import (
@@ -1231,6 +1240,7 @@ class GameScreenData:
             )[0].get(school_id)
             roster = [
                 {
+                    "player_id": player.player_id,
                     "name": player.display_name,
                     "hometown": self.prefectures.get(player.hometown_prefecture_code, ""),
                     "grade": player.academic_year,
@@ -1290,6 +1300,144 @@ class GameScreenData:
             "members": roster,
             "years": sorted(by_year, reverse=True),
         }
+
+    # ---- 選手 ----
+
+    def player(self, school_id: str, player_id: str) -> dict:
+        """選手の画面：名前・出身・学年・成長の型、今の能力、学年ごとの能力の推移
+        （年度末の能力。閉じた年度は試合履歴の名簿から）、年度ごとの成績。"""
+        rosters = getattr(self.state, "rosters", None) if self.session else None
+        if rosters is None:
+            raise ValueError("選手は選手で試合をしているときに出ます")
+        bands = json.loads(
+            (self.config_root / "abilities" / "ability_scale_v1.json").read_text(encoding="utf-8")
+        )["display_bands"]
+        pitch_types = rosters.pitch_types()
+        current = self._current_year()
+        entries = []  # (年度, 選手, 年度末の能力の並び or None, 成長の型)
+        for year in range(current - 3, current + 1):
+            row = None
+            if year < current:
+                for item in self.service.closed_roster(self.session.slot_id, year, school_id) or ():
+                    if item["player_id"] == player_id:
+                        row = item
+            if row is None and year > rosters.closed_through:
+                try:
+                    roster = rosters.roster(year, school_id)
+                except ValueError:
+                    roster = None
+                found = next(
+                    (p for p in (roster.players if roster else ()) if p.player_id == player_id),
+                    None,
+                )
+                if found is not None:
+                    row = {**found.to_dict(), "abilities": None, "growth_type": None}
+            if row is not None:
+                entries.append((year, row))
+        if not entries:
+            raise ValueError("その選手はいません")
+        last_year, last = entries[-1]
+        player = Player(**{key: last[key] for key in PLAYER_FIELDS})
+        enrolled = last_year == current
+        now = None
+        growth_type = next(
+            (row["growth_type"] for _, row in reversed(entries) if row["growth_type"]), None,
+        )
+        if enrolled:
+            state = rosters.state(player)
+            from game_core.player_growth import TYPES
+
+            growth_type = TYPES[state.growth_type]
+            now = snapshot_values(rosters.ability(player))
+        trend = [
+            {
+                "school_year": year, "grade": row["academic_year"], "label": "年度末",
+                "values": ability_values(row["abilities"], pitch_types),
+            }
+            for year, row in entries if row["abilities"]
+        ]
+        if now is not None:
+            trend.append({
+                "school_year": current, "grade": player.academic_year, "label": "今",
+                "values": now,
+            })
+        position = player.primary_position
+        return {
+            "player_id": player.player_id,
+            "school_id": school_id,
+            "school_name": self.names(school_id),
+            "name": player.display_name,
+            "hometown": self.prefectures.get(player.hometown_prefecture_code, ""),
+            "grade": player.academic_year,
+            "status": "在学" if enrolled else "卒業",
+            "entry_year": player.entry_year,
+            "position": POSITION_LABELS.get(position, ""),
+            "bats": player.bats, "throws": player.throws,
+            "growth_type": GROWTH_LABELS.get(growth_type or "", ""),
+            "abilities": ability_rows(now, position, bands) if now else [],
+            "pitches": now["pitches"] if now else [],
+            "trend_keys": [
+                {"key": key, "label": label} for key, label in trend_keys(position)
+            ],
+            "trend": [
+                {
+                    **item,
+                    "values": {
+                        key: {
+                            "value": item["values"].get(key),
+                            "rank": "" if key == "velocity_kmh" else rank(item["values"].get(key), bands),
+                        }
+                        for key, _ in trend_keys(position)
+                    },
+                }
+                for item in trend
+            ],
+            "seasons": [
+                {"school_year": year, "grade": row["academic_year"],
+                 **season_stats(self._school_details(school_id, year), player.player_id)}
+                for year, row in entries
+            ],
+        }
+
+    def _school_details(self, school_id: str, year: int) -> list[dict]:
+        """その学校の、その学校年度（4月〜翌3月）の試合の記録（個人成績つき）。"""
+        from ..school_year import school_year_of
+
+        seasons = _seasons(self.state)
+        details = []
+        for season_year in (year, year + 1):
+            if season_year in seasons:
+                season = seasons[season_year]
+                rows = [
+                    (cid, row.match_id, row.match_date)
+                    for cid, scheduled in season.competitions.items()
+                    for row in scheduled.matches.values()
+                    if row.status == "completed" and school_id in (row.team1_id, row.team2_id)
+                ]
+            else:
+                season = None
+                rows = [
+                    (row["competition_id"], row["match_id"], row["match_date"])
+                    for row in self.service.historical_match_index(self.session.slot_id, season_year)
+                    if school_id in (row["team1_id"], row["team2_id"])
+                ]
+            for cid, match_id, day in rows:
+                if not day or school_year_of(date.fromisoformat(day)) != year:
+                    continue
+                detail = (
+                    season.pending_match_details.get(f"{cid}:{match_id}")
+                    if season is not None else None
+                )
+                if detail is None:
+                    try:
+                        detail = self.service.historical_match(
+                            self.session.slot_id, season_year, cid, match_id,
+                        )
+                    except (KeyError, ValueError, OSError):
+                        detail = None
+                if detail:
+                    details.append(detail)
+        return details
 
     def school_matches(self, school_id: str, school_year) -> dict:
         year = int(school_year)

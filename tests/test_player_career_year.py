@@ -84,6 +84,31 @@ class PlayerCareerYearTests(unittest.TestCase):
                 player.hometown_prefecture_code,
             )
 
+    def test_player_screen_shows_growth_trend_and_seasons(self):
+        screen = GameScreenData(self.service, self.session)
+        archived = self.service.closed_roster("year", 2026, "SCH000001")
+        returning = next(row for row in archived if row["academic_year"] == 2)
+        player = screen.player("SCH000001", returning["player_id"])
+        self.assertEqual(returning["display_name"], player["name"])
+        self.assertEqual(3, player["grade"])
+        self.assertEqual("在学", player["status"])
+        self.assertIn(player["growth_type"], ("早熟", "普通", "晩成"))
+        self.assertTrue(player["hometown"])
+        self.assertTrue(player["abilities"])
+        # 2026年度末（2年）と今（3年）の能力
+        self.assertEqual(
+            [(2026, 2, "年度末"), (2027, 3, "今")],
+            [(t["school_year"], t["grade"], t["label"]) for t in player["trend"]],
+        )
+        # 開始前の年度（2026年3月の大会）から
+        self.assertEqual([2025, 2026, 2027], [s["school_year"] for s in player["seasons"]])
+        self.assertTrue(any(s["batting"] or s["pitching"] for s in player["seasons"]))
+        graduate = next(row for row in archived if row["academic_year"] == 3)
+        old = screen.player("SCH000001", graduate["player_id"])
+        self.assertEqual("卒業", old["status"])
+        self.assertEqual([], old["abilities"])
+        self.assertEqual([2026], [t["school_year"] for t in old["trend"]])
+
 
 if __name__ == "__main__":
     unittest.main()

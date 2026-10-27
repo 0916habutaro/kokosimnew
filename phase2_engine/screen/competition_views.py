@@ -386,6 +386,7 @@ def match_detail(row: dict, detail: dict | None, names, players) -> dict:
     out["batting"] = {
         team: [
             {
+                "player_id": stat["player_id"],
                 "name": player_name(team, stat["player_id"]),
                 "position": position(team, stat["player_id"]),
                 **{key: stat.get(key, 0) for key in (
@@ -401,6 +402,7 @@ def match_detail(row: dict, detail: dict | None, names, players) -> dict:
     out["pitching"] = {
         team: [
             {
+                "player_id": stat["player_id"],
                 "name": player_name(team, stat["player_id"]),
                 "innings": _outs_to_innings(stat.get("outs_recorded", 0)),
                 **{key: stat.get(key, 0) for key in (
