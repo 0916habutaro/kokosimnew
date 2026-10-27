@@ -33,6 +33,9 @@ class SchoolIntakeProfile:
     program_quality_z: float
     cohort_quality_z: float
     intake_quality_z: float
+    coach_id: str | None = None
+    coach_reputation: int | None = None
+    coach_quality_z: float = 0.0
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -46,6 +49,9 @@ class IntakeAdjustedPlayerAbilitySnapshot(PlayerAbilitySnapshot):
     intake_program_quality_z: float
     intake_cohort_quality_z: float
     intake_quality_z: float
+    intake_coach_id: str | None = None
+    intake_coach_reputation: int | None = None
+    intake_coach_quality_z: float = 0.0
 
 
 def _clamp_round(value: float, low: int, high: int) -> int:
@@ -74,6 +80,7 @@ class SchoolIntakeModel:
         # （config・data・historical_data のある所）は config/abilities の2つ上
         self._root = Path(config_dir).resolve().parent.parent
         self.reputation = None
+        self.coaches = None
 
     @staticmethod
     def _config_fields(
@@ -125,6 +132,11 @@ class SchoolIntakeModel:
             program_z * float(program["weight"])
             + cohort_z * float(cohort["weight"])
         )
+        coach_id, coach_reputation, coach_z = (
+            self.coaches.intake_for(school_id, entry_year)
+            if self.coaches is not None else (None, None, 0.0)
+        )
+        combined += coach_z
         clip = quality["combined_clip"]
         combined = _clamp_float(
             combined,
@@ -143,6 +155,9 @@ class SchoolIntakeModel:
             program_quality_z=round(program_z, 6),
             cohort_quality_z=round(cohort_z, 6),
             intake_quality_z=round(combined, 6),
+            coach_id=coach_id,
+            coach_reputation=coach_reputation,
+            coach_quality_z=coach_z,
         )
 
 
@@ -285,6 +300,9 @@ class SchoolAwarePlayerAbilityGenerator:
             intake_program_quality_z=profile.program_quality_z,
             intake_cohort_quality_z=profile.cohort_quality_z,
             intake_quality_z=profile.intake_quality_z,
+            intake_coach_id=profile.coach_id,
+            intake_coach_reputation=profile.coach_reputation,
+            intake_coach_quality_z=profile.coach_quality_z,
         )
         validate_ability_snapshot(snapshot)
         return snapshot

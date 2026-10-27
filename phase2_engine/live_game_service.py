@@ -773,6 +773,7 @@ class LiveGameService:
         rosters = self._new_rosters(int(rng_seed)) if season is not None else None
         if rosters is not None:
             rosters.reputation = reputation
+            rosters.coaches = coaches
         if rosters is not None and injury_level:
             rosters.injury_level = injury_level
         # 開始前の試合（3月に始まる春季大会など）にも球数制限・コールドを使う
@@ -877,6 +878,7 @@ class LiveGameService:
             rosters = getattr(state, "rosters", None)
             if rosters is not None:
                 rosters.bind(self.repo.team)
+                rosters.coaches = state.coaches
             state.open_season = self._season_opener(rng_seed, rosters)
             for year, season in seasons.items():
                 if season is not None:

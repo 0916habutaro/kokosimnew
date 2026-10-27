@@ -226,6 +226,7 @@ class RosterBook:
         growth: PlayerGrowth | None = None,
     ):
         self.reputation = None
+        self.coaches = None
         self.ability_edits = {}
         self.team_edits = []
         self.first_year = first_year
@@ -265,6 +266,7 @@ class RosterBook:
         return {
             "first_year": self.first_year,
             "reputation": self.reputation,
+            "coaches": self.coaches,
             "ability_edits": self.ability_edits,
             "team_edits": self.team_edits,
             "career_seed": self.career_seed,
@@ -300,6 +302,8 @@ class RosterBook:
             self._ability_generator = SchoolAwarePlayerAbilityGenerator()
         if self.reputation is not None:
             self._ability_generator.intake_model.reputation = self.reputation
+        if self.coaches is not None:
+            self._ability_generator.intake_model.coaches = self.coaches
         return self._ability_generator
 
     @property

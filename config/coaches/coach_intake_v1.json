@@ -1,0 +1,10 @@
+{
+  "config_id": "coach_intake_v1",
+  "revision": 1,
+  "status": "active",
+  "description": "2027年度以降の入部品質にだけ加える独立成分。学校評判・潜在能力・成長には加えない。",
+  "first_entry_year": 2027,
+  "neutral_reputation": 50,
+  "z_per_reputation_point": 0.004,
+  "max_abs_z": 0.20
+}

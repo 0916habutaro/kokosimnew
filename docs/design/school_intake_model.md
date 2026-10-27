@@ -23,7 +23,7 @@ TeamStrengthへ学校補正値を直接加算しない。
 `school_intake_v1` は実在校の実力評価ではない。
 
 - 実在校名や所在地を使っていても、program_quality_z は架空選手生成用の合成潜在値
-- 現時点で過去大会成績・進学実績・スカウト評価等とは接続しない
+- 学校成分はゲーム内の学校評判から作る。初期評判の実績入力と年度更新は `game_definition.md` §3.3・§10を正本とする
 - 「この実在校は強い／弱い」という事実を表す値ではない
 - 将来実データで校正する場合は別工程とし、根拠・期間・更新ルールを文書化する
 
@@ -37,7 +37,7 @@ namespace:
 
 `school_intake_v1:program:{school_id}`
 
-同一seed・同一school_idであれば、入学年度が変わっても同じ値になる。
+ゲーム中は `AnnualReputation.intake_by_year` に確定した入学年度の学校成分を使う。学校評判の固定指定もこの経路に従い、入学済み年度を変更しない。上記namespaceの乱数は、学校評判のない架空の学校などでの代替値に使う。
 
 ### cohort component
 
@@ -51,17 +51,26 @@ namespace:
 
 ### 合成
 
-初期値:
+現在の合成（学校・年度の重みは既存設定のまま）:
 
 ```
 intake_quality_z
-  = 0.8 * program_quality_z
-  + 0.6 * cohort_quality_z
+  = 0.8660254037844386 * program_quality_z
+  + 0.5 * cohort_quality_z
+  + coach_quality_z
 ```
 
-0.8² + 0.6² = 1.0 とし、独立成分を合成したときの分散が極端に膨らまないようにする。
+学校・年度成分の重みの2乗和は1.0。6-3Aの監督成分は `config/coaches/coach_intake_v1.json` で最大±0.20 zに抑える。
 
-最終値は -2.5〜+2.5 にclipする。
+最終値は既存の -3.5〜+3.5 にclipする。能力上限とソフトキャップも変更しない。
+
+### coach component（6-3A）
+
+2027年度以降の新入生だけに適用する。評判50は0、1点あたり0.004 zを加え、±0.20 z以内に制限する。2026年開始時の選手には適用しない。
+
+4月1日の監督人事の直後に `CoachBook.finalize_intake()` で確定する。入学年4月1日の所属を既存イベントから参照し、その人物の `CoachIntakeRating` の確定値を使う。同一人物の評判・補正が変わらない年度は複製しない。現在の監督・現在の評判から過去の補正を再計算せず、名簿の遅延生成と保存再開でも同じ値になる。
+
+学校成分・年度成分と独立した加算であり、学校の評判値は変更しない。`RosterBook._new_state()` が潜在能力の抽選へ渡すのは `program_quality_z` だけで、監督成分を含めない。毎月の成長・能力編集・怪我・復帰では加算し直さない。
 
 ## 選手能力への適用
 
@@ -92,6 +101,7 @@ School-aware能力snapshotには以下を追加する。
 - intake_program_quality_z
 - intake_cohort_quality_z
 - intake_quality_z
+- intake_coach_id / intake_coach_reputation / intake_coach_quality_z（生成時の参照情報。保存した名簿の能力は従来どおり選手ごとに保持）
 
 TeamStrengthSnapshotには以下を追加する。
 
