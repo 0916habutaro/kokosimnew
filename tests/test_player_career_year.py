@@ -34,8 +34,19 @@ class PlayerCareerYearTests(unittest.TestCase):
         cls.service.save_game(session)
         cls.march = cls.service.load_game("year")
         cls.march_rosters = cls.march.state.rosters.years()
+        control = cls.service.load_game("year")
+        control.state.coaches = None
         # 4月：春季県大会は3月の部員のまま続く。前の年度の名簿は大会が終わるまで残す
         cls.service.advance_through(cls.march, "2027-04-05")
+        cls.service.advance_through(control, "2027-04-05")
+        cls.personnel_results_equal = cls.march.state.completed_results() == control.state.completed_results()
+        cls.personnel_details_equal = cls.march.state.pending_match_details == control.state.pending_match_details
+        cls.personnel_pitches_equal = cls.march.state.primary.pitch_log == control.state.primary.pitch_log
+        left = cls.march.state.rosters.__getstate__()
+        right = control.state.rosters.__getstate__()
+        cls.personnel_reputation_equal = left.pop("reputation").__dict__ == right.pop("reputation").__dict__
+        cls.personnel_rosters_equal = left == right
+        del control, left, right
         cls.april_rosters = cls.march.state.rosters.years()
         cls.service.save_game(cls.march)
         cls.session = cls.service.load_game("year")
@@ -63,13 +74,25 @@ class PlayerCareerYearTests(unittest.TestCase):
             self.assertEqual("S", screen.school(sid)["reputation_rank"])
 
     def test_coaches_survive_year_boundary_and_reload(self):
-        self.assertEqual(self.initial_coaches, self.session.state.coaches.coaches)
+        self.assertLessEqual(set(self.initial_coaches), set(self.session.state.coaches.coaches))
+        self.assertEqual(2027, self.session.state.coaches.updated_year)
+        for cid, coach in self.initial_coaches.items():
+            new = self.session.state.coaches.coaches[cid]
+            for field in ("display_name", "birth_year", "reputation", "development", "pitching_change", "player_selection"):
+                self.assertEqual(getattr(coach, field), getattr(new, field))
         sid = next(iter(self.initial_coaches.values())).school_id
         coach = self.session.state.coaches.for_school(sid)
         shown = GameScreenData(self.service, self.session).school(sid)["coach"]
         self.assertEqual(coach.coach_id, shown["coach_id"])
         self.assertEqual(2027 - coach.birth_year, shown["age"])
         self.assertEqual(2027 - coach.appointment_year + 1, shown["tenure_years"])
+
+    def test_personnel_does_not_change_players_abilities_growth_reputation_or_matches(self):
+        self.assertTrue(self.personnel_results_equal)
+        self.assertTrue(self.personnel_details_equal)
+        self.assertTrue(self.personnel_pitches_equal)
+        self.assertTrue(self.personnel_reputation_equal)
+        self.assertTrue(self.personnel_rosters_equal)
 
     def test_previous_roster_is_kept_until_its_competitions_end(self):
         self.assertEqual([2026], self.march_rosters)

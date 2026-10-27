@@ -872,6 +872,8 @@ class LiveGameService:
             engine_for_plan=engine_for_plan,
         )
         if isinstance(state, CareerState):
+            if state.coaches is not None:
+                state.coaches.bind(self.data_dir.resolve().parent)
             rosters = getattr(state, "rosters", None)
             if rosters is not None:
                 rosters.bind(self.repo.team)

@@ -1,0 +1,19 @@
+{
+  "config_id": "coach_personnel_v1",
+  "revision": 1,
+  "status": "active",
+  "description": "ゲーム用の監督人事。毎年4月1日。同県・同じ設置者区分内でのみ異動する。",
+  "public_ownership_types": ["prefectural", "municipal", "national", "public_university_corporation"],
+  "retirement": {
+    "minimum_age": 40,
+    "maximum_age": 80,
+    "age_probabilities": [[40, 0.003], [50, 0.01], [60, 0.045], [65, 0.12], [70, 0.3], [75, 0.6]],
+    "public": {"tenure_threshold": 15, "per_year": 0.003, "maximum_bonus": 0.08},
+    "private": {"tenure_threshold": 25, "per_year": 0.002, "maximum_bonus": 0.06}
+  },
+  "transfer": {
+    "public": [[1, 0.0], [3, 0.12], [5, 0.25], [8, 0.4], [12, 0.55]],
+    "private": [[1, 0.0], [10, 0.01], [20, 0.025], [30, 0.04]]
+  },
+  "successor_age": {"min": 25, "max": 55, "mode": 36}
+}
