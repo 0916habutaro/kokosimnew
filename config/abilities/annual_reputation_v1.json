@@ -1,0 +1,24 @@
+{
+  "config_id": "annual_reputation_v1",
+  "revision": 1,
+  "carry": 0.8,
+  "max_annual_change_z": 0.35,
+  "competition_weights": {
+    "national_invitational": 4.0,
+    "national_championship": 5.0,
+    "national_autumn_championship": 3.0,
+    "spring_regional": 2.0,
+    "autumn_regional": 2.0,
+    "summer_local_qualifier": 1.0,
+    "spring_prefectural": 1.0,
+    "autumn_prefectural": 1.0
+  },
+  "finish_points": {
+    "appearance": 0.0,
+    "best8": 0.25,
+    "best4": 0.4,
+    "runner_up": 0.6,
+    "champion": 1.0
+  },
+  "status": "active"
+}

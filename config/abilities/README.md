@@ -35,6 +35,10 @@ Stage 13B以降の能力生成・学校能力算出で使用する、機械可�
 
 Stage 13B-2以降では大量生成監査を行い、変更前→理由→変更→変更後を `docs/tuning/` に残す。
 
+## 学校評判の年度更新
+
+学校評判の年度更新は `annual_reputation_v1.json`。初期評判の計算は `school_reputation_v1.json` のまま維持する。年度更新の式・大会別の重み・保存と入学への適用時点は `docs/design/game_definition.md` §3.3 を参照。
+
 ## 禁止事項
 
 バランス調整値をPythonコードへ新規に直書きしない。

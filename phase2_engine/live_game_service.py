@@ -731,7 +731,12 @@ class LiveGameService:
                 raise ValueError("既存セーブへ新規ゲームを上書きできません")
             self.career_persistence.prepare(plan, engine, self.resolver_contract)
         engine, season = self._engine(plan, engine)
+        from game_core.annual_reputation import AnnualReputation
+
+        reputation = AnnualReputation(self.data_dir.resolve().parent, int(rng_seed))
         rosters = self._new_rosters(int(rng_seed)) if season is not None else None
+        if rosters is not None:
+            rosters.reputation = reputation
         if rosters is not None and injury_level:
             rosters.injury_level = injury_level
         # 開始前の試合（3月に始まる春季大会など）にも球数制限・コールドを使う
@@ -749,6 +754,7 @@ class LiveGameService:
             open_season=self._season_opener(int(rng_seed), rosters),
             plans={plan.year: plan},
             rosters=rosters,
+            reputation=reputation,
         )
         if rosters is not None:
             rosters.set_today(state.current_date)

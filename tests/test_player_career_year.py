@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from phase2_engine import (
     PLAYER_RESOLVER_CONTRACT,
@@ -43,6 +44,22 @@ class PlayerCareerYearTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
+
+    def test_saved_reputation_is_shared_with_intake_after_load(self):
+        rep = self.session.state.reputation
+        book = self.session.state.rosters
+        self.assertIs(rep, book.reputation)
+        self.assertEqual(2027, rep.updated_year)
+        sid = book.schools(2027)[0]
+        profile = book.ability_generator.intake_model.profile(
+            school_id=sid, entry_year=2027, base_seed=book.career_seed,
+        )
+        self.assertAlmostEqual(rep.program_z(sid, 2027), profile.program_quality_z, places=5)
+        screen = GameScreenData(self.service, self.session)
+        self.assertEqual(rep.rank(sid), screen.school(sid)["reputation_rank"])
+        # 保存された最新値を変えれば表示も変わる。初期評判の再計算では通らない。
+        with patch.dict(rep.values, {sid: max(rep.values.values()) + 1}):
+            self.assertEqual("S", screen.school(sid)["reputation_rank"])
 
     def test_previous_roster_is_kept_until_its_competitions_end(self):
         self.assertEqual([2026], self.march_rosters)

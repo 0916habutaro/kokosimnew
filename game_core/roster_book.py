@@ -225,6 +225,7 @@ class RosterBook:
         ability_generator=None,
         growth: PlayerGrowth | None = None,
     ):
+        self.reputation = None
         self.first_year = first_year
         self.career_seed = career_seed
         self.school_ids = tuple(school_ids)
@@ -261,6 +262,7 @@ class RosterBook:
     def __getstate__(self):
         return {
             "first_year": self.first_year,
+            "reputation": self.reputation,
             "career_seed": self.career_seed,
             "school_ids": self.school_ids,
             "closed_through": self.closed_through,
@@ -292,6 +294,8 @@ class RosterBook:
             from .school_intake import SchoolAwarePlayerAbilityGenerator
 
             self._ability_generator = SchoolAwarePlayerAbilityGenerator()
+        if self.reputation is not None:
+            self._ability_generator.intake_model.reputation = self.reputation
         return self._ability_generator
 
     @property
