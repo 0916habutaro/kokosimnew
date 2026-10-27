@@ -34,6 +34,7 @@ class AnnualReputation:
                 raise ValueError(f'annual reputation {weights} must be nonnegative and finite')
         self.rank_labels = initial.config['rank_labels']
         self.mean, self.stddev = initial._mean, initial._stddev
+        self.edits = {}
         self.seed = seed
         self.first_year = self.updated_year = first_year
         # z は順位の正規変換。初年度は従来の program_z と完全に同じ。
@@ -54,6 +55,18 @@ class AnnualReputation:
         if share is None:
             return ''
         return next(label for label, minimum in self.rank_labels if share >= float(minimum))
+
+    def edit(self, school_id, value, mode, day, *, minimum, maximum):
+        from .school_edits import number
+
+        if school_id not in self.values:
+            raise ValueError("その学校には評判がありません")
+        value = number(value, minimum, maximum, "評判値")
+        if mode not in ("automatic", "fixed"):
+            raise ValueError("評判の更新方式が不正です")
+        self.values[school_id] = value
+        self.edits[school_id] = {"requested": value, "mode": mode, "date": day}
+        # 入学済みの年度は書き換えない。次の4月に初めて新入生へ反映する。
 
     def collect(self, seasons) -> None:
         """予選も含め大会全体が確定してから採る。試合別の点との二重加算はしない。"""
@@ -110,6 +123,10 @@ class AnnualReputation:
         normal = NormalDist(self.mean, self.stddev)
         for index, sid in enumerate(order):
             target = normal.inv_cdf((index + 0.5) / len(order))
+            setting = self.edits.get(sid)
+            if setting and setting['mode'] == 'fixed':
+                self.values[sid] = setting['requested']
+                continue
             change = (target - self.values[sid]) * (1 - carry)
             self.values[sid] += max(-limit, min(limit, change))
         self.updated_year = day.year

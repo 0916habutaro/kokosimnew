@@ -1,0 +1,16 @@
+{
+  "config_id": "ability_edits_v1",
+  "revision": 1,
+  "status": "active",
+  "team": {
+    "tolerance": 0.5,
+    "search_iterations": 22,
+    "delta_range": [-100, 100],
+    "velocity_delta_factor": 0.3,
+    "velocity_cap": 160
+  },
+  "reputation": {
+    "minimum_z": -4.0,
+    "maximum_z": 4.0
+  }
+}

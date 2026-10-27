@@ -13,7 +13,6 @@ from types import SimpleNamespace
 from typing import Callable
 
 from game_core.players import Player
-from game_core.school_edits import SchoolAdjustmentModel
 from game_core.school_reputation import reputation_for
 
 from ..career_state import CareerState
@@ -151,7 +150,6 @@ class GameScreenData:
             if row.get("season_segment") == "autumn"
         }
         self.abilities = self._new_abilities()
-        self.adjustment_model = SchoolAdjustmentModel(config_root)
         self._closed_years: dict[int, dict] = {}
         self._stage_names = {
             stage["stage_id"]: stage.get("stage_name", "")
@@ -1118,14 +1116,10 @@ class GameScreenData:
         """学校の編集の画面に出す今の値・選べる値・変更の記録。"""
         edits = self.names.edits
         school = self.service.repo.schools.get(school_id, {})
-        model = self.adjustment_model
         history = [
             {"date": entry["date"], "kind": "info",
              "changes": {k: v for k, v in entry.items() if k != "date"}}
             for entry in edits.info_history(school_id)
-        ] + [
-            {"date": entry["date"], "kind": "ability", "changes": entry["steps"]}
-            for entry in edits.schools.get(school_id, {}).get("ability_history", [])
         ]
         return {
             "display_name": self._official_name(school_id),
@@ -1135,17 +1129,11 @@ class GameScreenData:
                 {"value": kind, "label": self._ownership_label(kind, school)}
                 for kind in self.OWNERSHIP_TYPES
             ],
-            "ability": edits.ability(school_id),
-            "step_range": model.step_range,
-            "categories": [
-                {"key": key, "label": rule["label"]}
-                for key, rule in model.categories.items()
-            ],
             "history": sorted(history, key=lambda row: row["date"]),
         }
 
     def edit_school(self, school_id: str, payload: dict) -> dict:
-        """学校の情報と能力の補正を変える（そのセーブの中だけ。data/master は変えない）。"""
+        """学校の情報を変える（そのセーブの中だけ。data/master は変えない）。"""
         if self.session is None:
             raise ValueError("遊ぶセーブを選んでください")
         info = {}
@@ -1170,9 +1158,8 @@ class GameScreenData:
             key: value for key, value in info.items()
             if value != current.get(key, base[key])
         }
-        ability = self.adjustment_model.normalize(payload.get("ability") or {})
         self.service.edit_school(
-            self.session, school_id, info=info, ability=ability,
+            self.session, school_id, info=info,
         )
         self.names.edits = self._load_edits()
         self.abilities = self._new_abilities()
@@ -1538,7 +1525,6 @@ class GameScreenData:
     def _new_abilities(self) -> SchoolAbilities:
         return SchoolAbilities(
             self.config_root, self.config["school_overall_weights"],
-            getattr(self.service, "school_adjustments", None),
             # 選手の能力はセーブに入った名簿から
             rosters=getattr(self.state, "rosters", None) if self.session else None,
         )

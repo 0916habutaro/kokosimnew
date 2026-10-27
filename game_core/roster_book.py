@@ -226,6 +226,8 @@ class RosterBook:
         growth: PlayerGrowth | None = None,
     ):
         self.reputation = None
+        self.ability_edits = {}
+        self.team_edits = []
         self.first_year = first_year
         self.career_seed = career_seed
         self.school_ids = tuple(school_ids)
@@ -263,6 +265,8 @@ class RosterBook:
         return {
             "first_year": self.first_year,
             "reputation": self.reputation,
+            "ability_edits": self.ability_edits,
+            "team_edits": self.team_edits,
             "career_seed": self.career_seed,
             "school_ids": self.school_ids,
             "closed_through": self.closed_through,
@@ -460,8 +464,42 @@ class RosterBook:
                 self.roster(player.entry_year + player.academic_year - 1, player.school_id)
             return self._states[player.school_id][key]
 
+    def base_ability(self, player: Player) -> PlayerAbilitySnapshot:
+        """怪我・復帰の補正を掛ける前の能力。編集はこの値に対して行う。"""
+        return unpack_abilities(bytes(self.state(player).values), player,
+                                config_fields=self._config_fields(), pitch_types=self._pitch_types())
+
+    def project_ability(self, player, snapshot):
+        values = bytearray(pack_abilities(snapshot, self._pitch_types()))
+        recent = self.state(player).recovering(self.today) if self.today else None
+        step = injury_model().recovery_step(recent, self.today) if recent else 0
+        if step:
+            self._recovery_drop(values, recent, step)
+        return unpack_abilities(bytes(values), player, config_fields=self._config_fields(),
+                                pitch_types=self._pitch_types())
+
+    def edit_abilities(self, players, snapshots, *, day, source):
+        # 検証とパックを全員分済ませ、途中まで変更されるのを防ぐ。
+        from .abilities import validate_ability_snapshot
+
+        packed = []
+        for player, snapshot in zip(players, snapshots, strict=True):
+            if snapshot.player_id != player.player_id or snapshot.school_id != player.school_id:
+                raise ValueError("編集対象の選手IDが一致しません")
+            validate_ability_snapshot(snapshot)
+            packed.append(bytearray(pack_abilities(snapshot, self._pitch_types())))
+        with self._lock:
+            for player, snapshot, values in zip(players, snapshots, packed):
+                self.state(player).values = values
+                self.ability_edits.setdefault(player.player_id, []).append({
+                    "date": day, "school_id": player.school_id, "source": source,
+                    "abilities": snapshot.to_dict(),
+                })
+            self.version += 1
+            self._abilities.clear()
+
     def ability(self, player: Player) -> PlayerAbilitySnapshot:
-        """その選手の今の能力（復帰直後は少し下がる）。学校の編集の補正は入っていない。"""
+        """その選手の今の能力（復帰直後は少し下がる）。"""
         with self._lock:
             state = self.state(player)
             recent = state.recovering(self.today) if self.today is not None else None

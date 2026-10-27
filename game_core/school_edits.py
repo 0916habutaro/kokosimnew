@@ -1,75 +1,121 @@
-"""学校の編集による能力の補正（docs/design/school_edits.md）。
-
-補正は学校ごと・項目（打撃・投手・守備・走力）ごとの段階（±``step_range``）。
-選手の能力に足し、学校の強さはその選手から計算する（ADR-001・006）。
-能力は選手と学校から毎回計算するので、今の部員にも今後の新入生にも同じように効く。
-1段階の大きさは ``config/school_edits/school_edits_v1.json``。
-"""
+"""学校・選手の能力編集。名簿の能力を変え、戦力は同じ選手から再計算する。"""
 from __future__ import annotations
 
 from dataclasses import replace
 import json
+import math
 from pathlib import Path
-from typing import Mapping
 
-from .abilities import PitchAbility
-
-
-CONFIG_PATH = Path("school_edits") / "school_edits_v1.json"
-CATEGORIES = ("batting", "pitching", "defense", "running")
+from .abilities import PitchAbility, validate_ability_snapshot
+from .roster_book import SCALARS
+from .team_strength import TeamStrengthGenerator
 
 
-def _clamp(value: float, low: int, high: int) -> int:
-    return min(high, max(low, int(round(value))))
+def number(value, low, high, label, *, integer=False):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise ValueError(f'{label}は数値で指定してください')
+    if not low <= value <= high or (integer and int(value) != value):
+        raise ValueError(f'{label}は{low}〜{high}' + ('の整数' if integer else '') + 'で指定してください')
+    return int(value) if integer else float(value)
 
 
-class SchoolAdjustmentModel:
-    def __init__(self, config_root: str | Path):
-        path = Path(config_root) / CONFIG_PATH
-        self.params = json.loads(path.read_text(encoding="utf-8"))
-        if self.params.get("config_id") != "school_edits_v1":
-            raise ValueError("school edits config_id mismatch")
-        self.step_range = int(self.params["step_range"])
-        self.categories = self.params["categories"]
+class AbilityEditor:
+    def __init__(self, config_root='config'):
+        root = Path(config_root)
+        self.config = json.loads((root / 'school_edits/ability_edits_v1.json').read_text(encoding='utf-8'))
+        self.screen = json.loads((root / 'screen/screen_v1.json').read_text(encoding='utf-8'))
+        self.teams = TeamStrengthGenerator(root / 'abilities')
 
-    def normalize(self, steps: Mapping[str, object]) -> dict[str, int]:
-        """画面から来た段階を、決まった項目と範囲の整数にする（0 は省く）。"""
+    def player(self, snapshot, changes, pitch_types):
+        if not isinstance(changes, dict) or set(changes) - set(SCALARS) - {'position_aptitude', 'pitch_repertoire'}:
+            raise ValueError('編集できない能力項目があります')
         out = {}
-        for category in CATEGORIES:
-            value = int(steps.get(category, 0) or 0)
-            if abs(value) > self.step_range:
-                raise ValueError(
-                    f"補正は ±{self.step_range} 段階までです"
-                )
-            if value:
-                out[category] = value
-        return out
+        for name, value in changes.items():
+            if name in SCALARS:
+                if getattr(snapshot, name) is None:
+                    raise ValueError(f'この選手には{name}の能力がありません')
+                low, high = (100, 165) if name == 'velocity_kmh' else (1, 100)
+                out[name] = number(value, low, high, name, integer=True)
+            elif name == 'position_aptitude':
+                current = dict(snapshot.position_aptitude)
+                if not isinstance(value, dict) or set(value) - set(current):
+                    raise ValueError('守備適性の項目が不正です')
+                current.update({k: number(v, 60 if k == snapshot.primary_position else 1,
+                                          100, k, integer=True) for k, v in value.items()})
+                out[name] = tuple(current.items())
+            else:
+                if not isinstance(value, list) or not 2 <= len(value) <= 4:
+                    raise ValueError('球種は2〜4種類で指定してください')
+                pitches = []
+                for row in value:
+                    if not isinstance(row, dict) or set(row) != {'pitch_type', 'quality', 'command', 'usage'}:
+                        raise ValueError('変化球の項目が不正です')
+                    if row['pitch_type'] not in pitch_types:
+                        raise ValueError('その球種はありません')
+                    pitches.append(PitchAbility(row['pitch_type'], **{
+                        k: number(row[k], 1, 100, k, integer=True) for k in ('quality', 'command', 'usage')
+                    }))
+                out[name] = tuple(pitches)
+        result = replace(snapshot, **out)
+        validate_ability_snapshot(result)
+        return result
 
-    def apply(self, snapshot, steps: Mapping[str, int]):
-        """選手の能力（frozen な dataclass）に補正を足した新しい能力を返す。"""
-        if not steps:
-            return snapshot
-        changes: dict[str, object] = {}
-        for category, step in steps.items():
-            rule = self.categories[category]
-            delta = float(rule["points"]) * step
-            for name in rule["fields"]:
-                value = getattr(snapshot, name)
-                if value is not None:
-                    changes[name] = _clamp(value + delta, 1, 100)
-            if category == "pitching" and snapshot.velocity_kmh is not None:
-                changes["velocity_kmh"] = _clamp(
-                    snapshot.velocity_kmh + float(rule["velocity_kmh_points"]) * step,
-                    100, 165,
-                )
-                pitch_delta = float(rule["pitch_points"]) * step
-                changes["pitch_repertoire"] = tuple(
-                    PitchAbility(
-                        pitch_type=pitch.pitch_type,
-                        quality=_clamp(pitch.quality + pitch_delta, 1, 100),
-                        command=_clamp(pitch.command + pitch_delta, 1, 100),
-                        usage=pitch.usage,
-                    )
-                    for pitch in snapshot.pitch_repertoire
-                )
-        return replace(snapshot, **changes)
+    def overall(self, snapshots):
+        team = self.teams.generate(snapshots)
+        return sum(getattr(team, k) * v for k, v in self.screen['school_overall_weights'].items())
+
+    def target(self, value):
+        if isinstance(value, str) and value in self.screen['ability_ranks']:
+            return float(self.screen['ability_ranks'][value]) + self.config['team']['tolerance']
+        if value == 'G':
+            return float(self.screen['ability_ranks']['F']) / 2
+        return number(value, 1, 100, '総合力')
+
+    def team(self, book, players, target):
+        """変化量を探索するだけ。到達を確かめてから呼出側が全員を一括保存する。"""
+        target = self.target(target)
+        if len(players) < 9:
+            raise ValueError('総合力の調整には現在の部員が9人以上必要です')
+        originals = [book.base_ability(p) for p in players]
+        rule = self.config['team']
+
+        def trial(delta):
+            candidates = []
+            for old in originals:
+                changes = {name: max(1, min(100, round(getattr(old, name) + delta)))
+                           for name in SCALARS if name != 'velocity_kmh' and getattr(old, name) is not None}
+                if old.velocity_kmh is not None:
+                    velocity = old.velocity_kmh
+                    if delta > 0:
+                        room = max(0, rule['velocity_cap'] - velocity)
+                        velocity += room * (1 - math.exp(-delta * rule['velocity_delta_factor'] / room)) if room else 0
+                    else:
+                        velocity += delta * rule['velocity_delta_factor']
+                    changes['velocity_kmh'] = max(100, min(165, round(velocity)))
+                changes['pitch_repertoire'] = tuple(replace(
+                    pitch, quality=max(1, min(100, round(pitch.quality + delta))),
+                    command=max(1, min(100, round(pitch.command + delta))),
+                ) for pitch in old.pitch_repertoire)
+                candidates.append(replace(old, **changes))
+            strength = self.overall([book.project_ability(p, s) for p, s in zip(players, candidates)])
+            return strength, candidates
+
+        low, high = rule['delta_range']
+        trials = [trial(low), trial(high), trial(0)]
+        attainable = [trials[0][0], trials[1][0]]
+        for _ in range(rule['search_iterations']):
+            mid = (low + high) / 2
+            item = trial(mid)
+            trials.append(item)
+            if item[0] < target:
+                low = mid
+            else:
+                high = mid
+        achieved, snapshots = min(trials, key=lambda t: abs(t[0] - target))
+        reached = abs(achieved - target) <= rule['tolerance']
+        return {
+            'requested': target, 'before': trials[2][0], 'achieved': achieved,
+            'reached': reached, 'range': attainable,
+            'reason': '' if reached else ('能力上限・球速・守備適性・現在の部員構成と復帰補正を保つと、'
+                       f'総合力は約{attainable[0]:.1f}〜{attainable[1]:.1f}です。指定値には到達できません'),
+        }, snapshots
