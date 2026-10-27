@@ -181,6 +181,9 @@ class CareerState:
         self._record_day(played)
         previous = self.current_date
         self.current_date = previous + timedelta(days=1)
+        if self.coaches is not None:
+            # 人事は翌年度の入学・練習の怪我による名簿生成より前。6-2では補正しない。
+            self.coaches.update(self.current_date, self.primary.repo)
         if self.reputation is not None:
             # grow は翌月の練習の怪我を決めるときに新入生も作るため、その前に更新。
             self.reputation.update(self.current_date)
