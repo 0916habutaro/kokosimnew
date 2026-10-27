@@ -55,6 +55,13 @@ class AbilityEditor:
                     pitches.append(PitchAbility(row['pitch_type'], **{
                         k: number(row[k], 1, 100, k, integer=True) for k in ('quality', 'command', 'usage')
                     }))
+                kinds = [p.pitch_type for p in pitches]
+                if len(set(kinds)) != len(kinds):
+                    raise ValueError('同じ球種は重複して指定できません')
+                if 'four_seam' not in kinds:
+                    raise ValueError('ストレートは必ず含めてください')
+                if sum(p.usage for p in pitches) != 100:
+                    raise ValueError('球種の使用割合は合計100にしてください')
                 out[name] = tuple(pitches)
         result = replace(snapshot, **out)
         validate_ability_snapshot(result)

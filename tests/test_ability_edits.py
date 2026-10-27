@@ -66,7 +66,7 @@ class AbilityEditTests(unittest.TestCase):
         edited = self.editor.player(original, {'velocity_kmh': 155, 'control': 90, 'pitch_repertoire': pitches}, b.pitch_types())
         self.assertEqual((155, 90, 99), (edited.velocity_kmh, edited.control, edited.pitch_repertoire[-1].quality))
         pitches[-1]['usage'] += 1
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, '合計100'):
             self.editor.player(original, {'pitch_repertoire': pitches}, b.pitch_types())
         with self.assertRaises(ValueError):
             self.editor.player(original, {'velocity_kmh': 166}, b.pitch_types())
