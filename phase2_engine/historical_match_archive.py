@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import sqlite3
 import threading
 import zlib
@@ -304,6 +305,11 @@ def _history_payload(year: int, record: Mapping[str, object]) -> dict:
     }
 
 
+LOGGER = logging.getLogger(__name__)
+# ほかの接続（年度を閉じるときの VACUUM など）がファイルを使っている間は、
+# エラーにせずこの秒数まで待つ
+BUSY_TIMEOUT_SECONDS = 60
+
 # 最近開いた大会のまとめた試合の記録（(ファイル, 年度, 大会ID) → match_id → payload_json）
 _PACKED_CACHE: dict[tuple[str, int, str], dict[str, str]] = {}
 _PACKED_CACHE_SIZE = 8
@@ -318,7 +324,7 @@ class HistoricalMatchArchive:
 
     def _connect(self) -> sqlite3.Connection:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=BUSY_TIMEOUT_SECONDS)
         conn.row_factory = sqlite3.Row
         return conn
 
@@ -598,7 +604,7 @@ class HistoricalMatchArchive:
     def get_match(self, year: int, competition_id: str, match_id: str) -> dict | None:
         if not self.db_path.is_file():
             return None
-        with closing(sqlite3.connect(self.db_path)) as conn:
+        with closing(sqlite3.connect(self.db_path, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
             row = conn.execute(
                 """SELECT payload_json FROM historical_matches
                    WHERE year=? AND competition_id=? AND match_id=?""",
@@ -626,17 +632,30 @@ class HistoricalMatchArchive:
                     _PACKED_CACHE.pop(next(iter(_PACKED_CACHE)))
         return cached
 
-    def vacuum(self) -> None:
-        """まとめて圧縮したあとの空きを詰めてファイルを小さくする（年度を閉じるとき）。"""
+    def vacuum(self) -> bool:
+        """まとめて圧縮したあとの空きを詰めてファイルを小さくする（年度を閉じるとき）。
+
+        VACUUM はファイルと同じくらいの空き容量を一時的に使う。空き容量が足りない・
+        ほかの接続が長く使っているなどで失敗しても、ゲームは止めずにログに残す
+        （空きは次の年度を閉じるときにまた詰める）。詰められたら True。
+        """
         if not self.db_path.is_file():
-            return
-        with closing(sqlite3.connect(self.db_path)) as conn:
-            conn.execute("VACUUM")
+            return False
+        try:
+            with closing(sqlite3.connect(self.db_path, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
+                conn.execute("VACUUM")
+        except sqlite3.Error as exc:
+            LOGGER.warning(
+                "試合履歴の空きを詰められませんでした（次の年度の切り替えでもう一度行います）: %s: %s",
+                self.db_path, exc,
+            )
+            return False
+        return True
 
     def packed_competitions(self, year: int) -> set[str]:
         if not self.db_path.is_file():
             return set()
-        with closing(sqlite3.connect(self.db_path)) as conn:
+        with closing(sqlite3.connect(self.db_path, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
             conn.executescript(_SCHEMA)
             return {
                 row[0] for row in conn.execute(
@@ -690,7 +709,7 @@ class HistoricalMatchArchive:
     def closed_season(self, year: int) -> tuple[bytes, dict[str, str]] | None:
         if not self.db_path.is_file():
             return None
-        with closing(sqlite3.connect(self.db_path)) as conn:
+        with closing(sqlite3.connect(self.db_path, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
             conn.executescript(_SCHEMA)
             row = conn.execute(
                 "SELECT snapshot, names_json FROM closed_seasons WHERE year = ?",
@@ -714,7 +733,7 @@ class HistoricalMatchArchive:
     def closed_roster(self, year: int, school_id: str) -> bytes | None:
         if not self.db_path.is_file():
             return None
-        with closing(sqlite3.connect(self.db_path)) as conn:
+        with closing(sqlite3.connect(self.db_path, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
             conn.executescript(_SCHEMA)
             row = conn.execute(
                 "SELECT record FROM closed_rosters WHERE year = ? AND school_id = ?",
@@ -726,7 +745,7 @@ class HistoricalMatchArchive:
         """その年度の全試合の要約（成績表用。個人成績などは読まない）。"""
         if not self.db_path.is_file():
             return []
-        with closing(sqlite3.connect(self.db_path)) as conn:
+        with closing(sqlite3.connect(self.db_path, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
             rows = conn.execute(
                 """SELECT competition_id, match_id, match_date, team1_id,
                           team2_id, team1_score, team2_score
@@ -757,7 +776,7 @@ class HistoricalMatchArchive:
             filters += " AND (team1_id=? OR team2_id=?)"
             args.extend((school_id, school_id))
         args.extend((limit, offset))
-        with closing(sqlite3.connect(self.db_path)) as conn:
+        with closing(sqlite3.connect(self.db_path, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
             rows = conn.execute(
                 f"""SELECT payload_json, competition_id, match_id FROM historical_matches
                     WHERE {filters}
