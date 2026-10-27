@@ -1,7 +1,7 @@
 {
   "config_id": "match_simulation_v1",
-  "revision": 4,
-  "status": "tuned_2026_10_26",
+  "revision": 5,
+  "status": "tuned_2026_10_27",
   "description_ja": "能力ベースの試合モデル（打席結果・走者進塁・投手運用）。能力の効き（ability_effect_scale）と1打席の球数（pitch_count）は、夏の地方大会の実際の試合（historical_data/summer_local_games.csv、2021〜2025年）の得点・点差・コールド・延長・完封と、甲子園の完投投手の球数に合わせた（game_definition.md §11）。打席結果の基準の確率は未調整。",
   "score_source": "ability_model_v1",
   "team_order": {
@@ -44,13 +44,13 @@
       "field_out": 0.450
     },
     "ability_effect_scale": {
-      "strikeout": 0.0168,
-      "walk": 0.014,
-      "single": 0.014,
-      "extra_base_hit": 0.0154,
-      "home_run": 0.0196,
-      "error": 0.0168,
-      "field_out": 0.0098
+      "strikeout": 0.01814,
+      "walk": 0.01512,
+      "single": 0.01512,
+      "extra_base_hit": 0.01663,
+      "home_run": 0.02117,
+      "error": 0.01814,
+      "field_out": 0.01058
     },
     "probability_floor": 0.0001,
     "defense_center": 50.0
