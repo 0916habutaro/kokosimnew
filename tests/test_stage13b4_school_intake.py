@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import statistics
 import tempfile
 import unittest
@@ -40,6 +41,11 @@ POSITIONS = (
     "CF", "CF",
     "RF", "RF",
 )
+
+INTAKE_REVISION = json.loads(
+    (Path(__file__).resolve().parents[1] / "config" / "abilities" / "school_intake_v1.json")
+    .read_text(encoding="utf-8")
+)["revision"]
 
 
 def _position_group(position: str) -> str:
@@ -180,7 +186,7 @@ class Stage13B4SchoolIntakeTests(unittest.TestCase):
             IntakeAdjustedPlayerAbilitySnapshot,
         )
         self.assertEqual("school_intake_v1", snapshot.intake_config_id)
-        self.assertEqual(3, snapshot.intake_config_revision)
+        self.assertEqual(INTAKE_REVISION, snapshot.intake_config_revision)
         self.assertEqual(64, len(snapshot.intake_config_sha256))
         self.assertEqual(player.player_id, snapshot.player_id)
 
@@ -255,7 +261,7 @@ class Stage13B4SchoolIntakeTests(unittest.TestCase):
             "school_intake_v1",
             team.school_intake_config_id,
         )
-        self.assertEqual(3, team.school_intake_config_revision)
+        self.assertEqual(INTAKE_REVISION, team.school_intake_config_revision)
         self.assertEqual(64, len(team.school_intake_config_sha256 or ""))
 
     def test_mixing_baseline_and_intake_snapshots_is_rejected(self):
