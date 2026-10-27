@@ -1121,6 +1121,16 @@ class GameScreenData:
              "changes": {k: v for k, v in entry.items() if k != "date"}}
             for entry in edits.info_history(school_id)
         ]
+        state = self.state
+        book = getattr(state, "rosters", None)
+        rep = state.reputation if isinstance(state, CareerState) else None
+        reputation = None
+        if rep is not None and school_id in rep.values:
+            setting = rep.edits.get(school_id)
+            limits = self.service._ability_editor().config["reputation"]
+            reputation = {"current": rep.values[school_id], "rank": rep.rank(school_id),
+                          "setting": dict(setting) if setting else None,
+                          "minimum": limits["minimum_z"], "maximum": limits["maximum_z"]}
         return {
             "display_name": self._official_name(school_id),
             "short_name": self.names(school_id),
@@ -1129,6 +1139,11 @@ class GameScreenData:
                 {"value": kind, "label": self._ownership_label(kind, school)}
                 for kind in self.OWNERSHIP_TYPES
             ],
+            "team_editable": book is not None,
+            "team_ranks": list(self.config["ability_ranks"]) + ["G"],
+            "team_history": [row for row in (book.team_edits if book else [])
+                             if row["school_id"] == school_id],
+            "reputation": reputation,
             "history": sorted(history, key=lambda row: row["date"]),
         }
 
@@ -1136,6 +1151,20 @@ class GameScreenData:
         """学校の情報を変える（そのセーブの中だけ。data/master は変えない）。"""
         if self.session is None:
             raise ValueError("遊ぶセーブを選んでください")
+        if not isinstance(payload, dict):
+            raise ValueError("編集内容が不正です")
+        operation = payload.get("operation", "info")
+        if operation == "team":
+            result = self.service.edit_team(self.session, school_id, payload.get("target"))
+            if not result["reached"]:
+                return {"error": result["reason"], "result": result}
+            self.abilities = self._new_abilities()
+            return {"school": self.school(school_id), "result": result}
+        if operation == "reputation":
+            self.service.edit_reputation(self.session, school_id, payload.get("value"), payload.get("mode"))
+            return {"school": self.school(school_id)}
+        if operation != "info":
+            raise ValueError("編集方法が不正です")
         info = {}
         for key in ("display_name", "short_name"):
             value = str(payload.get(key, "")).strip()
@@ -1164,6 +1193,34 @@ class GameScreenData:
         self.names.edits = self._load_edits()
         self.abilities = self._new_abilities()
         return self.school(school_id)
+
+    def preview_team(self, school_id, target):
+        return self.service.edit_team(self.session, school_id, target, preview=True)
+
+    def edit_player(self, school_id, player_id, payload):
+        self.service.edit_player(self.session, school_id, player_id, payload)
+        self.abilities = self._new_abilities()
+        return self.player(school_id, player_id)
+
+    def _player_edit_form(self, rosters, player):
+        from .player_views import BATTER_LABELS, CATCHER_LABELS, PITCHER_LABELS, PITCH_LABELS
+        from game_core.abilities import FIELD_POSITIONS
+
+        snapshot = rosters.base_ability(player)
+        return {
+            "fields": [{"key": key, "label": label, "value": getattr(snapshot, key),
+                        "minimum": 100 if key == "velocity_kmh" else 1,
+                        "maximum": 165 if key == "velocity_kmh" else 100}
+                       for key, label in BATTER_LABELS + CATCHER_LABELS + PITCHER_LABELS
+                       if getattr(snapshot, key) is not None],
+            "aptitudes": [{"key": key, "label": POSITION_LABELS.get(key, key),
+                           "value": snapshot.aptitude(key),
+                           "minimum": 60 if key == player.primary_position else 1, "maximum": 100}
+                          for key in FIELD_POSITIONS],
+            "pitches": [pitch.to_dict() for pitch in snapshot.pitch_repertoire],
+            "pitch_types": [{"key": key, "label": PITCH_LABELS.get(key, key)} for key in rosters.pitch_types()],
+            "history": rosters.ability_edits.get(player.player_id, []),
+        }
 
     def _ownership_label(self, kind: str, school: dict) -> str:
         if kind == "prefectural":
@@ -1364,6 +1421,7 @@ class GameScreenData:
             })
         position = player.primary_position
         return {
+            "edit": self._player_edit_form(rosters, player) if enrolled else None,
             "player_id": player.player_id,
             "school_id": school_id,
             "school_name": self.names(school_id),

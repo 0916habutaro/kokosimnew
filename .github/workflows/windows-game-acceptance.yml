@@ -71,7 +71,8 @@ jobs:
             'test_screen_records.py',
             'test_screen_saves.py',
             'test_school_edits.py',
-            'test_ability_edits.py'
+            'test_ability_edits.py',
+            'test_ability_edit_screen.py'
           )
           $ErrorActionPreference = 'Continue'
           foreach ($p in $patterns) {

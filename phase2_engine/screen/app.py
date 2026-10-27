@@ -103,8 +103,18 @@ class ScreenApi:
 
     def edit_school(self, school_id, payload) -> dict:
         result = self._read(self._data.edit_school, school_id, payload)
-        # 補正を変えたら能力を計算し直しておく
-        self.warm_up()
+        # 名簿の能力を変えたら一覧も計算し直しておく
+        if not result.get("error"):
+            self.warm_up()
+        return result
+
+    def preview_team(self, school_id, target) -> dict:
+        return self._read(self._data.preview_team, school_id, target)
+
+    def edit_player(self, school_id, player_id, payload) -> dict:
+        result = self._read(self._data.edit_player, school_id, player_id, payload)
+        if not result.get("error"):
+            self.warm_up()
         return result
 
     def saves(self) -> dict:
