@@ -8,7 +8,9 @@ from time import perf_counter
 import unittest
 from unittest.mock import patch
 
-from phase2_engine.historical_match_archive import HistoricalMatchArchive, HistoricalMatchConflictError, _SCHEMA
+from phase2_engine.historical_match_archive import (
+    BUSY_TIMEOUT_SECONDS, HistoricalMatchArchive, HistoricalMatchConflictError, _SCHEMA,
+)
 from stage43g92_fixture_support import (SEAL_READ, REGISTER_READ, digest,
                                         oracle, ordered_pair, snapshot)
 from test_stage43c_live_history_archive import make_record
@@ -393,7 +395,8 @@ class Stage43G92LegacyConcurrencyTests(unittest.TestCase):
             handles.append(con)
             return con
         with patch('phase2_engine.historical_match_archive.sqlite3.connect', capture):
-            self.assertEqual(5000, a._connect().execute('PRAGMA busy_timeout').fetchone()[0])
+            # 年度を閉じるときの VACUUM の間も待てるように（historical_match_archive.BUSY_TIMEOUT_SECONDS）
+            self.assertEqual(BUSY_TIMEOUT_SECONDS * 1000, a._connect().execute('PRAGMA busy_timeout').fetchone()[0])
             handles.pop().close()
             for action in (lambda: sync(a, [make_record()]),
                            lambda: a.list_years(), lambda: a.get_match(2026, 'CMP-1', 'M1'),
