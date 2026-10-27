@@ -5,7 +5,7 @@
 
 - 学校の情報（表示名・短い名前・設置者）：変更した日（ゲームの日付）と一緒に
   残す。その日より前の試合は、当時の名前で表示する
-- 能力の補正：学校ごと・項目ごとの段階。選手の能力に足す（``game_core.school_edits``）
+- 能力・評判の変更は名簿と年度評判に保存する
 """
 from __future__ import annotations
 
@@ -16,14 +16,13 @@ from pathlib import Path
 
 
 FILE_NAME = "school_edits.json"
-SCHEMA = 1
+SCHEMA = 2
 INFO_FIELDS = ("display_name", "short_name", "ownership_type")
 
 
 @dataclass
 class SchoolEdits:
-    # 学校ID → {"info": [{"date", 変えた項目…}], "ability": {項目: 段階},
-    #            "ability_history": [{"date", "steps"}]}
+    # 学校ID → {"info": [{"date", 変えた項目…}]}
     schools: dict[str, dict] = field(default_factory=dict)
 
     @classmethod
@@ -83,27 +82,3 @@ class SchoolEdits:
 
     def info_history(self, school_id: str) -> list[dict]:
         return list(self.schools.get(school_id, {}).get("info", []))
-
-    # ---- 能力の補正 ----
-
-    def ability(self, school_id: str) -> dict[str, int]:
-        return dict(self.schools.get(school_id, {}).get("ability", {}))
-
-    def set_ability(self, school_id: str, day: str, steps: dict[str, int]) -> bool:
-        if steps == self.ability(school_id):
-            return False
-        entry = self.schools.setdefault(school_id, {})
-        entry["ability"] = dict(steps)
-        history = entry.setdefault("ability_history", [])
-        if history and history[-1]["date"] == day:
-            history[-1]["steps"] = dict(steps)
-        else:
-            history.append({"date": day, "steps": dict(steps)})
-        return True
-
-    def adjustments(self) -> dict[str, dict[str, int]]:
-        return {
-            school_id: dict(entry["ability"])
-            for school_id, entry in self.schools.items()
-            if entry.get("ability")
-        }

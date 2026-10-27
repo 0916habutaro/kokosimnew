@@ -625,52 +625,82 @@ class LiveGameService:
             save_root,
             max_backups=max_backups,
         )
-        # 遊んでいるセーブの学校の編集（能力の補正）。選手の能力をつくる部品が
-        # この dict を見る。セーブを開くたびに中身を入れ替える
-        self.school_adjustments: dict[str, dict[str, int]] = {}
         # 閉じた年度の大会の進行（見るだけ）。(セーブ, 年度) → (状態, 大会名)
         self._closed_seasons: dict[tuple[str, int], object] = {}
 
     def _use_school_edits(self, edits: SchoolEdits) -> None:
-        self.school_adjustments.clear()
-        self.school_adjustments.update(edits.adjustments())
         self.repo.ownership_overrides.clear()
         self.repo.ownership_overrides.update(edits.ownership_overrides())
 
     def school_edits(self, session: LiveGameSession) -> SchoolEdits:
         return SchoolEdits.load(self.slots.slot_dir(session.slot_id))
 
-    def edit_school(
-        self,
-        session: LiveGameSession,
-        school_id: str,
-        *,
-        info: dict | None = None,
-        ability: dict | None = None,
-    ) -> SchoolEdits:
-        """学校の情報・能力の補正を変える（そのセーブの中だけ。今日の日付で残す）。
-
-        補正は今の部員の能力にまとめて効き、今後の新入生にも効く。"""
+    def edit_school(self, session, school_id, *, info=None):
+        """校名・設置者の編集。変更前の日付の表示名を維持する。"""
         if school_id not in self.repo.schools:
             raise ValueError("その学校はありません")
         edits = self.school_edits(session)
-        day = session.state.current_date.isoformat()
-        changed = False
-        if info is not None:
-            changed |= edits.set_info(school_id, day, info)
-        if ability is not None:
-            changed |= edits.set_ability(school_id, day, ability)
-        if changed:
+        if info is not None and edits.set_info(school_id, session.state.current_date.isoformat(), info):
             edits.save(self.slots.slot_dir(session.slot_id))
             self._use_school_edits(edits)
-            # 覚えている選手の能力・チームの強さを捨てて、補正をすぐ効かせる
-            state = session.state
-            seasons = state.seasons.values() if isinstance(state, CareerState) else [state]
-            for season in seasons:
-                resolver = getattr(season.engine, "main_match_resolver", None)
-                if resolver is not None and hasattr(resolver, "clear_cache"):
-                    resolver.clear_cache()
         return edits
+
+    def _ability_editor(self):
+        from game_core.school_edits import AbilityEditor
+
+        return AbilityEditor(self.data_dir.resolve().parent / "config")
+
+    def editable_players(self, session, school_id):
+        if school_id not in self.repo.schools:
+            raise ValueError("その学校はありません")
+        state = session.state
+        if not isinstance(state, CareerState) or state.rosters is None:
+            raise ValueError("能力を編集できるのは選手で試合をするセーブです")
+        resolver = state.primary.engine.main_match_resolver
+        return tuple(resolver.member_provider.members_on(school_id, state.current_date))
+
+    def _invalidate_abilities(self, session):
+        for season in session.state.seasons.values():
+            resolver = getattr(season.engine, "main_match_resolver", None)
+            if resolver is not None and hasattr(resolver, "clear_cache"):
+                resolver.clear_cache()
+
+    def edit_player(self, session, school_id, player_id, changes):
+        # 全在籍選手からIDで照合。引退した3年生も卒業までは個別編集できる。
+        self.editable_players(session, school_id)
+        book = session.state.rosters
+        players = book.roster(session.state.school_year, school_id).players
+        player = next((p for p in players if p.player_id == player_id), None)
+        if player is None:
+            raise ValueError("この学校に在籍する選手IDではありません")
+        edited = self._ability_editor().player(book.base_ability(player), changes, book.pitch_types())
+        book.edit_abilities([player], [edited], day=session.state.current_date.isoformat(), source="player")
+        self._invalidate_abilities(session)
+        self.save_game(session)
+        return edited
+
+    def edit_team(self, session, school_id, target, *, preview=False):
+        players = self.editable_players(session, school_id)
+        book = session.state.rosters
+        result, snapshots = self._ability_editor().team(book, players, target)
+        if not preview and result["reached"]:
+            day = session.state.current_date.isoformat()
+            book.edit_abilities(players, snapshots, day=day, source="team")
+            book.team_edits.append({"school_id": school_id, "date": day, **result})
+            self._invalidate_abilities(session)
+            self.save_game(session)
+        return result
+
+    def edit_reputation(self, session, school_id, value, mode):
+        if school_id not in self.repo.schools or not isinstance(session.state, CareerState):
+            raise ValueError("その学校はありません")
+        limits = self._ability_editor().config["reputation"]
+        session.state.reputation.edit(
+            school_id, value, mode, session.state.current_date.isoformat(),
+            minimum=limits["minimum_z"], maximum=limits["maximum_z"],
+        )
+        self.save_game(session)
+        return dict(session.state.reputation.edits[school_id])
 
     def _planner(
         self,
@@ -982,7 +1012,6 @@ class LiveGameService:
         from game_core.live_members import player_engine
 
         season = player_engine(self.repo, plan)
-        season.resolver.ability_generator.school_adjustments = self.school_adjustments
         return season.engine, season
 
     def _history_archive(self, slot_id: str) -> HistoricalMatchArchive:

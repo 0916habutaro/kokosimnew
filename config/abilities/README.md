@@ -46,3 +46,5 @@ Stage 13B-2以降では大量生成監査を行い、変更前→理由→変更
 学校masterへ固定の学校戦力や直接TeamStrength bonusを追加しない。学校差は選手生成・入部層を通して形成する。
 
 コードにはアルゴリズムを、JSONには調整値を置く。
+
+能力の自由編集は `config/school_edits/ability_edits_v1.json`。現在の名簿への適用と年度更新との関係は `docs/design/school_edits.md`。
