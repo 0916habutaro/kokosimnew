@@ -107,6 +107,9 @@ class PlayerCareerYearTests(unittest.TestCase):
         old = screen.player("SCH000001", graduate["player_id"])
         self.assertEqual("卒業", old["status"])
         self.assertEqual([], old["abilities"])
+        # 卒業した選手は今の怪我はなく、履歴は名簿の記録から出す
+        self.assertIsNone(old["injury"])
+        self.assertIsInstance(old["injuries"], list)
         self.assertEqual([2026], [t["school_year"] for t in old["trend"]])
 
 

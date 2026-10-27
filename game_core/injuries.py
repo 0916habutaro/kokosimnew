@@ -38,7 +38,10 @@ class Injury:
 class InjuryModel:
     def __init__(self, root: str | Path = ROOT):
         self.config = json.loads((Path(root) / CONFIG_PATH).read_text(encoding="utf-8"))
-        self.levels = self.config["levels"]
+        # 頻度の段階（なし・少なめ・標準・多め）。説明の文字列は除く
+        self.levels = {
+            key: value for key, value in self.config["levels"].items() if isinstance(value, dict)
+        }
 
     def rate(self, level: str) -> float:
         return float(self.levels.get(level, self.levels[self.config["default_level"]])["rate"])

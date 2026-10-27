@@ -38,6 +38,10 @@ class InjuryModelTests(unittest.TestCase):
         self.assertAlmostEqual(chances[2] * 0.5, chances[1])
         self.assertAlmostEqual(chances[2] * 2, chances[3])
 
+    def test_levels_are_the_four_choices(self):
+        self.assertEqual(["none", "low", "normal", "high"], list(self.model.levels))
+        self.assertEqual("標準", self.model.levels["normal"]["label_ja"])
+
     def test_pitchers_overuse_and_back_to_back_raise_the_chance(self):
         batter, _ = self.model.match_chance(pitches=0, load7=0, consecutive=0, level="normal")
         light, overuse = self.model.match_chance(pitches=80, load7=80, consecutive=0, level="normal")
