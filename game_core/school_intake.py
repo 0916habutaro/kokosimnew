@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, fields, replace
+import math
 from pathlib import Path
 from typing import Iterable, Iterator
 
@@ -49,6 +50,15 @@ class IntakeAdjustedPlayerAbilitySnapshot(PlayerAbilitySnapshot):
 
 def _clamp_round(value: float, low: int, high: int) -> int:
     return min(high, max(low, int(round(value))))
+
+
+def soft_cap(value: float, knee: float, cap: float, rate: float = 1.0) -> float:
+    """``knee`` までは変えず、それより上は ``cap`` に向かって緩やかに頭打ちにする
+    （単調なので順番は変わらない。``knee`` での傾きは ``rate``）。"""
+    if value <= knee:
+        return value
+    room = cap - knee
+    return knee + room * (1.0 - math.exp(-(value - knee) * rate / room))
 
 
 def _clamp_float(value: float, low: float, high: float) -> float:
@@ -153,13 +163,24 @@ class SchoolAwarePlayerAbilityGenerator:
         quality_z: float,
         low: int = 1,
         high: int = 100,
+        kind: str = "scalar",
     ) -> int | None:
         if value is None:
             return None
         return _clamp_round(
-            float(value) + adjustment_per_z * quality_z,
+            self._soft_cap(float(value) + adjustment_per_z * quality_z, kind),
             low,
             high,
+        )
+
+    def _soft_cap(self, value: float, kind: str) -> float:
+        """入部品質を足した能力の上の方を頭打ちにする（``upper_soft_cap``）。"""
+        caps = self.params.get("upper_soft_cap")
+        if not caps:
+            return value
+        rule = caps[kind]
+        return soft_cap(
+            value, float(rule["knee"]), float(rule["cap"]), float(rule.get("rate", 1.0)),
         )
 
     def _adjust_snapshot(
@@ -210,6 +231,7 @@ class SchoolAwarePlayerAbilityGenerator:
                     quality_z=quality_z,
                     low=low,
                     high=high,
+                    kind="velocity_kmh" if ability_id == "velocity_kmh" else "scalar",
                 )
 
         aptitudes = dict(base.position_aptitude)
@@ -230,16 +252,22 @@ class SchoolAwarePlayerAbilityGenerator:
                 PitchAbility(
                     pitch_type=pitch.pitch_type,
                     quality=_clamp_round(
-                        float(pitch.quality)
-                        + float(adjustment["pitch_quality"])
-                        * quality_z,
+                        self._soft_cap(
+                            float(pitch.quality)
+                            + float(adjustment["pitch_quality"])
+                            * quality_z,
+                            "scalar",
+                        ),
                         1,
                         100,
                     ),
                     command=_clamp_round(
-                        float(pitch.command)
-                        + float(adjustment["pitch_command"])
-                        * quality_z,
+                        self._soft_cap(
+                            float(pitch.command)
+                            + float(adjustment["pitch_command"])
+                            * quality_z,
+                            "scalar",
+                        ),
                         1,
                         100,
                     ),

@@ -1,6 +1,6 @@
 {
   "config_id": "school_intake_v1",
-  "revision": 3,
+  "revision": 4,
   "status": "tuned_2026_10_26",
   "description_ja": "架空選手生成用の入部品質モデル。学校成分（program）は学校の評判（school_reputation_v1。実際の甲子園の出場などから作るゲーム開始時の評判）の順位を、この平均・広がりの z に変えたもの。年度ごとの当たり外れ（cohort）は乱数。学校成分と cohort の重みは 0.75:0.25（分散の割合）で、夏の甲子園の初出場・2年続けて出る学校の数と地方大会の点差に合わせた（game_definition.md §11）。選手の能力に足すだけで、学校の強さは選手から計算する。",
   "quality_model": {
@@ -50,6 +50,11 @@
     "primary_position_aptitude": 6.0,
     "pitch_quality": 12.0,
     "pitch_command": 12.0
+  },
+  "upper_soft_cap": {
+    "description_ja": "入部品質を足した能力の上の方を、上限（cap）に向かって緩やかに頭打ちにする。knee までは変えず、それより上は cap - (cap - knee) × exp(-(値 - knee) ÷ (cap - knee))。単調なので選手・学校の順番は変わらない。打撃・守備・投手などの1〜100の能力と変化球は scalar、球速は velocity_kmh。実際の高校野球の球速（150km/h超えは全国で毎年数十人、最速は150km/h台後半）に合わせる",
+    "scalar": {"knee": 80, "cap": 100},
+    "velocity_kmh": {"knee": 122, "cap": 170, "rate": 1.0}
   },
   "rules": {
     "applied_before_team_strength": true,
