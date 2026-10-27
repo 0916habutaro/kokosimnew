@@ -153,15 +153,18 @@ class PlayerState:
         self.season_games = season_games
         self.injuries = injuries if injuries is not None else []
 
-    @property
-    def last_injury(self) -> Injury | None:
-        return self.injuries[-1] if self.injuries else None
-
     def injured_on(self, day: date) -> Injury | None:
-        last = self.last_injury
-        if last is not None and last.start <= day < last.end:
-            return last
+        """その日に休んでいる怪我（練習の怪我は月の初めに先の日の分まで決めるので、
+        履歴の並びは日付の順とはかぎらない）。"""
+        for injury in reversed(self.injuries):
+            if injury.start <= day < injury.end:
+                return injury
         return None
+
+    def recovering(self, day: date) -> Injury | None:
+        """その日までに治った怪我のうち、いちばん最近のもの（復帰直後の能力に使う）。"""
+        ended = [injury for injury in self.injuries if injury.end <= day]
+        return max(ended, key=lambda injury: injury.end) if ended else None
 
 
 def _pack_states(first_year: int, states: dict[tuple[int, int], PlayerState]) -> bytes:
@@ -457,10 +460,8 @@ class RosterBook:
         """その選手の今の能力（復帰直後は少し下がる）。学校の編集の補正は入っていない。"""
         with self._lock:
             state = self.state(player)
-            step = (
-                injury_model().recovery_step(state.last_injury, self.today)
-                if self.today is not None else 0
-            )
+            recent = state.recovering(self.today) if self.today is not None else None
+            step = injury_model().recovery_step(recent, self.today) if recent else 0
             key = (player.player_id, player.academic_year, step)
             cached = self._abilities.get(key)
             if cached is None:
@@ -468,7 +469,7 @@ class RosterBook:
                     self._fields = self._config_fields()
                 values = bytearray(state.values)
                 if step:
-                    self._recovery_drop(values, state.last_injury, step)
+                    self._recovery_drop(values, recent, step)
                 cached = unpack_abilities(
                     bytes(values), player,
                     config_fields=self._fields, pitch_types=self._pitch_types(),
@@ -510,10 +511,10 @@ class RosterBook:
     def condition(self, player: Player, day: date) -> tuple[bool, int]:
         """(怪我で休んでいるか, 復帰直後の段階)。試合の出場メンバーと能力の作り直しに使う。"""
         state = self.state(player)
-        return (
-            state.injured_on(day) is not None,
-            injury_model().recovery_step(state.last_injury, day),
-        )
+        if state.injured_on(day) is not None:
+            return True, 0
+        recent = state.recovering(day)
+        return False, injury_model().recovery_step(recent, day) if recent else 0
 
     def after_game(
         self, appearances, *, day: date, rng,
@@ -561,8 +562,7 @@ class RosterBook:
                 if rng.random() >= chance:
                     continue
                 start = first + timedelta(days=rng.randrange(days))
-                last = state.last_injury
-                if last is not None and last.end > start:
+                if state.injured_on(start) is not None:
                     continue
                 state.injuries.append(model.draw(rng, start))
 

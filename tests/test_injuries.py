@@ -94,6 +94,19 @@ class RosterInjuryTests(unittest.TestCase):
         self.assertLess(dropped.contact, back.contact)
         self.assertEqual(book.state(player).values[0], back.contact)
 
+    def test_an_earlier_injury_added_later_does_not_hide_a_planned_one(self):
+        book = _book()
+        player = book.roster(2026, "SCH-A").players[0]
+        state = book.state(player)
+        # 月の初めに決めた練習の怪我（9/12から）のあとで、試合の怪我（9/6から3日）が入る
+        planned = Injury(date(2026, 9, 12), 10, 2)
+        state.injuries.append(planned)
+        state.injuries.append(Injury(date(2026, 9, 6), 3, 1))
+        self.assertEqual(planned, book.injury(player, date(2026, 9, 12)))
+        self.assertEqual((True, 0), book.condition(player, date(2026, 9, 13)))
+        # 9/9 に治った怪我の復帰直後
+        self.assertGreater(book.condition(player, date(2026, 9, 10))[1], 0)
+
     def test_practice_injuries_follow_the_level_and_are_saved(self):
         counts = {}
         for level in ("none", "normal", "high"):
