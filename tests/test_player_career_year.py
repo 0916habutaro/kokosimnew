@@ -54,6 +54,10 @@ class PlayerCareerYearTests(unittest.TestCase):
     def test_closed_year_names_come_from_the_history(self):
         archived = self.service.closed_roster("year", 2026, "SCH000001")
         self.assertEqual(20, len(archived))
+        # 年度末の能力と成長の型も残る
+        self.assertTrue(all(row["abilities"] and row["growth_type"] for row in archived))
+        # 終わった大会の試合の記録はまとめて圧縮してある
+        self.assertTrue(self.service._history_archive("year").packed_competitions(2026))
         screen = GameScreenData(self.service, self.session)
         matches = self.service._history_archive("year").match_index(2026)
         row = next(

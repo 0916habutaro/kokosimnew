@@ -912,6 +912,20 @@ class LiveGameService:
                     if entry.display_name
                 },
             )
+            # 閉じた年度の名簿（年度末の能力つき）を履歴に書き出す。セーブの名簿から
+            # 手放すのは、その年度に始まった大会が終わってから（_release_rosters）
+            rosters = getattr(state, "rosters", None)
+            if rosters is not None:
+                # 最初の年度は、開始前の年度（3月の大会の部員）の名簿も
+                for each in ([year - 1, year] if year == rosters.first_year else [year]):
+                    archive.store_closed_rosters(each, {
+                        school_id: rosters.closed_record(each, school_id)
+                        for school_id in rosters.schools(year)
+                    })
+                rosters.drop_year_end(year)
+            if self.career_persistence is None:
+                # 終わった大会の試合の記録はまとめて圧縮したので、その空きを詰める
+                archive.vacuum()
             state.drop(year)
             closed.append(sealed)
         self._release_rosters(session)
@@ -919,21 +933,15 @@ class LiveGameService:
 
     def _release_rosters(self, session: LiveGameSession) -> None:
         """前の年度の名簿を、その年度に始まった大会（3月に始まる春季県大会など）が
-        すべて終わったら履歴に書き出して、セーブの名簿から手放す。"""
+        すべて終わったら、セーブの名簿から手放す（履歴には年度を閉じたときに書き出してある）。"""
         state = session.state
         rosters = getattr(state, "rosters", None)
         if rosters is None:
             return
         for year in rosters.years():
-            if year >= state.school_year or self._roster_in_use(state, year):
+            if (year >= state.school_year or year in state.seasons
+                    or self._roster_in_use(state, year)):
                 return
-            archive = self._history_archive(session.slot_id)
-            # 最初の年度は、開始前の年度（3月の大会の部員）の名簿も
-            for each in ([year - 1, year] if year == rosters.first_year else [year]):
-                archive.store_closed_rosters(each, {
-                    school_id: [p.to_dict() for p in rosters.roster(each, school_id).players]
-                    for school_id in rosters.schools(year)
-                })
             rosters.forget(year)
 
     @staticmethod
@@ -998,6 +1006,12 @@ class LiveGameService:
             counts = self._sync_season_history(
                 archive, session, season, fingerprint,
             )
+            if persistence is None:
+                # 終わった大会の試合の記録はまとめて圧縮する（試合履歴を小さく保つ）
+                packed = archive.packed_competitions(year)
+                for cid, scheduled in season.competitions.items():
+                    if cid not in packed and getattr(scheduled, "is_complete", False):
+                        archive.pack_competition(year, cid)
             for key in result:
                 result[key] += counts.get(key, 0)
         if persistence:
@@ -1104,8 +1118,12 @@ class LiveGameService:
         )
 
     def closed_roster(self, slot_id: str, year: int, school_id: str) -> list[dict] | None:
-        """閉じた年度の名簿（選手の ``Player.to_dict()``）。"""
-        return self._history_archive(slot_id).closed_roster(year, school_id)
+        """閉じた年度の名簿（選手の ``Player.to_dict()`` と年度末の能力・成長の状態。
+        ``game_core.roster_book.decode_closed_record``）。"""
+        from game_core.roster_book import decode_closed_record
+
+        record = self._history_archive(slot_id).closed_roster(year, school_id)
+        return decode_closed_record(record) if record is not None else None
 
     def forget_closed_seasons(self) -> None:
         """閉じた年度の読み込みを捨てる（セーブを切り替えたとき）。"""

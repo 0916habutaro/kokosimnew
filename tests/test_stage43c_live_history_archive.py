@@ -107,6 +107,103 @@ class Stage43CHistoricalArchiveTests(unittest.TestCase):
         )
         self.assertEqual(1, len(self.archive.list_matches(2026)))
 
+    def test_finished_competition_is_packed_and_reads_the_same(self):
+        rows = [make_record(f"M{i}") for i in range(1, 4)]
+        self.sync(rows)
+        before = [self.archive.get_match(2026, "CMP-1", f"M{i}") for i in range(1, 4)]
+        listed = self.archive.list_matches(2026)
+        self.assertEqual(3, self.archive.pack_competition(2026, "CMP-1"))
+        self.assertEqual({"CMP-1"}, self.archive.packed_competitions(2026))
+        with closing(sqlite3.connect(self.path)) as conn:
+            self.assertEqual(
+                [("",)] * 3,
+                conn.execute("SELECT payload_json FROM historical_matches").fetchall(),
+            )
+        reopened = HistoricalMatchArchive(self.path)
+        self.assertEqual(
+            before, [reopened.get_match(2026, "CMP-1", f"M{i}") for i in range(1, 4)],
+        )
+        self.assertEqual(listed, reopened.list_matches(2026))
+        # まとめたあとも同じ試合の再保存はそのまま通り、年度の封印も同じ
+        self.assertEqual({"inserted": 0, "already_archived": 3}, self.sync(rows))
+        self.assertEqual(0, self.archive.pack_competition(2026, "CMP-1"))
+        self.assertEqual(3, self.archive.seal_year(2026, expected_match_count=3)["match_count"])
+
+    def test_reads_wait_while_the_file_is_locked_for_vacuum(self):
+        """年度を閉じるときの VACUUM の間に画面（別のスレッド）が読みに来ても、
+        エラーにせず待って読む。"""
+        import threading
+        import time
+
+        self.sync([make_record(f"M{i}") for i in range(1, 4)])
+        self.archive.pack_competition(2026, "CMP-1")
+        expected = self.archive.get_match(2026, "CMP-1", "M2")
+        locked = threading.Event()
+
+        def hold():
+            with closing(sqlite3.connect(self.path)) as conn:
+                conn.execute("BEGIN EXCLUSIVE")  # VACUUM と同じ排他ロック
+                locked.set()
+                time.sleep(1.0)
+                conn.rollback()
+
+        holder = threading.Thread(target=hold)
+        holder.start()
+        locked.wait()
+        started = time.monotonic()
+        from phase2_engine import historical_match_archive as archive_module
+
+        archive_module._PACKED_CACHE.clear()
+        self.assertEqual(expected, HistoricalMatchArchive(self.path).get_match(2026, "CMP-1", "M2"))
+        self.assertGreater(time.monotonic() - started, 0.5)
+        holder.join()
+        # 本物の VACUUM と読み込みを同時に何度も
+        errors = []
+
+        def read_many():
+            for _ in range(30):
+                try:
+                    archive_module._PACKED_CACHE.clear()
+                    if HistoricalMatchArchive(self.path).get_match(2026, "CMP-1", "M2") != expected:
+                        errors.append("different")
+                except Exception as exc:  # noqa: BLE001
+                    errors.append(repr(exc))
+
+        reader = threading.Thread(target=read_many)
+        reader.start()
+        for _ in range(5):
+            self.assertTrue(self.archive.vacuum())
+        reader.join()
+        self.assertEqual([], errors)
+
+    def test_failed_vacuum_is_logged_and_does_not_stop_the_game(self):
+        """空き容量が足りないなどで VACUUM が失敗しても、ログに残して続ける
+        （次の年度を閉じるときにまた詰める）。"""
+        from phase2_engine import historical_match_archive as archive_module
+
+        self.sync([make_record()])
+        real_connect = sqlite3.connect
+
+        class _Full:
+            def __init__(self, *args, **kwargs):
+                self._conn = real_connect(*args, **kwargs)
+
+            def execute(self, sql, *args):
+                if sql == "VACUUM":
+                    raise sqlite3.OperationalError("database or disk is full")
+                return self._conn.execute(sql, *args)
+
+            def close(self):
+                self._conn.close()
+
+        with patch.object(archive_module.sqlite3, "connect", _Full):
+            with self.assertLogs(archive_module.LOGGER, "WARNING") as logs:
+                self.assertFalse(self.archive.vacuum())
+        self.assertIn("disk is full", logs.output[0])
+        # 記録はそのまま読め、次の VACUUM は通る
+        self.assertEqual(4, self.archive.get_match(2026, "CMP-1", "M1")["team1_score"])
+        self.assertTrue(self.archive.vacuum())
+
     def test_changed_result_never_overwrites_old_record(self):
         old = make_record()
         self.sync([old])

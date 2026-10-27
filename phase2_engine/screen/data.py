@@ -89,6 +89,9 @@ def _csv_rows(data_dir, name: str) -> list[dict]:
         return list(csv.DictReader(handle))
 
 
+PLAYER_FIELDS = tuple(Player.__dataclass_fields__)
+
+
 def _prefecture_short(name: str) -> str:
     """都道府県名から「都・府・県」を除く（東京都→東京、京都府→京都）。北海道はそのまま。"""
     return name[:-1] if name.endswith(("都", "府", "県")) else name
@@ -725,7 +728,10 @@ class GameScreenData:
                 rows = self.service.closed_roster(
                     self.session.slot_id, roster_year, school_id,
                 ) or []
-                players.update({row["player_id"]: Player(**row) for row in rows})
+                players.update({
+                    row["player_id"]: Player(**{key: row[key] for key in PLAYER_FIELDS})
+                    for row in rows
+                })
                 continue
             try:
                 roster = rosters.roster(roster_year, school_id)
