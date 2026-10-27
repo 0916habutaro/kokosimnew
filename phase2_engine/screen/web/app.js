@@ -831,6 +831,7 @@ async function renderSchoolDetail(content, schoolId) {
       <h2>${esc(d.name)}</h2><span class="muted">${esc(d.prefecture)}・${esc(d.ownership)}　${esc(d.official_name)}</span>
       ${d.reputation_rank ? `<span class="muted">評判</span><span class="rank r-${d.reputation_rank}">${d.reputation_rank}</span>` : ""}
       <div class="spacer"></div><button class="btn small" id="sd-edit">編集…</button></div>
+    ${d.coach ? `<div class="head"><span class="muted">監督</span><span>${esc(d.coach.display_name)}　${d.coach.age}歳（在任${d.coach.tenure_years}年目）</span></div>` : ""}
     <div class="dtabs">${SCHOOL_TABS.map(([k, l]) => `<button class="dtab ${st.tab === k ? "on" : ""}" data-k="${k}">${l}</button>`).join("")}</div>
     <div class="scroll" id="sd-body"></div>`;
   $("sd-back").addEventListener("click", () => { st.detail = null; renderPage(); });

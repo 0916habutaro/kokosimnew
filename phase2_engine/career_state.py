@@ -47,6 +47,7 @@ class CareerState:
         plans: dict[int, object] | None = None,
         rosters=None,
         reputation=None,
+        coaches=None,
     ):
         if not seasons:
             raise ValueError("career needs at least one season")
@@ -65,8 +66,9 @@ class CareerState:
         # 選手で試合をするときだけ。セーブに入る
         self.rosters = rosters
         self.reputation = reputation
+        self.coaches = coaches
 
-    # セーブには年度の状態・日付・名簿を書き出す
+    # セーブには年度の状態・日付・名簿・評判・監督を書き出す
     def __getstate__(self):
         return {
             "seasons": self.seasons,
@@ -75,6 +77,7 @@ class CareerState:
             "history": self.history,
             "rosters": self.rosters,
             "reputation": self.reputation,
+            "coaches": self.coaches,
         }
 
     def __setstate__(self, data):
@@ -98,7 +101,7 @@ class CareerState:
     def __getattr__(self, name):
         if name.startswith("__") or name in (
             "seasons", "current_date", "plans", "open_season", "history",
-            "rosters", "reputation",
+            "rosters", "reputation", "coaches",
         ):
             raise AttributeError(name)
         return getattr(self.primary, name)

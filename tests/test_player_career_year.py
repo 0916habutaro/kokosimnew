@@ -28,6 +28,7 @@ class PlayerCareerYearTests(unittest.TestCase):
             autosave_after_action=False,
         )
         session = cls.service.new_game("year", rng_seed=20261021, save_initial=False)
+        cls.initial_coaches = dict(session.state.coaches.coaches)
         # 3月：選抜（2026年度）と春季県大会（2027年度、2026年度の名簿の部員）が重なる
         cls.service.advance_through(session, "2027-03-25")
         cls.service.save_game(session)
@@ -60,6 +61,15 @@ class PlayerCareerYearTests(unittest.TestCase):
         # 保存された最新値を変えれば表示も変わる。初期評判の再計算では通らない。
         with patch.dict(rep.values, {sid: max(rep.values.values()) + 1}):
             self.assertEqual("S", screen.school(sid)["reputation_rank"])
+
+    def test_coaches_survive_year_boundary_and_reload(self):
+        self.assertEqual(self.initial_coaches, self.session.state.coaches.coaches)
+        sid = next(iter(self.initial_coaches.values())).school_id
+        coach = self.session.state.coaches.for_school(sid)
+        shown = GameScreenData(self.service, self.session).school(sid)["coach"]
+        self.assertEqual(coach.coach_id, shown["coach_id"])
+        self.assertEqual(2027 - coach.birth_year, shown["age"])
+        self.assertEqual(2027 - coach.appointment_year + 1, shown["tenure_years"])
 
     def test_previous_roster_is_kept_until_its_competitions_end(self):
         self.assertEqual([2026], self.march_rosters)

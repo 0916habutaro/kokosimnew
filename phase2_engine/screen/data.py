@@ -1319,8 +1319,11 @@ class GameScreenData:
                 }
             yearly.append(row)
         game_koshien = koshien_summary(by_year)
+        coaches = self.state.coaches if isinstance(self.state, CareerState) else None
+        coach = coaches.for_school(school_id) if coaches is not None else None
         return {
             "school_id": school_id,
+            "coach": coach.view(self.state.current_date) if coach else None,
             "name": self.names(school_id),
             "official_name": self._official_name(school_id),
             "prefecture": self.prefectures.get(school.get("prefecture_code"), ""),

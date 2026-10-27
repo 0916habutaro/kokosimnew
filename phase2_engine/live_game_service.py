@@ -762,8 +762,14 @@ class LiveGameService:
             self.career_persistence.prepare(plan, engine, self.resolver_contract)
         engine, season = self._engine(plan, engine)
         from game_core.annual_reputation import AnnualReputation
+        from game_core.coaches import CoachBook
 
         reputation = AnnualReputation(self.data_dir.resolve().parent, int(rng_seed))
+        coaches = CoachBook.generate(
+            self.data_dir.resolve().parent,
+            (self.repo.team(sid) for sid in self.repo.schools),
+            int(rng_seed), first_year=plan.year,
+        )
         rosters = self._new_rosters(int(rng_seed)) if season is not None else None
         if rosters is not None:
             rosters.reputation = reputation
@@ -785,6 +791,7 @@ class LiveGameService:
             plans={plan.year: plan},
             rosters=rosters,
             reputation=reputation,
+            coaches=coaches,
         )
         if rosters is not None:
             rosters.set_today(state.current_date)
