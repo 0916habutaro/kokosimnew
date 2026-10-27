@@ -81,6 +81,14 @@ class PlayerSeasonServiceTests(unittest.TestCase):
             self.assertEqual(members, again.school(school_id)["members"])
             self.assertEqual(20, len({m["name"] for m in members}))
             self.assertTrue(all(" " in m["name"] and m["hometown"] for m in members))
+            self.assertTrue(all("injury" in m for m in members))
+
+            # 怪我の頻度はセーブごとの設定。途中で変えるとセーブに残る
+            self.assertEqual("normal", screen.saves()["injury"]["current"])
+            screen.set_injury_level("low")
+            self.assertEqual("low", service.load_game("players").state.rosters.injury_level)
+            with self.assertRaises(ValueError):
+                screen.set_injury_level("extreme")
             detail = screen.match(2026, competition_id, match_id)
             batting = [b for rows in detail["batting"].values() for b in rows]
             self.assertTrue(batting)

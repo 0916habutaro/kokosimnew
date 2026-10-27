@@ -248,3 +248,5 @@ nav button[disabled] { opacity: .35; cursor: default; }
 #e-side .radar-row { gap: 4px; }
 #e-side .radar { width: 210px; height: 210px; margin: 0; }
 #e-side .overall-rank .rank { font-size: 48px; }
+
+.badge.injury { background: #5a2330; color: #ffb3c0; }

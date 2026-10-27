@@ -125,14 +125,18 @@ class ScreenApi:
     def open_save(self, slot_id, source="latest") -> dict:
         return self._exclusive(self._data.open_save, slot_id, source)
 
-    def new_save(self, title, slot_id="", seed="") -> dict:
+    def new_save(self, title, slot_id="", seed="", injury_level="") -> dict:
         """新しく始める。スロット名・シードが空なら、空いている名前・乱数にする。"""
         seed = str(seed).strip()
         if not seed:
             seed = random.SystemRandom().randrange(1, 2**31)
         elif not seed.isdigit():
             return {"error": "シードは数字で入れてください"}
-        return self._exclusive(self._data.new_save, title, int(seed), slot_id)
+        return self._exclusive(self._data.new_save, title, int(seed), slot_id, injury_level)
+
+    def set_injury_level(self, level) -> dict:
+        """遊んでいるセーブの怪我の頻度を変える。"""
+        return self._exclusive(self._data.set_injury_level, level)
 
     def progress(self) -> dict:
         return dict(self._progress)

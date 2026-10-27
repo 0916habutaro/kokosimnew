@@ -9,6 +9,7 @@ from datetime import timedelta
 from typing import Callable
 
 from phase2_engine.models import MatchResolution
+from phase2_engine.randomness import rng_for
 from phase2_engine.repository import DataRepository
 
 from .match_contract import MatchSimulationInput, TeamMatchInput
@@ -273,16 +274,29 @@ class AbilityMatchResolver:
             self._competition_teams.clear()
             self._abilities.clear()
             self._source_version = version
-        key = (competition_id, team_seed, school_id)
+        members = self.member_provider(competition_id, school_id).players
+        # 怪我で休んでいる選手は出ない（9人に足りなければ出る）。復帰直後の選手は
+        # 能力が少し下がる。その日の状態ごとにつくり直す
+        source = self.ability_generator.source
+        day = self._match_day()
+        condition = ()
+        if source is not None and day is not None and hasattr(source, "condition"):
+            states = {p.player_id: source.condition(p, day) for p in members}
+            healthy = tuple(p for p in members if not states[p.player_id][0])
+            if len(healthy) >= 9:
+                members = healthy
+            condition = tuple(sorted(
+                (pid, state) for pid, state in states.items() if state != (False, 0)
+            ))
+        key = (competition_id, team_seed, school_id, condition)
         cached = self._competition_teams.get(key)
         if cached is not None:
             return cached
-        members = self.member_provider(competition_id, school_id)
         # 能力はその大会の年度のもの（3月に始まる大会も、大会の年度で揃える）。
         # 同じ選手が年度内のいくつもの大会に出るので、一度つくった能力を使い回す。
         abilities = tuple(
             self._player_ability(player, reference_year, team_seed)
-            for player in members.players
+            for player in members
         )
         team = TeamMatchInput(
             school_id=school_id,
@@ -293,7 +307,14 @@ class AbilityMatchResolver:
         return team
 
     def _player_ability(self, player, reference_year: int, team_seed: int):
-        key = (player, reference_year, team_seed)
+        source = self.ability_generator.source
+        day = self._match_day()
+        step = (
+            source.condition(player, day)[1]
+            if source is not None and day is not None and hasattr(source, "condition")
+            else 0
+        )
+        key = (player, reference_year, team_seed, step)
         snapshot = self._abilities.get(key)
         if snapshot is None:
             snapshot = self.ability_generator.generate(
@@ -312,10 +333,32 @@ class AbilityMatchResolver:
         } | {
             s.player_id for s in result.pitcher_stats if s.batters_faced > 0
         }
+        day = self._match_day()
+        pitched = {s.player_id: s.pitches for s in result.pitcher_stats if s.batters_faced > 0}
+        log = getattr(self.season_state, "pitch_log", None) or {}
+        appearances = []
         for school_id in (result.team1_school_id, result.team2_school_id):
             members = self.member_provider(competition_id, school_id).players
-            source.record_games(
-                school_id, [p for p in members if p.player_id in played],
+            appeared = [p for p in members if p.player_id in played]
+            source.record_games(school_id, appeared)
+            for player in appeared:
+                pitches = pitched.get(player.player_id, 0)
+                load7 = consecutive = 0
+                if pitches and day is not None:
+                    days = log.get(player.player_id, {})
+                    first = (day - timedelta(days=6)).isoformat()
+                    load7 = sum(n for on, n in days.items() if first <= on <= day.isoformat())
+                    while (day - timedelta(days=consecutive + 1)).isoformat() in days:
+                        consecutive += 1
+                appearances.append((player, pitches, load7, consecutive))
+        if day is not None and hasattr(source, "after_game"):
+            # 試合の怪我（翌日から休む）
+            source.after_game(
+                appearances, day=day,
+                rng=rng_for(
+                    getattr(source, "career_seed", 0),
+                    f"injuries_v1:match:{competition_id}:{result.match_id}",
+                ),
             )
 
     def rules_for(self, competition_id: str, match_id: str) -> GameRules:
