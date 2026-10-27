@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -36,11 +37,19 @@ class PlayerCareerYearTests(unittest.TestCase):
         cls.service.save_game(session)
         cls.march = cls.service.load_game("year")
         cls.march_rosters = cls.march.state.rosters.years()
-        control = cls.service.load_game("year")
+        # 補正の有無で4月開始の大会は結果が変わり得るため、履歴DBも別にする。
+        control_tmp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(control_tmp.cleanup)
+        shutil.copytree(Path(cls.tmp.name) / "year", Path(control_tmp.name) / "year")
+        control_service = LiveGameService(
+            DataRepository(DATA_ROOT), DATA_ROOT, save_root=control_tmp.name,
+            resolver_contract=PLAYER_RESOLVER_CONTRACT, autosave_after_action=False,
+        )
+        control = control_service.load_game("year")
         control.state.coaches.intake_config['max_abs_z'] = 0.0
         # 4月：春季県大会は3月の部員のまま続く。前の年度の名簿は大会が終わるまで残す
         cls.service.advance_through(cls.march, "2027-04-05")
-        cls.service.advance_through(control, "2027-04-05")
+        control_service.advance_through(control, "2027-04-05")
         old_cups = {cid for cid, day in competition_start_dates(cls.march.state.plans[2027]).items()
                     if day < date(2027, 4, 1)}
         def old_results(rows):
@@ -57,7 +66,8 @@ class PlayerCareerYearTests(unittest.TestCase):
         cls.growth_potential_equal = all((state.growth_type, state.potential) ==
             (right._states[sid][key].growth_type, right._states[sid][key].potential)
             for sid, states in left._states.items() for key, state in states.items())
-        del control, left, right
+        del control, control_service, left, right
+        control_tmp.cleanup()
         cls.april_rosters = cls.march.state.rosters.years()
         cls.service.save_game(cls.march)
         cls.session = cls.service.load_game("year")
