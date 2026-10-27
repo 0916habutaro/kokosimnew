@@ -955,12 +955,18 @@ function schoolKoshien(d) {
 
 function schoolMembers(d) {
   if (!d.members.length) return '<div class="empty">部員は選手で試合をしているときに出ます。</div>';
-  return `<div class="panel"><table class="list"><tr><th>名前</th><th>学年</th><th>出身</th><th>守備位置</th><th>投打</th></tr>
-    ${d.members.map((m) => `<tr><td>${playerLink(d.school_id, m.player_id, m.name)}</td><td>${m.grade}年</td><td>${esc(m.hometown)}</td><td>${esc(m.position)}</td><td>${HANDS[m.throws] || m.throws}投${HANDS[m.bats] || m.bats}打</td></tr>`).join("")}
+  return `<div class="panel"><table class="list"><tr><th>名前</th><th>学年</th><th>出身</th><th>守備位置</th><th>投打</th><th>状態</th></tr>
+    ${d.members.map((m) => `<tr><td>${playerLink(d.school_id, m.player_id, m.name)}</td><td>${m.grade}年</td><td>${esc(m.hometown)}</td><td>${esc(m.position)}</td><td>${HANDS[m.throws] || m.throws}投${HANDS[m.bats] || m.bats}打</td><td>${injuryBadge(m.injury)}</td></tr>`).join("")}
   </table></div>`;
 }
 
 // ---- 選手 ----
+
+// 怪我の印と復帰の見込み
+function injuryBadge(injury) {
+  if (!injury) return "";
+  return `<span class="badge injury">怪我（${esc(injury.label)}）</span> <span class="muted">${slashDate(injury.return_date)}ごろ復帰</span>`;
+}
 
 function playerLink(schoolId, playerId, name) {
   return playerId ? `<span class="link" data-player="${esc(playerId)}" data-player-school="${esc(schoolId)}">${esc(name)}</span>` : esc(name);
@@ -1005,7 +1011,8 @@ async function renderPlayer(content, target) {
   const pitching = pit.length ? `<h3 style="margin-top:12px">投手</h3><table class="list"><tr><th>年度</th><th class="n">登板</th><th class="n">投球回</th><th class="n">球数</th><th class="n">被安打</th><th class="n">失点</th><th class="n">自責</th><th class="n">四球</th><th class="n">三振</th><th class="n">防御率</th></tr>
     ${pit.map((s) => { const x = s.pitching; return `<tr><td>${s.school_year}年度（${s.grade}年）</td><td class="n">${x.games}</td><td class="n">${esc(x.innings)}</td><td class="n">${x.pitches}</td><td class="n">${x.hits_allowed}</td><td class="n">${x.runs_allowed}</td><td class="n">${x.earned_runs}</td><td class="n">${x.walks}</td><td class="n">${x.strikeouts}</td><td class="n">${x.era}</td></tr>`; }).join("")}</table>` : "";
   content.innerHTML = `<div class="head"><button class="btn small" id="p-back">← ${esc(p.school_name)}</button>
-      <h2>${esc(p.name)}</h2><span class="muted">${esc(p.school_name)}　${p.status === "在学" ? `${p.grade}年` : esc(p.status)}・${esc(p.position)}・${hands}</span></div>
+      <h2>${esc(p.name)}</h2><span class="muted">${esc(p.school_name)}　${p.status === "在学" ? `${p.grade}年` : esc(p.status)}・${esc(p.position)}・${hands}</span>
+      ${injuryBadge(p.injury)}</div>
     <div class="scroll">
       <div class="stats" style="grid-template-columns:repeat(4,1fr)">
         <div class="stat"><b>${esc(p.hometown)}</b><span>出身</span></div>
@@ -1018,6 +1025,10 @@ async function renderPlayer(content, target) {
         <div class="panel"><h3>学年ごとの能力の推移</h3>${trend}</div>
       </div>
       <div class="panel" style="margin-top:14px"><h3>成績（公式戦）</h3>${batting}${pitching}</div>
+      <div class="panel" style="margin-top:14px"><h3>怪我の履歴</h3>${p.injuries.length
+        ? `<table class="list"><tr><th>重さ</th><th>休み始めた日</th><th>復帰（見込み）</th><th class="n">日数</th></tr>
+          ${p.injuries.map((i) => `<tr><td>${esc(i.label)}</td><td>${slashDate(i.start)}</td><td>${slashDate(i.return_date)}</td><td class="n">${i.days}</td></tr>`).join("")}</table>`
+        : '<div class="muted">怪我はしていません。</div>'}</div>
     </div>`;
   $("p-back").addEventListener("click", () => { state.schools.player = null; state.schools.tab = "members"; renderPage(); });
 }
@@ -1067,6 +1078,7 @@ async function renderSaves(content) {
     <div class="note">${state.noSession
       ? "遊ぶセーブを読み込むか、新しく始めてください。"
       : "日付を進めるたびに自動セーブしています。読み込むと、そのセーブの続きから遊びます。"}</div>
+    <div class="note" id="sv-setting"></div>
     <div class="scroll" id="sv-body"><div class="empty">読み込み中…</div></div>`;
   $("sv-save").disabled = state.noSession;
   $("sv-save").addEventListener("click", async () => {
@@ -1081,6 +1093,18 @@ async function renderSaves(content) {
 function drawSaves(data) {
   const body = $("sv-body");
   if (!body) return;
+  state.injuryLevels = data.injury;
+  const setting = $("sv-setting");
+  if (setting) {
+    const inj = data.injury;
+    setting.innerHTML = inj.current ? `このセーブの設定：怪我の頻度 <select id="sv-injury">${inj.levels.map((l) =>
+      `<option value="${esc(l.id)}"${l.id === inj.current ? " selected" : ""}>${esc(l.label)}</option>`).join("")}</select>` : "";
+    const select = $("sv-injury");
+    if (select) select.addEventListener("change", async () => {
+      const result = await call("set_injury_level", select.value);
+      if (result) { showToast("怪我の頻度を変えました"); drawSaves(result); }
+    });
+  }
   if (!data.slots.length) {
     body.innerHTML = `<div class="empty">セーブがありません。</div>`;
     return;
@@ -1150,13 +1174,16 @@ async function newSave() {
     body: `<div>2026年4月1日から新しく始めます。${state.noSession ? "" : "今のセーブの進み具合は自動セーブに残っています。"}</div>
       <label class="field">スロット名（空なら自動）<input class="ask-input" id="ask-slot" type="text" maxlength="64" placeholder="slot01"></label>
       <label class="field">シード（空なら自動）<input class="ask-input" id="ask-seed" type="text" inputmode="numeric" maxlength="10"></label>
+      ${state.injuryLevels ? `<label class="field">怪我の頻度（遊んでいる途中でもセーブの画面で変えられます）<select id="ask-injury">${state.injuryLevels.levels.map((l) =>
+        `<option value="${esc(l.id)}"${l.id === state.injuryLevels.default ? " selected" : ""}>${esc(l.label)}</option>`).join("")}</select></label>` : ""}
       <label class="field">名前</label>`,
     input: "新しいセーブ",
     ok: "始める",
   });
   if (title === null) return;
   if (!title) return showToast("名前を入れてください", true);
-  switchSave("new_save", title, $("ask-slot").value.trim(), $("ask-seed").value.trim());
+  switchSave("new_save", title, $("ask-slot").value.trim(), $("ask-seed").value.trim(),
+    ($("ask-injury") || {}).value || "");
 }
 
 // セーブを切り替える（その間は他の呼び出しをしない）

@@ -37,6 +37,20 @@ PITCHING_KEYS = (
 )
 
 
+def injury_row(start: str, days: int, severity: int) -> dict:
+    """怪我（重さ・休み始めた日・休む日数・復帰の見込みの日）。"""
+    from datetime import date, timedelta
+
+    from game_core.injuries import injury_model
+
+    first = date.fromisoformat(start)
+    back = first + timedelta(days=days)
+    return {
+        "severity": severity, "label": injury_model().label(severity),
+        "start": first.isoformat(), "days": days, "return_date": back.isoformat(),
+    }
+
+
 def ability_values(values, pitch_types) -> dict:
     """1項目1バイトの能力（roster_book.pack_abilities の並び）→ 名前 → 値。"""
     out = {name: (values[i] or None) for i, name in enumerate(SCALARS)}

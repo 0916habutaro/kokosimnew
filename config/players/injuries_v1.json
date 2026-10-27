@@ -1,0 +1,46 @@
+{
+  "config_id": "injuries_v1",
+  "revision": 1,
+  "description_ja": "選手の怪我（game_definition.md §3.2）。練習の怪我は毎月の初めにその月の分を決め（その月のどこかの日から休む）、試合の怪我は試合のあとに決める。投手は起きやすく、投げすぎ（1試合の球数・7日間の球数）・連投・その年度の公式戦の出場数でさらに起きやすくする。頻度はセーブごとの設定（levels の倍率）を掛ける。",
+  "levels": {
+    "description_ja": "セーブごとの怪我の頻度。新しく始めるときに選べ、遊んでいる途中でも変えられる",
+    "none": {"label_ja": "なし", "rate": 0.0},
+    "low": {"label_ja": "少なめ", "rate": 0.5},
+    "normal": {"label_ja": "標準", "rate": 1.0},
+    "high": {"label_ja": "多め", "rate": 2.0}
+  },
+  "default_level": "normal",
+  "practice": {
+    "description_ja": "練習の怪我：1人1か月あたりの起きやすさ。投手は pitcher_factor 倍。その年度の公式戦の出場1試合ごとに per_season_game 倍ずつ足す",
+    "monthly": 0.0035,
+    "pitcher_factor": 1.5,
+    "per_season_game": 0.04
+  },
+  "match": {
+    "description_ja": "試合の怪我：出た1試合あたりの起きやすさ。投手は球数で増える（pitches_over を超えた1球ごとに per_pitch_over 倍ずつ足す）。7日間の球数が load_over を超えた1球ごとに per_load_over 倍ずつ足す。前の日も投げていたら consecutive_factor 倍（2日続けば2回掛ける）",
+    "batter": 0.0012,
+    "pitcher": 0.003,
+    "pitches_over": 100,
+    "per_pitch_over": 0.02,
+    "load_over": 300,
+    "per_load_over": 0.005,
+    "consecutive_factor": 1.6
+  },
+  "severity": {
+    "description_ja": "怪我の重さ：days（数日）・weeks（数週間）・months（数か月）。share は割合（投げすぎの怪我は months の割合を掛け算で増やす：overuse_months_factor）、days_range は休む日数の範囲",
+    "days": {"label_ja": "数日", "share": 0.7, "days_range": [3, 7]},
+    "weeks": {"label_ja": "数週間", "share": 0.29, "days_range": [10, 42]},
+    "months": {"label_ja": "数か月", "share": 0.01, "days_range": [60, 180]},
+    "overuse_months_factor": 3.0
+  },
+  "recovery": {
+    "description_ja": "復帰直後は能力が少し下がり、days 日かけて戻る（1週ずつ段階的に）。drop は戻る前の下がり方（1〜100の能力に掛ける割合。球速は velocity_kmh だけ下がる）。後に残る怪我はない",
+    "days": {"days": 7, "drop": 0.03, "velocity_kmh": 1},
+    "weeks": {"days": 14, "drop": 0.06, "velocity_kmh": 2},
+    "months": {"days": 28, "drop": 0.1, "velocity_kmh": 4}
+  },
+  "rng_namespaces": {
+    "practice": "injuries_v1:practice:{month}:{school_id}",
+    "match": "injuries_v1:match:{competition_id}:{match_id}"
+  }
+}

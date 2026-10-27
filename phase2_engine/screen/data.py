@@ -40,6 +40,7 @@ from .koshien_records import (
 )
 from .player_views import (
     GROWTH_LABELS,
+    injury_row,
     ability_rows,
     ability_values,
     rank,
@@ -1246,6 +1247,7 @@ class GameScreenData:
                     "grade": player.academic_year,
                     "position": POSITION_LABELS.get(player.primary_position, ""),
                     "bats": player.bats, "throws": player.throws,
+                    "injury": self._injury_now(player),
                 }
                 for player in sorted(
                     members[school_id],
@@ -1343,12 +1345,20 @@ class GameScreenData:
         growth_type = next(
             (row["growth_type"] for _, row in reversed(entries) if row["growth_type"]), None,
         )
+        injuries = [
+            injury_row(i["start"], i["days"], i["severity"])
+            for i in next((row.get("injuries") or [] for _, row in reversed(entries)
+                           if row.get("injuries")), [])
+        ]
         if enrolled:
             state = rosters.state(player)
             from game_core.player_growth import TYPES
 
             growth_type = TYPES[state.growth_type]
             now = snapshot_values(rosters.ability(player))
+            injuries = [
+                injury_row(i.start.isoformat(), i.days, i.severity) for i in state.injuries
+            ]
         trend = [
             {
                 "school_year": year, "grade": row["academic_year"], "label": "年度末",
@@ -1374,6 +1384,9 @@ class GameScreenData:
             "position": POSITION_LABELS.get(position, ""),
             "bats": player.bats, "throws": player.throws,
             "growth_type": GROWTH_LABELS.get(growth_type or "", ""),
+            "injury": self._injury_now(player) if enrolled else None,
+            # 怪我の履歴（新しい順）
+            "injuries": list(reversed(injuries)),
             "abilities": ability_rows(now, position, bands) if now else [],
             "pitches": now["pitches"] if now else [],
             "trend_keys": [
@@ -1398,6 +1411,14 @@ class GameScreenData:
                 for year, row in entries
             ],
         }
+
+    def _injury_now(self, player) -> dict | None:
+        """今日、怪我で休んでいれば重さと復帰の見込みの日。"""
+        rosters = getattr(self.state, "rosters", None)
+        injury = rosters.injury(player, self.state.current_date) if rosters is not None else None
+        if injury is None:
+            return None
+        return injury_row(injury.start.isoformat(), injury.days, injury.severity)
 
     def _school_details(self, school_id: str, year: int) -> list[dict]:
         """その学校の、その学校年度（4月〜翌3月）の試合の記録（個人成績つき）。"""
@@ -1523,6 +1544,7 @@ class GameScreenData:
         return {
             "current_slot": current,
             "slots": slot_rows(self.service.list_games(), current),
+            "injury": self.injury_levels(),
         }
 
     def save_now(self) -> dict:
@@ -1557,7 +1579,35 @@ class GameScreenData:
         self.use_session(session)
         return {**self.saves(), "header": self.header()}
 
-    def new_save(self, title: str, rng_seed: int, slot_id: str = "") -> dict:
+    def injury_levels(self) -> dict:
+        """怪我の頻度の選択肢と、遊んでいるセーブの設定。"""
+        from game_core.injuries import injury_model
+
+        model = injury_model()
+        rosters = getattr(self.state, "rosters", None) if self.session else None
+        return {
+            "levels": [
+                {"id": key, "label": value["label_ja"]} for key, value in model.levels.items()
+            ],
+            "default": model.config["default_level"],
+            "current": rosters.injury_level if rosters is not None else "",
+        }
+
+    def set_injury_level(self, level: str) -> dict:
+        """遊んでいるセーブの怪我の頻度を変える（セーブの中だけに残す）。"""
+        from game_core.injuries import injury_model
+
+        rosters = getattr(self.state, "rosters", None) if self.session else None
+        if rosters is None:
+            raise ValueError("選手で試合をしているセーブだけ変えられます")
+        if level not in injury_model().levels:
+            raise ValueError("その設定はありません")
+        rosters.injury_level = level
+        self.service.save_game(self.session, kind=SAVE_KIND_MANUAL)
+        return {**self.saves(), "injury": self.injury_levels()}
+
+    def new_save(self, title: str, rng_seed: int, slot_id: str = "",
+                 injury_level: str = "") -> dict:
         """新しく始める。スロット名が空なら ``slot01`` の形で空いているものにする。"""
         title = str(title).strip()
         if not title:
@@ -1575,6 +1625,7 @@ class GameScreenData:
             raise ValueError("そのスロット名はもう使われています")
         session = self.service.new_game(
             slot_id, rng_seed=int(rng_seed), title=title,
+            injury_level=str(injury_level) or None,
         )
         self.use_session(session)
         return {**self.saves(), "header": self.header()}

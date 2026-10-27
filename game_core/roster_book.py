@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import date
+from datetime import date, timedelta
 import json
 import threading
 import zlib
@@ -30,6 +30,7 @@ from .abilities import (
     PlayerAbilitySnapshot,
 )
 from .career_rosters import _newcomer_id, advance_school_roster
+from .injuries import Injury, injury_model
 from .player_growth import PlayerGrowth
 from .players import Player, PlayerRosterGenerator, SchoolRoster, _player_id, _position_group
 
@@ -121,16 +122,46 @@ def unpack_school(packed: tuple, *, first_year: int) -> list[tuple]:
     return rows
 
 
+DAY_ZERO = date(2000, 1, 1)
+
+
+def _day(value: date) -> int:
+    return (value - DAY_ZERO).days
+
+
+def _from_day(value: int) -> date:
+    return DAY_ZERO + timedelta(days=value)
+
+
 class PlayerState:
-    """選手ごとの能力（1項目1バイト）と成長の状態。"""
+    """選手ごとの能力（1項目1バイト）と成長の状態・怪我。
 
-    __slots__ = ("values", "growth_type", "potential", "games")
+    ``games`` はその月の公式戦の出場数（成長で使って0に戻す）、``season_games`` は
+    その年度の出場数（怪我の起きやすさ）。``injuries`` は怪我の履歴（最後が今か直近）。
+    """
 
-    def __init__(self, values: bytearray, growth_type: int, potential: int, games: int = 0):
+    __slots__ = ("values", "growth_type", "potential", "games", "season_games", "injuries")
+
+    def __init__(
+        self, values: bytearray, growth_type: int, potential: int, games: int = 0,
+        season_games: int = 0, injuries: list[Injury] | None = None,
+    ):
         self.values = values
         self.growth_type = growth_type
         self.potential = potential
         self.games = games
+        self.season_games = season_games
+        self.injuries = injuries if injuries is not None else []
+
+    @property
+    def last_injury(self) -> Injury | None:
+        return self.injuries[-1] if self.injuries else None
+
+    def injured_on(self, day: date) -> Injury | None:
+        last = self.last_injury
+        if last is not None and last.start <= day < last.end:
+            return last
+        return None
 
 
 def _pack_states(first_year: int, states: dict[tuple[int, int], PlayerState]) -> bytes:
@@ -138,8 +169,13 @@ def _pack_states(first_year: int, states: dict[tuple[int, int], PlayerState]) ->
     for (entry_year, roster_no), state in sorted(states.items()):
         out.extend((
             entry_year - first_year + 2, roster_no, state.growth_type,
-            state.potential, state.games, len(state.values),
+            state.potential, state.games, min(255, state.season_games),
+            len(state.injuries), len(state.values),
         ))
+        for injury in state.injuries:
+            out.extend(_day(injury.start).to_bytes(2, "big"))
+            out.extend(injury.days.to_bytes(2, "big"))
+            out.append(injury.severity)
         out.extend(state.values)
     return bytes(out)
 
@@ -148,10 +184,20 @@ def _unpack_states(first_year: int, data: bytes) -> dict[tuple[int, int], Player
     states = {}
     offset = 0
     while offset < len(data):
-        entry, roster_no, growth_type, potential, games, size = data[offset:offset + 6]
-        offset += 6
+        (entry, roster_no, growth_type, potential, games, season_games,
+         count, size) = data[offset:offset + 8]
+        offset += 8
+        injuries = []
+        for _ in range(count):
+            injuries.append(Injury(
+                _from_day(int.from_bytes(data[offset:offset + 2], "big")),
+                int.from_bytes(data[offset + 2:offset + 4], "big"),
+                data[offset + 4],
+            ))
+            offset += 5
         states[(entry + first_year - 2, roster_no)] = PlayerState(
             bytearray(data[offset:offset + size]), growth_type, potential, games,
+            season_games, injuries,
         )
         offset += size
     return states
@@ -190,6 +236,10 @@ class RosterBook:
         # 年度 → 学校ID → 年度末（3月の成長のあと）の能力と成長の状態（詰めた形）。
         # 閉じた年度の名簿と一緒に履歴に書き出すまで持つ
         self._year_end: dict[int, dict[str, bytes]] = {}
+        # 怪我の頻度（セーブごとの設定。injuries_v1 の levels）と、今日（復帰直後の
+        # 能力の下がり方を決める。CareerState が毎日進める）
+        self.injury_level = injury_model().config["default_level"]
+        self.today: date | None = None
         self.bind(
             team_for, generator=generator, ability_generator=ability_generator, growth=growth,
         )
@@ -214,6 +264,8 @@ class RosterBook:
             "version": self.version,
             "_packed": self._packed,
             "_year_end": self._year_end,
+            "injury_level": self.injury_level,
+            "today": self.today,
             "_states": {
                 school_id: _pack_states(self.first_year, states)
                 for school_id, states in self._states.items()
@@ -402,28 +454,127 @@ class RosterBook:
             return self._states[player.school_id][key]
 
     def ability(self, player: Player) -> PlayerAbilitySnapshot:
-        """その選手の今の能力。学校の編集の補正は入っていない。"""
+        """その選手の今の能力（復帰直後は少し下がる）。学校の編集の補正は入っていない。"""
         with self._lock:
-            key = (player.player_id, player.academic_year)
+            state = self.state(player)
+            step = (
+                injury_model().recovery_step(state.last_injury, self.today)
+                if self.today is not None else 0
+            )
+            key = (player.player_id, player.academic_year, step)
             cached = self._abilities.get(key)
             if cached is None:
                 if self._fields is None:
                     self._fields = self._config_fields()
+                values = bytearray(state.values)
+                if step:
+                    self._recovery_drop(values, state.last_injury, step)
                 cached = unpack_abilities(
-                    bytes(self.state(player).values), player,
+                    bytes(values), player,
                     config_fields=self._fields, pitch_types=self._pitch_types(),
                 )
                 self._abilities[key] = cached
             return cached
 
+    def _recovery_drop(self, values: bytearray, injury: Injury, step: int) -> None:
+        """復帰直後：1〜100の能力と変化球の質・制球を割合で、球速を km/h で下げる。"""
+        share, kmh = injury_model().recovery_drop(injury, step)
+        velocity = SCALARS.index("velocity_kmh")
+        for index in range(len(SCALARS)):
+            if not values[index]:
+                continue
+            if index == velocity:
+                values[index] = max(100, values[index] - kmh)
+            else:
+                values[index] = max(1, values[index] - round(values[index] * share))
+        pitches = len(SCALARS) + len(FIELD_POSITIONS)
+        for offset in range(pitches, len(values), PITCH_FIELDS):
+            for field in (1, 2):
+                values[offset + field] = max(
+                    1, values[offset + field] - round(values[offset + field] * share),
+                )
+
+    # ---- 怪我 ----
+
+    def set_today(self, day: date) -> None:
+        with self._lock:
+            self.today = day
+
+    def injury(self, player: Player, day: date | None = None) -> Injury | None:
+        """その日（省くと今日）に怪我で休んでいれば、その怪我。"""
+        day = day or self.today
+        if day is None:
+            return None
+        return self.state(player).injured_on(day)
+
+    def condition(self, player: Player, day: date) -> tuple[bool, int]:
+        """(怪我で休んでいるか, 復帰直後の段階)。試合の出場メンバーと能力の作り直しに使う。"""
+        state = self.state(player)
+        return (
+            state.injured_on(day) is not None,
+            injury_model().recovery_step(state.last_injury, day),
+        )
+
+    def after_game(
+        self, appearances, *, day: date, rng,
+    ) -> list[tuple[Player, Injury]]:
+        """試合の怪我。``appearances`` は (選手, 投げた球数, 7日間の球数, 前の日から続けて
+        投げた日数)。投げていなければ球数は0。怪我をした (選手, 怪我) を返す。"""
+        model = injury_model()
+        out = []
+        with self._lock:
+            for player, pitches, load7, consecutive in appearances:
+                state = self.state(player)
+                if state.injured_on(day) is not None:
+                    continue
+                chance, overuse = model.match_chance(
+                    pitches=pitches, load7=load7, consecutive=consecutive,
+                    level=self.injury_level,
+                )
+                if rng.random() < chance:
+                    injury = model.draw(rng, day + timedelta(days=1), overuse=overuse)
+                    state.injuries.append(injury)
+                    out.append((player, injury))
+        return out
+
+    def _practice_injuries(self, first: date) -> None:
+        """``first`` から始まる月の練習の怪我（その月のどこかの日から休む）。"""
+        model = injury_model()
+        if not model.rate(self.injury_level):
+            return
+        year = school_year_of(first)
+        for school_id in self.school_ids:
+            self.roster(year, school_id)
+        days = ((first + timedelta(days=32)).replace(day=1) - first).days
+        namespace = model.config["rng_namespaces"]["practice"]
+        for school_id in self.schools(year):
+            rng = rng_for(
+                self.career_seed,
+                namespace.format(month=first.strftime("%Y-%m"), school_id=school_id),
+            )
+            for player in self.roster(year, school_id).players:
+                state = self.state(player)
+                chance = model.practice_chance(
+                    pitcher=player.primary_position == "P",
+                    season_games=state.season_games, level=self.injury_level,
+                )
+                if rng.random() >= chance:
+                    continue
+                start = first + timedelta(days=rng.randrange(days))
+                last = state.last_injury
+                if last is not None and last.end > start:
+                    continue
+                state.injuries.append(model.draw(rng, start))
+
     # ---- 成長 ----
 
     def record_games(self, school_id: str, players: Iterable[Player]) -> None:
-        """公式戦に出た選手（毎月の成長で少し足す）。"""
+        """公式戦に出た選手（毎月の成長で少し足す。怪我の起きやすさにも使う）。"""
         with self._lock:
             for player in players:
                 state = self.state(player)
                 state.games = min(255, state.games + 1)
+                state.season_games = min(255, state.season_games + 1)
 
     def grow(self, month: date) -> None:
         """``month`` の月の分を伸ばす（その月が終わった次の日に呼ぶ）。"""
@@ -439,20 +590,31 @@ class RosterBook:
                     self.career_seed,
                     namespace.format(month=month.strftime("%Y-%m"), school_id=school_id),
                 )
+                first = month.replace(day=1)
+                days = ((first + timedelta(days=32)).replace(day=1) - first).days
                 for player in self.roster(year, school_id).players:
                     state = self.state(player)
+                    # 怪我で休んだ日の分は伸びない
+                    healthy = days - sum(
+                        1 for offset in range(days)
+                        if state.injured_on(first + timedelta(days=offset)) is not None
+                    ) if state.injuries else days
                     self.growth.grow(
                         state.values, position=player.primary_position,
                         grade=player.academic_year, type_index=state.growth_type,
-                        potential=state.potential, games=state.games,
+                        potential=round(state.potential * healthy / days), games=state.games,
                         month=month.month, rng=rng,
                     )
                     state.games = 0
+                    if month.month == 3:
+                        state.season_games = 0
             if month.month == 3:
                 self._year_end[year] = {
                     school_id: self._pack_roster_states(year, school_id)
                     for school_id in self.schools(year)
                 }
+            # 次の月の練習の怪我
+            self._practice_injuries((month.replace(day=1) + timedelta(days=32)).replace(day=1))
             self.version += 1
             self._abilities = {}
 
@@ -554,6 +716,10 @@ def decode_closed_record(blob: bytes) -> list[dict]:
                 roster_status="active_core", generation_seed=seed,
             ).to_dict(),
             "abilities": list(state.values) if state is not None else None,
+            "injuries": [
+                {"start": i.start.isoformat(), "days": i.days, "severity": i.severity}
+                for i in state.injuries
+            ] if state is not None else [],
             "growth_type": TYPES[state.growth_type] if state is not None else None,
             "potential": state.potential / POTENTIAL_SCALE if state is not None else None,
         })

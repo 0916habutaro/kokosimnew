@@ -713,6 +713,7 @@ class LiveGameService:
         title: str | None = None,
         engine=None,
         save_initial: bool = True,
+        injury_level: str | None = None,
     ) -> LiveGameSession:
         slot = (
             self.slots.validate_slot_id(
@@ -731,6 +732,8 @@ class LiveGameService:
             self.career_persistence.prepare(plan, engine, self.resolver_contract)
         engine, season = self._engine(plan, engine)
         rosters = self._new_rosters(int(rng_seed)) if season is not None else None
+        if rosters is not None and injury_level:
+            rosters.injury_level = injury_level
         # 開始前の試合（3月に始まる春季大会など）にも球数制限・コールドを使う
         first = plan.build_runtime(
             engine=engine,
@@ -747,6 +750,8 @@ class LiveGameService:
             plans={plan.year: plan},
             rosters=rosters,
         )
+        if rosters is not None:
+            rosters.set_today(state.current_date)
         session = LiveGameSession(
             slot_id=slot,
             plan=plan,
