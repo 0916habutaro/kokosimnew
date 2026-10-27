@@ -54,6 +54,14 @@ class AnnualReputationTests(unittest.TestCase):
                 self.assertEqual(initial.rank(sid, 7), saved.rank(sid))
         self.assertFalse(saved.update(date(2026, 4, 1)))
 
+    def test_better_results_raise_reputation_more_from_equal_starting_values(self):
+        book = reputation()
+        book.values = dict.fromkeys(book.values, 0.0)
+        book.collect({2026: season()})
+        book.update(date(2027, 4, 1))
+        self.assertGreater(book.values['SCH-A'], book.values['SCH-C'])
+        self.assertGreater(book.values['SCH-C'], book.values['SCH-B'])
+
     def test_success_improves_reputation_and_several_years_reverse_the_order(self):
         book = reputation()
         start = dict(book.values)
@@ -129,6 +137,11 @@ class AnnualReputationTests(unittest.TestCase):
         rep.update(date(2027, 4, 1))
         self.assertEqual(abilities, [rosters.ability(p) for p in old.players])
         self.assertEqual(before, profile(school_id='SCH-A', entry_year=2026, base_seed=7))
+        updated_profile = profile(school_id='SCH-A', entry_year=2027, base_seed=7)
+        control_profile = control.ability_generator.intake_model.profile(
+            school_id='SCH-A', entry_year=2027, base_seed=7,
+        )
+        self.assertEqual(updated_profile.cohort_quality_z, control_profile.cohort_quality_z)
         new = rosters.roster(2027, 'SCH-A')
         other = control.roster(2027, 'SCH-A')
         fresh = [p for p in new.players if p.entry_year == 2027]

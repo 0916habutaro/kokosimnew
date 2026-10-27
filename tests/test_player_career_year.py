@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from phase2_engine import (
     PLAYER_RESOLVER_CONTRACT,
@@ -54,9 +55,11 @@ class PlayerCareerYearTests(unittest.TestCase):
             school_id=sid, entry_year=2027, base_seed=book.career_seed,
         )
         self.assertAlmostEqual(rep.program_z(sid, 2027), profile.program_quality_z, places=5)
-        self.assertEqual(rep.rank(sid), GameScreenData(
-            self.service, self.session,
-        ).school(sid)["reputation_rank"])
+        screen = GameScreenData(self.service, self.session)
+        self.assertEqual(rep.rank(sid), screen.school(sid)["reputation_rank"])
+        # 保存された最新値を変えれば表示も変わる。初期評判の再計算では通らない。
+        with patch.dict(rep.values, {sid: max(rep.values.values()) + 1}):
+            self.assertEqual("S", screen.school(sid)["reputation_rank"])
 
     def test_previous_roster_is_kept_until_its_competitions_end(self):
         self.assertEqual([2026], self.march_rosters)
