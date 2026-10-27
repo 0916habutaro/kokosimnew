@@ -240,9 +240,6 @@ nav button[disabled] { opacity: .35; cursor: default; }
 .radar text { fill: var(--muted); font-size: 12px; }
 .radar tspan { font-weight: 700; }
 .stat b .rank { font-size: inherit; }
-.ask-body .adjust { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 6px; }
-.ask-body .adjust label { display: flex; flex-direction: column; gap: 4px; color: var(--text); }
-.ask-body .adjust select { height: 30px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; }
 .ask-body div.field { margin-top: 12px; color: var(--text); }
 .ask-body select { margin-left: 0; }
 #e-side .radar-row { gap: 4px; }
@@ -250,3 +247,13 @@ nav button[disabled] { opacity: .35; cursor: default; }
 #e-side .overall-rank .rank { font-size: 48px; }
 
 .badge.injury { background: #5a2330; color: #ffb3c0; }
+
+#ask-dialog { max-width: min(760px, 95vw); max-height: 90vh; overflow-y: auto; }
+.ability-edit-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 14px; }
+.ability-edit-grid label { display: flex; flex-direction: column; }
+.ability-edit-grid input, .pitch-edit input { width: 100%; padding: 6px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 4px; }
+.pitch-edit input { min-width: 55px; }
+.edit-error { color: #ffb3c0; white-space: pre-wrap; }
+@media (max-width: 640px) { .ability-edit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+#ask-dialog .dialog-actions { position: sticky; bottom: 0; padding-top: 12px; background: var(--panel); border-top: 1px solid var(--line); z-index: 1; }

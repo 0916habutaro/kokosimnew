@@ -849,26 +849,72 @@ const INFO_LABELS = { display_name: "表示名", short_name: "短い名前", own
 
 async function editSchool(d) {
   const e = d.edit;
-  const owner = (value) => (e.ownership_options.find((o) => o.value === value) || {}).label || value;
+  const rep = e.reputation;
+  const owner = (v) => (e.ownership_options.find((o) => o.value === v) || {}).label || v;
   const history = e.history.map((h) => `<tr><td>${esc(h.date)}</td><td>${Object.entries(h.changes).map(([k, v]) => `${INFO_LABELS[k]}：${esc(k === "ownership_type" ? owner(v) : v)}`).join("、")}</td></tr>`).join("");
-  const body = `<div>変えた内容はこのセーブの中だけに残ります（変えた日は ${esc(state.header.date.replaceAll("-", "."))}）。
-      これより前の試合は当時の名前で表示します。</div>
-    <label class="field">表示名<input class="ask-input" id="ed-display" type="text" maxlength="60" value="${esc(e.display_name)}"></label>
-    <label class="field">短い名前<input class="ask-input" id="ed-short" type="text" maxlength="20" value="${esc(e.short_name)}"></label>
-    <label class="field">設置者<select class="ask-input" id="ed-owner">${e.ownership_options.map((o) =>
-      `<option value="${esc(o.value)}" ${o.value === e.ownership_type ? "selected" : ""}>${esc(o.label)}</option>`).join("")}</select></label>
-    ${history ? `<div class="field">変更の記録</div><table class="list">${history}</table>` : ""}`;
-  if (!await ask({ title: `「${d.name}」を編集する`, body, ok: "保存する" })) return;
-  const payload = {
-    display_name: $("ed-display").value.trim(),
-    short_name: $("ed-short").value.trim(),
-    ownership_type: $("ed-owner").value,
-  };
-  const updated = await call("edit_school", d.school_id, payload);
+  const teamHistory = e.team_history.map((h) => `<tr><td>${esc(h.date)}</td><td>総合力 ${h.before.toFixed(1)} → ${h.achieved.toFixed(1)}（指定 ${h.requested.toFixed(1)}）</td></tr>`).join("");
+  const body = `<p>変更はこのセーブに保存します。</p>
+    <label class="field">編集する項目<select id="ed-operation" class="ask-input">
+      <option value="info">学校の情報</option>${e.team_editable ? '<option value="team">現在のチームの強さ</option>' : ""}
+      ${rep ? '<option value="reputation">学校の評判</option>' : ""}</select></label>
+    <fieldset id="ed-info"><legend>学校の情報</legend>
+      <label class="field">表示名<input class="ask-input" id="ed-display" required type="text" maxlength="60" value="${esc(e.display_name)}"></label>
+      <label class="field">短い名前<input class="ask-input" id="ed-short" required type="text" maxlength="20" value="${esc(e.short_name)}"></label>
+      <label class="field">設置者<select class="ask-input" id="ed-owner">${e.ownership_options.map((o) => `<option value="${esc(o.value)}" ${o.value === e.ownership_type ? "selected" : ""}>${esc(o.label)}</option>`).join("")}</select></label>
+      <p>変更日より前の試合は当時の名前で表示します。</p>
+      ${history ? `<table class="list">${history}</table>` : ""}</fieldset>
+    ${e.team_editable ? `<fieldset id="ed-team" hidden disabled><legend>現在のチームの強さ</legend>
+      <p>現在の総合力：${d.abilities ? d.abilities.overall.toFixed(1) : "−"}。現在の部員の能力を調整します。新入生への一律補正はありません。</p>
+      <label class="field">指定方法<select id="ed-team-kind"><option value="number">数値</option><option value="rank">ランク</option></select></label>
+      <input class="ask-input" id="ed-target" type="number" min="1" max="100" step="0.1" required value="${d.abilities?.overall || 50}">
+      <select class="ask-input" id="ed-rank" hidden>${e.team_ranks.map((r) => `<option>${r}</option>`).join("")}</select>
+      <button class="btn small" type="button" id="ed-preview">変更結果を確認</button><p id="ed-preview-result" role="status"></p>
+      ${teamHistory ? `<table class="list">${teamHistory}</table>` : ""}</fieldset>` : ""}
+    ${rep ? `<fieldset id="ed-reputation" hidden disabled><legend>学校の評判</legend>
+      <p>現在値：${rep.current.toFixed(3)}（ランク ${esc(rep.rank)}）。${rep.setting ? `指定値：${rep.setting.requested}／${rep.setting.mode === "fixed" ? "固定" : "自動変動"}（${esc(rep.setting.date)}）` : "指定はありません。"}</p>
+      <label class="field">評判値（${rep.minimum}〜${rep.maximum}。大きいほど高評価）<input class="ask-input" id="ed-rep-value" type="number" min="${rep.minimum}" max="${rep.maximum}" step="any" required value="${rep.current}"></label>
+      <label class="field">年度更新<select class="ask-input" id="ed-rep-mode"><option value="automatic" ${rep.setting?.mode !== "fixed" ? "selected" : ""}>成績に応じて自動変動</option><option value="fixed" ${rep.setting?.mode === "fixed" ? "selected" : ""}>指定した評判値を固定</option></select></label>
+      <p>今いる選手の能力は変えず、翌4月以降の新入生に反映します。固定中も他校の変動で全国順位・ランクは変わります。</p></fieldset>` : ""}`;
+  const teamTarget = () => $("ed-team-kind").value === "rank" ? $("ed-rank").value : $("ed-target").valueAsNumber;
+  const updated = await ask({ title: `「${d.name}」を編集する`, body, ok: "保存する",
+    mount: () => {
+      $("ed-operation").addEventListener("change", () => {
+        for (const key of ["info", "team", "reputation"]) {
+          const field = $(`ed-${key}`);
+          if (field) { field.hidden = key !== $("ed-operation").value; field.disabled = field.hidden; }
+        }
+      });
+      if (e.team_editable) {
+        $("ed-team-kind").addEventListener("change", () => {
+          const numeric = $("ed-team-kind").value === "number";
+          $("ed-target").hidden = $("ed-target").disabled = !numeric;
+          $("ed-rank").hidden = $("ed-rank").disabled = numeric;
+          $("ed-preview-result").textContent = "";
+        });
+        $("ed-preview").addEventListener("click", async () => {
+          if (!$("ed-target").disabled && !$("ed-target").reportValidity()) return;
+          const button = $("ed-preview"); const output = $("ed-preview-result"); button.disabled = true;
+          try {
+            const r = await api().preview_team(d.school_id, teamTarget());
+            output.textContent = r.error || (r.reached ? `総合力 ${r.before.toFixed(1)} → ${r.achieved.toFixed(1)}。保存すると反映します。` : r.reason);
+          } catch (error) { output.textContent = String(error); }
+          finally { button.disabled = false; }
+        });
+      }
+    },
+    submit: async () => {
+      const operation = $("ed-operation").value;
+      const payload = operation === "info" ? {
+        operation, display_name: $("ed-display").value.trim(), short_name: $("ed-short").value.trim(), ownership_type: $("ed-owner").value,
+      } : operation === "team" ? { operation, target: teamTarget() } : {
+        operation, value: $("ed-rep-value").valueAsNumber, mode: $("ed-rep-mode").value,
+      };
+      return api().edit_school(d.school_id, payload);
+    },
+  });
   if (!updated) return;
-  // 一覧の名前・能力も変わるので読み直す
   state.schools.data = null;
-  showToast("保存しました");
+  showToast(updated.result ? `総合力を ${updated.result.achieved.toFixed(1)} に変更しました` : "保存しました");
   renderPage();
 }
 
@@ -1002,7 +1048,7 @@ async function renderPlayer(content, target) {
     ${pit.map((s) => { const x = s.pitching; return `<tr><td>${s.school_year}年度（${s.grade}年）</td><td class="n">${x.games}</td><td class="n">${esc(x.innings)}</td><td class="n">${x.pitches}</td><td class="n">${x.hits_allowed}</td><td class="n">${x.runs_allowed}</td><td class="n">${x.earned_runs}</td><td class="n">${x.walks}</td><td class="n">${x.strikeouts}</td><td class="n">${x.era}</td></tr>`; }).join("")}</table>` : "";
   content.innerHTML = `<div class="head"><button class="btn small" id="p-back">← ${esc(p.school_name)}</button>
       <h2>${esc(p.name)}</h2><span class="muted">${esc(p.school_name)}　${p.status === "在学" ? `${p.grade}年` : esc(p.status)}・${esc(p.position)}・${hands}</span>
-      ${injuryBadge(p.injury)}</div>
+      ${injuryBadge(p.injury)}${p.edit ? '<div class="spacer"></div><button class="btn small" id="p-edit">能力を編集…</button>' : ""}</div>
     <div class="scroll">
       <div class="stats" style="grid-template-columns:repeat(4,1fr)">
         <div class="stat"><b>${esc(p.hometown)}</b><span>出身</span></div>
@@ -1020,7 +1066,47 @@ async function renderPlayer(content, target) {
           ${p.injuries.map((i) => `<tr><td>${esc(i.label)}</td><td>${slashDate(i.start)}</td><td>${slashDate(i.return_date)}</td><td class="n">${i.days}</td></tr>`).join("")}</table>`
         : '<div class="muted">怪我はしていません。</div>'}</div>
     </div>`;
+  if (p.edit) $("p-edit").addEventListener("click", () => editPlayer(p));
   $("p-back").addEventListener("click", () => { state.schools.player = null; state.schools.tab = "members"; renderPage(); });
+}
+
+async function editPlayer(p) {
+  const e = p.edit;
+  const numeric = (f, prefix) => `<label>${esc(f.label)}<input type="number" id="${prefix}-${f.key}" required min="${f.minimum}" max="${f.maximum}" step="1" value="${f.value}"></label>`;
+  const pitchOptions = (value) => e.pitch_types.map((t) => `<option value="${esc(t.key)}" ${t.key === value ? "selected" : ""}>${esc(t.label)}</option>`).join("");
+  const pitchRow = (pitch = { pitch_type: "slider", quality: 50, command: 50, usage: 1 }) => `<tr><td><select class="pe-type">${pitchOptions(pitch.pitch_type)}</select></td>${["quality", "command", "usage"].map((k) => `<td><input class="pe-${k}" type="number" required min="1" max="100" step="1" value="${pitch[k]}"></td>`).join("")}<td><button type="button" class="btn small pe-remove">削除</button></td></tr>`;
+  const body = `<p>怪我・復帰の補正を掛ける前の能力を編集します。保存後も成長と怪我の経過は続きます。</p>
+    <fieldset><legend>能力</legend><div class="ability-edit-grid">${e.fields.map((f) => numeric(f, "pe")).join("")}</div></fieldset>
+    <fieldset><legend>守備適性</legend><div class="ability-edit-grid">${e.aptitudes.map((f) => numeric(f, "pa")).join("")}</div></fieldset>
+    ${e.pitches.length ? `<fieldset><legend>球種</legend><p>2〜4種類・ストレート必須・重複なし・割合の合計100にしてください。</p>
+      <table class="list pitch-edit"><thead><tr><th>球種</th><th>質</th><th>制球</th><th>割合</th><th></th></tr></thead><tbody id="pe-pitches">${e.pitches.map((p) => pitchRow(p)).join("")}</tbody></table>
+      <button class="btn small" id="pe-add" type="button">球種を追加</button></fieldset>` : ""}
+    ${e.history.length ? `<p>前回の編集：${esc(e.history[e.history.length - 1].date)}</p>` : ""}`;
+  const updated = await ask({ title: `${p.name} の能力を編集`, body, ok: "保存する",
+    mount: () => {
+      if (!e.pitches.length) return;
+      $("pe-pitches").addEventListener("click", (event) => {
+        if (event.target.classList.contains("pe-remove")) event.target.closest("tr").remove();
+      });
+      $("pe-add").addEventListener("click", () => {
+        if ($("pe-pitches").rows.length >= 4) return;
+        $("pe-pitches").insertAdjacentHTML("beforeend", pitchRow());
+      });
+    },
+    submit: async () => {
+      const payload = Object.fromEntries(e.fields.map((f) => [f.key, $(`pe-${f.key}`).valueAsNumber]));
+      payload.position_aptitude = Object.fromEntries(e.aptitudes.map((f) => [f.key, $(`pa-${f.key}`).valueAsNumber]));
+      if (e.pitches.length) payload.pitch_repertoire = Array.from($("pe-pitches").rows).map((row) => ({
+        pitch_type: row.querySelector(".pe-type").value,
+        ...Object.fromEntries(["quality", "command", "usage"].map((key) => [key, row.querySelector(`.pe-${key}`).valueAsNumber])),
+      }));
+      return api().edit_player(p.school_id, p.player_id, payload);
+    },
+  });
+  if (!updated) return;
+  state.schools.data = null;
+  showToast("能力を保存しました");
+  renderPage();
 }
 
 async function schoolGames(body, d) {
@@ -1042,21 +1128,53 @@ async function schoolGames(body, d) {
 // ---- セーブ ----
 
 // 確かめる・名前を聞く小さなダイアログ。OK なら入力（入力がなければ true）、やめたら null
-function ask({ title, body = "", input = null, ok = "OK" }) {
+function ask({ title, body = "", input = null, ok = "OK", mount = null, submit = null }) {
   const dialog = $("ask-dialog");
   $("ask-title").textContent = title;
-  $("ask-body").innerHTML = body;
+  $("ask-body").innerHTML = body + '<p id="ask-error" class="edit-error" role="alert" hidden></p>';
   $("ask-ok").textContent = ok;
   const field = $("ask-input");
   field.hidden = input === null;
   field.value = input ?? "";
+  const form = dialog.querySelector("form");
+  $("ask-cancel").onclick = () => dialog.close("cancel");
   return new Promise((resolve) => {
+    let saved = null;
+    let saving = false;
+    const handler = async (event) => {
+      if (!submit || event.submitter?.value === "cancel") return;
+      event.preventDefault();
+      if (saving) return;
+      saving = true;
+      const controls = Array.from(form.querySelectorAll("input, select, button"), (node) => [node, node.disabled]);
+      controls.forEach(([node]) => { node.disabled = true; });
+      $("ask-error").hidden = true;
+      try {
+        saved = await submit();
+        if (!saved || saved.error) throw new Error(saved?.error || "保存できませんでした");
+        dialog.close("ok");
+      } catch (error) {
+        $("ask-error").textContent = error.message || String(error);
+        $("ask-error").hidden = false;
+        $("ask-error").scrollIntoView({ block: "nearest" });
+      } finally {
+        saving = false;
+        controls.forEach(([node, disabled]) => { node.disabled = disabled; });
+      }
+    };
+    form.addEventListener("submit", handler);
+    // 保存中にEscapeで閉じて別の編集を開くのを防ぐ。
+    const cancel = (event) => { if (saving) event.preventDefault(); };
+    dialog.addEventListener("cancel", cancel);
     dialog.addEventListener("close", () => {
+      form.removeEventListener("submit", handler);
+      dialog.removeEventListener("cancel", cancel);
       if (dialog.returnValue !== "ok") return resolve(null);
-      resolve(input === null ? true : field.value.trim());
+      resolve(submit ? saved : input === null ? true : field.value.trim());
     }, { once: true });
     dialog.returnValue = "";
     dialog.showModal();
+    if (mount) mount();
     if (input !== null) field.select();
   });
 }
