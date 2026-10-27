@@ -1,0 +1,13 @@
+{
+  "config_id": "coach_generation_v1",
+  "revision": 1,
+  "status": "active",
+  "description": "架空監督の初期分布。史実の推定値ではなくゲーム用。能力・傾向は1〜100で50が中立。",
+  "age": {"min": 25, "max": 70, "mode": 47},
+  "tenure": {"min": 1, "max": 30, "mode": 4},
+  "minimum_appointment_age": 23,
+  "reputation": {"min": 1, "max": 100, "mean": 50, "stddev": 15},
+  "development": {"min": 1, "max": 100, "mean": 50, "stddev": 15},
+  "pitching_change": {"min": 1, "max": 100, "mean": 50, "stddev": 18},
+  "player_selection": {"min": 1, "max": 100, "mean": 50, "stddev": 18}
+}
