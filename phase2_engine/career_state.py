@@ -46,6 +46,7 @@ class CareerState:
         open_season: SeasonOpener | None = None,
         plans: dict[int, object] | None = None,
         rosters=None,
+        reputation=None,
     ):
         if not seasons:
             raise ValueError("career needs at least one season")
@@ -63,6 +64,7 @@ class CareerState:
         # 全国の名簿（選手の名前・出身・能力。game_core/roster_book.py）。
         # 選手で試合をするときだけ。セーブに入る
         self.rosters = rosters
+        self.reputation = reputation
 
     # セーブには年度の状態・日付・名簿を書き出す
     def __getstate__(self):
@@ -72,6 +74,7 @@ class CareerState:
             "start_date": self.start_date,
             "history": self.history,
             "rosters": self.rosters,
+            "reputation": self.reputation,
         }
 
     def __setstate__(self, data):
@@ -95,7 +98,7 @@ class CareerState:
     def __getattr__(self, name):
         if name.startswith("__") or name in (
             "seasons", "current_date", "plans", "open_season", "history",
-            "rosters",
+            "rosters", "reputation",
         ):
             raise AttributeError(name)
         return getattr(self.primary, name)
@@ -156,6 +159,8 @@ class CareerState:
         for year, state in self.seasons.items():
             if state.current_date == self.current_date:
                 results.extend(state.play_today())
+        if self.reputation is not None:
+            self.reputation.collect(self.seasons)
         self._record_day(len(results))
         return results
 
@@ -168,9 +173,14 @@ class CareerState:
                 played += len(state.play_today())
             else:
                 played += state.next_day()["played_match_count"]
+        if self.reputation is not None:
+            self.reputation.collect(self.seasons)
         self._record_day(played)
         previous = self.current_date
         self.current_date = previous + timedelta(days=1)
+        if self.reputation is not None:
+            # grow は翌月の練習の怪我を決めるときに新入生も作るため、その前に更新。
+            self.reputation.update(self.current_date)
         if self.rosters is not None:
             # 月が変わったら、終わった月の分だけ選手を成長させ、次の月の練習の怪我を
             # 決める（game_core/player_growth.py・injuries.py）

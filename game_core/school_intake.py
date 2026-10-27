@@ -73,6 +73,7 @@ class SchoolIntakeModel:
         # 学校成分は学校の評判から（game_core/school_reputation.py）。リポジトリ
         # （config・data・historical_data のある所）は config/abilities の2つ上
         self._root = Path(config_dir).resolve().parent.parent
+        self.reputation = None
 
     @staticmethod
     def _config_fields(
@@ -105,7 +106,11 @@ class SchoolIntakeModel:
         )
         program_z = None
         if program.get("source") == "reputation":
-            program_z = reputation_for(str(self._root)).program_z(school_id, base_seed)
+            program_z = (
+                self.reputation.program_z(school_id, entry_year)
+                if self.reputation is not None
+                else reputation_for(str(self._root)).program_z(school_id, base_seed)
+            )
         if program_z is None:
             # 評判のない学校（学校マスターにない架空の学校など）は乱数
             program_z = rng_for(base_seed, program_namespace).gauss(

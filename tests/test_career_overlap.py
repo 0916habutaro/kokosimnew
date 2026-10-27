@@ -54,6 +54,19 @@ class CareerOverlapTests(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
+    def test_reputation_survives_real_save_load_and_the_same_year_boundary(self):
+        left, right = self.state.reputation, self.loaded.state.reputation
+        self.assertEqual(2027, left.updated_year)
+        self.assertEqual(left.__dict__, right.__dict__)
+        # 3月に始まる翌年度の春季大会で、4月にも試合が続くものは保留する。
+        unfinished = {cid for cid, cup in self.state.seasons[2027].competitions.items()
+                      if not cup.is_complete}
+        self.assertTrue(unfinished)
+        self.assertTrue(all((2027, cid) not in left.counted for cid in unfinished))
+        self.service.save_game(self.loaded)
+        restored = self.service.load_game("career")
+        self.assertEqual(left.__dict__, restored.state.reputation.__dict__)
+
     def test_next_season_opens_after_autumn(self):
         self.assertIsInstance(self.state, CareerState)
         self.assertEqual([2026, 2027], sorted(self.overlap_seasons))
