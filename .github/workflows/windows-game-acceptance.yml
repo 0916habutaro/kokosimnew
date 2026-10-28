@@ -66,6 +66,7 @@ jobs:
             'test_annual_reputation.py',
             'test_coaches.py',
             'test_coach_personnel.py',
+            'test_coach_intake.py',
             'test_career_overlap.py',
             'test_screen_data.py',
             'test_screen_competitions.py',

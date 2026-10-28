@@ -1,4 +1,4 @@
-"""架空監督の初期生成・年度人事・人物と所属履歴の保存。選手・試合には補正しない。"""
+"""架空監督の初期生成・年度人事・人物と所属履歴・入学時の評判補正。"""
 from __future__ import annotations
 
 from bisect import bisect_right
@@ -49,6 +49,13 @@ class CoachEvent:
         return int(self.date[:4]) - int(self.previous_appointment_date[:4])
 
 
+@dataclass(frozen=True)
+class CoachIntakeRating:
+    first_entry_year: int
+    reputation: int
+    quality_z: float
+
+
 def _draw_coach(team, year, rng, coach_id, names, config, *, initial):
     def triangular(spec):
         return round(rng.triangular(spec["min"], spec["max"], spec["mode"]))
@@ -88,6 +95,17 @@ class CoachBook:
         self.config = load_config(self._root / "config/coaches/coach_personnel_v1.json",
                                   expected_config_id="coach_personnel_v1").payload
         self._validate_config()
+        self.intake_config = load_config(self._root / "config/coaches/coach_intake_v1.json",
+                                        expected_config_id="coach_intake_v1").payload
+        effect = self.intake_config
+        if (effect["first_entry_year"] < 2027 or effect["neutral_reputation"] != 50
+                or not math.isfinite(effect["z_per_reputation_point"])
+                or effect["z_per_reputation_point"] < 0
+                or not math.isfinite(effect["max_abs_z"]) or effect["max_abs_z"] < 0):
+            raise ValueError("invalid coach intake configuration")
+        self.intake_year = first_year
+        # 同じ人物・同じ評判の年度は複製しない。所属は既存イベントで参照する。
+        self.intake_ratings: dict[str, list[CoachIntakeRating]] = {}
         self.events = [CoachEvent(f"{c.appointment_year}-04-01", "initial", c.coach_id,
                                   None, c.school_id) for c in self.coaches.values()]
         self._rebuild_indexes()
@@ -165,6 +183,44 @@ class CoachBook:
         return min(1.0, _band_probability(s["age_probabilities"], age)
                    + min(bonus["maximum_bonus"],
                          max(0, tenure - bonus["tenure_threshold"]) * bonus["per_year"]))
+
+    def finalize_intake(self, year: int) -> bool:
+        """4月1日の人事後、新入生生成前に評判と実際の補正値を確定する。"""
+        if year <= self.intake_year:
+            return False
+        if year != self.intake_year + 1 or year != self.updated_year:
+            raise ValueError("coach intake must follow annual personnel consecutively")
+        effect = self.intake_config
+        if year >= effect["first_entry_year"]:
+            for cid in sorted(self.active_by_school.values()):
+                reputation = self.coaches[cid].reputation
+                if not 1 <= reputation <= 100:
+                    raise ValueError("coach reputation must be between one and one hundred")
+            for cid in sorted(self.active_by_school.values()):
+                reputation = self.coaches[cid].reputation
+                z = (reputation - effect["neutral_reputation"]) * effect["z_per_reputation_point"]
+                z = round(max(-effect["max_abs_z"], min(effect["max_abs_z"], z)), 6)
+                previous = self.intake_ratings.get(cid, [])
+                if not previous or (previous[-1].reputation, previous[-1].quality_z) != (reputation, z):
+                    self.intake_ratings[cid] = [*previous, CoachIntakeRating(year, reputation, z)]
+        self.intake_year = year
+        return True
+
+    def intake_for(self, school_id: str, entry_year: int) -> tuple[str | None, int | None, float]:
+        """入学年4月1日の人物と、その年度に確定した評判・補正。現在値は使わない。"""
+        if entry_year < self.intake_config["first_entry_year"]:
+            return None, None, 0.0
+        if entry_year > self.intake_year:
+            raise ValueError(f"coach intake for {entry_year} is not finalized")
+        coach = self.for_school(school_id, on=date(entry_year, 4, 1))
+        if coach is None:
+            return None, None, 0.0
+        rows = self.intake_ratings.get(coach.coach_id, [])
+        index = bisect_right(rows, entry_year, key=lambda row: row.first_entry_year) - 1
+        if index < 0:
+            raise ValueError("missing coach intake rating")
+        rating = rows[index]
+        return coach.coach_id, rating.reputation, rating.quality_z
 
     def update(self, today: date, repo) -> bool:
         year = today.year

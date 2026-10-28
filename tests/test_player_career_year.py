@@ -2,7 +2,9 @@
 履歴に書き出して手放す（game_core/roster_book.py）。"""
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -13,6 +15,7 @@ from phase2_engine import (
     LiveGameService,
 )
 from phase2_engine.screen.data import GameScreenData
+from game_core.live_members import competition_start_dates
 
 
 DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
@@ -34,19 +37,37 @@ class PlayerCareerYearTests(unittest.TestCase):
         cls.service.save_game(session)
         cls.march = cls.service.load_game("year")
         cls.march_rosters = cls.march.state.rosters.years()
-        control = cls.service.load_game("year")
-        control.state.coaches = None
+        # 補正の有無で4月開始の大会は結果が変わり得るため、履歴DBも別にする。
+        control_tmp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(control_tmp.cleanup)
+        shutil.copytree(Path(cls.tmp.name) / "year", Path(control_tmp.name) / "year")
+        control_service = LiveGameService(
+            DataRepository(DATA_ROOT), DATA_ROOT, save_root=control_tmp.name,
+            resolver_contract=PLAYER_RESOLVER_CONTRACT, autosave_after_action=False,
+        )
+        control = control_service.load_game("year")
+        control.state.coaches.intake_config['max_abs_z'] = 0.0
         # 4月：春季県大会は3月の部員のまま続く。前の年度の名簿は大会が終わるまで残す
         cls.service.advance_through(cls.march, "2027-04-05")
-        cls.service.advance_through(control, "2027-04-05")
-        cls.personnel_results_equal = cls.march.state.completed_results() == control.state.completed_results()
-        cls.personnel_details_equal = cls.march.state.pending_match_details == control.state.pending_match_details
-        cls.personnel_pitches_equal = cls.march.state.primary.pitch_log == control.state.primary.pitch_log
-        left = cls.march.state.rosters.__getstate__()
-        right = control.state.rosters.__getstate__()
-        cls.personnel_reputation_equal = left.pop("reputation").__dict__ == right.pop("reputation").__dict__
-        cls.personnel_rosters_equal = left == right
-        del control, left, right
+        control_service.advance_through(control, "2027-04-05")
+        old_cups = {cid for cid, day in competition_start_dates(cls.march.state.plans[2027]).items()
+                    if day < date(2027, 4, 1)}
+        def old_results(rows):
+            return {key: value for key, value in rows.items() if key.split(':', 1)[0] in old_cups}
+        cls.personnel_results_equal = old_results(cls.march.state.completed_results()) == old_results(control.state.completed_results())
+        cls.personnel_details_equal = old_results(cls.march.state.pending_match_details) == old_results(control.state.pending_match_details)
+        left, right = cls.march.state.rosters, control.state.rosters
+        cls.personnel_reputation_equal = (left.reputation.values == right.reputation.values
+                                         and left.reputation.intake_by_year == right.reputation.intake_by_year)
+        cls.returning_values_equal = all(bytes(state.values) == bytes(right._states[sid][key].values)
+            for sid, states in left._states.items() for key, state in states.items() if key[0] <= 2026)
+        cls.new_intake_changed = any(bytes(state.values) != bytes(right._states[sid][key].values)
+            for sid, states in left._states.items() for key, state in states.items() if key[0] == 2027)
+        cls.growth_potential_equal = all((state.growth_type, state.potential) ==
+            (right._states[sid][key].growth_type, right._states[sid][key].potential)
+            for sid, states in left._states.items() for key, state in states.items())
+        del control, control_service, left, right
+        control_tmp.cleanup()
         cls.april_rosters = cls.march.state.rosters.years()
         cls.service.save_game(cls.march)
         cls.session = cls.service.load_game("year")
@@ -61,6 +82,7 @@ class PlayerCareerYearTests(unittest.TestCase):
         rep = self.session.state.reputation
         book = self.session.state.rosters
         self.assertIs(rep, book.reputation)
+        self.assertIs(book.coaches, self.session.state.coaches)
         self.assertEqual(2027, rep.updated_year)
         sid = book.schools(2027)[0]
         profile = book.ability_generator.intake_model.profile(
@@ -87,12 +109,13 @@ class PlayerCareerYearTests(unittest.TestCase):
         self.assertEqual(2027 - coach.birth_year, shown["age"])
         self.assertEqual(2027 - coach.appointment_year + 1, shown["tenure_years"])
 
-    def test_personnel_does_not_change_players_abilities_growth_reputation_or_matches(self):
+    def test_coach_intake_changes_freshmen_only_and_preserves_old_cups_and_potential(self):
         self.assertTrue(self.personnel_results_equal)
         self.assertTrue(self.personnel_details_equal)
-        self.assertTrue(self.personnel_pitches_equal)
         self.assertTrue(self.personnel_reputation_equal)
-        self.assertTrue(self.personnel_rosters_equal)
+        self.assertTrue(self.returning_values_equal)
+        self.assertTrue(self.new_intake_changed)
+        self.assertTrue(self.growth_potential_equal)
 
     def test_previous_roster_is_kept_until_its_competitions_end(self):
         self.assertEqual([2026], self.march_rosters)
