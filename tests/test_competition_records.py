@@ -172,6 +172,10 @@ class TournamentRecordTests(unittest.TestCase):
         self.assertEqual('A', self.main.champion_school_id)
         loser_row = next(r for r in self.records() if r['school_id'] == final.loser_id)
         self.assertEqual(('準優勝', '不戦敗', None), tuple(loser_row[k] for k in ('finish', 'resolution', 'decision_date')))
+        for match in self.scheduled.matches.values():
+            match.score_source = 'walkover'
+        self.assertEqual((0, 0, None), tuple(self.summary()[k] for k in ('appearances', 'championships', 'best_finish')))
+        self.assertEqual('優勝', self.profile()['references'][0]['finish'])
 
     def test_single_entrant_without_played_final_has_no_appearance_or_title(self):
         self.main, self.scheduled, self.calendar = tournament(count=1)
