@@ -227,6 +227,7 @@ class RosterBook:
     ):
         self.reputation = None
         self.coaches = None
+        self.grown_through: date | None = None
         self.ability_edits = {}
         self.team_edits = []
         self.first_year = first_year
@@ -267,6 +268,7 @@ class RosterBook:
             "first_year": self.first_year,
             "reputation": self.reputation,
             "coaches": self.coaches,
+            "grown_through": self.grown_through,
             "ability_edits": self.ability_edits,
             "team_edits": self.team_edits,
             "career_seed": self.career_seed,
@@ -625,6 +627,9 @@ class RosterBook:
     def grow(self, month: date) -> None:
         """``month`` の月の分を伸ばす（その月が終わった次の日に呼ぶ）。"""
         with self._lock:
+            first = month.replace(day=1)
+            if self.grown_through is not None and first <= self.grown_through:
+                return
             year = school_year_of(month)
             if year <= self.closed_through:
                 return
@@ -632,11 +637,12 @@ class RosterBook:
                 self.roster(year, school_id)
             namespace = self.growth.config["rng_namespaces"]["month"]
             for school_id in self.schools(year):
+                practice_multiplier = (self.coaches.practice_for(school_id, first)[2]
+                                       if self.coaches is not None else 1.0)
                 rng = rng_for(
                     self.career_seed,
                     namespace.format(month=month.strftime("%Y-%m"), school_id=school_id),
                 )
-                first = month.replace(day=1)
                 days = ((first + timedelta(days=32)).replace(day=1) - first).days
                 for player in self.roster(year, school_id).players:
                     state = self.state(player)
@@ -650,6 +656,7 @@ class RosterBook:
                         grade=player.academic_year, type_index=state.growth_type,
                         potential=round(state.potential * healthy / days), games=state.games,
                         month=month.month, rng=rng,
+                        practice_multiplier=practice_multiplier,
                     )
                     state.games = 0
                     if month.month == 3:
@@ -663,6 +670,7 @@ class RosterBook:
             self._practice_injuries((month.replace(day=1) + timedelta(days=32)).replace(day=1))
             self.version += 1
             self._abilities = {}
+            self.grown_through = first
 
     def _pack_roster_states(self, year: int, school_id: str) -> bytes:
         states = self._states[school_id]

@@ -103,8 +103,9 @@ class PlayerGrowth:
         games: int,
         month: int,
         rng: random.Random,
+        practice_multiplier: float = 1.0,
     ) -> None:
-        """1か月分伸ばす（values を書き換える）。"""
+        """1か月分伸ばす。練習分だけ倍率を掛け、試合経験と端数抽選は従来どおり。"""
         share = self.share.get((type_index, grade, month), 0.0) * potential / POTENTIAL_SCALE
         per_game = self.config["games"]
         batter_games = games * float(per_game["batter"])
@@ -128,9 +129,11 @@ class PlayerGrowth:
             games_gain = pitcher_games if index in self.pitcher_indexes else batter_games
             # 試合の分も能力ごとの伸びの大きさに合わせる（球速は3年間の伸びが小さい）
             games_gain *= self.totals[index] / self.default_total
-            self._add(values, index, (self.totals[index] * share + games_gain) * head, rng, high)
+            practice_gain = self.totals[index] * share * practice_multiplier
+            self._add(values, index, (practice_gain + games_gain) * head, rng, high)
         if position == "P":
             for offset in range(PITCH_OFFSET, len(values), 4):
                 for field, total in ((1, self.pitch_totals[0]), (2, self.pitch_totals[1])):
                     head = self._headroom(values[offset + field], cap, pivot)
-                    self._add(values, offset + field, (total * share + pitcher_games) * head, rng, int(cap))
+                    practice_gain = total * share * practice_multiplier
+                    self._add(values, offset + field, (practice_gain + pitcher_games) * head, rng, int(cap))
