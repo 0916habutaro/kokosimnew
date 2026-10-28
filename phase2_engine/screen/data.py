@@ -875,9 +875,15 @@ class GameScreenData:
 
     # ---- 記録 ----
 
+    def records_entrants(self, filters=None) -> dict:
+        return self._records_history(filters, entrants=True)
+
     def records_best8(self, filters=None) -> dict:
+        return self._records_history(filters)
+
+    def _records_history(self, filters=None, *, entrants=False) -> dict:
         """大会別の複数年度一覧。現在のランタイムと封印時の小さな索引だけを読む。"""
-        from ..competition_history import FINISHES, best8_record
+        from ..competition_history import FINISHES, best8_record, entrants_record
         from .competition_views import _level
 
         f = dict(filters or {})
@@ -920,28 +926,40 @@ class GameScreenData:
         if cid not in {c['competition_id'] for c in eligible}:
             cid = eligible[0]['competition_id'] if eligible else ''
         f.update(competition_id=cid, count=count)
-        stored = {r['school_year']: r for r in archive.competition_best8(cid, first, last)} if cid else {}
+        reader = archive.competition_entrants if entrants else archive.competition_best8
+        stored = {r['school_year']: r for r in reader(cid, first, last)} if cid else {}
         rows = []
         for year in range(last, first - 1, -1) if cid else ():
             season = live.get(year)
             if season is not None and cid in season.annual_templates:
                 plan = self._plans().get(year)
                 entry = plan.entries.get(cid) if plan is not None else None
-                row = best8_record(season, cid, entry.display_name if entry else '')
+                row = (entrants_record(season, cid, self.service.repo, entry.display_name if entry else '')
+                       if entrants else best8_record(season, cid, entry.display_name if entry else ''))
             else:
                 row = stored.get(year, {'school_year': year, 'competition_id': cid,
                     'competition_name': '', 'status': '記録なし',
                     'groups': {finish: [] for finish in FINISHES}})
-            row = {**row, 'groups': {finish: [
-                {**school, 'name': self.names(school['school_id'], school['date']),
-                 'prefecture': self.prefectures.get(self.service.repo.schools.get(
-                     school['school_id'], {}).get('prefecture_code'), '')}
-                for school in row['groups'][finish]] for finish in FINISHES}}
+            if entrants:
+                row = {**row, 'entrants': [{**school,
+                    'name': self.names(school['school_id'], school['date'])}
+                    for school in row.get('entrants', [])]}
+            else:
+                row = {**row, 'groups': {finish: [
+                    {**school, 'name': self.names(school['school_id'], school['date']),
+                     'prefecture': self.prefectures.get(self.service.repo.schools.get(
+                         school['school_id'], {}).get('prefecture_code'), '')}
+                    for school in row['groups'][finish]] for finish in FINISHES}}
             row['can_open'] = (season is not None and cid in season.annual_templates) or year in stored
             rows.append(row)
         return {'filters': f, 'start': first, 'end': last, 'earliest': earliest, 'latest': latest,
                 'catalog': catalog, 'competitions': eligible, 'rows': rows,
-                'regions': region_names, 'prefectures': self.prefectures}
+                'regions': region_names, 'prefectures': self.prefectures,
+                'summer_areas': {c['competition_id']: c['name'].replace('夏・', '')
+                                 for c in catalog if self.service.repo.competitions[c['competition_id']].get(
+                                     'competition_type') == 'summer_local_qualifier'},
+                'summer': self.service.repo.competitions.get(cid, {}).get('competition_type') == 'national_championship',
+                'matrix': self.service.repo.competitions.get(cid, {}).get('competition_level') in ('national', 'regional')}
 
     def records(self, school_year=None) -> dict:
         """年度ごとの甲子園・選抜・神宮の上位校と、都道府県の代表校。"""
