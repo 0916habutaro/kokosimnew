@@ -1,0 +1,13 @@
+{
+  "config_id": "coach_tactics_v1",
+  "revision": 1,
+  "status": "active",
+  "first_match_date": "2027-04-01",
+  "neutral_ability": 50,
+  "bf_reduction_per_point": 0.002,
+  "max_abs_bf_reduction": 0.10,
+  "quick_hook_reduction_per_point": 0.02,
+  "max_abs_quick_hook_reduction": 1,
+  "selection_bias_per_point": 0.01,
+  "max_abs_selection_bias": 0.50
+}

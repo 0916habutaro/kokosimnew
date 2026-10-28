@@ -8,6 +8,7 @@ from pathlib import Path
 from phase2_engine.randomness import rng_for
 
 from .abilities import PlayerAbilitySnapshot
+from .coaches import CoachTactics
 from .match_config import load_and_validate_match_configs
 from .match_contract import (
     BatterGameStats,
@@ -539,6 +540,7 @@ class MatchSimulator:
         stats: dict[str, int],
         starter: bool,
         has_next: bool,
+        tactics: CoachTactics = CoachTactics(),
     ) -> bool:
         if not has_next:
             return False
@@ -546,12 +548,13 @@ class MatchSimulator:
         minimum = int(usage["minimum_bf_before_change"])
         if stats["batters_faced"] < minimum:
             return False
-        if stats["runs_allowed"] >= int(usage["runs_allowed_quick_hook"]):
+        if stats["runs_allowed"] >= max(1, int(usage["runs_allowed_quick_hook"])
+                                        - tactics.quick_hook_reduction):
             return True
         return stats["batters_faced"] >= self._pitcher_limit(
             pitcher,
             starter=starter,
-        )
+        ) * tactics.bf_multiplier
 
     @staticmethod
     def _empty_batter_stats(
@@ -639,6 +642,7 @@ class MatchSimulator:
         regulation_innings: int | None = None,
         rules: GameRules | None = None,
         pitch_allowances: Mapping[str, int] | None = None,
+        tactics: Mapping[str, CoachTactics] | None = None,
     ) -> MatchSimulationResult:
         """``pitch_allowances``：選手 → この試合であと何球投げられるか（球数制限）。
         届いたら次の打者から投げない。None なら制限なし。"""
@@ -661,6 +665,7 @@ class MatchSimulator:
             match_input.team1.school_id: match_input.team1,
             match_input.team2.school_id: match_input.team2,
         }
+        policies = {sid: (tactics or {}).get(sid, CoachTactics()) for sid in teams}
         team1_id = match_input.team1.school_id
         team2_id = match_input.team2.school_id
         player_maps = {
@@ -778,6 +783,7 @@ class MatchSimulator:
                         stats=pitcher_stat,
                         starter=current_index == 0,
                         has_next=current_index + 1 < staff_sizes[defense_id],
+                        tactics=policies[defense_id],
                     ):
                         pitcher_index[defense_id] += 1
                         current_index = pitcher_index[defense_id]

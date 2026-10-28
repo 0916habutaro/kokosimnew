@@ -269,6 +269,8 @@ class TeamStrengthGenerator:
     def select_starting_lineup(
         self,
         snapshots: Iterable[PlayerAbilitySnapshot],
+        *,
+        selection_grade_bias: float = 0.0,
     ) -> StartingLineup:
         players = list(snapshots)
         school_id, reference_year, *_ = self._validate_source(players)
@@ -277,7 +279,8 @@ class TeamStrengthGenerator:
             return min(
                 pool,
                 key=lambda player: (
-                    -self._selection_score(player, position),
+                    -(self._selection_score(player, position)
+                      + selection_grade_bias * (2 - player.academic_year)),
                     player.player_id,
                 ),
             )
@@ -358,6 +361,8 @@ class TeamStrengthGenerator:
     def select_pitching_staff(
         self,
         snapshots: Iterable[PlayerAbilitySnapshot],
+        *,
+        selection_grade_bias: float = 0.0,
     ) -> PitchingStaff:
         players = list(snapshots)
         school_id, reference_year, *_ = self._validate_source(players)
@@ -366,14 +371,16 @@ class TeamStrengthGenerator:
         ]
         if not pitchers:
             # 投手がいなければ、先発で投げる野手だけで投手陣をつくる。
-            lineup = self.select_starting_lineup(players)
+            lineup = self.select_starting_lineup(
+                players, selection_grade_bias=selection_grade_bias)
             by_id = {player.player_id: player for player in players}
             pitchers = [by_id[lineup.player_for_position("P")]]
 
         ranked = sorted(
             pitchers,
             key=lambda player: (
-                -self._pitcher_quality(player),
+                -(self._pitcher_quality(player)
+                  + selection_grade_bias * (2 - player.academic_year)),
                 player.player_id,
             ),
         )
@@ -405,6 +412,8 @@ class TeamStrengthGenerator:
     def generate(
         self,
         snapshots: Iterable[PlayerAbilitySnapshot],
+        *,
+        selection_grade_bias: float = 0.0,
     ) -> TeamStrengthSnapshot:
         players = list(snapshots)
         (
@@ -416,8 +425,10 @@ class TeamStrengthGenerator:
             intake_config_revision,
             intake_config_sha,
         ) = self._validate_source(players)
-        lineup = self.select_starting_lineup(players)
-        staff = self.select_pitching_staff(players)
+        lineup = self.select_starting_lineup(
+            players, selection_grade_bias=selection_grade_bias)
+        staff = self.select_pitching_staff(
+            players, selection_grade_bias=selection_grade_bias)
         by_id = {player.player_id: player for player in players}
         starters = [by_id[player_id] for player_id in lineup.starter_ids]
 
