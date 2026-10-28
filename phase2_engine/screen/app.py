@@ -76,6 +76,9 @@ class ScreenApi:
     def today(self) -> dict:
         return self._read(self._data.today)
 
+    def records_best8(self, filters=None) -> dict:
+        return self._read(self._data.records_best8, filters)
+
     def records(self, school_year=None) -> dict:
         return self._read(self._data.records, school_year)
 

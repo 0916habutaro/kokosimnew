@@ -875,6 +875,74 @@ class GameScreenData:
 
     # ---- 記録 ----
 
+    def records_best8(self, filters=None) -> dict:
+        """大会別の複数年度一覧。現在のランタイムと封印時の小さな索引だけを読む。"""
+        from ..competition_history import FINISHES, best8_record
+        from .competition_views import _level
+
+        f = dict(filters or {})
+        archive = self.service._history_archive(self.session.slot_id)
+        bounds = archive.best8_bounds()
+        live = _seasons(self.state)
+        years = list(live) + (list(bounds) if bounds else [])
+        earliest, latest = min(years), max(years)
+        count = int(f.get('count') or 10)
+        if count not in (5, 10, 20):
+            raise ValueError('表示年数は5・10・20年から選んでください')
+        last = int(f.get('end') or latest)
+        first = int(f.get('start') or max(1, last - count + 1))
+        if first < 1 or last > latest or first > last:
+            raise ValueError('開始年度・終了年度を確認してください')
+        memberships = _csv_rows(self.service.repo.data_dir, 'prefecture_region_memberships.csv')
+        region_names = {r['region_id']: r['region_name']
+                        for r in _csv_rows(self.service.repo.data_dir, 'baseball_regions.csv')}
+        catalog = []
+        for cid, c in self.service.repo.competitions.items():
+            pref = c.get('prefecture_code', '')
+            regions = sorted({r['region_id'] for r in memberships
+                              if r['prefecture_code'] == pref
+                              and r['season_segment'] == c.get('season_segment')})
+            if c.get('region_id'):
+                regions = [c['region_id']]
+            # 夏は春・秋で共通の地域区分を候補に使う（東京は両方から選べる）。
+            if pref and not regions:
+                regions = sorted({r['region_id'] for r in memberships if r['prefecture_code'] == pref})
+            catalog.append({'competition_id': cid,
+                            'name': self.competition_names(cid, c.get('competition_name', cid)),
+                            'segment': c.get('season_segment', ''), 'level': _level(c),
+                            'prefecture': pref, 'regions': regions})
+        eligible = [c for c in catalog
+                    if (not f.get('segment') or c['segment'] == f['segment'])
+                    and (not f.get('level') or c['level'] == f['level'])
+                    and (not f.get('region') or f['region'] in c['regions'])
+                    and (not f.get('prefecture') or c['prefecture'] == f['prefecture'])]
+        cid = f.get('competition_id', '')
+        if cid not in {c['competition_id'] for c in eligible}:
+            cid = eligible[0]['competition_id'] if eligible else ''
+        f.update(competition_id=cid, count=count)
+        stored = {r['school_year']: r for r in archive.competition_best8(cid, first, last)} if cid else {}
+        rows = []
+        for year in range(last, first - 1, -1) if cid else ():
+            season = live.get(year)
+            if season is not None and cid in season.annual_templates:
+                plan = self._plans().get(year)
+                entry = plan.entries.get(cid) if plan is not None else None
+                row = best8_record(season, cid, entry.display_name if entry else '')
+            else:
+                row = stored.get(year, {'school_year': year, 'competition_id': cid,
+                    'competition_name': '', 'status': '記録なし',
+                    'groups': {finish: [] for finish in FINISHES}})
+            row = {**row, 'groups': {finish: [
+                {**school, 'name': self.names(school['school_id'], school['date']),
+                 'prefecture': self.prefectures.get(self.service.repo.schools.get(
+                     school['school_id'], {}).get('prefecture_code'), '')}
+                for school in row['groups'][finish]] for finish in FINISHES}}
+            row['can_open'] = (season is not None and cid in season.annual_templates) or year in stored
+            rows.append(row)
+        return {'filters': f, 'start': first, 'end': last, 'earliest': earliest, 'latest': latest,
+                'catalog': catalog, 'competitions': eligible, 'rows': rows,
+                'regions': region_names, 'prefectures': self.prefectures}
+
     def records(self, school_year=None) -> dict:
         """年度ごとの甲子園・選抜・神宮の上位校と、都道府県の代表校。"""
         years = self._years()

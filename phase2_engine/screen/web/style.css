@@ -259,3 +259,14 @@ nav button[disabled] { opacity: .35; cursor: default; }
 #ask-dialog .dialog-actions { position: sticky; bottom: 0; padding-top: 12px; background: var(--panel); border-top: 1px solid var(--line); z-index: 1; }
 
 button.link { background: none; border: 0; padding: 0; font: inherit; text-align: inherit; }
+
+/* 複数年度の大会成績。縦横スクロール中も見出しと年度を追える。 */
+.best8-filters { display:flex; flex-wrap:wrap; gap:10px; padding:12px 20px; border-bottom:1px solid var(--line); }
+.best8-filters label { display:inline-flex; align-items:center; gap:5px; }
+.best8-filters form { display:flex; flex-wrap:wrap; gap:10px; }
+.best8-filters input { width:90px; padding:6px 8px; color:var(--text); background:var(--panel); border:1px solid var(--line); border-radius:5px; }
+.best8-table { min-width:1200px; table-layout:fixed; }
+.best8-table td { vertical-align:top; overflow-wrap:anywhere; }
+.best8-table td div + div { margin-top:5px; }
+.best8-table td:first-child { position:sticky; left:0; background:var(--panel); z-index:1; }
+.best8-table th:first-child { left:0; z-index:2; }

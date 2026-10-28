@@ -62,6 +62,13 @@ CREATE TABLE IF NOT EXISTS closed_seasons (
     snapshot BLOB NOT NULL,
     names_json TEXT NOT NULL
 );
+-- 大会別・複数年度閲覧の最小索引。正本はclosed_seasonsの確定ランタイム。
+CREATE TABLE IF NOT EXISTS competition_best8 (
+    competition_id TEXT NOT NULL,
+    year INTEGER NOT NULL,
+    record_json TEXT NOT NULL,
+    PRIMARY KEY (competition_id, year)
+);
 -- 大会の確定結果への学校別索引。人物・監督IDや大会全体のコピーは保存しない。
 CREATE TABLE IF NOT EXISTS school_competition_records (
     year INTEGER NOT NULL,
@@ -707,7 +714,8 @@ class HistoricalMatchArchive:
                 return len(rows)
 
     def store_closed_season(self, year: int, snapshot: bytes, names: Mapping[str, str],
-                            *, school_records: Iterable[Mapping] = ()) -> None:
+                            *, school_records: Iterable[Mapping] = (),
+                            best8_records: Iterable[Mapping] = ()) -> None:
         """閉じた年度の大会の進行（``runtime_snapshot.dump_runtime_state``）と大会名。"""
         records = []
         for record in school_records:
@@ -716,6 +724,11 @@ class HistoricalMatchArchive:
                 raise ValueError('invalid school competition record identity')
             records.append((year, record['competition_id'], record['school_id'],
                             _canonical(dict(record))))
+        best8 = []
+        for record in best8_records:
+            if record.get('school_year') != year or not record.get('competition_id'):
+                raise ValueError('invalid best8 record identity')
+            best8.append((record['competition_id'], year, _canonical(dict(record))))
         with self._connection() as conn:
             conn.executescript(_SCHEMA)
             with conn:
@@ -723,8 +736,35 @@ class HistoricalMatchArchive:
                     "INSERT OR REPLACE INTO closed_seasons VALUES (?, ?, ?)",
                     (year, snapshot, _canonical(dict(names))),
                 )
+                conn.execute('DELETE FROM competition_best8 WHERE year=?', (year,))
+                conn.executemany('INSERT INTO competition_best8 VALUES (?, ?, ?)', best8)
                 conn.execute('DELETE FROM school_competition_records WHERE year=?', (year,))
                 conn.executemany('INSERT INTO school_competition_records VALUES (?, ?, ?, ?)', records)
+
+    def best8_bounds(self) -> tuple[int, int] | None:
+        """閉じた年度の範囲だけを読み取り専用で取得する。DBを作成しない。"""
+        if not self.db_path.is_file():
+            return None
+        with closing(sqlite3.connect(self.db_path.resolve().as_uri() + '?mode=ro',
+                                    uri=True, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
+            if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='closed_seasons'").fetchone():
+                return None
+            first = conn.execute('SELECT year FROM closed_seasons ORDER BY year LIMIT 1').fetchone()
+            last = conn.execute('SELECT year FROM closed_seasons ORDER BY year DESC LIMIT 1').fetchone()
+        return (first[0], last[0]) if first else None
+
+    def competition_best8(self, cid: str, first: int, last: int) -> list[dict]:
+        """大会ID・年度の索引で限定取得する。試合・名簿・年度スナップショットは読まない。"""
+        if not self.db_path.is_file():
+            return []
+        with closing(sqlite3.connect(self.db_path.resolve().as_uri() + '?mode=ro',
+                                    uri=True, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
+            if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='competition_best8'").fetchone():
+                return []
+            rows = conn.execute('SELECT record_json FROM competition_best8 '
+                                'WHERE competition_id=? AND year BETWEEN ? AND ? ORDER BY year DESC',
+                                (cid, first, last)).fetchall()
+        return [json.loads(row[0]) for row in rows]
 
     def school_competition_records(self, school_id: str) -> list[dict]:
         """年度スナップショットを展開せず、学校に関係する大会結果だけを読む。"""

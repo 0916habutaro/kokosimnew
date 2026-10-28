@@ -959,11 +959,13 @@ class LiveGameService:
             names = {cid: entry.display_name
                      for cid, entry in (plan.entries.items() if plan is not None else ())
                      if entry.display_name}
+            from .competition_history import season_best8
             archive.store_closed_season(
                 year,
                 dump_runtime_state(season),
                 names,
                 school_records=season_records(season, self.repo, names),
+                best8_records=season_best8(season, names),
             )
             # 閉じた年度の名簿（年度末の能力つき）を履歴に書き出す。セーブの名簿から
             # 手放すのは、その年度に始まった大会が終わってから（_release_rosters）
