@@ -5,7 +5,7 @@ from datetime import date, timedelta
 
 from ..school_year import school_year_of
 from ..match_facts import actual_match_date
-from ..competition_records import NATIONAL
+from ..competition_records import NATIONAL, coach_credits
 
 
 ABILITY_LABELS = (
@@ -138,19 +138,13 @@ def tournament_record(rows, book, coach_id, today, periods, names):
     records, references = [], []
     appearances, titles = set(), set()
 
-    def commanded(sid, day):
-        if not day or not first <= day <= on:
-            return False
-        coach = book.for_school(sid, on=date.fromisoformat(day))
-        return coach is not None and coach.coach_id == coach_id
-
     for row in rows:
         key, sid = row['category'], row['school_id']
         if key not in summaries:
             continue
         complete = bool(row['complete'] and row['completed_on'] and row['completed_on'] <= on)
-        appeared = key in NATIONAL and commanded(sid, row['first_game_date'])
-        finished = complete and commanded(sid, row['decision_date']) and bool(row['finish'])
+        appearance_id, finish_id = coach_credits(row, book, today)
+        appeared, finished = appearance_id == coach_id, finish_id == coach_id
         day = row['decision_date'] if finished else row['first_game_date']
         base = {**row, 'school_year': row['year'], 'appearance': appeared,
                 'personal_finish': row['finish'] if finished else None}

@@ -1,0 +1,30 @@
+{
+  "config_id": "coach_reputation_v1",
+  "revision": 1,
+  "status": "active",
+  "description": "指揮した実試合と確定した大会実績による小さな年度更新。学校評判とは独立。",
+  "enabled": true,
+  "first_update_year": 2027,
+  "minimum": 1,
+  "maximum": 100,
+  "neutral": 50,
+  "match_prior_games": 10,
+  "match_target_span": 25,
+  "response": 0.06,
+  "max_annual_change": 2,
+  "national_appearance_target": 70,
+  "national_finish_targets": {
+    "ベスト16": 74,
+    "ベスト8": 80,
+    "ベスト4": 86,
+    "準優勝": 94,
+    "優勝": 100
+  },
+  "championship_targets": {
+    "spring_prefectural": 58,
+    "autumn_prefectural": 58,
+    "summer_local": 62,
+    "spring_regional": 66,
+    "autumn_regional": 66
+  }
+}
