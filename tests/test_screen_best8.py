@@ -1,4 +1,5 @@
 """大会別ベスト8：確定結果、限定索引、複数年度の読み取り専用画面。"""
+from contextlib import closing
 from datetime import date
 import json
 from pathlib import Path
@@ -153,7 +154,7 @@ class Best8ScreenTests(unittest.TestCase):
                 self.assertEqual(list(range(2145, 2145 - count, -1)), [r['school_year'] for r in result['rows']])
         self.assertEqual(before, self.archive.db_path.read_bytes())
         self.assertEqual(state_before, pickle.dumps(self.data.state.__dict__))
-        with sqlite3.connect(self.archive.db_path) as conn:
+        with closing(sqlite3.connect(self.archive.db_path)) as conn:
             plan = str(conn.execute('EXPLAIN QUERY PLAN SELECT record_json FROM competition_best8 WHERE competition_id=? AND year BETWEEN ? AND ?', (self.cid, 2126, 2145)).fetchall())
         self.assertIn('SEARCH', plan)
         self.assertIn('competition_id=? AND year>? AND year<?', plan)
