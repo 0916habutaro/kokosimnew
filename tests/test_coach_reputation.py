@@ -66,16 +66,23 @@ class CoachReputationTests(unittest.TestCase):
         self.assertEqual(2027, self.ratings.updated_year)
 
     def test_walkovers_unknown_dates_and_prestart_are_not_evaluated(self):
-        for case in ('walkover', 'unknown', 'prestart'):
+        for case in ('walkover', 'walkover_final', 'unknown', 'prestart'):
             with self.subTest(case=case):
                 self.setUp()
                 for m in self.scheduled.matches.values():
-                    if case == 'walkover':m.score_source = 'walkover'
+                    if case == 'walkover' or (case == 'walkover_final' and m.round_no == 5):
+                        m.score_source = 'walkover'
                     if case == 'unknown':m.date_source = ''
                     if case == 'prestart':m.match_date = m.completed_on = '2026-03-31'
                 self.collect();self.update()
-                self.assertEqual(50, self.book.coaches['COACH-A'].reputation)
-                self.assertEqual({}, self.ratings.history)
+                if case == 'walkover_final':
+                    row=self.ratings.history['COACH-A'][0]
+                    self.assertEqual(70,row.target)
+                    self.assertEqual(['appearance'],[a['kind'] for a in row.achievements])
+                    self.assertEqual({'A':{'wins':4,'losses':0}},row.schools)
+                else:
+                    self.assertEqual(50, self.book.coaches['COACH-A'].reputation)
+                    self.assertEqual({}, self.ratings.history)
 
     def test_unfinished_appearance_is_evaluated_but_title_is_not_anticipated(self):
         self.scheduled.is_complete = False
