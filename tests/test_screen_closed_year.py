@@ -22,6 +22,9 @@ class ClosedYearTests(unittest.TestCase):
             repo, DATA_ROOT, save_root=cls.tmp.name, autosave_after_action=False,
         )
         cls.session = cls.service.new_game("closed", rng_seed=20261026, save_initial=False)
+        cls.service.advance_through(cls.session, "2026-08-31")
+        cls.live_summer = GameScreenData(cls.service, cls.session).records_best8(
+            {'competition_id': 'CMP000002', 'start': 2026, 'end': 2026})['rows'][0]
         cls.service.advance_through(cls.session, "2027-04-05")
         cls.data = GameScreenData(cls.service, cls.session)
         cls.koshien = next(
@@ -32,6 +35,31 @@ class ClosedYearTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
+
+    def test_best8_seal_readonly_and_save_load(self):
+        from phase2_engine.runtime_snapshot import dump_runtime_state
+        from phase2_engine.competition_history import FINISHES
+        filters = {'competition_id': self.koshien, 'start': 2026, 'end': 2026}
+        archive = self.service._history_archive(self.session.slot_id)
+        runtime_before = dump_runtime_state(self.session.state)
+        db_before = archive.db_path.read_bytes()
+        self.assertEqual(self.live_summer, self.data.records_best8(filters)['rows'][0])
+        # 162大会の封印がそろい、予選だけの学校を順位へ混ぜない。
+        for cid in self.service.repo.competitions:
+            rows = self.data.records_best8({**filters, 'competition_id': cid})['rows']
+            self.assertEqual('完了', rows[0]['status'], cid)
+            groups = rows[0]['groups']
+            ids = [s['school_id'] for f in FINISHES for s in groups[f]]
+            self.assertEqual(len(ids), len(set(ids)), cid)
+            self.assertLessEqual(len(ids), 8, cid)
+            self.assertEqual(1, len(groups['優勝']), cid)
+        self.assertEqual(db_before, archive.db_path.read_bytes())
+        self.assertEqual(runtime_before, dump_runtime_state(self.session.state))
+        # 開催年度を維持する（選抜の3月、年度をまたぐ春季も同じ索引）。
+        self.service.save_game(self.session)
+        reopened = self.service.load_game(self.session.slot_id)
+        loaded = GameScreenData(self.service, reopened)
+        self.assertEqual(self.data.records_best8(filters), loaded.records_best8(filters))
 
     def test_closed_year_can_be_chosen(self):
         self.assertNotIn(2026, self.session.state.seasons)

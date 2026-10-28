@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from ..competition_schedule_runtime import SCHEDULE_PENDING
 from ..tournament_runtime import MATCH_BYE, MainTournamentRuntimeState
-from ..competition_records import main_runtime
+from ..competition_history import result_main as main_runtime
 
 
 SEGMENT_LABELS = {"spring": "春", "summer": "夏", "autumn": "秋"}
