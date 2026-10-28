@@ -51,6 +51,8 @@ class CoachGrowthTests(unittest.TestCase):
         for position in ('SS','P','C'):
             for grade in (1,2,3):
                 a = _values(60, pitcher=position=='P'); b=bytearray(a)
+                if position=='C':
+                    a[11:13]=b[11:13]=bytes((60,60))
                 left, right = random.Random(17), random.Random(17)
                 for month in MONTHS:
                     kwargs = dict(position=position,grade=grade,type_index=1,
@@ -111,6 +113,9 @@ class CoachGrowthTests(unittest.TestCase):
         f=fixture(50);repo,coaches,_,book=f
         coaches.coaches['C-FAKE-A']=replace(coaches.coaches['C-FAKE-A'],development=80)
         coaches.config['transfer']['public']=[[1,1.0]]
+        initial=states(book)
+        book.grow(date(2026,12,31))
+        self.assertNotEqual(initial,states(book))
         before=states(book)
         annual(f,2027)
         destination=coaches.coaches['C-FAKE-A'].school_id
