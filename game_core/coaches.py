@@ -106,6 +106,18 @@ class CoachBook:
         self.intake_year = first_year
         # 同じ人物・同じ評判の年度は複製しない。所属は既存イベントで参照する。
         self.intake_ratings: dict[str, list[CoachIntakeRating]] = {}
+        self.growth_config = load_config(self._root / "config/coaches/coach_growth_v1.json",
+                                        expected_config_id="coach_growth_v1").payload
+        growth = self.growth_config
+        first_month = date.fromisoformat(growth["first_practice_month"])
+        if (first_month.day != 1 or first_month < date(2027, 4, 1)
+                or growth["coach_reference"] != "month_start"
+                or growth["neutral_development"] != 50
+                or not math.isfinite(growth["multiplier_per_point"])
+                or growth["multiplier_per_point"] < 0
+                or not math.isfinite(growth["max_abs_delta"])
+                or not 0 <= growth["max_abs_delta"] < 1):
+            raise ValueError("invalid coach practice growth configuration")
         self.events = [CoachEvent(f"{c.appointment_year}-04-01", "initial", c.coach_id,
                                   None, c.school_id) for c in self.coaches.values()]
         self._rebuild_indexes()
@@ -170,6 +182,29 @@ class CoachBook:
                 or set(self.active_by_school) != set(school_ids)
                 or any(self.active_by_school.get(c.school_id) != c.coach_id for c in active)):
             raise ValueError("coach assignments must cover every school exactly once")
+
+    def practice_for(self, school_id: str, month: date) -> tuple[str | None, int | None, float]:
+        """対象月1日の在任者と育成力・練習倍率。育成力は人物の固定能力。
+
+        翌月の成長処理日や現在の所属は使わない。将来、月途中の異動が
+        加わっても当月は月初の人物を使い、翌月から交代を反映する。
+        """
+        first = month.replace(day=1)
+        if school_year_of(first) > self.updated_year:
+            raise ValueError("coach personnel for practice month is not finalized")
+        effect = self.growth_config
+        active = first >= date.fromisoformat(effect["first_practice_month"])
+        coach = self.for_school(school_id, on=first)
+        if coach is None:
+            if active:
+                raise ValueError("practice month must have an assigned coach")
+            return None, None, 1.0
+        if not 1 <= coach.development <= 100:
+            raise ValueError("coach development must be between one and one hundred")
+        delta = ((coach.development - effect["neutral_development"])
+                 * effect["multiplier_per_point"]) if active else 0.0
+        delta = max(-effect["max_abs_delta"], min(effect["max_abs_delta"], delta))
+        return coach.coach_id, coach.development, round(1.0 + delta, 6)
 
     def retirement_probability(self, coach, year, group):
         s = self.config["retirement"]

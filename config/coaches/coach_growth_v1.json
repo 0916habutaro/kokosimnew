@@ -1,0 +1,11 @@
+{
+  "config_id": "coach_growth_v1",
+  "revision": 1,
+  "status": "active",
+  "description_ja": "練習による月間成長だけに育成力の倍率を適用する。対象月1日の在任者を参照し、月途中の交代は翌月から反映する。公式戦経験・潜在能力・成長タイプは変更しない。",
+  "first_practice_month": "2027-04-01",
+  "coach_reference": "month_start",
+  "neutral_development": 50,
+  "multiplier_per_point": 0.003,
+  "max_abs_delta": 0.10
+}

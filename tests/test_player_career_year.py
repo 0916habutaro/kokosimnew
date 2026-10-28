@@ -71,8 +71,29 @@ class PlayerCareerYearTests(unittest.TestCase):
         cls.april_rosters = cls.march.state.rosters.years()
         cls.service.save_game(cls.march)
         cls.session = cls.service.load_game("year")
+        # 入部品質は両側で有効のまま、5月1日から計算する育成力だけを比較。
+        growth_tmp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(growth_tmp.cleanup)
+        shutil.copytree(Path(cls.tmp.name) / "year", Path(growth_tmp.name) / "year")
+        growth_service = LiveGameService(
+            DataRepository(DATA_ROOT), DATA_ROOT, save_root=growth_tmp.name,
+            resolver_contract=PLAYER_RESOLVER_CONTRACT, autosave_after_action=False,
+        )
+        growth_control = growth_service.load_game("year")
+        growth_control.state.coaches.growth_config['max_abs_delta'] = 0.0
         cls.service.advance_through(cls.session, "2027-06-10")
+        growth_service.advance_through(growth_control, "2027-06-10")
+        left, right = cls.session.state.rosters, growth_control.state.rosters
+        cls.practice_growth_changed = any(bytes(s.values) != bytes(right._states[sid][key].values)
+            for sid, rows in left._states.items() for key, s in rows.items())
+        cls.practice_traits_unchanged = all((s.growth_type, s.potential) ==
+            (right._states[sid][key].growth_type, right._states[sid][key].potential)
+            for sid, rows in left._states.items() for key, s in rows.items())
+        cls.practice_intake_unchanged = left.coaches.intake_ratings == right.coaches.intake_ratings
         cls.service.save_game(cls.session)
+        cls.session = cls.service.load_game("year")
+        del growth_control, growth_service, left, right
+        growth_tmp.cleanup()
 
     @classmethod
     def tearDownClass(cls):
@@ -116,6 +137,15 @@ class PlayerCareerYearTests(unittest.TestCase):
         self.assertTrue(self.returning_values_equal)
         self.assertTrue(self.new_intake_changed)
         self.assertTrue(self.growth_potential_equal)
+
+    def test_practice_growth_starts_after_april_and_is_saved_with_intake_unchanged(self):
+        self.assertEqual(date(2027, 3, 1), self.march.state.rosters.grown_through)
+        self.assertTrue(self.practice_growth_changed)
+        self.assertTrue(self.practice_traits_unchanged)
+        self.assertTrue(self.practice_intake_unchanged)
+        self.assertEqual(date(2027, 5, 1), self.session.state.rosters.grown_through)
+        self.assertEqual(.10, self.session.state.coaches.growth_config['max_abs_delta'])
+        self.assertIs(self.session.state.rosters.coaches, self.session.state.coaches)
 
     def test_previous_roster_is_kept_until_its_competitions_end(self):
         self.assertEqual([2026], self.march_rosters)
