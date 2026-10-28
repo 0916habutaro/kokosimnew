@@ -1,4 +1,5 @@
-"""監督と独立した、本大会の出場と確定成績の小さな学校別索引。"""
+"""本大会の出場と確定成績の学校別索引、および指揮日による帰属。"""
+from datetime import date
 from .match_facts import actual_match_date
 from .tournament_runtime import MainTournamentRuntimeState
 
@@ -14,6 +15,22 @@ CATEGORIES = {
 }
 NATIONAL = frozenset(('spring_koshien', 'summer_koshien'))
 BYE_SOURCES = frozenset(('bye', 'walkover', 'forfeit'))
+
+
+def commanding_coach_id(book, school_id, day, through):
+    if not day or not f'{book.first_year}-04-01' <= day <= through.isoformat():
+        return None
+    coach = book.for_school(school_id, on=date.fromisoformat(day))
+    return coach.coach_id if coach is not None else None
+
+
+def coach_credits(row, book, today):
+    appearance = (commanding_coach_id(book, row['school_id'], row['first_game_date'], today)
+                  if row['category'] in NATIONAL else None)
+    complete = row['complete'] and row['completed_on'] and row['completed_on'] <= today.isoformat()
+    finish = (commanding_coach_id(book, row['school_id'], row['decision_date'], today)
+              if complete and row['finish'] else None)
+    return appearance, finish
 
 
 def main_runtime(scheduled) -> MainTournamentRuntimeState | None:

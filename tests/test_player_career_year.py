@@ -122,8 +122,11 @@ class PlayerCareerYearTests(unittest.TestCase):
         self.assertEqual(2027, self.session.state.coaches.updated_year)
         for cid, coach in self.initial_coaches.items():
             new = self.session.state.coaches.coaches[cid]
-            for field in ("display_name", "birth_year", "reputation", "development", "pitching_change", "player_selection"):
+            for field in ("display_name", "birth_year", "development", "pitching_change", "player_selection"):
                 self.assertEqual(getattr(coach, field), getattr(new, field))
+            self.assertLessEqual(abs(new.reputation-coach.reputation),
+                                 self.session.state.coaches.annual_reputation.config['max_annual_change'])
+        self.assertEqual(2027,self.session.state.coaches.annual_reputation.updated_year)
         sid = next(iter(self.initial_coaches.values())).school_id
         coach = self.session.state.coaches.for_school(sid)
         shown = GameScreenData(self.service, self.session).school(sid)["coach"]

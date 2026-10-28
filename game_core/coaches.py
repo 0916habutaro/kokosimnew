@@ -100,6 +100,8 @@ class CoachBook:
         self.seed = seed
         self.first_year = self.updated_year = first_year
         self.bind(root)
+        from .coach_reputation import CoachReputation
+        self.annual_reputation = CoachReputation(self._root, first_year)
         self.config = load_config(self._root / "config/coaches/coach_personnel_v1.json",
                                   expected_config_id="coach_personnel_v1").payload
         self._validate_config()

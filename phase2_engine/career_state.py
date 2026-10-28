@@ -164,6 +164,8 @@ class CareerState:
                 results.extend(state.play_today())
         if self.reputation is not None:
             self.reputation.collect(self.seasons)
+        if self.coaches is not None:
+            self.coaches.annual_reputation.collect(self.coaches, self.seasons, self.current_date)
         self._record_day(len(results))
         return results
 
@@ -178,10 +180,13 @@ class CareerState:
                 played += state.next_day()["played_match_count"]
         if self.reputation is not None:
             self.reputation.collect(self.seasons)
+        if self.coaches is not None:
+            self.coaches.annual_reputation.collect(self.coaches, self.seasons, self.current_date)
         self._record_day(played)
         previous = self.current_date
         self.current_date = previous + timedelta(days=1)
         if self.coaches is not None:
+            self.coaches.annual_reputation.update(self.coaches, self.current_date)
             # 人事と入学時の監督評判の確定は、新入生生成より前。
             self.coaches.update(self.current_date, self.primary.repo)
             if (self.current_date.month, self.current_date.day) == (4, 1):
