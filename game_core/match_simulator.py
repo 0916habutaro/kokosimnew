@@ -548,8 +548,11 @@ class MatchSimulator:
         minimum = int(usage["minimum_bf_before_change"])
         if stats["batters_faced"] < minimum:
             return False
-        if stats["runs_allowed"] >= max(1, int(usage["runs_allowed_quick_hook"])
-                                        - tactics.quick_hook_reduction):
+        quick_hook = int(usage["runs_allowed_quick_hook"])
+        # 0は従来どおり無失点でも交代する設定。中立時にも1へ切り上げない。
+        if quick_hook:
+            quick_hook = max(1, quick_hook - tactics.quick_hook_reduction)
+        if stats["runs_allowed"] >= quick_hook:
             return True
         return stats["batters_faced"] >= self._pitcher_limit(
             pitcher,

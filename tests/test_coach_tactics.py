@@ -4,6 +4,7 @@ from datetime import date
 import pickle
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from game_core.coaches import CoachEvent, CoachTactics
 from game_core.match_contract import MatchSimulationInput, TeamMatchInput, validate_match_simulation_result
@@ -65,6 +66,19 @@ class CoachTacticsTests(unittest.TestCase):
         for i in range(12):
             inp=self.match(i)
             self.assertEqual(self.sim.simulate(inp).to_dict(),self.sim.simulate(inp,tactics={s:neutral for s in ('FAKE-A','FAKE-B')}).to_dict())
+
+    def test_neutral_preserves_legacy_zero_run_hook_setting(self):
+        sim=MatchSimulator()
+        pitcher=next(p for p in self.teams[0].player_abilities if p.primary_position=='P')
+        minimum=int(sim.params['pitching_usage']['minimum_bf_before_change'])
+        with patch.dict(sim.params['pitching_usage'],runs_allowed_quick_hook=0):
+            for tactics in (CoachTactics(),policy(50)):
+                self.assertFalse(sim._should_change_pitcher(pitcher=pitcher,
+                    stats={'batters_faced':minimum-1,'runs_allowed':0},starter=True,
+                    has_next=True,tactics=tactics))
+                self.assertTrue(sim._should_change_pitcher(pitcher=pitcher,
+                    stats={'batters_faced':minimum,'runs_allowed':0},starter=True,
+                    has_next=True,tactics=tactics))
 
     def test_pitching_80_is_earlier_in_actual_games(self):
         totals={}
