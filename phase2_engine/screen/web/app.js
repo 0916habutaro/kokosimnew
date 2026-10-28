@@ -24,6 +24,7 @@ const state = {
     data: null, view: [], filter: { pref: "", owner: "", result: "", name: "" },
     sortKey: "pref", sortDir: 1, selected: null, detail: null, tab: "overview",
     player: null, // 選手の画面（学校ID・選手ID）
+    coach: null, // 監督の画面（永久監督ID・戻り先）
   },
   bracket: null,
   zoom: 1,
@@ -125,7 +126,7 @@ function location_() {
     page: state.page,
     competition: state.competitions.view,
     matches: state.matches,
-    school: state.schools.detail, tab: state.schools.tab, player: state.schools.player,
+    school: state.schools.detail, tab: state.schools.tab, player: state.schools.player, coach: state.schools.coach,
     recordsYear: state.recordsYear || null,
   });
 }
@@ -158,6 +159,7 @@ function goHistory(from, to) {
   state.schools.detail = saved.school;
   state.schools.tab = saved.tab;
   state.schools.player = saved.player || null;
+  state.schools.coach = saved.coach || null;
   state.recordsYear = saved.recordsYear;
   nav.restoring = true;
   try {
@@ -694,6 +696,7 @@ const RH = 32;
 function openSchool(schoolId) {
   state.schools.detail = schoolId;
   state.schools.player = null;
+  state.schools.coach = null;
   state.schools.tab = "overview";
   state.page = "schools";
   renderMenu();
@@ -702,6 +705,7 @@ function openSchool(schoolId) {
 
 async function renderSchools(content) {
   const st = state.schools;
+  if (st.coach) return renderCoach(content, st.coach);
   if (st.player) return renderPlayer(content, st.player);
   if (st.detail) return renderSchoolDetail(content, st.detail);
   const data = await call("schools");
@@ -815,7 +819,7 @@ function showSchoolSide(schoolId) {
   $("s-open").addEventListener("click", () => openSchool(schoolId));
 }
 
-const SCHOOL_TABS = [["overview", "概要"], ["yearly", "年度別成績"], ["koshien", "甲子園"], ["members", "部員"], ["games", "試合一覧"]];
+const SCHOOL_TABS = [["overview", "概要"], ["yearly", "年度別成績"], ["koshien", "甲子園"], ["members", "部員"], ["games", "試合一覧"], ["coaches", "歴代監督"]];
 const ABILITY_LABELS = [
   ["overall", "総合"], ["batting", "打撃"], ["contact", "ミート"], ["power", "長打"], ["discipline", "選球"],
   ["pitching", "投手"], ["ace", "エース"], ["pitching_depth", "投手層"], ["bullpen", "救援"],
@@ -825,15 +829,17 @@ const HANDS = { R: "右", L: "左", S: "両" };
 
 async function renderSchoolDetail(content, schoolId) {
   const st = state.schools;
+  if (st.tab === "coaches") return renderSchoolCoaches(content, schoolId);
   const d = await call("school", schoolId);
   if (!d) return;
   content.innerHTML = `<div class="head"><button class="btn small" id="sd-back">← 学校の一覧</button>
       <h2>${esc(d.name)}</h2><span class="muted">${esc(d.prefecture)}・${esc(d.ownership)}　${esc(d.official_name)}</span>
       ${d.reputation_rank ? `<span class="muted">評判</span><span class="rank r-${d.reputation_rank}">${d.reputation_rank}</span>` : ""}
       <div class="spacer"></div><button class="btn small" id="sd-edit">編集…</button></div>
-    ${d.coach ? `<div class="head"><span class="muted">監督</span><span>${esc(d.coach.display_name)}　${d.coach.age}歳（在任${d.coach.tenure_years}年目）</span></div>` : ""}
-    <div class="dtabs">${SCHOOL_TABS.map(([k, l]) => `<button class="dtab ${st.tab === k ? "on" : ""}" data-k="${k}">${l}</button>`).join("")}</div>
+    ${d.coach ? `<div class="head"><span class="muted">監督</span><span><button class="link" data-coach="${esc(d.coach.coach_id)}">${esc(d.coach.display_name)}</button>　${d.coach.age}歳（在任${d.coach.tenure_years}年目）</span></div>` : ""}
+    <div class="dtabs">${SCHOOL_TABS.filter(([k]) => k !== "coaches" || d.coach).map(([k, l]) => `<button class="dtab ${st.tab === k ? "on" : ""}" data-k="${k}">${l}</button>`).join("")}</div>
     <div class="scroll" id="sd-body"></div>`;
+  bindCoachLinks(content);
   $("sd-back").addEventListener("click", () => { st.detail = null; renderPage(); });
   $("sd-edit").addEventListener("click", () => editSchool(d));
   content.querySelectorAll(".dtab").forEach((b) => b.addEventListener("click", () => { st.tab = b.dataset.k; renderPage(); }));
@@ -843,6 +849,74 @@ async function renderSchoolDetail(content, schoolId) {
   if (st.tab === "koshien") body.innerHTML = schoolKoshien(d);
   if (st.tab === "members") { body.innerHTML = schoolMembers(d); bindPlayerLinks(body); }
   if (st.tab === "games") await schoolGames(body, d);
+}
+
+function bindCoachLinks(root) {
+  root.querySelectorAll("[data-coach]").forEach((el) => el.addEventListener("click", () => openCoach(el.dataset.coach)));
+}
+
+function openCoach(coachId) {
+  const st = state.schools;
+  st.coach = { id: coachId, school: st.detail, tab: st.tab };
+  st.player = null;
+  state.page = "schools";
+  renderMenu();
+  renderPage();
+}
+
+function tenureNote(d) {
+  return `<p class="muted">離任日は異動・退任が有効になる日で、在任はその前日までです。${esc(d.simulation_start)}より前の在任期間は開始時に生成した設定で、実際に進めた過去の実績ではありません。</p>`;
+}
+
+function tenureRows(rows, person) {
+  return rows.map((p) => `<tr>
+    <td>${person ? `<button class="link" data-coach="${esc(p.coach_id)}">${esc(p.name)}</button>`
+      : `<button class="link" data-coach-school="${esc(p.school_id)}">${esc(p.school_name)}</button>`}
+      ${person ? `<div class="muted">${esc(p.school_name)}（${esc(p.name_basis)}の校名）</div>` : ""}
+      ${p.school_name !== p.current_school_name ? `<div class="muted">現在：${esc(p.current_school_name)}</div>` : ""}</td>
+    <td class="num">${dotDate(p.start_date)}${p.configured_past ? '<div class="muted">開始時の設定</div>' : ""}</td>
+    <td class="num">${p.last_day ? dotDate(p.last_day) : "現在"}</td>
+    <td class="num">${p.end_date ? dotDate(p.end_date) : "−"}</td>
+    <td>${p.tenure_years}${p.end_date ? "年" : "年目"}</td><td>${esc(p.status)}</td></tr>`).join("");
+}
+
+function tenureTable(rows, person) {
+  return `<table class="list"><tr><th>${person ? "監督" : "所属校"}</th><th>就任日</th><th>在任最終日</th><th>離任日</th><th>在任</th><th>区分</th></tr>${tenureRows(rows, person)}</table>`;
+}
+
+async function renderSchoolCoaches(content, schoolId) {
+  const d = await call("school_coaches", schoolId);
+  if (!d || state.page !== "schools" || state.schools.detail !== schoolId ||
+      state.schools.tab !== "coaches" || state.schools.coach) return;
+  content.innerHTML = `<div class="head"><button class="btn small" id="sc-back">← 学校の一覧</button><h2>${esc(d.name)}</h2></div>
+    <div class="dtabs">${SCHOOL_TABS.map(([k,l]) => `<button class="dtab ${k === "coaches" ? "on" : ""}" data-k="${k}">${l}</button>`).join("")}</div>
+    <div class="scroll"><div class="panel"><h3>歴代監督</h3>${tenureTable(d.coaches, true)}${tenureNote(d)}</div></div>`;
+  $("sc-back").addEventListener("click", () => { state.schools.detail = null; renderPage(); });
+  content.querySelectorAll(".dtab").forEach((b) => b.addEventListener("click", () => { state.schools.tab = b.dataset.k; renderPage(); }));
+  bindCoachLinks(content);
+}
+
+async function renderCoach(content, target) {
+  const d = await call("coach", target.id);
+  if (!d || state.page !== "schools" || state.schools.coach !== target) return;
+  const current = d.current_school;
+  const record = d.official_record;
+  content.innerHTML = `<div class="head"><button class="btn small" id="c-back">← 学校へ戻る</button><h2>${esc(d.name)}</h2><span>${esc(d.status)}</span></div>
+    <div class="scroll"><div class="panel"><h3>人物・現在の所属</h3>
+      <p>${d.age}歳（${d.birth_year}年生まれ）${d.retired_on ? `　退任日 ${dotDate(d.retired_on)}` : ""}</p>
+      <p>${current ? `<button class="link" data-coach-school="${esc(current.school_id)}">${esc(current.name)}</button>　${d.appointment_year}年就任・在任${d.tenure_years}年目` : "現在の所属なし"}</p>
+      <p class="muted">年齢と現在の在任年目は年度基準です。</p></div>
+      <div class="panel"><h3>能力・采配傾向（1〜100）</h3><table class="list">${d.abilities.map((a) => `<tr><th>${esc(a.label)}</th><td class="n">${a.value}</td><td>${esc(a.description)}</td></tr>`).join("")}</table></div>
+      <div class="panel"><h3>指揮した公式戦</h3><p>${record.wins}勝 ${record.losses}敗（${record.games}試合）</p>
+      <p class="muted">${esc(record.from_date)}以降の保存された実試合を、試合日の所属で集計。不戦勝・不戦敗、開始前の記録は含みません。</p></div>
+      <div class="panel"><h3>在任・異動履歴</h3>${tenureTable(d.periods, false)}${tenureNote(d)}</div></div>`;
+  $("c-back").addEventListener("click", () => {
+    state.schools.coach = null;
+    state.schools.detail = target.school;
+    state.schools.tab = target.tab;
+    renderPage();
+  });
+  content.querySelectorAll("[data-coach-school]").forEach((a) => a.addEventListener("click", () => openSchool(a.dataset.coachSchool)));
 }
 
 // 学校の編集（そのセーブの中だけ。実際の校名変更・実状に合わせる）
@@ -1017,6 +1091,7 @@ function bindPlayerLinks(root) {
 function openPlayer(schoolId, playerId) {
   state.schools.detail = schoolId;
   state.schools.player = { school: schoolId, id: playerId };
+  state.schools.coach = null;
   state.page = "schools";
   renderMenu();
   renderPage();
@@ -1315,7 +1390,7 @@ async function switchSave(name, ...args) {
   state.competitions = { filter: { year: "", segment: "", level: "", status: "" }, view: null };
   state.recordsYear = null;
   state.matches = { date: "", detail: null };
-  state.schools = { ...state.schools, data: null, view: [], selected: null, detail: null, tab: "overview" };
+  state.schools = { ...state.schools, data: null, view: [], selected: null, detail: null, tab: "overview", player: null, coach: null };
   state.bracket = null;
   renderHeader(result.header);
   showToast(name === "new_save" ? "新しく始めました" : "読み込みました");

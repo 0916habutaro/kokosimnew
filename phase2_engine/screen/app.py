@@ -85,6 +85,12 @@ class ScreenApi:
     def school(self, school_id) -> dict:
         return self._read(self._data.school, school_id)
 
+    def coach(self, coach_id) -> dict:
+        return self._read(self._data.coach, coach_id)
+
+    def school_coaches(self, school_id) -> dict:
+        return self._read(self._data.school_coaches, school_id)
+
     def school_matches(self, school_id, school_year) -> dict:
         return self._read(self._data.school_matches, school_id, school_year)
 

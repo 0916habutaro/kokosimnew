@@ -29,6 +29,7 @@ from .competition_views import (
     other_stage_matches,
 )
 from .competition_names import CompetitionNames
+from .coach_views import CoachHistory, official_record
 from .koshien_records import (
     KINDS as KOSHIEN_KINDS,
     RECORDS_PATH as KOSHIEN_RECORDS_PATH,
@@ -151,6 +152,7 @@ class GameScreenData:
         }
         self.abilities = self._new_abilities()
         self._closed_years: dict[int, dict] = {}
+        self._coach_history = None
         self._stage_names = {
             stage["stage_id"]: stage.get("stage_name", "")
             for cid in service.repo.competitions
@@ -1320,7 +1322,7 @@ class GameScreenData:
             yearly.append(row)
         game_koshien = koshien_summary(by_year)
         coaches = self.state.coaches if isinstance(self.state, CareerState) else None
-        coach = coaches.for_school(school_id) if coaches is not None else None
+        coach = coaches.for_school(school_id, on=self.state.current_date) if coaches is not None else None
         return {
             "school_id": school_id,
             "coach": coach.view(self.state.current_date) if coach else None,
@@ -1353,6 +1355,51 @@ class GameScreenData:
             "members": roster,
             "years": sorted(by_year, reverse=True),
         }
+
+    # ---- 監督（読み取り専用） ----
+
+    def _coach_index(self):
+        book = getattr(self.state, 'coaches', None)
+        if book is None:
+            raise ValueError('このセーブには監督の記録がありません')
+        cached = self._coach_history
+        if cached is None or cached.book is not book or cached.event_count != len(book.events):
+            self._coach_history = CoachHistory(book)
+        return self._coach_history
+
+    def school_coaches(self, school_id: str) -> dict:
+        if school_id not in self.service.repo.schools:
+            raise ValueError('その学校はありません')
+        index = self._coach_index()
+        return {'school_id': school_id, 'name': self.names(school_id, self.state.current_date.isoformat()),
+                'as_of': self.state.current_date.isoformat(),
+                'simulation_start': f'{index.book.first_year}-04-01',
+                'coaches': index.school(school_id, self.state.current_date, self.names)}
+
+    def coach(self, coach_id: str) -> dict:
+        index = self._coach_index()
+        today = self.state.current_date
+        result = index.coach(coach_id, today, self.names)
+        first = result['simulation_start']
+        # 特定の学校の索引だけを読み、全年度の大会スナップショットは開かない。
+        schools = {p['school_id'] for p in result['periods']}
+        archive = self.service._history_archive(self.session.slot_id)
+        facts = {}
+        for sid in schools:
+            for row in archive.school_match_facts(sid, first, today.isoformat()):
+                facts[(row['year'], row['competition_id'], row['match_id'])] = row
+        # 進行中の試合は保存前の状態を優先する。履歴との二重計上を避ける。
+        for year, season in _seasons(self.state).items():
+            for cid, scheduled in season.competitions.items():
+                for mid, match in scheduled.matches.items():
+                    if not schools.intersection((match.team1_id, match.team2_id)):
+                        continue
+                    key = (year, cid, mid)
+                    facts.pop(key, None)
+                    if match.status == 'completed':
+                        facts[key] = match.public_dict()
+        result['official_record'] = official_record(facts.values(), index.book, coach_id, today)
+        return result
 
     # ---- 選手 ----
 
@@ -1574,6 +1621,7 @@ class GameScreenData:
         """別のセーブに切り替える。前のセーブの集計は捨てる。"""
         self.session = session
         self._closed_years = {}
+        self._coach_history = None
         self.service.forget_closed_seasons()
         self.names.edits = self._load_edits()
         self.abilities = self._new_abilities()
