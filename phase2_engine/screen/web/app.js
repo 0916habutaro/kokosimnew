@@ -28,6 +28,7 @@ const state = {
   },
   recordsTab: "year",
   recordsBest8: {},
+  recordsEntrants: {},
   bracket: null,
   zoom: 1,
 };
@@ -130,7 +131,7 @@ function location_() {
     matches: state.matches,
     school: state.schools.detail, tab: state.schools.tab, player: state.schools.player, coach: state.schools.coach,
     recordsYear: state.recordsYear || null,
-    recordsTab: state.recordsTab, recordsBest8: state.recordsBest8,
+    recordsTab: state.recordsTab, recordsBest8: state.recordsBest8, recordsEntrants: state.recordsEntrants,
   });
 }
 
@@ -166,6 +167,7 @@ function goHistory(from, to) {
   state.recordsYear = saved.recordsYear;
   state.recordsTab = saved.recordsTab || "year";
   state.recordsBest8 = saved.recordsBest8 || {};
+  state.recordsEntrants = saved.recordsEntrants || {};
   nav.restoring = true;
   try {
     renderMenu();
@@ -261,7 +263,7 @@ function openCompetition(year, competitionId) {
 // ---- 記録 ----
 
 function recordsTabs() {
-  return `<div class="tabs">${[["year", "年度別記録"], ["best8", "大会別ベスト8"]].map(([key, label]) =>
+  return `<div class="tabs">${[["year", "年度別記録"], ["best8", "大会別ベスト8"], ["entrants", "複数年度の出場校"]].map(([key, label]) =>
     `<button class="tab ${state.recordsTab === key ? "on" : ""}" data-records-tab="${key}">${label}</button>`).join("")}</div>`;
 }
 
@@ -272,12 +274,35 @@ function bindRecordsTabs(content) {
   }));
 }
 
+function entrantsTable(data, title) {
+  const school = (e, r) => {
+    const routes = e.routes.map((route) => data.catalog.find((c) => c.competition_id === route.competition_id)?.name || route.competition_id).join("・");
+    return `<div class="entrant-entry"><button class="link" data-school="${esc(e.school_id)}">${esc(e.name)}</button>
+      <small class="muted">${esc(data.prefectures[e.prefecture_code] || "所属不明")}／${esc(e.entry_type)}${e.finish ? "／" + esc(e.finish) : ""}${routes ? "／進出元：" + esc(routes) : ""}</small></div>`;
+  };
+  const heading = (r) => title(r, `${r.school_year}年度`) + `<br>` + title(r, r.competition_name || data.competitions.find((c) => c.competition_id === r.competition_id)?.name || "")
+    + `<div class="muted">${esc(r.start_date || "")}〜${esc(r.end_date || "")}／${esc(r.status)}${r.main_confirmed ? "" : "／MAIN未確定"}</div>`;
+  if (!data.matrix) return `<table class="list entrants-years"><thead><tr><th>年度・大会・開催期間</th><th>MAIN出場校</th></tr></thead><tbody>${data.rows.map((r) => `<tr><td>${heading(r)}</td><td><details open><summary>${(r.entrants || []).length}校</summary>${(r.entrants || []).map((e) => school(e, r)).join("")}</details></td></tr>`).join("")}</tbody></table>`;
+  const axes = data.summer ? data.summer_areas : data.prefectures;
+  const group = (e) => data.summer ? e.routes.find((route) => route.competition_id in data.summer_areas)?.competition_id || "unknown"
+    : e.routes.find((route) => route.prefecture_code)?.prefecture_code || e.prefecture_code || "unknown";
+  const axisRows = Object.entries(axes);
+  if (data.rows.some((r) => (r.entrants || []).some((e) => !(group(e) in axes)))) axisRows.push(["unknown", "所属・進出元未確認"]);
+  return `<table class="list entrants-matrix"><thead><tr><th>${data.summer ? "代表地区" : "都道府県"}</th>${data.rows.map((r) => `<th>${heading(r)}</th>`).join("")}</tr></thead><tbody>${axisRows.map(([id, label]) => `<tr><td>${esc(label)}</td>${data.rows.map((r) => {
+    const entries = (r.entrants || []).filter((e) => group(e) === id);
+    return `<td>${entries.map((e) => school(e, r)).join("") || `<small class="muted">${r.main_confirmed ? "−" : esc(r.status) + "／MAIN未確定"}</small>`}</td>`;
+  }).join("")}</tr>`).join("")}</tbody></table>`;
+}
+
 async function renderBest8(content) {
-  const requested = JSON.stringify(state.recordsBest8);
-  const data = await call("records_best8", state.recordsBest8);
-  if (requested !== JSON.stringify(state.recordsBest8)) return;
-  if (!data || state.page !== "records" || state.recordsTab !== "best8") return;
-  state.recordsBest8 = data.filters;
+  const entrants = state.recordsTab === "entrants";
+  const tab = state.recordsTab;
+  const filterStateKey = entrants ? "recordsEntrants" : "recordsBest8";
+  const requested = JSON.stringify(state[filterStateKey]);
+  const data = await call(entrants ? "records_entrants" : "records_best8", state[filterStateKey]);
+  if (requested !== JSON.stringify(state[filterStateKey])) return;
+  if (!data || state.page !== "records" || state.recordsTab !== tab) return;
+  state[filterStateKey] = data.filters;
   refreshLocation();
   const f = data.filters;
   const select = (key, label, items) => `<label>${label} <select id="rb-${key}">${items.map(([value, text]) =>
@@ -295,18 +320,18 @@ async function renderBest8(content) {
         <label>終了年度 <input id="rb-end" type="number" min="1" max="${data.latest}" placeholder="${data.end}" value="${esc(f.end || "")}"></label>
         <button class="btn" type="submit">表示</button><button class="btn" type="button" id="rb-latest">最新年度に戻す</button></form>
     </div>
-    <div class="scroll best8-scroll"><p class="muted">${data.start}〜${data.end}年度。順位は本大会の完了後に表示します。校名は大会当時の名前です。</p>
-      <table class="list best8-table"><colgroup><col style="width:95px"><col style="width:210px"><col><col><col style="width:220px"><col style="width:250px"><col style="width:100px"></colgroup>
+    <div class="scroll best8-scroll"><p class="muted">${data.start}〜${data.end}年度。${entrants ? "MAIN登録済みの学校を表示します。最終成績は大会完了後に表示します。" : "順位は本大会の完了後に表示します。"}校名は大会当時の名前です。</p>
+      ${entrants ? entrantsTable(data, title) : `<table class="list best8-table"><colgroup><col style="width:95px"><col style="width:210px"><col><col><col style="width:220px"><col style="width:250px"><col style="width:100px"></colgroup>
         <thead><tr><th>年度</th><th>大会名</th><th>優勝</th><th>準優勝</th><th>ベスト4</th><th>ベスト8</th><th>状態</th></tr></thead>
         <tbody>${data.rows.map((r) => `<tr><td>${title(r, `${r.school_year}年度`)}</td><td>${title(r, r.competition_name || data.competitions.find((c) => c.competition_id === r.competition_id)?.name || r.competition_id)}</td>
-          ${["優勝", "準優勝", "ベスト4", "ベスト8"].map((finish) => `<td>${r.groups[finish].map(school).join("") || '<span class="muted">−</span>'}</td>`).join("")}<td>${esc(r.status)}</td></tr>`).join("")}</tbody></table>
+          ${["優勝", "準優勝", "ベスト4", "ベスト8"].map((finish) => `<td>${r.groups[finish].map(school).join("") || '<span class="muted">−</span>'}</td>`).join("")}<td>${esc(r.status)}</td></tr>`).join("")}</tbody></table>`}
       ${data.rows.length ? "" : '<p class="muted">条件に合う大会はありません。</p>'}</div>`;
   bindRecordsTabs(content);
   for (const key of ["segment", "level", "region", "prefecture", "competition_id", "count"]) {
     $("rb-" + key).addEventListener("change", (e) => {
-      state.recordsBest8[key] = e.target.value;
+      state[filterStateKey][key] = e.target.value;
       // 年数変更は終了年度を維持し、その年数の範囲へ戻す。
-      if (key === "count") delete state.recordsBest8.start;
+      if (key === "count") delete state[filterStateKey].start;
       renderPage();
     });
   }
@@ -314,11 +339,11 @@ async function renderBest8(content) {
     e.preventDefault();
     const start = $("rb-start").value, end = $("rb-end").value;
     if (start && end && Number(start) > Number(end)) return showToast("開始年度・終了年度を確認してください", true);
-    Object.assign(state.recordsBest8, { start, end });
+    Object.assign(state[filterStateKey], { start, end });
     renderPage();
   });
   $("rb-latest").addEventListener("click", () => {
-    delete state.recordsBest8.start; delete state.recordsBest8.end;
+    delete state[filterStateKey].start; delete state[filterStateKey].end;
     renderPage();
   });
   content.querySelectorAll("[data-school]").forEach((a) => a.addEventListener("click", () => openSchool(a.dataset.school)));
@@ -326,7 +351,7 @@ async function renderBest8(content) {
 }
 
 async function renderRecords(content) {
-  if (state.recordsTab === "best8") return renderBest8(content);
+  if (["best8", "entrants"].includes(state.recordsTab)) return renderBest8(content);
   const data = await call("records", state.recordsYear || null);
   if (!data) return;
   state.recordsYear = data.school_year;
@@ -1490,6 +1515,7 @@ async function switchSave(name, ...args) {
   state.recordsYear = null;
   state.recordsTab = "year";
   state.recordsBest8 = {};
+  state.recordsEntrants = {};
   state.matches = { date: "", detail: null };
   state.schools = { ...state.schools, data: null, view: [], selected: null, detail: null, tab: "overview", player: null, coach: null };
   state.bracket = null;

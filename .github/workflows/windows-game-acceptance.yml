@@ -78,6 +78,7 @@ jobs:
             'test_screen_schools.py',
             'test_screen_records.py',
             'test_screen_best8.py',
+            'test_screen_entrants.py',
             'test_screen_closed_year.py',
             'test_screen_saves.py',
             'test_school_edits.py',

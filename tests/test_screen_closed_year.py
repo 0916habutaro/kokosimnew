@@ -61,6 +61,34 @@ class ClosedYearTests(unittest.TestCase):
         loaded = GameScreenData(self.service, reopened)
         self.assertEqual(self.data.records_best8(filters), loaded.records_best8(filters))
 
+    def test_multi_year_entrants_match_official_registration(self):
+        from phase2_engine.competition_history import result_main
+        archive = self.service._history_archive(self.session.slot_id)
+        before = archive.db_path.read_bytes()
+        for year in (2026, 2027):
+            season = self.data._season_of(year)
+            for cid in self.service.repo.competitions:
+                data = self.data.records_entrants({'competition_id': cid, 'start': year, 'end': year})
+                row = data['rows'][0]
+                scheduled = season.competitions.get(cid)
+                main = result_main(scheduled) if scheduled else None
+                self.assertEqual(set(main.entrant_school_ids) if main else set(),
+                                 {e['school_id'] for e in row.get('entrants', [])}, (year, cid))
+        summer = self.data.records_entrants({'competition_id': self.koshien, 'start':2026, 'end':2026})
+        entries = summer['rows'][0]['entrants']
+        self.assertEqual(49, len(entries))
+        self.assertEqual(49, len({e['routes'][0]['competition_id'] for e in entries}))
+        self.assertEqual({e['school_id'] for e in entries},
+                         {e['school_id'] for e in self.data.bracket(2026, self.koshien)['entrants']})
+        senbatsu = self.data.records_entrants({'competition_id':'CMP000001', 'start':2026, 'end':2026})['rows'][0]
+        self.assertTrue(senbatsu['start_date'].startswith('2027-'))
+        prefs = [e['prefecture_code'] for e in senbatsu['entrants']]
+        self.assertLess(len(set(prefs)), len(prefs))
+        self.assertEqual(before, archive.db_path.read_bytes())
+        self.service.save_game(self.session)
+        loaded = GameScreenData(self.service, self.service.load_game(self.session.slot_id))
+        self.assertEqual(summer, loaded.records_entrants(summer['filters']))
+
     def test_closed_year_can_be_chosen(self):
         self.assertNotIn(2026, self.session.state.seasons)
         current = self.data.competitions()
