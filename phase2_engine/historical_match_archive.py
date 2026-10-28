@@ -62,6 +62,16 @@ CREATE TABLE IF NOT EXISTS closed_seasons (
     snapshot BLOB NOT NULL,
     names_json TEXT NOT NULL
 );
+-- 大会の確定結果への学校別索引。人物・監督IDや大会全体のコピーは保存しない。
+CREATE TABLE IF NOT EXISTS school_competition_records (
+    year INTEGER NOT NULL,
+    competition_id TEXT NOT NULL,
+    school_id TEXT NOT NULL,
+    record_json TEXT NOT NULL,
+    PRIMARY KEY (year, competition_id, school_id)
+);
+CREATE INDEX IF NOT EXISTS idx_competition_records_school
+    ON school_competition_records(school_id, year, competition_id);
 -- 閉じた年度の名簿（選手の名前・出身・学年と年度末の能力・成長の状態。
 -- game_core/roster_book.py の closed_record で詰めて圧縮したもの）
 CREATE TABLE IF NOT EXISTS closed_rosters (
@@ -696,8 +706,16 @@ class HistoricalMatchArchive:
                     _PACKED_CACHE.pop((str(self.db_path), year, competition_id), None)
                 return len(rows)
 
-    def store_closed_season(self, year: int, snapshot: bytes, names: Mapping[str, str]) -> None:
+    def store_closed_season(self, year: int, snapshot: bytes, names: Mapping[str, str],
+                            *, school_records: Iterable[Mapping] = ()) -> None:
         """閉じた年度の大会の進行（``runtime_snapshot.dump_runtime_state``）と大会名。"""
+        records = []
+        for record in school_records:
+            if (record.get('year') != year or not record.get('competition_id')
+                    or not record.get('school_id')):
+                raise ValueError('invalid school competition record identity')
+            records.append((year, record['competition_id'], record['school_id'],
+                            _canonical(dict(record))))
         with self._connection() as conn:
             conn.executescript(_SCHEMA)
             with conn:
@@ -705,6 +723,22 @@ class HistoricalMatchArchive:
                     "INSERT OR REPLACE INTO closed_seasons VALUES (?, ?, ?)",
                     (year, snapshot, _canonical(dict(names))),
                 )
+                conn.execute('DELETE FROM school_competition_records WHERE year=?', (year,))
+                conn.executemany('INSERT INTO school_competition_records VALUES (?, ?, ?, ?)', records)
+
+    def school_competition_records(self, school_id: str) -> list[dict]:
+        """年度スナップショットを展開せず、学校に関係する大会結果だけを読む。"""
+        if not self.db_path.is_file():
+            return []
+        with closing(sqlite3.connect(self.db_path.resolve().as_uri() + '?mode=ro',
+                                    uri=True, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                            "AND name='school_competition_records'").fetchone() is None:
+                return []
+            rows = conn.execute('SELECT record_json FROM school_competition_records '
+                                'WHERE school_id=? ORDER BY year, competition_id',
+                                (school_id,)).fetchall()
+        return [json.loads(row[0]) for row in rows]
 
     def closed_season(self, year: int) -> tuple[bytes, dict[str, str]] | None:
         if not self.db_path.is_file():

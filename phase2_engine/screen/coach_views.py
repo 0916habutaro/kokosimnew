@@ -4,6 +4,8 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from ..school_year import school_year_of
+from ..match_facts import actual_match_date
+from ..competition_records import NATIONAL
 
 
 ABILITY_LABELS = (
@@ -13,8 +15,6 @@ ABILITY_LABELS = (
     ('player_selection', '選手起用傾向', '同程度の能力なら、高いほど下級生、低いほど上級生を優先します。投手は実能力同点時のみです。'),
 )
 REASONS = {'transfer': '異動', 'retirement': '退任'}
-MATCH_DATE_SOURCES = frozenset(('stage_date_list', 'runtime_wave_v1',
-                                'national_day_plan_v1', 'game_projection_v1', 'projected_v1'))
 
 
 class CoachHistory:
@@ -108,20 +108,10 @@ def official_record(rows, book, coach_id, today):
     last = today.isoformat()
     wins = losses = 0
     for row in rows:
-        day = row.get('match_date', '')
-        if (row.get('score_source') != 'ability_model_v1'
-                or row.get('date_source') not in MATCH_DATE_SOURCES
-                or not isinstance(day, str) or not first <= day <= last
-                or not row.get('team1_id') or not row.get('team2_id')
-                or row['team1_id'] == row['team2_id']):
+        on = actual_match_date(row)
+        if on is None or not first <= on.isoformat() <= last:
             continue
         a, b = row.get('team1_score'), row.get('team2_score')
-        if (type(a) is not int or type(b) is not int or a < 0 or b < 0 or a == b):
-            continue
-        try:
-            on = date.fromisoformat(day)
-        except ValueError:
-            continue
         for sid, won in ((row['team1_id'], a > b), (row['team2_id'], b > a)):
             coach = book.for_school(sid, on=on)
             if coach is not None and coach.coach_id == coach_id:
@@ -129,3 +119,70 @@ def official_record(rows, book, coach_id, today):
                 losses += not won
     return {'wins': wins, 'losses': losses, 'games': wins + losses,
             'from_date': first, 'through_date': last}
+
+
+RECORD_CATEGORIES = (
+    ('spring_koshien', '春の甲子園'), ('summer_koshien', '夏の甲子園'),
+    ('spring_prefectural', '春季都道府県大会'), ('autumn_prefectural', '秋季都道府県大会'),
+    ('summer_local', '夏の地方大会'), ('spring_regional', '春季地区大会'),
+    ('autumn_regional', '秋季地区大会'),
+)
+
+
+def tournament_record(rows, book, coach_id, today, periods, names):
+    """出場と成績決定を別々の試合日に帰属。不戦の公式結果自体は変更しない。"""
+    first, on = f'{book.first_year}-04-01', today.isoformat()
+    summaries = {key: {'key': key, 'label': label, 'appearances': 0 if key in NATIONAL else None,
+                       'championships': 0, 'best_finish': None, 'best_depth': -1}
+                 for key, label in RECORD_CATEGORIES}
+    records, references = [], []
+    appearances, titles = set(), set()
+
+    def commanded(sid, day):
+        if not day or not first <= day <= on:
+            return False
+        coach = book.for_school(sid, on=date.fromisoformat(day))
+        return coach is not None and coach.coach_id == coach_id
+
+    for row in rows:
+        key, sid = row['category'], row['school_id']
+        if key not in summaries:
+            continue
+        complete = bool(row['complete'] and row['completed_on'] and row['completed_on'] <= on)
+        appeared = key in NATIONAL and commanded(sid, row['first_game_date'])
+        finished = complete and commanded(sid, row['decision_date']) and bool(row['finish'])
+        day = row['decision_date'] if finished else row['first_game_date']
+        base = {**row, 'school_year': row['year'], 'appearance': appeared,
+                'personal_finish': row['finish'] if finished else None}
+        if appeared or finished:
+            base['school_name'] = names(sid, day)
+            base['current_school_name'] = names(sid, on)
+            records.append(base)
+            summary = summaries[key]
+            identity = (row['year'], row['competition_id'])
+            if appeared and identity not in appearances:
+                summary['appearances'] += 1
+                appearances.add(identity)
+            if finished:
+                if row['finish'] == '優勝' and identity not in titles:
+                    summary['championships'] += 1
+                    titles.add(identity)
+                if row['depth'] > summary['best_depth']:
+                    summary['best_finish'], summary['best_depth'] = row['finish'], row['depth']
+        if complete and row['resolution']:
+            # これは人物の実績ではなく、開催期間（予定日を含む）と在任期間が
+            # 重なる学校の参考情報。決定戦の監督は推測しない。
+            start, end = row['period_start'], row['period_end']
+            if not start or not end or end < first or start > on:
+                continue
+            related = any(p['school_id'] == sid and p['start_date'] <= min(end, on)
+                          and (p['end_date'] is None or p['end_date'] > max(start, first))
+                          for p in periods)
+            if related:
+                references.append({**base, 'school_name': names(sid, max(start, first)),
+                                   'current_school_name': names(sid, on),
+                                   'personal_finish': None, 'label': '不戦決着・帰属未確定'
+                                   if row['resolution'].startswith('不戦') else '実施・日付未確定'})
+    order = lambda r: (r['year'], r['competition_id'], r['school_id'])
+    return {'summary': list(summaries.values()), 'records': sorted(records, key=order, reverse=True),
+            'references': sorted(references, key=order, reverse=True)}
