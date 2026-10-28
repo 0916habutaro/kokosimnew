@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 import shutil
+import pickle
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -146,6 +147,17 @@ class PlayerCareerYearTests(unittest.TestCase):
         self.assertEqual(date(2027, 5, 1), self.session.state.rosters.grown_through)
         self.assertEqual(.10, self.session.state.coaches.growth_config['max_abs_delta'])
         self.assertIs(self.session.state.rosters.coaches, self.session.state.coaches)
+
+    def test_coach_screen_reads_live_saved_and_transferred_people_without_mutation(self):
+        state=self.session.state
+        before=pickle.dumps((state.coaches.__getstate__(),state.rosters.__getstate__()))
+        screen=GameScreenData(self.service,self.session)
+        coach=next(iter(self.initial_coaches.values()))
+        d=screen.coach(coach.coach_id)
+        rows=screen.school_coaches(coach.school_id)
+        self.assertEqual(coach.display_name,d['name'])
+        self.assertEqual(coach.coach_id,rows['coaches'][0]['coach_id'])
+        self.assertEqual(before,pickle.dumps((state.coaches.__getstate__(),state.rosters.__getstate__())))
 
     def test_previous_roster_is_kept_until_its_competitions_end(self):
         self.assertEqual([2026], self.march_rosters)

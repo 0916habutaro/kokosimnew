@@ -741,6 +741,24 @@ class HistoricalMatchArchive:
             ).fetchone()
         return bytes(row[0]) if row else None
 
+    def school_match_facts(self, school_id: str, first: str, last: str) -> list[dict]:
+        """学校索引から日付と実試合判定に必要な事実だけを読む。履歴DBは変更しない。"""
+        if not self.db_path.is_file():
+            return []
+        with closing(sqlite3.connect(self.db_path.resolve().as_uri() + '?mode=ro',
+                                    uri=True, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
+            rows = conn.execute(
+                """SELECT year, competition_id, match_id, match_date, date_source,
+                          team1_id, team2_id, team1_score, team2_score, score_source
+                   FROM historical_matches
+                   WHERE (team1_id = ? OR team2_id = ?) AND match_date >= ? AND match_date <= ?
+                   ORDER BY match_date, year, competition_id, match_id""",
+                (school_id, school_id, first, last),
+            ).fetchall()
+        keys = ('year', 'competition_id', 'match_id', 'match_date', 'date_source',
+                'team1_id', 'team2_id', 'team1_score', 'team2_score', 'score_source')
+        return [dict(zip(keys, row)) for row in rows]
+
     def match_index(self, year: int) -> list[dict]:
         """その年度の全試合の要約（成績表用。個人成績などは読まない）。"""
         if not self.db_path.is_file():
