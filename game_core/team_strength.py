@@ -276,13 +276,15 @@ class TeamStrengthGenerator:
         school_id, reference_year, *_ = self._validate_source(players)
 
         def best(position, pool):
+            def key(player):
+                score = self._selection_score(player, position)
+                bias = selection_grade_bias * (2 - player.academic_year)
+                # 投手陣は実能力順という既存契約を維持し、同点時だけ学年で選ぶ。
+                return ((-score, -bias, player.player_id) if position == "P"
+                        else (-(score + bias), 0.0, player.player_id))
             return min(
                 pool,
-                key=lambda player: (
-                    -(self._selection_score(player, position)
-                      + selection_grade_bias * (2 - player.academic_year)),
-                    player.player_id,
-                ),
+                key=key,
             )
 
         # 本職の選手がいる守備位置から決め、いない位置は残りの選手から
@@ -379,8 +381,8 @@ class TeamStrengthGenerator:
         ranked = sorted(
             pitchers,
             key=lambda player: (
-                -(self._pitcher_quality(player)
-                  + selection_grade_bias * (2 - player.academic_year)),
+                -self._pitcher_quality(player),
+                -selection_grade_bias * (2 - player.academic_year),
                 player.player_id,
             ),
         )

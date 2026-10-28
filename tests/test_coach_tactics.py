@@ -118,6 +118,18 @@ class CoachTacticsTests(unittest.TestCase):
             actual=self.generator.generate(players,selection_grade_bias=policy(selection=v).selection_grade_bias)
             self.assertEqual(neutral,actual)
 
+    def test_near_equal_pitchers_keep_quality_order_contract(self):
+        players=self.equal_players()
+        # 旧テストの全員同点では見つからなかった、わずかな実能力差。
+        older=next(p for p in players if p.primary_position=='P' and p.academic_year==3)
+        players=tuple(replace(p,control=p.control+1) if p.player_id==older.player_id else p for p in players)
+        for v in (1,20,50,80,100):
+            strength=self.generator.generate(players,selection_grade_bias=policy(selection=v).selection_grade_bias)
+            validate_team_strength_snapshot(strength)
+            self.assertEqual(older.player_id,strength.starting_lineup.player_for_position('P'))
+            qualities=[p.quality for p in strength.pitching_staff.entries]
+            self.assertEqual(sorted(qualities,reverse=True),qualities)
+
     def test_pitch_allowance_has_priority_over_both_tendencies(self):
         inp=self.match(180)
         allowances={p.player_id:80 for t in self.teams for p in t.player_abilities}
