@@ -56,6 +56,14 @@ class CoachIntakeRating:
     quality_z: float
 
 
+@dataclass(frozen=True)
+class CoachTactics:
+    """試合用の小さな判断補正。人物データや選手の能力は含めない。"""
+    bf_multiplier: float = 1.0
+    quick_hook_reduction: int = 0
+    selection_grade_bias: float = 0.0
+
+
 def _draw_coach(team, year, rng, coach_id, names, config, *, initial):
     def triangular(spec):
         return round(rng.triangular(spec["min"], spec["max"], spec["mode"]))
@@ -120,6 +128,17 @@ class CoachBook:
             raise ValueError("invalid coach practice growth configuration")
         self.events = [CoachEvent(f"{c.appointment_year}-04-01", "initial", c.coach_id,
                                   None, c.school_id) for c in self.coaches.values()]
+        self.tactics_config = load_config(self._root / "config/coaches/coach_tactics_v1.json",
+                                         expected_config_id="coach_tactics_v1").payload
+        tactics = self.tactics_config
+        if (date.fromisoformat(tactics["first_match_date"]) < date(2027, 4, 1)
+                or tactics["neutral_ability"] != 50
+                or any(not math.isfinite(tactics[k]) or tactics[k] < 0 for k in (
+                    "bf_reduction_per_point", "max_abs_bf_reduction",
+                    "quick_hook_reduction_per_point", "max_abs_quick_hook_reduction",
+                    "selection_bias_per_point", "max_abs_selection_bias"))
+                or tactics["max_abs_bf_reduction"] >= 1):
+            raise ValueError("invalid coach tactics configuration")
         self._rebuild_indexes()
 
     def bind(self, root):
@@ -182,6 +201,30 @@ class CoachBook:
                 or set(self.active_by_school) != set(school_ids)
                 or any(self.active_by_school.get(c.school_id) != c.coach_id for c in active)):
             raise ValueError("coach assignments must cover every school exactly once")
+
+    def tactics_for(self, school_id: str, on: date) -> CoachTactics:
+        """大会年度ではなく試合当日の所属を使う。参照だけで乱数は消費しない。"""
+        config = self.tactics_config
+        if on < date.fromisoformat(config["first_match_date"]):
+            return CoachTactics()
+        if school_year_of(on) > self.updated_year:
+            raise ValueError("coach personnel not finalized for match date")
+        coach = self.for_school(school_id, on=on)
+        if coach is None:
+            return CoachTactics()
+        if not (1 <= coach.pitching_change <= 100 and 1 <= coach.player_selection <= 100):
+            raise ValueError("coach tactics abilities must be between 1 and 100")
+        def delta(ability, slope, cap):
+            return max(-config[cap], min(config[cap],
+                       (ability - config["neutral_ability"]) * config[slope]))
+        return CoachTactics(
+            round(1 - delta(coach.pitching_change, "bf_reduction_per_point",
+                            "max_abs_bf_reduction"), 6),
+            round(delta(coach.pitching_change, "quick_hook_reduction_per_point",
+                        "max_abs_quick_hook_reduction")),
+            round(delta(coach.player_selection, "selection_bias_per_point",
+                        "max_abs_selection_bias"), 6),
+        )
 
     def practice_for(self, school_id: str, month: date) -> tuple[str | None, int | None, float]:
         """対象月1日の在任者と育成力・練習倍率。育成力は人物の固定能力。

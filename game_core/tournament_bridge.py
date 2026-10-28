@@ -13,6 +13,7 @@ from phase2_engine.randomness import rng_for
 from phase2_engine.repository import DataRepository
 
 from .match_contract import MatchSimulationInput, TeamMatchInput
+from .coaches import CoachTactics
 from .highlights import game_highlights
 from .match_simulator import GameRules, MatchSimulator
 from .membership import CompetitionMembers
@@ -81,7 +82,7 @@ class AbilityMatchResolver:
         # Default resolvers never create this persistence authority implicitly.
         self._initial_roster_source: dict[str, SchoolRoster] = {}
         self._competition_teams: dict[
-            tuple[str, int, str],
+            tuple,
             TeamMatchInput,
         ] = {}
         self._abilities: dict[tuple, object] = {}
@@ -279,6 +280,7 @@ class AbilityMatchResolver:
         # 能力が少し下がる。その日の状態ごとにつくり直す
         source = self.ability_generator.source
         day = self._match_day()
+        tactics = self._coach_tactics(school_id, day)
         condition = ()
         if source is not None and day is not None and hasattr(source, "condition"):
             states = {p.player_id: source.condition(p, day) for p in members}
@@ -288,7 +290,7 @@ class AbilityMatchResolver:
             condition = tuple(sorted(
                 (pid, state) for pid, state in states.items() if state != (False, 0)
             ))
-        key = (competition_id, team_seed, school_id, condition)
+        key = (competition_id, team_seed, school_id, condition, tactics.selection_grade_bias)
         cached = self._competition_teams.get(key)
         if cached is not None:
             return cached
@@ -300,11 +302,18 @@ class AbilityMatchResolver:
         )
         team = TeamMatchInput(
             school_id=school_id,
-            team_strength=self.team_generator.generate(abilities),
+            team_strength=self.team_generator.generate(
+                abilities, selection_grade_bias=tactics.selection_grade_bias),
             player_abilities=abilities,
         )
         self._competition_teams[key] = team
         return team
+
+    def _coach_tactics(self, school_id, day):
+        source = self.ability_generator.source
+        coaches = getattr(source, "coaches", None)
+        return (coaches.tactics_for(school_id, day)
+                if coaches is not None and day is not None else CoachTactics())
 
     def _player_ability(self, player, reference_year: int, team_seed: int):
         source = self.ability_generator.source
@@ -503,12 +512,14 @@ class AbilityMatchResolver:
             team_generation_seed=team_generation_seed,
         )
         day = self._match_day()
+        tactics = {sid: self._coach_tactics(sid, day) for sid in (team1, team2)}
         result = self.simulator.simulate(
             match_input,
             rules=self.rules_for(competition_id, match_id),
             pitch_allowances=self._pitch_allowances(
                 (team1_input, team2_input), day,
             ),
+            **({"tactics": tactics} if any(t != CoachTactics() for t in tactics.values()) else {}),
         )
         self._record_pitches(result, day)
         self._record_games(competition_id, result)
