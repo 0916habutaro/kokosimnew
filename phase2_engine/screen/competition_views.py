@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from ..competition_schedule_runtime import SCHEDULE_PENDING
 from ..tournament_runtime import MATCH_BYE, MainTournamentRuntimeState
+from ..competition_records import main_runtime
 
 
 SEGMENT_LABELS = {"spring": "春", "summer": "夏", "autumn": "秋"}
@@ -35,13 +36,6 @@ POSITION_LABELS = {
     "SS": "遊", "LF": "左", "CF": "中", "RF": "右",
 }
 HALF_LABELS = {"t": "表", "b": "裏", "top": "表", "bottom": "裏"}
-
-
-def main_runtime(scheduled) -> MainTournamentRuntimeState | None:
-    runtime = scheduled.runtime
-    if isinstance(runtime, MainTournamentRuntimeState):
-        return runtime
-    return getattr(runtime, "main_runtime", None)
 
 
 def _level(competition: dict) -> str:

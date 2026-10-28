@@ -909,6 +909,7 @@ async function renderCoach(content, target) {
       <div class="panel"><h3>能力・采配傾向（1〜100）</h3><table class="list">${d.abilities.map((a) => `<tr><th>${esc(a.label)}</th><td class="n">${a.value}</td><td>${esc(a.description)}</td></tr>`).join("")}</table></div>
       <div class="panel"><h3>指揮した公式戦</h3><p>${record.wins}勝 ${record.losses}敗（${record.games}試合）</p>
       <p class="muted">${esc(record.from_date)}以降の保存された実試合を、試合日の所属で集計。不戦勝・不戦敗、開始前の記録は含みません。</p></div>
+      ${coachTournamentView(d.tournament_record, d.simulation_start)}
       <div class="panel"><h3>在任・異動履歴</h3>${tenureTable(d.periods, false)}${tenureNote(d)}</div></div>`;
   $("c-back").addEventListener("click", () => {
     state.schools.coach = null;
@@ -917,6 +918,32 @@ async function renderCoach(content, target) {
     renderPage();
   });
   content.querySelectorAll("[data-coach-school]").forEach((a) => a.addEventListener("click", () => openSchool(a.dataset.coachSchool)));
+  content.querySelectorAll("[data-coach-cid]").forEach((a) => a.addEventListener("click", () => {
+    state.competitions.view = { year: Number(a.dataset.coachYear), id: a.dataset.coachCid };
+    state.page = "competitions";
+    renderMenu();
+    renderPage();
+  }));
+}
+
+function coachTournamentView(data, start) {
+  const link = (r, text) => `<button class="link" data-coach-cid="${esc(r.competition_id)}" data-coach-year="${r.school_year}">${esc(text)}</button>`;
+  const school = (r) => `${esc(r.school_name)}${r.school_name !== r.current_school_name ? `<div class="muted">現在：${esc(r.current_school_name)}</div>` : ""}`;
+  return `<div class="panel"><h3>大会実績</h3><table class="list">
+    <tr><th>大会区分</th><th>出場回数</th><th>優勝回数</th><th>最高成績</th></tr>
+    ${data.summary.map((r) => `<tr><td>${esc(r.label)}</td><td class="n">${r.appearances ?? "−"}</td><td class="n">${r.championships}</td><td>${esc(r.best_finish || "−")}</td></tr>`).join("")}</table>
+    <p class="muted">出場は本大会に登録され最初の実試合を指揮した監督、最終成績は大会完了後に決勝・敗退戦を指揮した監督へ計上します。同じ大会は各回数に1回まで。途中交代では「出場0回・優勝1回」もあります。${esc(start)}より前の出来事や、不戦で決まった最終成績は加算しません。</p>
+    <table class="list"><tr><th>大会年度</th><th>大会</th><th>学校</th><th>本人の記録</th><th>出場の確認日</th><th>成績の決定日</th></tr>
+    ${data.records.map((r) => `<tr><td>${link(r, `${r.school_year}年度`)}</td><td>${link(r, r.competition_name)}</td><td>${school(r)}</td>
+      <td>${link(r, [r.appearance ? "出場" : "", r.personal_finish || ""].filter(Boolean).join("・"))}</td>
+      <td>${r.appearance ? dotDate(r.first_game_date) : "−"}</td><td>${r.personal_finish ? dotDate(r.decision_date) : "−"}</td></tr>`).join("")}</table>
+    ${data.records.length ? "" : '<p class="muted">確認できる大会実績はまだありません。</p>'}</div>
+    <div class="panel"><h3>所属校に関係する参考記録（本人の実績には加算しない）</h3>
+    <p class="muted">開催期間（予定日を含む）と在任期間が重なる学校の公式結果です。監督への帰属を意味しません。不戦を含む大会の公式結果自体は変更しません。</p>
+    <table class="list"><tr><th>大会年度</th><th>大会</th><th>学校</th><th>区分</th><th>決着</th><th>学校の最終成績</th></tr>
+    ${data.references.map((r) => `<tr><td>${link(r, `${r.school_year}年度`)}</td><td>${link(r, r.competition_name)}</td><td>${school(r)}</td>
+      <td>${esc(r.label)}</td><td>${esc(r.resolution)}</td><td>${link(r, r.finish)}</td></tr>`).join("")}</table>
+    ${data.references.length ? "" : '<p class="muted">該当する参考記録はありません。</p>'}</div>`;
 }
 
 // 学校の編集（そのセーブの中だけ。実際の校名変更・実状に合わせる）

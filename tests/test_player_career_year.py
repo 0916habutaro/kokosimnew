@@ -159,6 +159,23 @@ class PlayerCareerYearTests(unittest.TestCase):
         self.assertEqual(coach.coach_id,rows['coaches'][0]['coach_id'])
         self.assertEqual(before,pickle.dumps((state.coaches.__getstate__(),state.rosters.__getstate__())))
 
+    def test_tournament_index_matches_closed_season_and_survives_reload(self):
+        from phase2_engine.competition_records import season_records
+        closed, names = self.service.closed_season('year', 2026, self.session.plan.rng_seed)
+        expected = season_records(closed, self.service.repo, names)
+        champion = next(r for r in expected if r['category'] == 'summer_koshien' and r['finish'] == '優勝')
+        archive = self.service._history_archive('year')
+        school = champion['school_id']
+        self.assertEqual(sorted((r for r in expected if r['school_id'] == school),
+                                key=lambda r: r['competition_id']),
+                         archive.school_competition_records(school))
+        coach = self.session.state.coaches.for_school(school, date.fromisoformat(champion['decision_date']))
+        before = GameScreenData(self.service, self.session).coach(coach.coach_id)['tournament_record']
+        reloaded = self.service.load_game('year')
+        self.assertEqual(before, GameScreenData(self.service, reloaded).coach(coach.coach_id)['tournament_record'])
+        self.assertTrue(any(r['competition_id'] == champion['competition_id'] and r['personal_finish'] == '優勝'
+                            for r in before['records']))
+
     def test_previous_roster_is_kept_until_its_competitions_end(self):
         self.assertEqual([2026], self.march_rosters)
         self.assertIn(2026, self.april_rosters)

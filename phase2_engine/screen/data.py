@@ -29,7 +29,8 @@ from .competition_views import (
     other_stage_matches,
 )
 from .competition_names import CompetitionNames
-from .coach_views import CoachHistory, official_record
+from .coach_views import CoachHistory, official_record, tournament_record
+from ..competition_records import competition_records
 from .koshien_records import (
     KINDS as KOSHIEN_KINDS,
     RECORDS_PATH as KOSHIEN_RECORDS_PATH,
@@ -1399,7 +1400,27 @@ class GameScreenData:
                     if match.status == 'completed':
                         facts[key] = match.public_dict()
         result['official_record'] = official_record(facts.values(), index.book, coach_id, today)
+        result['tournament_record'] = self._coach_tournaments(result, index.book, today, schools, archive)
         return result
+
+    def _coach_tournaments(self, person, book, today, schools, archive):
+        live = _seasons(self.state)
+        records = {(r['year'], r['competition_id'], r['school_id']): r
+                   for sid in schools for r in archive.school_competition_records(sid)
+                   if r['year'] not in live}
+        competitions = getattr(self.service.repo, 'competitions', {})
+        for year, season in live.items():
+            plan = getattr(self.state, 'plans', {}).get(year)
+            entries = plan.entries if plan is not None else {}
+            for cid, scheduled in season.competitions.items():
+                for row in competition_records(year, cid, scheduled, competitions.get(cid, {}),
+                        getattr(season, 'calendar_rows', {}).get(cid, {}),
+                        name=entries[cid].display_name if cid in entries else '',
+                        confirmed_on=today.isoformat(), school_ids=schools):
+                    if row['school_id'] in schools:
+                        records[(year, cid, row['school_id'])] = row
+        return tournament_record(records.values(), book, person['coach_id'], today,
+                                 person['periods'], self.names)
 
     # ---- 選手 ----
 
