@@ -1,4 +1,5 @@
 """正式画面の監督ID遷移と、日付に基づく読み取り専用の在任・勝敗表示。"""
+from contextlib import closing
 from dataclasses import replace
 from datetime import date
 import json
@@ -47,7 +48,7 @@ class CoachScreenTests(unittest.TestCase):
         self.data=screen(self.book,self.repo,self.archive)
 
     def archive_rows(self,rows):
-        with sqlite3.connect(self.archive.db_path) as c:
+        with closing(sqlite3.connect(self.archive.db_path)) as c, c:
             c.executescript('''CREATE TABLE historical_matches (
               year INTEGER, competition_id TEXT, match_id TEXT, match_date TEXT,
               date_source TEXT, team1_id TEXT, team2_id TEXT, team1_score INTEGER,
