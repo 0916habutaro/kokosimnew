@@ -5,7 +5,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from statistics import fmean
-from typing import Iterable, Iterator
+from typing import Iterable, Iterator, Mapping
 
 from phase2_engine.repository import DataRepository
 
@@ -232,6 +232,35 @@ class TeamStrengthGenerator:
                 )
             values[ability_id] = float(value)
         return _weighted(values, weights)
+
+    def defense_for_alignment(
+        self,
+        players: Mapping[str, PlayerAbilitySnapshot],
+        alignment: Iterable[tuple[str, str]],
+    ) -> float:
+        """本職ではなく実配置から、先発評価と同じ重み・適性・丸めで守備値を得る。"""
+        assignments = tuple(alignment)
+        if (len(assignments) != 9
+                or {pos for pos, _ in assignments} != set(STARTING_POSITIONS)
+                or len({pid for _, pid in assignments}) != 9):
+            raise ValueError("defense requires nine unique positions and players")
+        importance = self.params["defense"]["position_importance"]
+        defense_numerator = 0.0
+        defense_denominator = 0.0
+        for position, player_id in assignments:
+            if position == "P":
+                continue
+            player = players[player_id]
+            weight = float(importance[position])
+            defense_numerator += (
+                self._defense_composite(player, position) * weight
+            )
+            defense_denominator += weight
+        if defense_denominator <= 0:
+            raise ValueError(
+                "defense position importance must be positive"
+            )
+        return _round_strength(defense_numerator / defense_denominator)
 
     def _selection_score(
         self,
@@ -508,24 +537,9 @@ class TeamStrengthGenerator:
             self._running_composite(player) for player in starters
         )
 
-        importance = self.params["defense"]["position_importance"]
-        defense_numerator = 0.0
-        defense_denominator = 0.0
-        for entry in lineup.entries:
-            position = entry.defensive_position
-            if position == "P":
-                continue
-            player = by_id[entry.player_id]
-            weight = float(importance[position])
-            defense_numerator += (
-                self._defense_composite(player, position) * weight
-            )
-            defense_denominator += weight
-        if defense_denominator <= 0:
-            raise ValueError(
-                "defense position importance must be positive"
-            )
-        defense_strength = defense_numerator / defense_denominator
+        defense_strength = self.defense_for_alignment(
+            by_id, ((e.defensive_position, e.player_id) for e in lineup.entries),
+        )
 
         qualities = [entry.quality for entry in staff.entries]
         # 投手が3人に満たない分は、野手が投げるものとして扱う。

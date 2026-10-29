@@ -53,13 +53,14 @@ class TeamMatchState:
 
     公開するコレクションは不変。操作は候補全体の検証後に一度だけ状態を置換する。
     actual_pitcher_idを省略した初期化・validateは先発選考との内部整合だけを保証し、
-    球数制限後の実際の投手との一致は保証しない。本番シミュレーターへの接続は後続PR。
+    球数制限後の実際の投手との一致は保証しない。本番では先発確定後に初期化する。
     """
 
-    __slots__ = ("_school_id", "_registered", "_data")
+    __slots__ = ("_school_id", "_registered", "_available", "_initial_lineup", "_data")
 
     def __init__(self, starting_lineup: StartingLineup,
-                 registered_player_ids: Iterable[str], *, actual_pitcher_id: str | None = None):
+                 registered_player_ids: Iterable[str], *, actual_pitcher_id: str | None = None,
+                 available_player_ids: Iterable[str] | None = None):
         validate_starting_lineup(starting_lineup)
         if not isinstance(starting_lineup.school_id, str) or not starting_lineup.school_id:
             raise ValueError("school_id is required")
@@ -70,6 +71,10 @@ class TeamMatchState:
             raise ValueError("registered player IDs must be nonempty strings")
         self._school_id = starting_lineup.school_id
         self._registered = registered
+        self._available = registered if available_player_ids is None else frozenset(available_player_ids)
+        if not self._available <= registered:
+            raise ValueError("available players must be registered")
+        self._initial_lineup = starting_lineup
         positions = {entry.defensive_position: entry.player_id for entry in starting_lineup.entries}
         data = _TeamStateData(
             batting_order=tuple(
@@ -90,6 +95,15 @@ class TeamMatchState:
         return self._registered
 
     @property
+    def available_player_ids(self) -> frozenset[str]:
+        return self._available
+
+    @property
+    def initial_lineup(self) -> StartingLineup:
+        """球数制限などを反映した開始配置。実行中の履歴とともに保持する。"""
+        return self._initial_lineup
+
+    @property
     def batting_order(self) -> tuple[BattingOrderSlot, ...]:
         return self._data.batting_order
 
@@ -108,7 +122,7 @@ class TeamMatchState:
 
     @property
     def bench_player_ids(self) -> frozenset[str]:
-        return self._registered - self.active_player_ids - self.exited_player_ids
+        return self._available - self.active_player_ids - self.exited_player_ids
 
     @property
     def exited_player_ids(self) -> frozenset[str]:
@@ -147,6 +161,8 @@ class TeamMatchState:
             raise ValueError("batting and defensive players differ without DH")
         if not batters <= self._registered or not data.exited <= self._registered:
             raise ValueError("unregistered player")
+        if not batters <= self._available:
+            raise ValueError("unavailable player")
         if batters & data.exited:
             raise ValueError("an exited player cannot reenter")
         if actual_pitcher_id is not None and data.defense[0].player_id != actual_pitcher_id:

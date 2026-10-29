@@ -63,6 +63,7 @@ jobs:
             'test_player_season.py',
             'test_pitcher_run_accounting.py',
             'test_match_state.py',
+            'test_live_match_state.py',
             'test_player_career_year.py',
             'test_roster_book.py',
             'test_annual_reputation.py',

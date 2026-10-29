@@ -1,4 +1,4 @@
-"""DHなしの出場状態と、本番接続前の非影響を架空データで確かめる。"""
+"""DHなしの出場状態と、独立した状態操作の非影響を架空データで確かめる。"""
 from dataclasses import FrozenInstanceError, replace
 import unittest
 

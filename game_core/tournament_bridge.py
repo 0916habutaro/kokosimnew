@@ -55,7 +55,7 @@ class AbilityMatchResolver:
             ability_config_dir
         )
         self.team_generator = TeamStrengthGenerator(ability_config_dir)
-        self.simulator = MatchSimulator(match_config_dir)
+        self.simulator = MatchSimulator(match_config_dir, team_generator=self.team_generator)
         # 試合の規定（タイブレーク・コールド）。ファイルがなければ使わない
         rules_path = Path(match_config_dir) / "game_rules_v1.json"
         self.game_rules = (
@@ -276,6 +276,7 @@ class AbilityMatchResolver:
             self._abilities.clear()
             self._source_version = version
         members = self.member_provider(competition_id, school_id).players
+        registered_ids = frozenset(p.player_id for p in members)
         # 怪我で休んでいる選手は出ない（9人に足りなければ出る）。復帰直後の選手は
         # 能力が少し下がる。その日の状態ごとにつくり直す
         source = self.ability_generator.source
@@ -305,6 +306,7 @@ class AbilityMatchResolver:
             team_strength=self.team_generator.generate(
                 abilities, selection_grade_bias=tactics.selection_grade_bias),
             player_abilities=abilities,
+            registered_player_ids=registered_ids,
         )
         self._competition_teams[key] = team
         return team
