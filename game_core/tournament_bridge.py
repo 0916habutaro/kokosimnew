@@ -339,20 +339,28 @@ class AbilityMatchResolver:
         source = self.ability_generator.source
         if source is None or self.member_provider is None:
             return
-        played = {
+        batting_or_pitching = {
             s.player_id for s in result.batter_stats if s.plate_appearances > 0
         } | {
             s.player_id for s in result.pitcher_stats if s.batters_faced > 0
+        }
+        played = batting_or_pitching | {
+            player_id for team in result.team_participation for player_id in team.fielding_player_ids
         }
         day = self._match_day()
         pitched = {s.player_id: s.pitches for s in result.pitcher_stats if s.batters_faced > 0}
         log = getattr(self.season_state, "pitch_log", None) or {}
         appearances = []
+        fielding_only_appearances = []
         for school_id in (result.team1_school_id, result.team2_school_id):
             members = self.member_provider(competition_id, school_id).players
-            appeared = [p for p in members if p.player_id in played]
+            # 和集合とID単位の重複排除で、1試合につき最大1回。名簿の順序は維持する。
+            appeared = list({p.player_id: p for p in members if p.player_id in played}.values())
             source.record_games(school_id, appeared)
             for player in appeared:
+                if player.player_id not in batting_or_pitching:
+                    fielding_only_appearances.append((player, 0, 0, 0))
+                    continue
                 pitches = pitched.get(player.player_id, 0)
                 load7 = consecutive = 0
                 if pitches and day is not None:
@@ -363,9 +371,10 @@ class AbilityMatchResolver:
                         consecutive += 1
                 appearances.append((player, pitches, load7, consecutive))
         if day is not None and hasattr(source, "after_game"):
-            # 試合の怪我（翌日から休む）
+            # 両校の従来対象を先に抽選し、その後で守備のみの選手を抽選する。
+            # 試合ごとに独立した乱数なので、追加分は従来対象の怪我結果を変えない。
             source.after_game(
-                appearances, day=day,
+                appearances + fielding_only_appearances, day=day,
                 rng=rng_for(
                     getattr(source, "career_seed", 0),
                     f"injuries_v1:match:{competition_id}:{result.match_id}",
