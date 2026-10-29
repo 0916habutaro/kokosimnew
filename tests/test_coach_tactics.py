@@ -213,7 +213,6 @@ class CoachTacticsTests(unittest.TestCase):
         self.assertEqual(states(f[3]),states(loaded[3]))
 
 
-if __name__=='__main__':unittest.main()
 
 class StarterUsageTests(unittest.TestCase):
     @classmethod
@@ -303,3 +302,7 @@ class StarterUsageTests(unittest.TestCase):
                 outs += next(p.outs_recorded for p in r.pitcher_stats if p.school_id == team.school_id)
             totals[quality] = outs
         self.assertGreater(totals[90], totals[20])
+
+
+if __name__ == "__main__":
+    unittest.main()
