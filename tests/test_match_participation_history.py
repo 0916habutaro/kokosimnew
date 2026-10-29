@@ -110,6 +110,12 @@ class MatchParticipationHistoryTests(unittest.TestCase):
         self.assertEqual(old, restored.player_for_position('SS'))
         self.assertFalse(restored.exited_player_ids)
         self.assert_replays(result, sim.states)
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = HistoricalMatchArchive(Path(tmp) / 'history.sqlite3')
+            self.sync(archive, [self.record(result)])
+            archive.pack_competition(2026, result.competition_id)
+            loaded = archive.get_match(2026, result.competition_id, result.match_id)
+            self.assertEqual(record.to_dict(), loaded['team_participation'][0])
 
     def test_position_only_exchanges_and_failed_changes_round_trip_without_retirement(self):
         team = self.fixture.teams[0]
