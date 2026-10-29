@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 import tempfile
 import unittest
+from collections import Counter
 from pathlib import Path
 
 from game_core.tournament_bridge import AbilityMatchResolver
@@ -319,6 +320,19 @@ class Stage13C4PreMainSeasonSQLiteTests(unittest.TestCase):
 
     def test_ability_game_results_round_trip_through_sqlite(self):
         run = self._ability_run()
+        expected_batters = [
+            {"year": self.year, "competition_id": run.competition_id,
+             "match_id": match_id, **row}
+            for match_id, detail in run.match_simulation_results.items()
+            for row in detail["batter_stats"]
+        ]
+
+        def batter_key(row):
+            return row["match_id"], row["school_id"], row["player_id"]
+
+        expected_keys = Counter(batter_key(row) for row in expected_batters)
+        self.assertTrue(all(count == 1 for count in expected_keys.values()))
+        self.assertTrue(any(row["plate_appearances"] == 0 for row in expected_batters))
         season = SeasonExecution(
             year=self.year,
             rng_seed=self.seed,
@@ -342,11 +356,40 @@ class Stage13C4PreMainSeasonSQLiteTests(unittest.TestCase):
                         (self.year, self.seed, 2, 3, 1, 4),
                     )
             summary = repository.replace_season_match_results(season)
-            self.assertEqual(3, summary["ability_match_count"])
-            self.assertEqual(54, summary["batter_game_stat_count"])
-            self.assertEqual(6, summary["team_game_stat_count"])
-            self.assertGreater(summary["pitcher_game_stat_count"], 0)
-            self.assertGreater(summary["match_event_count"], 0)
+            self.assertEqual(len(run.match_simulation_results), summary["ability_match_count"])
+            self.assertEqual(len(expected_batters), summary["batter_game_stat_count"])
+            for count_key, detail_key in (
+                ("team_game_stat_count", "team_stats"),
+                ("pitcher_game_stat_count", "pitcher_stats"),
+                ("match_event_count", "events"),
+            ):
+                self.assertEqual(
+                    sum(len(detail[detail_key]) for detail in run.match_simulation_results.values()),
+                    summary[count_key],
+                )
+            with repository._connect() as conn:
+                saved_batters = [dict(row) for row in conn.execute(
+                    "SELECT * FROM batter_game_stats WHERE year = ? AND competition_id = ?",
+                    (self.year, run.competition_id),
+                )]
+            self.assertEqual(len(expected_batters), len(saved_batters))
+            saved_keys = Counter(batter_key(row) for row in saved_batters)
+            self.assertEqual(expected_keys, saved_keys)
+            self.assertEqual(
+                {batter_key(row): row for row in expected_batters},
+                {batter_key(row): row for row in saved_batters},
+            )
+            relieved_teams = 0
+            for match_id, detail in run.match_simulation_results.items():
+                for school_id in (detail["team1_school_id"], detail["team2_school_id"]):
+                    pitchers = [row["player_id"] for row in detail["pitcher_stats"]
+                                if row["school_id"] == school_id and row["batters_faced"] > 0]
+                    if len(pitchers) > 1:
+                        relieved_teams += 1
+                        # 元投手も新投手も、0打席を含む元の成績のまま残る。
+                        for player_id in pitchers:
+                            self.assertEqual(1, saved_keys[match_id, school_id, player_id])
+            self.assertGreater(relieved_teams, 0)
 
             match_id = sorted(run.match_simulation_results)[0]
             stored = repository.ability_match(
@@ -363,7 +406,10 @@ class Stage13C4PreMainSeasonSQLiteTests(unittest.TestCase):
                 self.year,
                 player_id,
             )
-            self.assertTrue(batter_rows)
+            self.assertCountEqual(
+                [row for row in expected_batters if row["player_id"] == player_id],
+                batter_rows,
+            )
 
             events = repository.events_for_match(
                 self.year,
