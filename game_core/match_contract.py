@@ -18,9 +18,11 @@ class TeamMatchInput:
     school_id: str
     team_strength: TeamStrengthSnapshot
     player_abilities: tuple[PlayerAbilitySnapshot, ...]
+    # 大会登録者。能力を渡すのは当日の出場可能者だけ（単独利用では省略可）。
+    registered_player_ids: frozenset[str] | None = None
 
     def to_dict(self) -> dict:
-        return {
+        out = {
             "school_id": self.school_id,
             "team_strength": self.team_strength.to_dict(),
             "player_abilities": [
@@ -28,6 +30,9 @@ class TeamMatchInput:
                 for player in self.player_abilities
             ],
         }
+        if self.registered_player_ids is not None:
+            out["registered_player_ids"] = sorted(self.registered_player_ids)
+        return out
 
 
 @dataclass(frozen=True)
@@ -331,6 +336,11 @@ def validate_team_match_input(team: TeamMatchInput) -> None:
         )
 
     known_ids = set(ids)
+    if team.registered_player_ids is not None:
+        if (any(not isinstance(pid, str) or not pid.strip()
+                for pid in team.registered_player_ids)
+                or not known_ids <= team.registered_player_ids):
+            raise ValueError(f"{team.school_id}: available players must be registered")
     starter_ids = set(strength.starting_lineup.starter_ids)
     pitcher_ids = {
         item.player_id

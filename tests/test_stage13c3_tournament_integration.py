@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+from collections import Counter
 import tempfile
 import unittest
 from pathlib import Path
@@ -149,8 +150,40 @@ class Stage13C3TournamentIntegrationTests(unittest.TestCase):
 
         for match_id, detail in run.match_simulation_results.items():
             with self.subTest(match_id=match_id):
+                self.assertEqual(match_id, detail["match_id"])
                 self.assertTrue(detail["events"])
-                self.assertEqual(18, len(detail["batter_stats"]))
+                batter_keys = [
+                    (row["school_id"], row["player_id"])
+                    for row in detail["batter_stats"]
+                ]
+                self.assertEqual(len(batter_keys), len(set(batter_keys)))
+                # この大会は開始前の先発変更なし。先発9人に加え、継投で
+                # 出場した選手も、打席が回らなかった場合を含めて記録する。
+                starter_keys = {
+                    (school_id, player_id)
+                    for school_id in (detail["team1_school_id"], detail["team2_school_id"])
+                    for player_id in self.resolver.team_input(
+                        school_id=school_id,
+                        reference_year=self.year,
+                        generation_seed=self.seed,
+                        competition_id=self.competition_id,
+                    ).team_strength.starting_lineup.starter_ids
+                }
+                pitcher_keys = {
+                    (row["school_id"], row["player_id"])
+                    for row in detail["pitcher_stats"]
+                }
+                self.assertEqual(starter_keys | pitcher_keys, set(batter_keys))
+                appearances = Counter(
+                    (event["offense_school_id"], event["batter_id"])
+                    for event in detail["events"]
+                )
+                self.assertTrue(set(appearances) <= set(batter_keys))
+                for row in detail["batter_stats"]:
+                    self.assertEqual(
+                        appearances[row["school_id"], row["player_id"]],
+                        row["plate_appearances"],
+                    )
                 self.assertEqual(2, len(detail["team_stats"]))
                 self.assertTrue(detail["pitcher_stats"])
                 self.assertEqual(
@@ -180,6 +213,18 @@ class Stage13C3TournamentIntegrationTests(unittest.TestCase):
             len(detail["events"])
             for detail in run.match_simulation_results.values()
         )
+        expected_batters = [
+            {"match_id": match_id, **row}
+            for match_id, detail in run.match_simulation_results.items()
+            for row in detail["batter_stats"]
+        ]
+
+        def batter_key(row):
+            return row["match_id"], row["school_id"], row["player_id"]
+
+        expected_keys = Counter(batter_key(row) for row in expected_batters)
+        self.assertTrue(all(count == 1 for count in expected_keys.values()))
+        self.assertTrue(any(row["plate_appearances"] == 0 for row in expected_batters))
 
         with tempfile.TemporaryDirectory() as td:
             paths = save_competition_run(run, td)
@@ -213,7 +258,26 @@ class Stage13C3TournamentIntegrationTests(unittest.TestCase):
                 newline="",
             ) as f:
                 batter_rows = list(csv.DictReader(f))
-            self.assertEqual(expected_match_count * 18, len(batter_rows))
+            self.assertEqual(len(expected_batters), len(batter_rows))
+            saved_keys = Counter(batter_key(row) for row in batter_rows)
+            self.assertEqual(expected_keys, saved_keys)
+            # 全成績値も照合し、0打席の行を誤って除外していないことを確認する。
+            self.assertEqual(
+                {batter_key(row): {key: str(value) for key, value in row.items()}
+                 for row in expected_batters},
+                {batter_key(row): row for row in batter_rows},
+            )
+            relieved_teams = 0
+            for match_id, detail in run.match_simulation_results.items():
+                for school_id in (detail["team1_school_id"], detail["team2_school_id"]):
+                    pitchers = [row["player_id"] for row in detail["pitcher_stats"]
+                                if row["school_id"] == school_id and row["batters_faced"] > 0]
+                    if len(pitchers) > 1:
+                        relieved_teams += 1
+                        # 交代前・交代後の投手が両方CSVに一度ずつ保存される。
+                        for player_id in pitchers:
+                            self.assertEqual(1, saved_keys[match_id, school_id, player_id])
+            self.assertGreater(relieved_teams, 0)
 
             with Path(paths["team_game_stats_csv"]).open(
                 encoding="utf-8-sig",

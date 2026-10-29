@@ -24,6 +24,8 @@ from .match_contract import (
     validate_match_simulation_input,
     validate_match_simulation_result,
 )
+from .match_state import TeamMatchState
+from .team_strength import TeamStrengthGenerator
 
 
 @dataclass(frozen=True)
@@ -310,8 +312,11 @@ class MatchSimulator:
     def __init__(
         self,
         config_dir: str | Path = "config/match",
+        *,
+        team_generator: TeamStrengthGenerator | None = None,
     ):
         self.config_dir = Path(config_dir)
+        self._team_generator = team_generator
         self.configs = load_and_validate_match_configs(self.config_dir)
         self.config = self.configs["match_simulation_v1"]
         self.params = self.config.payload
@@ -328,14 +333,6 @@ class MatchSimulator:
             player.player_id: player
             for player in team.player_abilities
         }
-
-    @staticmethod
-    def _lineup(team: TeamMatchInput) -> tuple[str, ...]:
-        entries = sorted(
-            team.team_strength.starting_lineup.entries,
-            key=lambda entry: entry.batting_order,
-        )
-        return tuple(entry.player_id for entry in entries)
 
     @staticmethod
     def _pitcher_order(team: TeamMatchInput) -> tuple[str, ...]:
@@ -379,6 +376,47 @@ class MatchSimulator:
             key=lambda player: (-player.arm_strength, player.player_id),
         )
         return tuple(order) + tuple(player.player_id for player in fielders), len(order)
+
+    def _strength_generator(self) -> TeamStrengthGenerator:
+        if self._team_generator is None:
+            self._team_generator = TeamStrengthGenerator()
+        return self._team_generator
+
+    def _initial_state(self, team: TeamMatchInput, actual_pitcher_id: str) -> TeamMatchState:
+        """開始前にP配置を確定する。外れた先発予定選手は未出場の控えに戻す。"""
+        lineup = team.team_strength.starting_lineup
+        planned_pitcher = lineup.player_for_position("P")
+        if actual_pitcher_id != planned_pitcher:
+            position = next((entry.defensive_position for entry in lineup.entries
+                             if entry.player_id == actual_pitcher_id), None)
+            if position is None:
+                player = self._players(team)[actual_pitcher_id]
+                score = round(self._strength_generator()._selection_score(player, "P"), 4)
+                entries = tuple(
+                    replace(entry, player_id=actual_pitcher_id, selection_score=score)
+                    if entry.defensive_position == "P" else entry
+                    for entry in lineup.entries
+                )
+            else:
+                entries = tuple(
+                    replace(entry, defensive_position=position)
+                    if entry.player_id == planned_pitcher else
+                    replace(entry, defensive_position="P")
+                    if entry.player_id == actual_pitcher_id else entry
+                    for entry in lineup.entries
+                )
+            lineup = replace(lineup, entries=entries)
+        available = frozenset(p.player_id for p in team.player_abilities)
+        return TeamMatchState(
+            lineup, team.registered_player_ids if team.registered_player_ids is not None else available,
+            available_player_ids=available, actual_pitcher_id=actual_pitcher_id,
+        )
+
+    def _current_defense(self, state: TeamMatchState,
+                         players: Mapping[str, PlayerAbilitySnapshot]) -> float:
+        return self._strength_generator().defense_for_alignment(
+            players, ((a.defensive_position, a.player_id) for a in state.defensive_alignment),
+        )
 
     def _as_pitcher(
         self,
@@ -916,9 +954,12 @@ class MatchSimulator:
         rules: GameRules | None = None,
         pitch_allowances: Mapping[str, int] | None = None,
         tactics: Mapping[str, CoachTactics] | None = None,
+        state_sink: dict[str, TeamMatchState] | None = None,
     ) -> MatchSimulationResult:
         """``pitch_allowances``：選手 → この試合であと何球投げられるか（球数制限）。
-        届いたら次の打者から投げない。None なら制限なし。"""
+        届いたら次の打者から投げない。None なら制限なし。
+        state_sink指定時は、成功した試合の開始配置・最終状態・交代履歴を返す。
+        これらの実行時情報は試合結果やセーブには自動保存しない。"""
         validate_match_simulation_input(match_input)
         rules = rules or GameRules()
         regulation = (
@@ -945,10 +986,6 @@ class MatchSimulator:
             school_id: self._players(team)
             for school_id, team in teams.items()
         }
-        lineups = {
-            school_id: self._lineup(team)
-            for school_id, team in teams.items()
-        }
         game_staffs = {
             school_id: self._game_staff(team, pitch_allowances)
             for school_id, team in teams.items()
@@ -959,6 +996,19 @@ class MatchSimulator:
         staff_sizes = {
             school_id: size for school_id, (_, size) in game_staffs.items()
         }
+        for school_id, order in pitcher_orders.items():
+            if not order:
+                raise ValueError(f"{school_id}: no available pitcher within pitch limits")
+        states = {
+            school_id: self._initial_state(team, pitcher_orders[school_id][0])
+            for school_id, team in teams.items()
+        }
+        defense_values = {
+            school_id: (team.team_strength.defense_strength
+                        if states[school_id].initial_lineup == team.team_strength.starting_lineup
+                        else self._current_defense(states[school_id], player_maps[school_id]))
+            for school_id, team in teams.items()
+        }
         lineup_index = {team1_id: 0, team2_id: 0}
         pitcher_index = {team1_id: 0, team2_id: 0}
 
@@ -968,7 +1018,7 @@ class MatchSimulator:
                     player_id,
                     school_id,
                 )
-                for player_id in lineups[school_id]
+                for player_id in (slot.player_id for slot in states[school_id].batting_order)
             }
             for school_id in (team1_id, team2_id)
         }
@@ -977,7 +1027,7 @@ class MatchSimulator:
             team2_id: {},
         }
         for school_id in (team1_id, team2_id):
-            first_pitcher = pitcher_orders[school_id][0]
+            first_pitcher = states[school_id].current_pitcher_id
             pitcher_rows[school_id][first_pitcher] = (
                 self._empty_pitcher_stats(first_pitcher, school_id)
             )
@@ -1029,16 +1079,16 @@ class MatchSimulator:
                     rules.tiebreak_start_inning is not None
                     and inning >= rules.tiebreak_start_inning
                 ):
-                    order = lineups[offense_id]
                     lead = lineup_index[offense_id]
-                    bases[0] = order[(lead - 1) % len(order)]
-                    bases[1] = order[(lead - 2) % len(order)]
+                    bases[0] = states[offense_id].player_at_order((lead - 1) % 9 + 1)
+                    bases[1] = states[offense_id].player_at_order((lead - 2) % 9 + 1)
                     tiebreak_pending = True
 
                 while outs < 3:
                     staff = pitcher_orders[defense_id]
                     current_index = pitcher_index[defense_id]
-                    pitcher_id = staff[current_index]
+                    state = states[defense_id]
+                    pitcher_id = state.current_pitcher_id
                     if pitcher_id not in pitcher_rows[defense_id]:
                         pitcher_rows[defense_id][pitcher_id] = (
                             self._empty_pitcher_stats(
@@ -1054,9 +1104,9 @@ class MatchSimulator:
                         and int(pitcher_stat["pitches"])
                         >= pitch_allowances.get(pitcher_id, math.inf)
                     )
-                    if (
-                        limit_reached and current_index + 1 < len(staff)
-                    ) or self._should_change_pitcher(
+                    if limit_reached and current_index + 1 >= len(staff):
+                        raise ValueError(f"{defense_id}: no available relief pitcher within pitch limits")
+                    if limit_reached or self._should_change_pitcher(
                         pitcher=pitcher,
                         stats={**pitcher_stat, "runs_allowed": outing_runs[pitcher_id]},
                         starter=current_index == 0,
@@ -1065,7 +1115,19 @@ class MatchSimulator:
                     ):
                         pitcher_index[defense_id] += 1
                         current_index = pitcher_index[defense_id]
-                        pitcher_id = staff[current_index]
+                        incoming = staff[current_index]
+                        if incoming in pitcher_rows[defense_id]:
+                            raise ValueError(f"{defense_id}: pitcher reentry is not supported: {incoming}")
+                        state.change_pitcher(incoming)
+                        state.validate(actual_pitcher_id=incoming)
+                        pitcher_id = state.current_pitcher_id
+                        if pitcher_id not in batter_rows[defense_id]:
+                            batter_rows[defense_id][pitcher_id] = self._empty_batter_stats(
+                                pitcher_id, defense_id,
+                            )
+                        defense_values[defense_id] = self._current_defense(
+                            state, player_maps[defense_id],
+                        )
                         if pitcher_id not in pitcher_rows[defense_id]:
                             pitcher_rows[defense_id][pitcher_id] = (
                                 self._empty_pitcher_stats(
@@ -1078,10 +1140,7 @@ class MatchSimulator:
                         )
                         pitcher_stat = pitcher_rows[defense_id][pitcher_id]
 
-                    lineup = lineups[offense_id]
-                    batter_id = lineup[
-                        lineup_index[offense_id] % len(lineup)
-                    ]
+                    batter_id = states[offense_id].player_at_order(lineup_index[offense_id] % 9 + 1)
                     lineup_index[offense_id] += 1
                     batter = player_maps[offense_id][batter_id]
                     if tiebreak_pending:
@@ -1128,7 +1187,7 @@ class MatchSimulator:
                         weights = self._event_weights(
                             batter,
                             pitcher,
-                            teams[defense_id].team_strength.defense_strength,
+                            defense_values[defense_id],
                         )
                         event_type = self._weighted_choice(pa_rng, weights)
                         event_type = self._maybe_sacrifice_fly(
@@ -1144,9 +1203,7 @@ class MatchSimulator:
                         batter_id=batter_id,
                         bases=bases,
                         offense_players=player_maps[offense_id],
-                        defense_strength=teams[
-                            defense_id
-                        ].team_strength.defense_strength,
+                        defense_strength=defense_values[defense_id],
                         rng=event_rng,
                     )
                     scored_runners = runner_responsibility.record_play(
@@ -1390,6 +1447,8 @@ class MatchSimulator:
             match_input,
             config_dir=self.config_dir,
         )
+        if state_sink is not None:
+            state_sink.update(states)
         return result
 
 
