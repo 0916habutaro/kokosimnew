@@ -113,7 +113,7 @@ def _canonical(value: object) -> str:
 
 # 個人成績などの表は、列名を1回だけ書き行を配列で持つ（容量を小さくする）。
 # 読むときは expand_payload で元の「行ごとの dict」に戻す。中身は同じ。
-_TABLE_FIELDS = ("inning_scores", "team_stats", "batter_stats", "pitcher_stats")
+_TABLE_FIELDS = ("inning_scores", "team_stats", "batter_stats", "pitcher_stats", "team_participation")
 
 
 def _compact_table(rows):
@@ -136,6 +136,20 @@ def _expand_table(value):
 
 def compact_payload(payload: Mapping[str, object]) -> dict:
     out = dict(payload)
+    if out.get("team_participation"):
+        from game_core.highlights import compact_pitching_highlights
+
+        out["highlights"] = compact_pitching_highlights(out.get("highlights"), out["team_participation"])
+        # 9人の開始配置と変更差分も、既存の表形式で列名を一度だけ保存する。
+        out["team_participation"] = [
+            {**record,
+             "starting_lineup": _compact_table(record["starting_lineup"]),
+             "changes": _compact_table([
+                 {**change, "defensive_changes": _compact_table(change["defensive_changes"])}
+                 for change in record["changes"]
+             ])}
+            for record in out["team_participation"]
+        ]
     for name in _TABLE_FIELDS:
         if name in out:
             out[name] = _compact_table(out[name])
@@ -148,7 +162,47 @@ def expand_payload(payload: Mapping[str, object]) -> dict:
     for name in _TABLE_FIELDS:
         if name in out:
             out[name] = _expand_table(out[name])
+    if "team_participation" in out:
+        from game_core.highlights import expand_pitching_highlights
+
+        out["team_participation"] = [
+            {**record,
+             "starting_lineup": _expand_table(record["starting_lineup"]),
+             "changes": [
+                 {**change, "defensive_changes": _expand_table(change["defensive_changes"])}
+                 for change in _expand_table(record["changes"])
+             ]}
+            for record in out["team_participation"]
+        ]
+        _validate_participation_payload(out)
+        out["highlights"] = expand_pitching_highlights(out.get("highlights"), out["team_participation"])
     return out
+
+
+def _validate_participation_payload(payload: Mapping[str, object]) -> None:
+    from game_core.match_state import TeamMatchParticipation, validate_match_participation
+
+    if not isinstance(payload["team_participation"], list):
+        raise ValueError("team_participation: expected list")
+    records = tuple(TeamMatchParticipation.from_dict(row) for row in payload["team_participation"])
+    innings = payload.get("inning_scores") or ()
+    played = [row for row in innings if row["was_played"]]
+    if not played:
+        raise ValueError("lineup history requires played inning scores")
+    for row in innings:
+        count = row.get("plate_appearances")
+        if (type(count) is not int or count < 0 or type(row["was_played"]) is not bool
+                or row["was_played"] != (count > 0)):
+            raise ValueError("invalid archived half inning plate appearances")
+    team_ids = (payload["team1_id"], payload["team2_id"])
+    batters = payload.get("batter_stats") or ()
+    known = {sid: {row["player_id"] for row in batters if row["school_id"] == sid} for sid in team_ids}
+    validate_match_participation(
+        records, team_ids=team_ids, reference_year=payload["year"],
+        last_inning=played[-1]["inning"], ending_half=played[-1]["half"],
+        total_plate_appearances=sum(row["plate_appearances"] for row in batters), known_ids=known,
+        half_plate_appearances={(row["inning"], row["half"]): row["plate_appearances"] for row in innings},
+    )
 
 
 def _digest(payload: str) -> str:
@@ -296,7 +350,7 @@ def _history_payload(year: int, record: Mapping[str, object]) -> dict:
 
     # Keep enough metadata to identify the original game, but omit the
     # frequently voluminous list of every MatchEvent.
-    return {
+    payload = {
         "year": year,
         "competition_id": record["competition_id"],
         "competition_name": str(record.get("competition_name") or ""),
@@ -326,6 +380,13 @@ def _history_payload(year: int, record: Mapping[str, object]) -> dict:
         # 試合経過の要点（得点が入った打席・投手交代。game_core/highlights.py）
         "highlights": highlights,
     }
+    participation = detail.get("team_participation") if has_a_detail else None
+    if participation is not None:
+        if not isinstance(participation, list):
+            raise ValueError("team_participation: expected list")
+        payload["team_participation"] = participation
+        _validate_participation_payload(payload)
+    return payload
 
 
 LOGGER = logging.getLogger(__name__)
