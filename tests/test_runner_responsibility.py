@@ -91,7 +91,7 @@ class RunnerResponsibilityTests(unittest.TestCase):
         )
         self.assertIsNone(scored[0].plate_appearance_no)
 
-    def test_fielders_choice_removes_out_runner_but_retains_new_batter(self):
+    def test_fielders_choice_replacement_keeps_predecessor_liability(self):
         ledger = _RunnerResponsibilityTracker()
         self.play(ledger, [None] * 3, ["R1", None, None], [], "R1", "A", "single", 1)
         self.play(ledger, ["R1", None, None], ["R2", None, None], [], "R2", "B", "fielder_choice", 2)
@@ -99,7 +99,7 @@ class RunnerResponsibilityTests(unittest.TestCase):
             ledger, ["R2", None, None], [None] * 3,
             ["R2", "R3"], "R3", "C", "home_run", 3,
         )
-        self.assertEqual(["B", "C"], [r.responsible_pitcher_id for r in scored])
+        self.assertEqual(["A", "C"], [r.responsible_pitcher_id for r in scored])
 
     def test_sacrifice_bunt_preserves_runner_origin(self):
         ledger = _RunnerResponsibilityTracker()
