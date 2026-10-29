@@ -423,10 +423,43 @@ class Stage13C2MatchSimulatorTests(unittest.TestCase):
         self.assertIn('default=240', source)
         self.assertIn('default=1000', source)
 
+    def test_home_run_probability_is_rare_and_ability_sensitive(self):
+        match_input = self._input()
+        batter = replace(
+            match_input.team1.player_abilities[0],
+            contact=50, power=50, strikeout_resistance=50,
+            plate_discipline=50, speed=50,
+        )
+        pitcher = replace(
+            next(p for p in match_input.team2.player_abilities
+                 if p.primary_position == "P"),
+            stuff=50, control=50, strikeout=50, groundball=50,
+            pitch_repertoire=(),
+        )
+
+        def probability(batter, pitcher):
+            weights = self.simulator._event_weights(batter, pitcher, 50)
+            return weights["home_run"] / sum(weights.values())
+
+        neutral = probability(batter, pitcher)
+        # 特定年度の本数には固定せず、旧設定の約2.5%への逆戻りを防ぐ。
+        self.assertGreater(neutral, 0.001)
+        self.assertLess(neutral, 0.005)
+        self.assertLess(probability(replace(batter, power=30), pitcher), neutral)
+        self.assertGreater(probability(replace(batter, power=90), pitcher), neutral)
+        self.assertLess(
+            probability(batter, replace(pitcher, stuff=70, groundball=70)),
+            neutral,
+        )
+        self.assertGreater(
+            probability(batter, replace(pitcher, stuff=30, groundball=30)),
+            neutral,
+        )
+
     def test_match_config_revision_and_status(self):
-        self.assertEqual(5, self.simulator.config.revision)
+        self.assertEqual(6, self.simulator.config.revision)
         self.assertEqual(
-            "tuned_2026_10_27",
+            "tuned_2026_10_29",
             self.simulator.config.payload["status"],
         )
 

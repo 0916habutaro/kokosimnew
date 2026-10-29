@@ -1,8 +1,8 @@
 {
   "config_id": "match_simulation_v1",
-  "revision": 5,
-  "status": "tuned_2026_10_27",
-  "description_ja": "能力ベースの試合モデル（打席結果・走者進塁・投手運用）。能力の効き（ability_effect_scale）と1打席の球数（pitch_count）は、夏の地方大会の実際の試合（historical_data/summer_local_games.csv、2021〜2025年）の得点・点差・コールド・延長・完封と、甲子園の完投投手の球数に合わせた（game_definition.md §11）。打席結果の基準の確率は未調整。",
+  "revision": 6,
+  "status": "tuned_2026_10_29",
+  "description_ja": "能力ベースの試合モデル（打席結果・走者進塁・投手運用）。能力の効きと球数は従来の調整を維持（game_definition.md §11）。打席の基準重みは新基準バット導入後の夏甲子園（2024〜2026年の本塁打7・10・8本）と全国進行の得点・コールドを比較して調整。本塁打0.0025・単打0.195・二塁打0.060、他はrevision 5の相対重みを使い、合計1に正規化した。抽選時には能力補正後に再び正規化する。",
   "score_source": "ability_model_v1",
   "team_order": {
     "team1": "top_offense",
@@ -32,16 +32,16 @@
   },
   "plate_appearance_model": {
     "base_probabilities": {
-      "strikeout": 0.190,
-      "walk": 0.080,
-      "hit_by_pitch": 0.010,
-      "single": 0.155,
-      "double": 0.045,
-      "triple": 0.006,
-      "home_run": 0.025,
-      "reached_on_error": 0.020,
-      "fielder_choice": 0.019,
-      "field_out": 0.450
+      "strikeout": 0.184019370460048,
+      "walk": 0.077481840193705,
+      "hit_by_pitch": 0.009685230024213,
+      "single": 0.188861985472155,
+      "double": 0.058111380145278,
+      "triple": 0.005811138014528,
+      "home_run": 0.002421307506053,
+      "reached_on_error": 0.019370460048426,
+      "fielder_choice": 0.018401937046005,
+      "field_out": 0.435835351089588
     },
     "ability_effect_scale": {
       "strikeout": 0.01814,
@@ -72,7 +72,7 @@
   },
   "baserunning": {
     "single_runner_from_second_score_base": 0.72,
-    "single_runner_from_first_to_third_base": 0.30,
+    "single_runner_from_first_to_third_base": 0.3,
     "double_runner_from_first_score_base": 0.58,
     "error_runner_from_second_score_base": 0.45,
     "speed_effect_per_point": 0.004,
@@ -82,7 +82,7 @@
   },
   "pitching_usage": {
     "starter_bf_base": 23.0,
-    "starter_stamina_effect": 0.10,
+    "starter_stamina_effect": 0.1,
     "reliever_bf_base": 9.0,
     "reliever_stamina_effect": 0.05,
     "minimum_bf_before_change": 3,
@@ -94,18 +94,54 @@
   "pitch_count": {
     "description_ja": "1打席の球数。[最少, 上乗せの最大]。上乗せは0〜最大から等しい確率で選ぶ。設計の初期値（実際の打席ごとの球数には合わせていない）",
     "by_event": {
-      "strikeout": [3, 3],
-      "walk": [4, 3],
-      "hit_by_pitch": [1, 4],
-      "single": [1, 4],
-      "double": [1, 4],
-      "triple": [1, 4],
-      "home_run": [1, 4],
-      "field_out": [1, 4],
-      "fielder_choice": [1, 4],
-      "reached_on_error": [1, 4],
-      "sacrifice_bunt": [1, 3],
-      "sacrifice_fly": [1, 4]
+      "strikeout": [
+        3,
+        3
+      ],
+      "walk": [
+        4,
+        3
+      ],
+      "hit_by_pitch": [
+        1,
+        4
+      ],
+      "single": [
+        1,
+        4
+      ],
+      "double": [
+        1,
+        4
+      ],
+      "triple": [
+        1,
+        4
+      ],
+      "home_run": [
+        1,
+        4
+      ],
+      "field_out": [
+        1,
+        4
+      ],
+      "fielder_choice": [
+        1,
+        4
+      ],
+      "reached_on_error": [
+        1,
+        4
+      ],
+      "sacrifice_bunt": [
+        1,
+        3
+      ],
+      "sacrifice_fly": [
+        1,
+        4
+      ]
     }
   },
   "rules": {
