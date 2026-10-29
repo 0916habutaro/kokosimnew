@@ -274,9 +274,10 @@ class LiveMatchStateTests(unittest.TestCase):
             bridge._record_pitches(result, date(2026, 7, 5))
             bridge._record_games(result.competition_id, result)
         expected = {s.player_id for s in result.batter_stats if s.plate_appearances} | {s.player_id for s in result.pitcher_stats if s.batters_faced}
-        self.assertEqual(expected, {p.player_id for call in record.call_args_list for p in call.args[1]})
+        experienced = expected | {pid for team in result.team_participation for pid in team.fielding_player_ids}
+        self.assertEqual(experienced, {p.player_id for call in record.call_args_list for p in call.args[1]})
         entries = injury.call_args.args[0]
-        self.assertEqual(Counter({pid: 1 for pid in expected}), Counter(p.player_id for p, *_ in entries))
+        self.assertEqual(Counter({pid: 1 for pid in experienced}), Counter(p.player_id for p, *_ in entries))
         for p in result.pitcher_stats:
             self.assertEqual(p.pitches, bridge.season_state.pitch_log[p.player_id]['2026-07-05'])
 
