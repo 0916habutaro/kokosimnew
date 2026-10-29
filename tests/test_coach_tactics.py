@@ -214,3 +214,92 @@ class CoachTacticsTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+class StarterUsageTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        CoachTacticsTests.setUpClass.__func__(cls)
+
+    match = CoachTacticsTests.match
+
+    def pitcher(self, stamina=80):
+        return replace(next(p for p in self.teams[0].player_abilities
+                            if p.primary_position == 'P'), stamina=stamina)
+
+    def test_stamina_gives_a_good_starter_room_to_finish(self):
+        stats = {'batters_faced': 30, 'runs_allowed': 1}
+        self.assertTrue(self.sim._should_change_pitcher(
+            pitcher=self.pitcher(20), stats=stats, starter=True, has_next=True))
+        self.assertFalse(self.sim._should_change_pitcher(
+            pitcher=self.pitcher(90), stats=stats, starter=True, has_next=True))
+
+    def test_six_runs_still_trigger_an_early_hook(self):
+        self.assertTrue(self.sim._should_change_pitcher(
+            pitcher=self.pitcher(90), stats={'batters_faced': 8, 'runs_allowed': 6},
+            starter=True, has_next=True))
+        self.assertFalse(self.sim._should_change_pitcher(
+            pitcher=self.pitcher(90), stats={'batters_faced': 2, 'runs_allowed': 6},
+            starter=True, has_next=True))
+        self.assertFalse(self.sim._should_change_pitcher(
+            pitcher=self.pitcher(90), stats={'batters_faced': 50, 'runs_allowed': 6},
+            starter=True, has_next=False))
+
+    def test_good_starters_finish_nine_innings_with_relief_available(self):
+        choices = iter(['home_run'] + ['field_out'] * 100)
+        with patch.object(self.sim, '_weighted_choice', side_effect=lambda *_: next(choices)):
+            teams = []
+            for team in self.teams:
+                players = tuple(replace(p, stamina=80) if p.primary_position == 'P' else p
+                                for p in team.player_abilities)
+                teams.append(TeamMatchInput(team.school_id, self.generator.generate(players), players))
+            inp = replace(self.match(900), team1=teams[0], team2=teams[1])
+            result = self.sim.simulate(inp)
+        validate_match_simulation_result(result, inp, config_dir=self.sim.config_dir)
+        self.assertEqual(9, result.last_inning)
+        self.assertEqual(2, len(result.pitcher_stats))
+        self.assertTrue(all(p.outs_recorded == 27 for p in result.pitcher_stats))
+        self.assertTrue(all(len(t.team_strength.pitching_staff.entries) > 1 for t in self.teams))
+        self.assertTrue(all(not p.changes for p in result.team_participation))
+
+    def test_bad_start_is_hooked_before_recording_an_out(self):
+        choices = iter(['home_run'] * 6 + ['field_out'] * 100)
+        with patch.object(self.sim, '_weighted_choice', side_effect=lambda *_: next(choices)):
+            inp = self.match(901)
+            result = self.sim.simulate(inp)
+        validate_match_simulation_result(result, inp, config_dir=self.sim.config_dir)
+        rows = [p for p in result.pitcher_stats if p.school_id == self.teams[1].school_id]
+        self.assertGreater(len(rows), 1)
+        self.assertEqual(0, rows[0].outs_recorded)
+        self.assertEqual(6, rows[0].runs_allowed)
+        self.assertEqual(6, rows[0].batters_faced)
+
+    def test_pitch_limit_overrides_a_good_starter_and_prevents_reentry(self):
+        choices = iter(['home_run'] + ['field_out'] * 100)
+        team = self.teams[0]
+        with patch.object(self.sim, '_weighted_choice', side_effect=lambda *_: next(choices)):
+            inp = self.match(902)
+            result = self.sim.simulate(inp, pitch_allowances={p.player_id: 30
+                for p in team.team_strength.pitching_staff.entries})
+        validate_match_simulation_result(result, inp, config_dir=self.sim.config_dir)
+        rows = [p for p in result.pitcher_stats if p.school_id == team.school_id]
+        self.assertGreater(len(rows), 1)
+        self.assertLessEqual(rows[0].pitches, 35)
+        order = [e.pitcher_id for e in result.events if e.defense_school_id == team.school_id]
+        switches = [pid for i, pid in enumerate(order) if i == 0 or pid != order[i-1]]
+        self.assertEqual(len(switches), len(set(switches)))
+
+    def test_pitching_quality_affects_how_many_outs_the_starter_gets(self):
+        totals = {}
+        for quality in (20, 90):
+            players = tuple(replace(p, stuff=quality, control=quality, strikeout=quality,
+                                    groundball=quality, stamina=80, pitch_repertoire=())
+                            if p.primary_position == 'P' else p
+                            for p in self.teams[0].player_abilities)
+            team = TeamMatchInput(self.teams[0].school_id, self.generator.generate(players), players)
+            outs = 0
+            for i in range(12):
+                inp = replace(self.match(910+i), team1=team)
+                r = self.sim.simulate(inp)
+                outs += next(p.outs_recorded for p in r.pitcher_stats if p.school_id == team.school_id)
+            totals[quality] = outs
+        self.assertGreater(totals[90], totals[20])

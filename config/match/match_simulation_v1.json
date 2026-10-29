@@ -1,8 +1,8 @@
 {
   "config_id": "match_simulation_v1",
-  "revision": 6,
-  "status": "tuned_2026_10_29",
-  "description_ja": "能力ベースの試合モデル（打席結果・走者進塁・投手運用）。能力の効きと球数は従来の調整を維持（game_definition.md §11）。打席の基準重みは新基準バット導入後の夏甲子園（2024〜2026年の本塁打7・10・8本）と全国進行の得点・コールドを比較して調整。本塁打0.0025・単打0.195・二塁打0.060、他はrevision 5の相対重みを使い、合計1に正規化した。抽選時には能力補正後に再び正規化する。",
+  "revision": 7,
+  "status": "tuned_2026_10_30",
+  "description_ja": "能力ベースの試合モデル（打席結果・走者進塁・投手運用）。能力の効きと球数は従来の調整を維持（game_definition.md §11）。打席の基準重みは新基準バット導入後の夏甲子園（2024〜2026年の本塁打7・10・8本）と全国進行の得点・コールドを比較して調整。本塁打0.0025・単打0.195・二塁打0.060、他はrevision 5の相対重みを使い、合計1に正規化した。抽選時には能力補正後に再び正規化する。 先発の継投判断は完投可能性・スタミナ差・失点・球数制限と全国進行を比較して調整。",
   "score_source": "ability_model_v1",
   "team_order": {
     "team1": "top_offense",
@@ -81,7 +81,7 @@
     "max_probability": 0.95
   },
   "pitching_usage": {
-    "starter_bf_base": 23.0,
+    "starter_bf_base": 32,
     "starter_stamina_effect": 0.1,
     "reliever_bf_base": 9.0,
     "reliever_stamina_effect": 0.05,
