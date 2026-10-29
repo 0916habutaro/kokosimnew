@@ -54,3 +54,55 @@ def validate_highlights(value) -> None:
             raise ValueError(f"unknown highlight kind: {kind}")
         if not isinstance(item[1], int) or item[1] < 1 or item[2] not in ("t", "b"):
             raise ValueError("invalid highlight inning")
+
+
+def compact_pitching_highlights(highlights, participation):
+    """投手交代の事実は配置履歴を正本とし、要点の並びには参照だけを保存する。"""
+    if highlights is None:
+        return None
+    references = {}
+    for team_index, record in enumerate(participation):
+        for change in record["changes"]:
+            pitcher = next((c["after_player_id"] for c in change["defensive_changes"]
+                            if c["defensive_position"] == "P"), None)
+            if pitcher is not None:
+                moment = change["moment"]
+                key = (moment["inning"], _HALF[moment["half"]], record["school_id"], pitcher)
+                references.setdefault(key, []).append([PITCHING_CHANGE, team_index, change["sequence"]])
+    out = []
+    for item in highlights:
+        if item[0] == PITCHING_CHANGE:
+            matches = references.get(tuple(item[1:]))
+            if not matches:
+                raise ValueError("pitching highlight differs from lineup history")
+            out.append(matches.pop(0))
+        else:
+            out.append(item)
+    return out
+
+
+def expand_pitching_highlights(highlights, participation):
+    """参照から従来と同じ投手交代の要点を返す。表示側の形式は変えない。"""
+    if highlights is None:
+        return None
+    out = []
+    for item in highlights:
+        if item[0] == PITCHING_CHANGE and len(item) == 3:
+            _, team_index, sequence = item
+            if (type(team_index) is not int or not 0 <= team_index < len(participation)
+                    or type(sequence) is not int or sequence < 1):
+                raise ValueError("invalid pitching highlight reference")
+            record = participation[team_index]
+            if sequence > len(record["changes"]):
+                raise ValueError("missing pitching highlight change")
+            change = record["changes"][sequence - 1]
+            pitcher = next((c["after_player_id"] for c in change["defensive_changes"]
+                            if c["defensive_position"] == "P"), None)
+            if pitcher is None:
+                raise ValueError("highlight refers to a change without a pitcher")
+            moment = change["moment"]
+            out.append([PITCHING_CHANGE, moment["inning"], _HALF[moment["half"]],
+                        record["school_id"], pitcher])
+        else:
+            out.append(item)
+    return out

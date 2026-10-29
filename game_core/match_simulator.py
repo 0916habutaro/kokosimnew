@@ -24,7 +24,7 @@ from .match_contract import (
     validate_match_simulation_input,
     validate_match_simulation_result,
 )
-from .match_state import TeamMatchState
+from .match_state import ChangeMoment, TeamMatchState
 from .team_strength import TeamStrengthGenerator
 
 
@@ -1068,7 +1068,9 @@ class MatchSimulator:
                     break
 
                 runs_before_half = team_runs[offense_id]
+                pa_before_half = pa_no
                 outs = 0
+                fielding_pending = True
                 bases: list[str | None] = [None, None, None]
                 runner_responsibility = _RunnerResponsibilityTracker()
                 earned_run_tracker = _EarnedRunTracker()
@@ -1118,7 +1120,8 @@ class MatchSimulator:
                         incoming = staff[current_index]
                         if incoming in pitcher_rows[defense_id]:
                             raise ValueError(f"{defense_id}: pitcher reentry is not supported: {incoming}")
-                        state.change_pitcher(incoming)
+                        state.change_pitcher(incoming, moment=ChangeMoment(inning, half, pa_no + 1))
+                        fielding_pending = True
                         state.validate(actual_pitcher_id=incoming)
                         pitcher_id = state.current_pitcher_id
                         if pitcher_id not in batter_rows[defense_id]:
@@ -1140,6 +1143,9 @@ class MatchSimulator:
                         )
                         pitcher_stat = pitcher_rows[defense_id][pitcher_id]
 
+                    if fielding_pending:
+                        state.record_fielding_appearance()
+                        fielding_pending = False
                     batter_id = states[offense_id].player_at_order(lineup_index[offense_id] % 9 + 1)
                     lineup_index[offense_id] += 1
                     batter = player_maps[offense_id][batter_id]
@@ -1341,6 +1347,7 @@ class MatchSimulator:
                     batting_team_id=offense_id,
                     was_played=True,
                     runs=team_runs[offense_id] - runs_before_half,
+                    plate_appearances=pa_no - pa_before_half,
                 ))
                 if game_over:
                     break
@@ -1430,6 +1437,7 @@ class MatchSimulator:
                 ),
             ),
             events=tuple(events),
+            team_participation=tuple(states[sid].participation() for sid in (team1_id, team2_id)),
             inning_scores=tuple(inning_scores),
             batter_stats=tuple(
                 BatterGameStats(**row)
@@ -1446,6 +1454,7 @@ class MatchSimulator:
             result,
             match_input,
             config_dir=self.config_dir,
+            final_states=states,
         )
         if state_sink is not None:
             state_sink.update(states)

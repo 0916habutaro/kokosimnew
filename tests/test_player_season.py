@@ -35,6 +35,10 @@ class PlayerSeasonServiceTests(unittest.TestCase):
             self.assertTrue(log)
             self.assertTrue(all(day < "2026-04-01" for days in log.values() for day in days))
             session.state.advance_through("2026-04-04")
+            participation_before = {
+                key: detail["team_participation"]
+                for key, detail in session.state.pending_match_details.items()
+            }
             service.save_game(session)
             self.assertEqual({}, session.state.pending_match_details)
 
@@ -45,6 +49,7 @@ class PlayerSeasonServiceTests(unittest.TestCase):
             )
             self.assertTrue(archived["batter_stats"])
             self.assertTrue(archived["pitcher_stats"])
+            self.assertEqual(participation_before[key], archived["team_participation"])
             # 試合経過の要点は履歴に残り、セーブには残らない
             self.assertIsInstance(archived["highlights"], list)
             self.assertTrue(any(
@@ -60,6 +65,10 @@ class PlayerSeasonServiceTests(unittest.TestCase):
             self.assertTrue(session.state.rosters.schools(2026))
 
             loaded = service.load_game("players")
+            self.assertEqual(
+                archived["team_participation"],
+                service.historical_match("players", 2026, competition_id, match_id)["team_participation"],
+            )
             self.assertEqual(session.state.primary.pitch_log, loaded.state.primary.pitch_log)
             self.assertEqual(
                 session.state.completed_results(),

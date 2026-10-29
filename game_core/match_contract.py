@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Iterable
 
 from .abilities import PlayerAbilitySnapshot
 from .match_config import load_and_validate_match_configs
 from .team_strength import TeamStrengthSnapshot
+from .match_state import TeamMatchParticipation, TeamMatchState, validate_match_participation
 
 
 SCORE_SOURCE_ABILITY_MODEL_V1 = "ability_model_v1"
@@ -156,6 +157,8 @@ class InningScore:
     batting_team_id: str
     was_played: bool
     runs: int | None
+    # 全打席を保存せず、配置変更の打席番号と表裏の対応を履歴でも検証する。
+    plate_appearances: int = 0
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -191,11 +194,14 @@ class MatchSimulationResult:
     events: tuple[MatchEvent, ...]
     batter_stats: tuple[BatterGameStats, ...]
     pitcher_stats: tuple[PitcherGameStats, ...]
+    team_participation: tuple[TeamMatchParticipation, ...]
     # None is a legacy result with no line-score data; an empty tuple is invalid.
     inning_scores: tuple[InningScore, ...] | None = None
 
     def to_dict(self) -> dict:
-        out = asdict(self)
+        # 下で明示変換する大きな表をasdictで先に複製しない。
+        tables = {"team_stats", "events", "batter_stats", "pitcher_stats", "inning_scores", "team_participation"}
+        out = {item.name: getattr(self, item.name) for item in fields(self) if item.name not in tables}
         out["team_stats"] = [
             item.to_dict() for item in self.team_stats
         ]
@@ -208,6 +214,7 @@ class MatchSimulationResult:
         out["pitcher_stats"] = [
             item.to_dict() for item in self.pitcher_stats
         ]
+        out["team_participation"] = [record.to_dict() for record in self.team_participation]
         out["inning_scores"] = (
             None if self.inning_scores is None else [
                 item.to_dict() for item in self.inning_scores
@@ -592,6 +599,7 @@ def validate_match_simulation_result(
     match_input: MatchSimulationInput,
     *,
     config_dir: str | Path = "config/match",
+    final_states: dict[str, TeamMatchState] | None = None,
 ) -> None:
     validate_match_simulation_input(match_input)
 
@@ -753,6 +761,22 @@ def validate_match_simulation_result(
         team1_id: _player_map(match_input.team1),
         team2_id: _player_map(match_input.team2),
     }
+    validate_match_participation(
+        result.team_participation, team_ids=(team1_id, team2_id),
+        reference_year=result.reference_year, last_inning=result.last_inning,
+        ending_half=result.ending_half,
+        total_plate_appearances=sum(row.plate_appearances for row in batters),
+        known_ids=known, events=result.events, final_states=final_states,
+        half_plate_appearances=(None if result.inning_scores is None else
+            {(r.inning, r.half): r.plate_appearances for r in result.inning_scores}),
+    )
+    if result.inning_scores is not None:
+        appearances = {}
+        for event in result.events:
+            key = (event.inning, event.half)
+            appearances[key] = appearances.get(key, 0) + 1
+        if any(r.plate_appearances != appearances.get((r.inning, r.half), 0) for r in result.inning_scores):
+            raise ValueError("inning plate appearance counts differ from events")
     for row in batters:
         if row.school_id not in known or row.player_id not in known[row.school_id]:
             raise ValueError(

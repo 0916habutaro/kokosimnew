@@ -527,6 +527,7 @@ class AbilityMatchResolver:
         self._record_games(competition_id, result)
         highlights = game_highlights(result.events)
         if self.detail_sink is not None:
+            # 確定した開始配置・交代履歴・守備出場IDも結果からそのまま履歴へ渡す。
             full = replace(result, events=()).to_dict()
             full["team_generation_seed"] = team_generation_seed
             full["highlights"] = highlights

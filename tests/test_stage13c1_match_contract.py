@@ -23,6 +23,7 @@ from game_core.match_contract import (
     validate_pitcher_game_stats,
 )
 from game_core.players import PlayerRosterGenerator
+from game_core.match_state import TeamMatchState
 from game_core.school_intake import SchoolAwarePlayerAbilityGenerator
 from game_core.team_strength import TeamStrengthGenerator
 from phase2_engine.models import CompetitionRun, Match, StageExecution
@@ -87,19 +88,17 @@ class Stage13C1MatchContractTests(unittest.TestCase):
         cls.team2_pitcher = (
             cls.teams[1].team_strength.pitching_staff.ace_player_id
         )
-        cls.team1_batter = next(
-            player_id
-            for player_id in cls.teams[0].team_strength.starting_lineup.starter_ids
-            if player_id != cls.team1_pitcher
-        )
-        cls.team2_batter = next(
-            player_id
-            for player_id in cls.teams[1].team_strength.starting_lineup.starter_ids
-            if player_id != cls.team2_pitcher
+        cls.team1_batter, cls.team2_batter = (
+            min(team.team_strength.starting_lineup.entries, key=lambda e: e.batting_order).player_id
+            for team in cls.teams
         )
 
     def _valid_result(self) -> MatchSimulationResult:
         provenance = match_contract_provenance(MATCH_CONFIG_DIR)
+        states = [TeamMatchState(team.team_strength.starting_lineup,
+                                  (p.player_id for p in team.player_abilities)) for team in self.teams]
+        for state in states:
+            state.record_fielding_appearance()
         events = (
             MatchEvent(
                 event_no=1,
@@ -208,6 +207,7 @@ class Stage13C1MatchContractTests(unittest.TestCase):
             events=events,
             batter_stats=batters,
             pitcher_stats=pitchers,
+            team_participation=tuple(state.participation() for state in states),
         )
 
     def _competition_run(self) -> CompetitionRun:
