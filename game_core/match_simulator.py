@@ -36,6 +36,92 @@ class GameRules:
     mercy: tuple[tuple[int, int], ...] = ()
 
 
+@dataclass(frozen=True)
+class _RunnerResponsibility:
+    """A runner's origin remains unchanged while advancing or across pitching changes."""
+
+    player_id: str
+    responsible_pitcher_id: str
+    reached_on_error: bool = False
+    tiebreak_placed: bool = False
+    plate_appearance_no: int | None = None
+
+
+class _RunnerResponsibilityTracker:
+    """Inning-local responsibility, separate from the existing base/outcome model.
+
+    The v1 result statistics intentionally remain unchanged until the next PR.
+    This tracker neither consumes randomness nor mutates the simulator's bases.
+    """
+
+    def __init__(self) -> None:
+        self._active: dict[str, _RunnerResponsibility] = {}
+
+    def seed_tiebreak(
+        self, bases: list[str | None], pitcher_id: str,
+    ) -> None:
+        """Assign placed runners to the pitcher who actually starts this half-inning."""
+        if self._active:
+            raise ValueError("tiebreak runner responsibility already initialized")
+        runners = [player_id for player_id in bases if player_id is not None]
+        if len(runners) != len(set(runners)):
+            raise ValueError("duplicate tiebreak runner")
+        self._active = {
+            player_id: _RunnerResponsibility(
+                player_id=player_id,
+                responsible_pitcher_id=pitcher_id,
+                tiebreak_placed=True,
+            )
+            for player_id in runners
+        }
+
+    def record_play(
+        self,
+        *,
+        bases_before: list[str | None],
+        bases_after: list[str | None],
+        scored_runner_ids: list[str],
+        batter_id: str,
+        pitcher_id: str,
+        event_type: str,
+        plate_appearance_no: int,
+    ) -> tuple[_RunnerResponsibility, ...]:
+        """Return the origins of scoring runners in scoring order.
+
+        Only a new batter-runner receives the current pitcher as their origin.
+        Runners already on base retain their original responsibility and flags.
+        """
+        before = [pid for pid in bases_before if pid is not None]
+        after = [pid for pid in bases_after if pid is not None]
+        if len(before) != len(set(before)) or set(before) != set(self._active):
+            raise ValueError("runner responsibility differs from occupied bases")
+        if len(after) != len(set(after)):
+            raise ValueError("duplicate runner after play")
+        if len(scored_runner_ids) != len(set(scored_runner_ids)):
+            raise ValueError("duplicate scoring runner")
+
+        newcomer = _RunnerResponsibility(
+            player_id=batter_id,
+            responsible_pitcher_id=pitcher_id,
+            reached_on_error=event_type == "reached_on_error",
+            plate_appearance_no=plate_appearance_no,
+        )
+
+        def origin(player_id: str) -> _RunnerResponsibility:
+            prior = self._active.get(player_id)
+            if prior is not None:
+                return prior
+            if player_id == batter_id:
+                return newcomer
+            raise ValueError("unknown runner after play")
+
+        scored = tuple(origin(pid) for pid in scored_runner_ids)
+        if set(scored_runner_ids) & set(after):
+            raise ValueError("scoring runner remains on base")
+        self._active = {pid: origin(pid) for pid in after}
+        return scored
+
+
 class MatchSimulator:
     def __init__(
         self,
@@ -747,6 +833,8 @@ class MatchSimulator:
                 runs_before_half = team_runs[offense_id]
                 outs = 0
                 bases: list[str | None] = [None, None, None]
+                runner_responsibility = _RunnerResponsibilityTracker()
+                tiebreak_pending = False
                 # タイブレーク：打順は続け、先頭打者の1人前が一塁、2人前が二塁。
                 # 置いた走者の得点は自責点にしない
                 placed: set[str] = set()
@@ -759,6 +847,7 @@ class MatchSimulator:
                     bases[0] = order[(lead - 1) % len(order)]
                     bases[1] = order[(lead - 2) % len(order)]
                     placed = {bases[0], bases[1]}
+                    tiebreak_pending = True
 
                 while outs < 3:
                     staff = pitcher_orders[defense_id]
@@ -809,6 +898,10 @@ class MatchSimulator:
                     ]
                     lineup_index[offense_id] += 1
                     batter = player_maps[offense_id][batter_id]
+                    if tiebreak_pending:
+                        # Wait until pitch limits/substitutions select the actual pitcher.
+                        runner_responsibility.seed_tiebreak(bases, pitcher_id)
+                        tiebreak_pending = False
 
                     pa_no += 1
                     event_no += 1
@@ -869,6 +962,15 @@ class MatchSimulator:
                             defense_id
                         ].team_strength.defense_strength,
                         rng=event_rng,
+                    )
+                    runner_responsibility.record_play(
+                        bases_before=bases_before,
+                        bases_after=bases,
+                        scored_runner_ids=scored,
+                        batter_id=batter_id,
+                        pitcher_id=pitcher_id,
+                        event_type=event_type,
+                        plate_appearance_no=pa_no,
                     )
                     outs += outs_on_play
 
