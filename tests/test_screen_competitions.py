@@ -181,7 +181,7 @@ class MatchDetailTests(unittest.TestCase):
                          (score["player_name"], score["event"], score["half"], score["is_home_run"]))
         self.assertEqual(("pitching_change", "B校", "選手B"),
                          (change["kind"], change["school_name"], change["player_name"]))
-        self.assertEqual("遊", out["batting"]["A"][0]["position"])
+        self.assertEqual("配置記録なし", out["batting"]["A"][0]["position"])
         self.assertEqual("8 1/3", out["pitching"]["B"][0]["innings"])
 
 

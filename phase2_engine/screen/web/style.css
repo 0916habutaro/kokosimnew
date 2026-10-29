@@ -163,6 +163,37 @@ svg text { font-family: var(--ui); }
 .stat-table td { padding: 4px 6px; border-bottom: 1px solid #1a2631; text-align: right; font-family: var(--num); }
 .stat-table td.pos { font-family: var(--ui); color: var(--muted); width: 22px; }
 
+/* 試合の配置と交代履歴。個人成績の位置は本職ではなく、この試合の履歴。 */
+.match-detail .cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.match-detail .panel { min-width: 0; }
+.match-highlights summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.match-highlights[open] summary { margin-bottom: 10px; }
+.match-tabs { margin: 14px 0; flex-wrap: wrap; }
+.lineup-table th:first-child, .lineup-table td:first-child { width: 4em; text-align: center; }
+.lineup-table th:nth-child(2), .lineup-table td.pos { width: 4em; text-align: center; }
+.lineup-table td.pos { color: var(--muted); }
+.match-table-wrap { overflow-x: auto; }
+.match-detail .stat-table th, .match-detail .stat-table td { white-space: nowrap; }
+.match-detail .stat-table td.pos { width: auto; min-width: 4em; white-space: normal; }
+.match-detail .batting-table th:nth-child(2), .match-detail .batting-table td:nth-child(2) { text-align: left; }
+.match-detail .batting-table th:first-child, .match-detail .batting-table td:first-child { text-align: center; width: 3em; }
+.appearance { display: block; font-family: var(--ui); font-size: 10px; color: var(--muted); }
+.stat-gap { height: 16px; }
+.match-note { font-size: 12px; }
+.lineup-change { display: grid; grid-template-columns: 130px 120px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.lineup-change:last-child { border-bottom: 0; }
+.change-when { font-family: var(--num); }
+.change-when small { display: block; color: var(--muted); margin-top: 4px; }
+.change-school { color: var(--muted); overflow-wrap: anywhere; }
+.change-what { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.position-moves { display: flex; gap: 10px; flex-wrap: wrap; }
+@media (max-width: 1100px) {
+  .match-detail .cols { grid-template-columns: 1fr; }
+  .lineup-change { grid-template-columns: 110px minmax(0, 1fr); }
+  .change-school { grid-column: 2; }
+  .change-what { grid-column: 2; }
+}
+
 /* まとめて進めるダイアログ */
 .dialog { color: var(--text); background: var(--panel); border: 1px solid var(--accent); border-radius: 8px; padding: 20px 24px; min-width: 460px; }
 .dialog::backdrop { background: rgba(3, 8, 14, 0.7); }
