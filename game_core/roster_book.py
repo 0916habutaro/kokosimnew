@@ -616,6 +616,18 @@ class RosterBook:
 
     # ---- 成長 ----
 
+    def reset_appearance_counters(self) -> None:
+        """新規開始前の出場経験を区切る。能力・怪我・成長済み月は変更しない。
+
+        開始前の試合を処理し終えた直後だけ呼ぶ。通常の月次成長・年度更新や
+        セーブの読込では呼ばない。
+        """
+        with self._lock:
+            for states in self._states.values():
+                for state in states.values():
+                    state.games = 0
+                    state.season_games = 0
+
     def record_games(self, school_id: str, players: Iterable[Player]) -> None:
         """公式戦に出た選手（毎月の成長で少し足す。怪我の起きやすさにも使う）。"""
         with self._lock:

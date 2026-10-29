@@ -785,6 +785,10 @@ class LiveGameService:
                 if season is not None else None
             ),
         )
+        if rosters is not None and first.current_date == date(2026, 4, 1):
+            # 新規開始前の3月の結果・球数・怪我は残し、経験だけを開始日で区切る。
+            # 日付を変更するテスト経路や通常の年度更新・ロードには適用しない。
+            rosters.reset_appearance_counters()
         state = CareerState(
             {plan.year: first},
             current_date=first.current_date,
