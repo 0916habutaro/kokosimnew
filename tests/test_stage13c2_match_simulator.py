@@ -89,6 +89,52 @@ class Stage13C2MatchSimulatorTests(unittest.TestCase):
         second = self.simulator.simulate(match_input)
         self.assertEqual(first.to_dict(), second.to_dict())
 
+    def test_runner_responsibility_has_no_effect_on_game_and_is_deterministic(self):
+        from unittest.mock import patch
+
+        from game_core.match_simulator import _RunnerResponsibilityTracker
+
+        match_input = self._input("SIM-RUNNER-LEDGER")
+
+        class NoopTracker:
+            def seed_tiebreak(self, *args, **kwargs):
+                pass
+
+            def record_play(self, **kwargs):
+                return ()
+
+        with patch("game_core.match_simulator._RunnerResponsibilityTracker", NoopTracker):
+            without_tracking = self.simulator.simulate(match_input)
+
+        def simulate_with_trace():
+            responsibility = []
+
+            class CapturingTracker(_RunnerResponsibilityTracker):
+                def record_play(self, **kwargs):
+                    scored = super().record_play(**kwargs)
+                    responsibility.extend((
+                        runner.player_id,
+                        runner.responsible_pitcher_id,
+                        runner.reached_on_error,
+                        runner.tiebreak_placed,
+                        runner.plate_appearance_no,
+                    ) for runner in scored)
+                    return scored
+
+            with patch(
+                "game_core.match_simulator._RunnerResponsibilityTracker",
+                CapturingTracker,
+            ):
+                result = self.simulator.simulate(match_input)
+            return result, responsibility
+
+        first, trace1 = simulate_with_trace()
+        second, trace2 = simulate_with_trace()
+        self.assertEqual(without_tracking.to_dict(), first.to_dict())
+        self.assertEqual(first.to_dict(), second.to_dict())
+        self.assertEqual(trace1, trace2)
+        self.assertTrue(trace1)
+
     def test_completed_game_has_winner_and_no_tie(self):
         result = self.simulator.simulate(self._input())
         self.assertNotEqual(result.team1_score, result.team2_score)
