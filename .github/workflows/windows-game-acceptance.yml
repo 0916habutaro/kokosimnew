@@ -79,6 +79,7 @@ jobs:
             'test_career_overlap.py',
             'test_screen_data.py',
             'test_screen_competitions.py',
+            'test_screen_match_lineups.py',
             'test_screen_schools.py',
             'test_screen_records.py',
             'test_screen_best8.py',

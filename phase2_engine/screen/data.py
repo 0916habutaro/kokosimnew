@@ -448,6 +448,7 @@ class GameScreenData:
                 school_id, competition_id, data.get("match_date", ""), int(school_year),
             ),
             lambda school_id: self._players(season, competition_id, school_id),
+            school_year=int(school_year),
         )
         out["school_year"] = int(school_year)
         out["competition_name"] = self._competition_name(
@@ -734,7 +735,8 @@ class GameScreenData:
         if rosters is None:
             return {}
         players = {}
-        for roster_year in (year - 1, year, year + 1):
+        # 前後年度は補助に使い、当該年度の記録があればそちらを優先する。
+        for roster_year in (year - 1, year + 1, year):
             if roster_year <= rosters.closed_through:
                 rows = self.service.closed_roster(
                     self.session.slot_id, roster_year, school_id,
@@ -765,6 +767,7 @@ class GameScreenData:
                 school_id, competition_id, row.get("match_date", ""), year,
             ),
             lambda school_id: self._roster_players(year, school_id),
+            school_year=year,
         )
         out["school_year"] = year
         out["competition_name"] = self.competition_names(
@@ -1510,7 +1513,7 @@ class GameScreenData:
 
     # ---- 選手 ----
 
-    def player(self, school_id: str, player_id: str) -> dict:
+    def player(self, school_id: str, player_id: str, reference_year=None) -> dict:
         """選手の画面：名前・出身・学年・成長の型、今の能力、学年ごとの能力の推移
         （年度末の能力。閉じた年度は試合履歴の名簿から）、年度ごとの成績。"""
         rosters = getattr(self.state, "rosters", None) if self.session else None
@@ -1521,8 +1524,16 @@ class GameScreenData:
         )["display_bands"]
         pitch_types = rosters.pitch_types()
         current = self._current_year()
+        if reference_year is None:
+            years = range(current - 3, current + 1)
+        else:
+            reference_year = int(reference_year)
+            if not 1 <= reference_year <= current:
+                raise ValueError("その年度の選手記録はありません")
+            # 試合年度の前後2年で、当時の1〜3年生の在籍期間を読む。
+            years = range(max(1, reference_year - 2), min(current, reference_year + 2) + 1)
         entries = []  # (年度, 選手, 年度末の能力の並び or None, 成長の型)
-        for year in range(current - 3, current + 1):
+        for year in years:
             row = None
             if year < current:
                 for item in self.service.closed_roster(self.session.slot_id, year, school_id) or ():

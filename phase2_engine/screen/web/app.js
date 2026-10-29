@@ -19,7 +19,7 @@ const state = {
   busy: false,
   noSession: false, // 起動時にセーブを選ぶ前
   competitions: { filter: { year: "", segment: "", level: "", status: "" }, view: null },
-  matches: { date: "", detail: null },
+  matches: { date: "", detail: null, tab: "lineups" },
   schools: {
     data: null, view: [], filter: { pref: "", owner: "", result: "", name: "" },
     sortKey: "pref", sortDir: 1, selected: null, detail: null, tab: "overview",
@@ -695,6 +695,7 @@ function scoreboard(m, wide = false) {
 
 function openMatch(year, competitionId, matchId) {
   state.matches.detail = { year, competitionId, matchId };
+  state.matches.tab = "lineups";
   state.page = "matches";
   renderMenu();
   renderPage();
@@ -728,29 +729,67 @@ async function renderMatches(content) {
 async function renderMatchDetail(content, detail) {
   const m = await call("match", detail.year, detail.competitionId, detail.matchId);
   if (!m) return;
+  const link = (team, person) => playerLink(team, person.player_id, person.name, m.school_year);
   const highlights = (m.highlights || []).map((h) => h.kind === "score"
     ? `<div class="hl ${h.is_home_run ? "hr" : ""}"><span class="inn">${h.inning}回${h.half}</span><span class="what">${esc(h.school_name)}　${esc(h.player_name)}　${esc(h.event)}で${h.runs}点</span></div>`
     : `<div class="hl pc"><span class="inn">${h.inning}回${h.half}</span><span class="what">${esc(h.school_name)}　投手交代 → ${esc(h.player_name)}</span></div>`).join("");
-  const batting = (team) => `<table class="stat-table"><tr><th>打者</th><th></th><th>打数</th><th>安打</th><th>打点</th><th>本塁打</th><th>四球</th><th>三振</th></tr>
-    ${(m.batting[team] || []).map((b) => `<tr><td>${playerLink(team, b.player_id, b.name)}</td><td class="pos">${esc(b.position)}</td><td>${b.at_bats}</td><td>${b.hits}</td><td>${b.rbi}</td><td>${b.home_runs}</td><td>${b.walks}</td><td>${b.strikeouts}</td></tr>`).join("")}</table>`;
-  const pitching = (team) => `<table class="stat-table"><tr><th>投手</th><th>回</th><th>球数</th><th>打者</th><th>安打</th><th>失点</th><th>自責</th><th>四球</th><th>三振</th></tr>
-    ${(m.pitching[team] || []).map((p) => `<tr><td>${playerLink(team, p.player_id, p.name)}</td><td>${esc(p.innings)}</td><td>${p.pitches || ""}</td><td>${p.batters_faced}</td><td>${p.hits_allowed}</td><td>${p.runs_allowed}</td><td>${p.earned_runs}</td><td>${p.walks}</td><td>${p.strikeouts}</td></tr>`).join("")}</table>`;
+  const batting = (team) => `<div class="match-table-wrap"><table class="stat-table batting-table"><tr><th>打順</th><th>打者</th><th>守備</th><th>打数</th><th>安打</th><th>打点</th><th>本塁打</th><th>四球</th><th>三振</th></tr>
+    ${(m.batting[team] || []).map((b) => `<tr><td>${b.batting_order || "−"}</td><td>${link(team, b)}${b.exited ? '<small class="appearance">交代済</small>' : ""}</td><td class="pos">${esc(b.position)}</td><td>${b.at_bats}</td><td>${b.hits}</td><td>${b.rbi}</td><td>${b.home_runs}</td><td>${b.walks}</td><td>${b.strikeouts}</td></tr>`).join("")}</table></div>`;
+  const pitching = (team) => `<div class="match-table-wrap"><table class="stat-table"><tr><th>投手</th><th>回</th><th>球数</th><th>打者</th><th>安打</th><th>失点</th><th>自責</th><th>四球</th><th>三振</th></tr>
+    ${(m.pitching[team] || []).map((p) => `<tr><td>${link(team, p)}</td><td>${esc(p.innings)}</td><td>${p.pitches || ""}</td><td>${p.batters_faced}</td><td>${p.hits_allowed}</td><td>${p.runs_allowed}</td><td>${p.earned_runs}</td><td>${p.walks}</td><td>${p.strikeouts}</td></tr>`).join("")}</table></div>`;
+  const teams = [[m.team1_id, m.team1_name], [m.team2_id, m.team2_name]];
+  const lineup = (team) => {
+    const record = (m.lineups || {})[team];
+    if (!record) return '<p class="muted">配置記録なし</p>';
+    return `<table class="list lineup-table"><thead><tr><th>打順</th><th>守備</th><th>選手</th></tr></thead><tbody>
+      ${record.players.map((p) => `<tr><td class="num">${p.batting_order}</td><td class="pos">${esc(p.position)}</td><td>${link(team, p)}</td></tr>`).join("")}</tbody></table>`;
+  };
+  const history = () => {
+    if (!m.has_lineup_record) return '<div class="panel muted">配置記録なし</div>';
+    if (!m.lineup_changes.length) return '<div class="panel muted">この試合の交代・守備変更はありません。</div>';
+    return `<div class="panel change-history">${m.lineup_changes.map((c) => `<div class="lineup-change">
+      <div class="change-when"><b>${c.inning}回${esc(c.half)}</b><small>第${c.next_plate_appearance_no}打席前</small></div>
+      <div class="change-school">${esc(c.school_name)}</div>
+      <div class="change-what"><span class="badge">${esc(c.label)}</span>
+        ${c.outgoing && c.incoming ? `<span>${link(c.school_id, c.outgoing)} → ${link(c.school_id, c.incoming)} <span class="muted">（${c.batting_order}番）</span></span>` : ""}
+        ${c.moves.length ? `<div class="position-moves">${c.moves.map((p) => `<span>${link(c.school_id, p)} <span class="muted">${esc(p.before)} → ${esc(p.after)}</span></span>`).join("<span class='muted'>／</span>")}</div>` : ""}
+      </div></div>`).join("")}</div>`;
+  };
+  const tabs = [["lineups", "先発打順・守備配置"], ["changes", "交代履歴"], ["stats", "個人成績"]];
   content.innerHTML = `<div class="head"><button class="btn small" id="m-back">← 試合の一覧</button>
       <h2>${esc(m.competition_name)}　${esc(m.round_name || m.group_name)}</h2>
       <span class="muted num">${slashDate(m.match_date)}</span></div>
-    <div class="scroll">
+    <div class="scroll match-detail">
       ${scoreboard(m, true)}
       <p><span class="link" data-school="${esc(m.team1_id)}">${esc(m.team1_name)}</span>　／　<span class="link" data-school="${esc(m.team2_id)}">${esc(m.team2_name)}</span>　<span class="muted">（学校の画面へ）</span></p>
       ${m.has_detail ? `
-        <div class="panel" style="margin-top:14px"><h3>試合の要点</h3>${highlights || '<div class="muted">得点はありませんでした</div>'}</div>
-        <div class="cols">
-          <div class="panel"><h3>${esc(m.team1_name)}</h3>${batting(m.team1_id)}<div style="height:10px"></div>${pitching(m.team1_id)}</div>
-          <div class="panel"><h3>${esc(m.team2_name)}</h3>${batting(m.team2_id)}<div style="height:10px"></div>${pitching(m.team2_id)}</div>
-        </div>` : `<p class="muted">${m.status === "completed" ? "この試合の詳しい記録はありません。" : "まだ試合をしていません。"}</p>`}
+        <details class="panel match-highlights"><summary>試合の要点</summary>${highlights || '<div class="muted">得点はありませんでした</div>'}</details>
+        <div class="tabs match-tabs" role="tablist" aria-label="試合の記録">${tabs.map(([key, label]) => `<button class="tab" type="button" id="m-tab-${key}" role="tab" data-match-tab="${key}" aria-controls="m-tab-body">${label}</button>`).join("")}</div>
+        <div id="m-tab-body" role="tabpanel"></div>`
+        : `<p class="muted">${m.status === "completed" ? "この試合の詳しい記録はありません。" : "まだ試合をしていません。"}</p>`}
     </div>`;
   $("m-back").addEventListener("click", () => { state.matches.detail = null; renderPage(); });
   content.querySelectorAll(".link[data-school]").forEach((a) => a.addEventListener("click", () => openSchool(a.dataset.school)));
-  bindPlayerLinks(content);
+  if (!m.has_detail) return;
+  const renderTab = (key) => {
+    if (!tabs.some(([value]) => value === key)) key = "lineups";
+    state.matches.tab = key;
+    content.querySelectorAll("[data-match-tab]").forEach((button) => {
+      const selected = button.dataset.matchTab === key;
+      button.classList.toggle("on", selected);
+      button.setAttribute("aria-selected", String(selected));
+    });
+    const body = $("m-tab-body");
+    body.setAttribute("aria-labelledby", `m-tab-${key}`);
+    if (key === "lineups") body.innerHTML = `<div class="cols">${teams.map(([team, name]) => `<div class="panel"><h3>${esc(name)}</h3>${lineup(team)}</div>`).join("")}</div>`;
+    else if (key === "changes") body.innerHTML = history();
+    else body.innerHTML = `<p class="muted match-note">${m.has_lineup_record ? "守備欄はこの試合で守った位置です。位置の変化は「→」、交代前後の選手は同じ打順で表示します。" : "配置記録なし：この試合の打順・実守備位置は不明です。"}</p>
+      <div class="cols">${teams.map(([team, name]) => `<div class="panel"><h3>${esc(name)}</h3>${batting(team)}<div class="stat-gap"></div>${pitching(team)}</div>`).join("")}</div>`;
+    bindPlayerLinks(body);
+    refreshLocation();
+  };
+  content.querySelectorAll("[data-match-tab]").forEach((button) => button.addEventListener("click", () => renderTab(button.dataset.matchTab)));
+  renderTab(state.matches.tab || "lineups");
 }
 
 // ---- 学校：一覧（見えている行だけ描く） → 詳細（タブ） ----
@@ -1203,18 +1242,19 @@ function injuryBadge(injury) {
   return `<span class="badge injury">怪我（${esc(injury.label)}）</span> <span class="muted">${slashDate(injury.return_date)}ごろ復帰</span>`;
 }
 
-function playerLink(schoolId, playerId, name) {
-  return playerId ? `<span class="link" data-player="${esc(playerId)}" data-player-school="${esc(schoolId)}">${esc(name)}</span>` : esc(name);
+function playerLink(schoolId, playerId, name, year = null) {
+  return playerId ? `<span class="link" data-player="${esc(playerId)}" data-player-school="${esc(schoolId)}"${year ? ` data-player-year="${esc(year)}"` : ""}>${esc(name)}</span>` : esc(name);
 }
 
 function bindPlayerLinks(root) {
   root.querySelectorAll(".link[data-player]").forEach((a) => a.addEventListener("click", () =>
-    openPlayer(a.dataset.playerSchool, a.dataset.player)));
+    openPlayer(a.dataset.playerSchool, a.dataset.player, a.dataset.playerYear ? Number(a.dataset.playerYear) : null)));
 }
 
-function openPlayer(schoolId, playerId) {
+function openPlayer(schoolId, playerId, year = null) {
+  const fromMatch = state.page === "matches" && state.matches.detail !== null;
   state.schools.detail = schoolId;
-  state.schools.player = { school: schoolId, id: playerId };
+  state.schools.player = { school: schoolId, id: playerId, ...(year ? { year } : {}), ...(fromMatch ? { fromMatch: true } : {}) };
   state.schools.coach = null;
   state.page = "schools";
   renderMenu();
@@ -1229,7 +1269,7 @@ function abilityCell(item) {
 }
 
 async function renderPlayer(content, target) {
-  const p = await call("player", target.school, target.id);
+  const p = await call("player", target.school, target.id, ...(target.year ? [target.year] : []));
   if (!p) return;
   const hands = `${HANDS[p.throws] || p.throws}投${HANDS[p.bats] || p.bats}打`;
   const abilities = p.abilities.length ? `<table class="list">${p.abilities.map((a) => `<tr><td>${esc(a.label)}</td>${abilityCell(a)}</tr>`).join("")}</table>`
@@ -1246,7 +1286,7 @@ async function renderPlayer(content, target) {
     : '<div class="muted">公式戦の打席はまだありません。</div>';
   const pitching = pit.length ? `<h3 style="margin-top:12px">投手</h3><table class="list"><tr><th>年度</th><th class="n">登板</th><th class="n">投球回</th><th class="n">球数</th><th class="n">被安打</th><th class="n">失点</th><th class="n">自責</th><th class="n">四球</th><th class="n">三振</th><th class="n">防御率</th></tr>
     ${pit.map((s) => { const x = s.pitching; return `<tr><td>${s.school_year}年度（${s.grade}年）</td><td class="n">${x.games}</td><td class="n">${esc(x.innings)}</td><td class="n">${x.pitches}</td><td class="n">${x.hits_allowed}</td><td class="n">${x.runs_allowed}</td><td class="n">${x.earned_runs}</td><td class="n">${x.walks}</td><td class="n">${x.strikeouts}</td><td class="n">${x.era}</td></tr>`; }).join("")}</table>` : "";
-  content.innerHTML = `<div class="head"><button class="btn small" id="p-back">← ${esc(p.school_name)}</button>
+  content.innerHTML = `<div class="head"><button class="btn small" id="p-back">← ${target.fromMatch ? "試合へ戻る" : esc(p.school_name)}</button>
       <h2>${esc(p.name)}</h2><span class="muted">${esc(p.school_name)}　${p.status === "在学" ? `${p.grade}年` : esc(p.status)}・${esc(p.position)}・${hands}</span>
       ${injuryBadge(p.injury)}${p.edit ? '<div class="spacer"></div><button class="btn small" id="p-edit">能力を編集…</button>' : ""}</div>
     <div class="scroll">
@@ -1267,7 +1307,10 @@ async function renderPlayer(content, target) {
         : '<div class="muted">怪我はしていません。</div>'}</div>
     </div>`;
   if (p.edit) $("p-edit").addEventListener("click", () => editPlayer(p));
-  $("p-back").addEventListener("click", () => { state.schools.player = null; state.schools.tab = "members"; renderPage(); });
+  $("p-back").addEventListener("click", () => {
+    if (target.fromMatch) return goHistory(nav.back, nav.forward);
+    state.schools.player = null; state.schools.tab = "members"; renderPage();
+  });
 }
 
 async function editPlayer(p) {
