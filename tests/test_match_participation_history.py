@@ -1,4 +1,5 @@
 """架空データで開始配置・交代時点の保存、復元、改変拒否を確認する。"""
+from contextlib import closing
 from dataclasses import replace
 from datetime import date
 import json
@@ -205,7 +206,7 @@ class MatchParticipationHistoryTests(unittest.TestCase):
             self.assertEqual(result.to_dict()['team_participation'], initial['team_participation'])
             self.assertEqual(record['ability_detail']['highlights'], initial['highlights'])
             self.assertNotIn('events', initial)
-            with sqlite3.connect(path) as conn:
+            with closing(sqlite3.connect(path)) as conn:
                 raw = json.loads(conn.execute('SELECT payload_json FROM historical_matches').fetchone()[0])
             self.assertTrue(any(h[0] == 'P' for h in raw['highlights']))
             self.assertTrue(all(len(h) == 3 for h in raw['highlights'] if h[0] == 'P'))
