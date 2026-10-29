@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -38,7 +39,7 @@ class GameRules:
 
 @dataclass(frozen=True)
 class _RunnerResponsibility:
-    """A runner's origin remains unchanged while advancing or across pitching changes."""
+    """Responsibility and unearned lineage, including replacements under 9.16(g)."""
 
     player_id: str
     responsible_pitcher_id: str
@@ -50,12 +51,12 @@ class _RunnerResponsibility:
 class _RunnerResponsibilityTracker:
     """Inning-local responsibility, separate from the existing base/outcome model.
 
-    The v1 result statistics intentionally remain unchanged until the next PR.
     This tracker neither consumes randomness nor mutates the simulator's bases.
     """
 
     def __init__(self) -> None:
         self._active: dict[str, _RunnerResponsibility] = {}
+        self._pitcher_order: dict[str, int] = {}
 
     def seed_tiebreak(
         self, bases: list[str | None], pitcher_id: str,
@@ -74,6 +75,7 @@ class _RunnerResponsibilityTracker:
             )
             for player_id in runners
         }
+        self._pitcher_order.setdefault(pitcher_id, len(self._pitcher_order))
 
     def record_play(
         self,
@@ -88,8 +90,9 @@ class _RunnerResponsibilityTracker:
     ) -> tuple[_RunnerResponsibility, ...]:
         """Return the origins of scoring runners in scoring order.
 
-        Only a new batter-runner receives the current pitcher as their origin.
-        Runners already on base retain their original responsibility and flags.
+        A fielder's choice preserves the retired runner's responsibility slot.
+        If a later runner scores first, earlier pitchers' outstanding slots take
+        precedence (9.16(g)); simultaneous scorers retain their slots if possible.
         """
         before = [pid for pid in bases_before if pid is not None]
         after = [pid for pid in bases_after if pid is not None]
@@ -106,6 +109,14 @@ class _RunnerResponsibilityTracker:
             reached_on_error=event_type == "reached_on_error",
             plate_appearance_no=plate_appearance_no,
         )
+        self._pitcher_order.setdefault(pitcher_id, len(self._pitcher_order))
+        if event_type == "fielder_choice":
+            removed = set(before) - set(after) - set(scored_runner_ids)
+            if len(removed) == 1 and batter_id in after:
+                newcomer = replace(
+                    self._active[removed.pop()], player_id=batter_id,
+                    plate_appearance_no=plate_appearance_no,
+                )
 
         def origin(player_id: str) -> _RunnerResponsibility:
             prior = self._active.get(player_id)
@@ -115,11 +126,184 @@ class _RunnerResponsibilityTracker:
                 return newcomer
             raise ValueError("unknown runner after play")
 
-        scored = tuple(origin(pid) for pid in scored_runner_ids)
         if set(scored_runner_ids) & set(after):
             raise ValueError("scoring runner remains on base")
-        self._active = {pid: origin(pid) for pid in after}
-        return scored
+        origins = {pid: origin(pid) for pid in [*scored_runner_ids, *after]}
+        if not scored_runner_ids:
+            self._active = origins
+            return ()
+        scoring = set(scored_runner_ids)
+        ordered = sorted(origins, key=lambda pid: (
+            self._pitcher_order[origins[pid].responsible_pitcher_id],
+            pid not in scoring, pid,
+        ))
+        selected = set(ordered[:len(scored_runner_ids)])
+        assignments = {pid: pid for pid in scored_runner_ids if pid in selected}
+        unused = [pid for pid in ordered if pid in selected and pid not in assignments]
+        for pid in scored_runner_ids:
+            if pid not in assignments:
+                assignments[pid] = unused.pop(0)
+        available = [pid for pid in origins if pid not in assignments.values()]
+        for pid in after:
+            if pid in available:
+                assignments[pid] = pid
+                available.remove(pid)
+        for pid in after:
+            if pid not in assignments:
+                assignments[pid] = available.pop(0)
+        credited = {
+            pid: replace(origins[source], player_id=pid,
+                         plate_appearance_no=origins[pid].plate_appearance_no)
+            for pid, source in assignments.items()
+        }
+        self._active = {pid: credited[pid] for pid in after}
+        return tuple(credited[pid] for pid in scored_runner_ids)
+
+
+# Appearance keys distinguish two trips around the order by the same player.
+_RunnerKey = tuple[int, str]
+
+
+class _ErrorFreeInning:
+    """Scoring-only reconstruction; never draws randomness or changes actual play.
+
+    ROE is a missed batter out in the current event model. On clean hits, use an
+    observed advance only from the same base; otherwise credit the minimum bases
+    guaranteed by that hit (doubt benefits the pitcher, 9.16(d/f)).
+    """
+
+    def __init__(self, outs: int, bases: list[_RunnerKey | None]):
+        self.outs = outs
+        self.bases = list(bases)
+        self.scored: set[_RunnerKey] = set()
+
+    def record_play(self, event: str, batter: _RunnerKey,
+                    before: list[_RunnerKey | None], after: list[_RunnerKey | None],
+                    scored: set[_RunnerKey], outs_on_play: int) -> None:
+        if self.outs >= 3:
+            return
+        if event == "reached_on_error":
+            self.outs += 1
+            return
+        self.outs += outs_on_play
+        if self.outs >= 3:
+            return
+        if event in {"walk", "hit_by_pitch"}:
+            carry = batter
+            for index in range(3):
+                carry, self.bases[index] = self.bases[index], carry
+                if carry is None:
+                    break
+            else:
+                self.scored.add(carry)
+        elif event == "home_run":
+            self.scored.update(key for key in self.bases if key is not None)
+            self.scored.add(batter)
+            self.bases = [None] * 3
+        elif event in {"single", "double", "triple"}:
+            distance = {"single": 1, "double": 2, "triple": 3}[event]
+            advanced: list[_RunnerKey | None] = [None] * 3
+            for index in (2, 1, 0):
+                key = self.bases[index]
+                if key is None:
+                    continue
+                target = index + distance
+                if before[index] == key:
+                    if key in scored:
+                        target = 3
+                    elif key in after:
+                        target = max(target, after.index(key))
+                if target >= 3:
+                    self.scored.add(key)
+                else:
+                    while advanced[target] is not None:
+                        target -= 1
+                    advanced[target] = key
+            advanced[distance - 1] = batter
+            self.bases = advanced
+        elif event == "fielder_choice":
+            removed = {key for key in before if key is not None} - set(after) - scored
+            # An already eliminated error runner cannot be retired again in the
+            # reconstructed bases. Treat that play as a batter out instead.
+            victim = next((key for key in removed if key in self.bases), None)
+            if victim is not None:
+                self.bases[self.bases.index(victim)] = None
+                for index in (2, 1, 0):
+                    key = self.bases[index]
+                    if key is not None and before[index] == key and key in after:
+                        target = after.index(key)
+                        if target > index and self.bases[target] is None:
+                            self.bases[target], self.bases[index] = key, None
+                if self.bases[0] is None:
+                    self.bases[0] = batter
+        elif event == "sacrifice_fly":
+            if self.bases[2] is not None:
+                self.scored.add(self.bases[2])
+                self.bases[2] = None
+        elif event == "sacrifice_bunt":
+            # The actual engine only bunts without a third-base runner. A runner
+            # lagging on virtual third is held; do not invent a squeeze play.
+            for index in (1, 0):
+                if self.bases[index] is not None and self.bases[index + 1] is None:
+                    self.bases[index + 1], self.bases[index] = self.bases[index], None
+        elif event not in {"strikeout", "field_out"}:
+            raise ValueError(f"unsupported earned-run event: {event}")
+
+
+class _EarnedRunTracker:
+    """One team reconstruction plus a separate entry state per pitcher (9.16(i)).
+
+    Retired pitchers' views continue through later relief and errors. An actual
+    run can become earned on a subsequent clean advance, so settle at half end.
+    Team ER is deliberately not equated to the sum of individual pitcher ER.
+    """
+
+    def __init__(self) -> None:
+        self._active: dict[str, _RunnerKey] = {}
+        self._views: dict[str, _ErrorFreeInning] = {}
+        self._team: _ErrorFreeInning | None = None
+        self._runs: list[tuple[_RunnerKey, _RunnerResponsibility]] = []
+        self._unearned: set[_RunnerKey] = set()
+
+    def record_play(self, *, bases_before, bases_after, scored_runners,
+                    batter_id, pitcher_id, event_type, plate_appearance_no,
+                    outs_before, outs_on_play) -> None:
+        if self._team is None:
+            # Only tiebreak runners can be on base before the first actual PA.
+            self._active = {pid: (-1, pid) for pid in bases_before if pid is not None}
+            self._unearned.update(self._active.values())
+        before = [self._active.get(pid) for pid in bases_before]
+        batter = (plate_appearance_no, batter_id)
+        keys = {**self._active, batter_id: batter}
+        after = [keys.get(pid) for pid in bases_after]
+        scored = {keys[runner.player_id] for runner in scored_runners}
+        if self._team is None:
+            self._team = _ErrorFreeInning(0, before)
+        if pitcher_id not in self._views:
+            self._views[pitcher_id] = _ErrorFreeInning(outs_before, before)
+        if event_type == "reached_on_error":
+            self._unearned.add(batter)
+        for view in (self._team, *self._views.values()):
+            view.record_play(event_type, batter, before, after, scored, outs_on_play)
+        self._runs.extend((keys[runner.player_id], runner) for runner in scored_runners)
+        self._active = {pid: keys[pid] for pid in bases_after if pid is not None}
+
+    def earned_runs(self) -> Counter[str]:
+        return Counter(
+            runner.responsible_pitcher_id for key, runner in self._runs
+            if key not in self._unearned
+            and not (runner.reached_on_error or runner.tiebreak_placed)
+            and key in self._views[runner.responsible_pitcher_id].scored
+        )
+
+    @property
+    def team_earned_runs(self) -> int:
+        return sum(
+            key not in self._unearned
+            and not (runner.reached_on_error or runner.tiebreak_placed)
+            and key in self._team.scored
+            for key, runner in self._runs
+        )
 
 
 class MatchSimulator:
@@ -801,6 +985,9 @@ class MatchSimulator:
         team_runs = {team1_id: 0, team2_id: 0}
         team_hits = {team1_id: 0, team2_id: 0}
         team_errors = {team1_id: 0, team2_id: 0}
+        # Preserve the existing quick-hook decisions: runs scored during an
+        # outing are a usage signal, distinct from official pitcher liability.
+        outing_runs: Counter[str] = Counter()
 
         events: list[MatchEvent] = []
         inning_scores: list[InningScore] = []
@@ -834,10 +1021,10 @@ class MatchSimulator:
                 outs = 0
                 bases: list[str | None] = [None, None, None]
                 runner_responsibility = _RunnerResponsibilityTracker()
+                earned_run_tracker = _EarnedRunTracker()
                 tiebreak_pending = False
                 # タイブレーク：打順は続け、先頭打者の1人前が一塁、2人前が二塁。
                 # 置いた走者の得点は自責点にしない
-                placed: set[str] = set()
                 if (
                     rules.tiebreak_start_inning is not None
                     and inning >= rules.tiebreak_start_inning
@@ -846,7 +1033,6 @@ class MatchSimulator:
                     lead = lineup_index[offense_id]
                     bases[0] = order[(lead - 1) % len(order)]
                     bases[1] = order[(lead - 2) % len(order)]
-                    placed = {bases[0], bases[1]}
                     tiebreak_pending = True
 
                 while outs < 3:
@@ -872,7 +1058,7 @@ class MatchSimulator:
                         limit_reached and current_index + 1 < len(staff)
                     ) or self._should_change_pitcher(
                         pitcher=pitcher,
-                        stats=pitcher_stat,
+                        stats={**pitcher_stat, "runs_allowed": outing_runs[pitcher_id]},
                         starter=current_index == 0,
                         has_next=current_index + 1 < staff_sizes[defense_id],
                         tactics=policies[defense_id],
@@ -963,7 +1149,7 @@ class MatchSimulator:
                         ].team_strength.defense_strength,
                         rng=event_rng,
                     )
-                    runner_responsibility.record_play(
+                    scored_runners = runner_responsibility.record_play(
                         bases_before=bases_before,
                         bases_after=bases,
                         scored_runner_ids=scored,
@@ -971,6 +1157,13 @@ class MatchSimulator:
                         pitcher_id=pitcher_id,
                         event_type=event_type,
                         plate_appearance_no=pa_no,
+                    )
+                    earned_run_tracker.record_play(
+                        bases_before=bases_before, bases_after=bases,
+                        scored_runners=scored_runners, batter_id=batter_id,
+                        pitcher_id=pitcher_id, event_type=event_type,
+                        plate_appearance_no=pa_no, outs_before=outs,
+                        outs_on_play=outs_on_play,
                     )
                     outs += outs_on_play
 
@@ -1017,15 +1210,10 @@ class MatchSimulator:
                         int(pitcher_stat["outs_recorded"])
                         + outs_on_play
                     )
-                    pitcher_stat["runs_allowed"] = (
-                        int(pitcher_stat["runs_allowed"])
-                        + len(scored)
-                    )
-                    if event_type != "reached_on_error":
-                        pitcher_stat["earned_runs"] = (
-                            int(pitcher_stat["earned_runs"])
-                            + len([r for r in scored if r not in placed])
-                        )
+                    outing_runs[pitcher_id] += len(scored)
+                    for runner in scored_runners:
+                        responsible = pitcher_rows[defense_id][runner.responsible_pitcher_id]
+                        responsible["runs_allowed"] = int(responsible["runs_allowed"]) + 1
                     if hit:
                         pitcher_stat["hits_allowed"] = (
                             int(pitcher_stat["hits_allowed"]) + 1
@@ -1088,6 +1276,9 @@ class MatchSimulator:
                         game_over = True
                         break
 
+                for responsible_id, earned in earned_run_tracker.earned_runs().items():
+                    row = pitcher_rows[defense_id][responsible_id]
+                    row["earned_runs"] = int(row["earned_runs"]) + earned
                 inning_scores.append(InningScore(
                     inning=inning, half=half,
                     batting_team_id=offense_id,

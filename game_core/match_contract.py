@@ -115,7 +115,10 @@ class PitcherGameStats:
     school_id: str
     outs_recorded: int = 0
     batters_faced: int = 0
+    # Runner liability under 9.16(g), including runs scored after relief.
     runs_allowed: int = 0
+    # Reconstructed separately for each pitcher's entry state (9.16(i));
+    # summing these is not necessarily the team's earned-run total.
     earned_runs: int = 0
     hits_allowed: int = 0
     home_runs_allowed: int = 0
