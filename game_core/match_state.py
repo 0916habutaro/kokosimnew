@@ -556,6 +556,17 @@ class TeamMatchState:
         assert change is not None
         return change
 
+    def relieve_pitcher(self, incoming_player_id: str, *,
+                        moment: ChangeMoment | None = None) -> LineupChange | None:
+        """本番の自動継投。野手登板で空く位置にはDHが入り、旧投手は退く。"""
+        extra_defense = {}
+        if self.designated_hitter_id is not None and self.current_pitcher_id != self.designated_hitter_id:
+            vacated = next((a.defensive_position for a in self.defensive_alignment
+                            if a.player_id == incoming_player_id and a.defensive_position != 'P'), None)
+            if vacated is not None:
+                extra_defense[vacated] = self.designated_hitter_id
+        return self.change_pitcher(incoming_player_id, defensive_changes=extra_defense, moment=moment)
+
     def change_pitcher(self, incoming_player_id: str, *, outgoing_player_id: str | None = None,
                        defensive_changes: Mapping[str, str] | None = None,
                        batting_changes: Mapping[int, str] | None = None,

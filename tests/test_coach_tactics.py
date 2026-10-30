@@ -9,8 +9,8 @@ from unittest.mock import patch
 from game_core.coaches import CoachEvent, CoachTactics
 from game_core.match_contract import MatchSimulationInput, TeamMatchInput, validate_match_simulation_result
 from game_core.match_simulator import GameRules, MatchSimulator
-from game_core.team_strength import TeamStrengthGenerator, validate_team_strength_snapshot
-from game_core.tournament_bridge import AbilityMatchResolver
+from game_core.team_strength import PitcherForecast, TeamStrengthGenerator, validate_team_strength_snapshot
+from game_core.tournament_bridge import AbilityMatchResolver, _binomial_lower_tail
 from test_coach_intake import books, annual
 from test_stage13b3_team_strength import make_roster_abilities
 
@@ -27,7 +27,7 @@ def resolver(f, day):
     repo,coaches,rep,rosters=f
     rosters.bind(repo.team)
     members=lambda cid,sid: SimpleNamespace(players=rosters.roster(2026,sid).players)
-    r=AbilityMatchResolver(repo,member_provider=members,team_generation_seed=7)
+    r=AbilityMatchResolver(repo,member_provider=members,team_generation_seed=7,dh_enabled=False)
     r.ability_generator.source=rosters
     r.season_state=SimpleNamespace(current_date=day,pitch_log={})
     r.rules_for=lambda *args: GameRules(tiebreak_start_inning=10)
@@ -302,6 +302,278 @@ class StarterUsageTests(unittest.TestCase):
                 outs += next(p.outs_recorded for p in r.pitcher_stats if p.school_id == team.school_id)
             totals[quality] = outs
         self.assertGreater(totals[90], totals[20])
+
+
+class NationalDHSelectionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.generator = TeamStrengthGenerator()
+
+    def team(self, sid='FAKE-DH-A', *, ace_bat=90, other_bat=30):
+        players = tuple(replace(p, player_id=sid+'-'+p.player_id)
+                        for p in make_roster_abilities(school_id=sid))
+        ace = self.generator.generate(players).starting_lineup.player_for_position('P')
+        players = tuple(replace(p, **{key: ace_bat if p.player_id == ace else other_bat
+                                     for key in ('contact','power','plate_discipline',
+                                                 'strikeout_resistance','speed','baserunning')})
+                        for p in players)
+        return TeamMatchInput(sid, self.generator.generate(players), players)
+
+    def live(self, enabled=True):
+        r = resolver(books(), date(2026,7,1))
+        r.dh_enabled = enabled
+        r.ability_generator.source = None
+        return r
+
+    @staticmethod
+    def mode(team):
+        lineup = team.team_strength.starting_lineup
+        return ('none' if lineup.designated_hitter_id is None else
+                'pitcher' if lineup.designated_hitter_id == lineup.player_for_position('P') else 'normal')
+
+    def test_ability_comparison_selects_normal_and_pitcher(self):
+        live = self.live()
+        for values, expected in (((20,80),'normal'),((90,30),'pitcher')):
+            team = self.team(ace_bat=values[0],other_bat=values[1])
+            selected = live._select_dh_input(team, None, CoachTactics())
+            self.assertEqual(expected, self.mode(selected))
+            self.assertEqual(team.team_strength.starting_lineup.player_for_position('P'),
+                             selected.team_strength.starting_lineup.player_for_position('P'))
+            validate_team_strength_snapshot(selected.team_strength)
+            self.assertEqual('none', self.mode(team))
+
+    def forecast_case(self, *, starter_bat=20, relief_bats=(90,10), bench_bat=80):
+        team=self.team(ace_bat=starter_bat,other_bat=60)
+        lineup=team.team_strength.starting_lineup
+        starter=lineup.player_for_position('P')
+        used={e.player_id for e in lineup.entries}
+        relief=[p.player_id for p in team.player_abilities if p.primary_position=='P' and p.player_id not in used]
+        bench=next(p.player_id for p in team.player_abilities if p.primary_position!='P' and p.player_id not in used)
+        values={p.player_id:20 for p in team.player_abilities if p.player_id not in used}
+        values.update(zip(relief,relief_bats));values[bench]=bench_bat
+        players=tuple(replace(p,**{k:values[p.player_id] for k in
+            ('contact','power','plate_discipline','strikeout_resistance','speed','baserunning')})
+            if p.player_id in values else p for p in team.player_abilities)
+        return players,lineup,starter,relief,bench
+
+    def decision(self,players,lineup,forecast,threshold=0):
+        return self.generator.select_dh_mode(players,starting_pitcher_id=forecast[0].player_id,
+            replacement_batter_id=forecast[-1].player_id,starter_share=forecast[0].batting_share,
+            candidate_lineup=lineup,baseline_lineup=lineup,pitching_forecast=forecast,
+            minimum_batting_gain=threshold)
+
+    def test_normal_candidate_accounts_for_batting_lost_after_later_relief(self):
+        players,lineup,starter,relief,bench=self.forecast_case()
+        forecast=tuple(PitcherForecast(pid,share,1) for pid,share in
+                       zip((starter,*relief[:2]),(.4,.3,.3)))
+        d=self.decision(players,lineup,forecast)
+        self.assertEqual(('normal',bench),(d.mode,d.normal_candidate_id))
+        # The best instantaneous hitter loses his slot at the next pitching change.
+        values={p.player_id:self.generator._batting_composite(p) for p in players}
+        declared=self.generator._forecast_dh_lineup(lineup,starter,relief[0],values)
+        value,probability=self.generator._forecast_batting(declared,forecast,values)
+        self.assertAlmostEqual(480+.7*90+.3*10,value)
+        self.assertEqual(1,probability)
+        # When no subsequent change is expected, a pitcher remains a valid best DH.
+        d=self.decision(players,lineup,forecast[:1]+(PitcherForecast(relief[0],.6,1),))
+        self.assertEqual(('normal',relief[0]),(d.mode,d.normal_candidate_id))
+        selected=self.generator.generate(players,dh_mode='normal',starting_pitcher_id=starter,
+                                         designated_hitter_id=relief[2])
+        self.assertEqual(relief[2],selected.starting_lineup.designated_hitter_id)
+        with self.assertRaises(ValueError):
+            self.generator.generate(players,dh_mode='normal',starting_pitcher_id=starter,
+                                    designated_hitter_id=starter)
+
+    def test_non_relief_pitcher_can_be_selected_instead_of_top_relief_hitter(self):
+        players,lineup,starter,relief,bench=self.forecast_case(bench_bat=20)
+        reserve=relief[2]
+        players=tuple(replace(p,contact=85,power=85,plate_discipline=85,strikeout_resistance=85,
+                              speed=85,baserunning=85) if p.player_id==reserve else p for p in players)
+        forecast=tuple(PitcherForecast(pid,share,1) for pid,share in
+                       zip((starter,*relief[:2]),(.4,.3,.3)))
+        d=self.decision(players,lineup,forecast)
+        self.assertEqual(('normal',reserve),(d.mode,d.normal_candidate_id))
+        self.assertEqual(0,d.normal_dh_end_probability)
+
+    def test_two_way_gain_depends_on_duration_and_relief_batting_not_only_eight_fielders(self):
+        players,lineup,starter,relief,_=self.forecast_case(starter_bat=90,relief_bats=(30,20),bench_bat=20)
+        short_relief=(PitcherForecast(starter,.99,1),PitcherForecast(relief[0],.01,.1))
+        d=self.decision(players,lineup,short_relief,threshold=1)
+        self.assertEqual('none',d.mode)
+        self.assertEqual('marginal_batting_gain',d.reason)
+        self.assertAlmostEqual(.6,d.pitcher_gain)
+        long_relief=(PitcherForecast(starter,.6,1),PitcherForecast(relief[0],.4,.8))
+        d=self.decision(players,lineup,long_relief,threshold=1)
+        self.assertEqual('pitcher',d.mode)
+        self.assertAlmostEqual(24,d.pitcher_gain)
+        # Retaining the starter also forgoes a better relief hitter in that batting slot.
+        better=tuple(replace(p,contact=100,power=100,plate_discipline=100,strikeout_resistance=100,
+                             speed=100,baserunning=100) if p.player_id==relief[0] else p for p in players)
+        d=self.decision(better,lineup,long_relief,threshold=1)
+        self.assertEqual('normal',d.mode)
+        self.assertLess(d.pitcher_gain,0)
+
+    def test_forecast_matches_out_distribution_and_keeps_last_pitcher(self):
+        import math
+        for n in (0,1,4,27,60):
+            for k in (0,2,26):
+                exact=sum(math.comb(n,j)*.7**j*.3**(n-j) for j in range(min(k,n)+1))
+                self.assertAlmostEqual(exact,_binomial_lower_tail(n,k,.7))
+        live=self.live();team=self.team();order,count=live.simulator._game_staff(team,None)
+        base=live.simulator._initial_state(team,order[0]);before=team.to_dict()
+        forecast=live._pitching_forecast(team,base,order,count,None,CoachTactics(),None)
+        self.assertAlmostEqual(1,sum(p.batting_share for p in forecast))
+        self.assertEqual(order[0],forecast[0].player_id)
+        # No elective change beyond the last professional, regardless of BF limit.
+        self.assertEqual(tuple(order[:count]),tuple(p.player_id for p in forecast))
+        ample={p.player_id:500 for p in team.player_abilities}
+        self.assertEqual(forecast,live._pitching_forecast(team,base,order,count,ample,CoachTactics(),None))
+        capped=live._pitching_forecast(team,base,order,count,{order[0]:20},CoachTactics(),None)
+        self.assertLess(capped[0].batting_share,forecast[0].batting_share)
+        self.assertEqual(before,team.to_dict())
+        self.assertEqual((),base.participation().changes)
+
+    def test_role_projection_matches_actual_states_and_does_not_cache_abilities(self):
+        from game_core.match_state import TeamMatchState
+        players,lineup,starter,relief,bench=self.forecast_case()
+        values={p.player_id:self.generator._batting_composite(p) for p in players}
+        fielder=lineup.player_for_position('LF')
+        forecast=tuple(PitcherForecast(pid,share,prob) for pid,share,prob in
+            ((starter,.4,1),(relief[0],.3,.9),(relief[1],.2,.5),(fielder,.1,.2)))
+        for dh in (None,starter,relief[0],bench):
+            declared=lineup if dh is None else self.generator._forecast_dh_lineup(lineup,starter,dh,values)
+            state=TeamMatchState(declared,values,available_player_ids=values,actual_pitcher_id=starter)
+            expected,ended=0,0
+            for index,pitching in enumerate(forecast):
+                old_dh=state.designated_hitter_id
+                if index:state.relieve_pitcher(pitching.player_id)
+                if old_dh is not None and state.designated_hitter_id is None:
+                    ended=pitching.appearance_probability
+                expected+=pitching.batting_share*sum(values[s.player_id] for s in state.batting_order)
+            actual,probability=self.generator._forecast_batting(declared,forecast,values)
+            self.assertAlmostEqual(expected,actual)
+            self.assertEqual(ended,probability)
+            changed={pid:bat+5 for pid,bat in values.items()}
+            updated,_=self.generator._forecast_batting(declared,forecast,changed)
+            self.assertAlmostEqual(actual+45,updated)
+
+    def test_nine_available_players_and_one_pitcher_with_good_bat_keep_none(self):
+        team = self.team()
+        by_id = {p.player_id:p for p in team.player_abilities}
+        nine = tuple(by_id[e.player_id] for e in team.team_strength.starting_lineup.entries)
+        registered=frozenset(by_id)
+        small = replace(team, player_abilities=nine, team_strength=self.generator.generate(nine),
+                        registered_player_ids=registered)
+        self.assertIs(small,self.live()._select_dh_input(small,None,CoachTactics()))
+        ace=team.team_strength.starting_lineup.player_for_position('P')
+        players=tuple(p for p in team.player_abilities if p.primary_position!='P' or p.player_id==ace)
+        one=replace(team,player_abilities=players,team_strength=self.generator.generate(players))
+        self.assertIs(one,self.live()._select_dh_input(one,None,CoachTactics()))
+
+    def test_pitch_allowance_changes_starter_and_choice_without_mutating_input(self):
+        live=self.live();team=self.team();before=team.to_dict()
+        ace=team.team_strength.starting_lineup.player_for_position('P')
+        self.assertEqual('pitcher',self.mode(live._select_dh_input(team,None,CoachTactics())))
+        selected=live._select_dh_input(team,{ace:60},CoachTactics())
+        self.assertEqual('normal',self.mode(selected))
+        self.assertNotEqual(ace,selected.team_strength.starting_lineup.player_for_position('P'))
+        self.assertEqual(ace,selected.team_strength.starting_lineup.designated_hitter_id)
+        self.assertEqual(before,team.to_dict())
+
+    def test_emergency_fielder_start_and_disabled_mode_keep_input(self):
+        team=self.team();pitchers={p.player_id for p in team.player_abilities if p.primary_position=='P'}
+        live=self.live()
+        self.assertIs(team,live._select_dh_input(team,{pid:0 for pid in pitchers},CoachTactics()))
+        live.dh_enabled=False
+        self.assertIs(team,live._select_dh_input(team,None,CoachTactics()))
+
+    def test_disabled_keeps_full_result(self):
+        live=self.live(False);teams=(self.team(),self.team('FAKE-DH-B'))
+        inp=MatchSimulationInput('FAKE-DH-OFF','FAKE-CUP',2026,20261022,*teams,
+                                 team_generation_seed=teams[0].team_strength.generation_seed)
+        before=live.simulator.simulate(inp)
+        live.team_input=lambda **kw: next(t for t in teams if t.school_id==kw['school_id'])
+        live._record_pitches=lambda *a:None;live._record_games=lambda *a:None
+        live.rules_for=lambda *a:GameRules();live._pitch_allowances=lambda *a:None
+        row=live(match_id=inp.match_id,competition_id=inp.competition_id,reference_year=2026,
+                 generation_seed=inp.generation_seed,team1=teams[0].school_id,team2=teams[1].school_id)
+        for key,value in before.to_dict().items():self.assertEqual(value,row.detail[key])
+
+    def test_mixed_modes_are_reproducible_and_saveable(self):
+        from game_core.match_contract import validated_match_history
+        from phase2_engine.historical_match_archive import compact_payload,expand_payload,_history_payload
+        live=self.live();original=(self.team(),self.team('FAKE-DH-B',ace_bat=20,other_bat=80))
+        teams=tuple(live._select_dh_input(t,None,CoachTactics()) for t in original)
+        self.assertEqual(('pitcher','normal'),tuple(map(self.mode,teams)))
+        inp=MatchSimulationInput('FAKE-DH-MIX','FAKE-CUP',2026,20261022,*teams,
+                                 team_generation_seed=teams[0].team_strength.generation_seed)
+        a=live.simulator.simulate(inp);b=live.simulator.simulate(inp)
+        self.assertEqual(a,b);validate_match_simulation_result(a,inp)
+        detail=validated_match_history(a,inp)
+        row=dict(competition_id=inp.competition_id,competition_name='架空杯',match_id=inp.match_id,
+                 match_date='2026-07-01',round_name='決勝',status='completed',team1_id=teams[0].school_id,
+                 team2_id=teams[1].school_id,team1_score=a.team1_score,team2_score=a.team2_score,
+                 winner_id=a.winner_id,loser_id=a.loser_id,score_source=a.score_source,ability_detail=detail)
+        payload=_history_payload(2026,row)
+        self.assertEqual(payload,expand_payload(compact_payload(payload)))
+
+    def test_injury_shortage_does_not_add_optional_dh(self):
+        live=self.live();team=self.team(ace_bat=20,other_bat=80)
+        live.ability_generator.source=SimpleNamespace(condition=lambda p,day:(True,0))
+        live.member_provider=lambda *a:SimpleNamespace(players=team.player_abilities)
+        self.assertIs(team,live._select_dh_input(team,None,CoachTactics()))
+
+    def test_two_way_candidate_needs_batting_fit_among_starting_fielders(self):
+        team=self.team(ace_bat=45,other_bat=20)
+        # 守備の先発8人を強打者にする。控えとの僅かな比較だけでは兼任にしない。
+        fielders={e.player_id for e in team.team_strength.starting_lineup.entries if e.defensive_position!='P'}
+        players=tuple(replace(p,contact=80,power=80,plate_discipline=80,strikeout_resistance=80,speed=80)
+                      if p.player_id in fielders else p for p in team.player_abilities)
+        team=replace(team,player_abilities=players,team_strength=self.generator.generate(players))
+        live=self.live()
+        self.assertEqual('none',self.mode(live._select_dh_input(team,None,CoachTactics())))
+        live._dh_two_way_lineup_bat=False
+        self.assertEqual('pitcher',self.mode(live._select_dh_input(team,None,CoachTactics())))
+
+    def test_all_modes_record_one_experience_and_injury_exposure_per_player(self):
+        from game_core.team_strength import DHSelection
+        for mode in ('none','normal','pitcher'):
+            with self.subTest(mode=mode):
+                f=books();live=resolver(f,date(2026,7,1));live.dh_enabled=True
+                source=f[3]
+                members={sid:live.member_provider('FAKE-CUP',sid).players for sid in ('FAKE-A','FAKE-B')}
+                before={p.player_id:source.state(p).games for ps in members.values() for p in ps}
+                with (patch.object(live.team_generator,'select_dh_mode',return_value=DHSelection(mode,'test')),
+                      patch.object(source,'after_game',wraps=source.after_game) as injury):
+                    row=live(match_id='FAKE-EXPERIENCE',competition_id='FAKE-CUP',reference_year=2026,
+                             generation_seed=20261022,team1='FAKE-A',team2='FAKE-B')
+                detail=row.detail
+                expected={s['player_id'] for s in detail['batter_stats'] if s['plate_appearances']}
+                expected|={s['player_id'] for s in detail['pitcher_stats'] if s['batters_faced']}
+                expected|={pid for record in detail['team_participation'] for pid in record['fielding_player_ids']}
+                for ps in members.values():
+                    for p in ps:self.assertEqual(before[p.player_id]+(p.player_id in expected),source.state(p).games)
+                exposures=injury.call_args.args[0]
+                self.assertEqual(expected,{p.player_id for p,_,_,_ in exposures})
+                self.assertEqual(len(expected),len(exposures))
+                for s in detail['pitcher_stats']:
+                    if s['pitches']:self.assertEqual(s['pitches'],live.season_state.pitch_log[s['player_id']]['2026-07-01'])
+
+    def test_replaced_verified_result_is_revalidated_before_live_side_effects(self):
+        from unittest.mock import Mock
+        live=self.live();teams=(self.team(),self.team('FAKE-DH-B'))
+        live.team_input=lambda **kw:next(t for t in teams if t.school_id==kw['school_id'])
+        simulate=live.simulator.simulate
+        def replaced(*args,**kwargs):
+            result=simulate(*args,**kwargs)
+            return replace(result,team1_score=result.team1_score+1)
+        live._record_pitches=Mock();live._record_games=Mock();live.detail_sink={}
+        with patch.object(live.simulator,'simulate',side_effect=replaced):
+            with self.assertRaises(ValueError):
+                live(match_id='FAKE-REPLACED',competition_id='FAKE-CUP',reference_year=2026,
+                     generation_seed=20261022,team1=teams[0].school_id,team2=teams[1].school_id)
+        live._record_pitches.assert_not_called();live._record_games.assert_not_called()
+        self.assertEqual({},live.detail_sink)
 
 
 if __name__ == "__main__":

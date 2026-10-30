@@ -59,6 +59,8 @@ class Stage13C3TournamentIntegrationTests(unittest.TestCase):
             cls.repo,
             ability_config_dir=ROOT / "config" / "abilities",
             match_config_dir=ROOT / "config" / "match",
+            # DHなしの従来の全イベント付き直接実行・CSV出力を検証する。
+            dh_enabled=False,
         )
         cls.engine = TournamentEngine(
             cls.repo,

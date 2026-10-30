@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import csv
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+from functools import lru_cache
 from pathlib import Path
 from statistics import fmean
 from typing import Iterable, Iterator, Mapping
@@ -107,6 +108,26 @@ class PitchingStaff:
             "reference_year": self.reference_year,
             "entries": [entry.to_dict() for entry in self.entries],
         }
+
+
+@dataclass(frozen=True)
+class DHSelection:
+    """試合前の比較結果。共有キャッシュや試合の永久記録には入れない。"""
+    mode: str
+    reason: str
+    normal_gain: float = 0.0
+    pitcher_gain: float = 0.0
+    normal_candidate_id: str | None = None
+    normal_role_cost: float = 0.0
+    normal_dh_end_probability: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
+class PitcherForecast:
+    """当日の継投順における打撃機会の比率と登板到達確率。永続化しない。"""
+    player_id: str
+    batting_share: float
+    appearance_probability: float
 
 
 @dataclass(frozen=True)
@@ -312,6 +333,125 @@ class TeamStrengthGenerator:
         }
         return _weighted(values, weights)
 
+    def select_dh_mode(self, snapshots: Iterable[PlayerAbilitySnapshot], *,
+                       starting_pitcher_id: str, replacement_batter_id: str,
+                       starter_share: float, selection_grade_bias: float = 0.0,
+                       minimum_batting_gain: float = 0.0,
+                       two_way_requires_lineup_bat: bool = True,
+                       baseline_batter_ids: Iterable[str] | None = None,
+                       candidate_lineup: StartingLineup | None = None,
+                       baseline_lineup: StartingLineup | None = None,
+                       pitching_forecast: tuple[PitcherForecast, ...] | None = None) -> DHSelection:
+        """同じ実先発で、打順9枠の予想打撃合成値を比較する。
+
+        DHなしは継投後の打者へ移る。兼任は先発の打撃を残せるが、
+        より打てる救援への打順引継ぎを失う。通常DHには10人が必要。
+        """
+        players = tuple(snapshots)
+        self._validate_source(list(players))
+        by_id = {p.player_id: p for p in players}
+        pitcher = by_id[starting_pitcher_id]
+        if pitcher.primary_position != 'P':
+            return DHSelection('none', 'emergency_pitcher')
+        if not 0 <= starter_share <= 1:
+            raise ValueError('starter batting share must be within 0..1')
+        batting = self._batting_composite
+        own = batting(pitcher)
+        lineup = candidate_lineup or self.select_starting_lineup(players, dh_mode='pitcher',
+            starting_pitcher_id=starting_pitcher_id, selection_grade_bias=selection_grade_bias)
+        validate_starting_lineup(lineup)
+        if lineup.player_for_position('P') != starting_pitcher_id:
+            raise ValueError('DH comparison lineup has another starting pitcher')
+        alignment = lineup.defense or lineup.entries
+        fielders = [by_id[a.player_id] for a in alignment if a.defensive_position != 'P']
+        baseline_ids = tuple(baseline_batter_ids) if baseline_batter_ids is not None else tuple(
+            [p.player_id for p in fielders] + [starting_pitcher_id])
+        if len(set(baseline_ids)) != 9 or starting_pitcher_id not in baseline_ids:
+            raise ValueError('DH comparison requires nine actual no-DH batters including starter')
+        values = {p.player_id: batting(p) for p in players}
+        if pitching_forecast is None:
+            pitching_forecast = (PitcherForecast(starting_pitcher_id, 1.0, 1.0),)
+            if replacement_batter_id != starting_pitcher_id and starter_share < 1:
+                pitching_forecast = (PitcherForecast(starting_pitcher_id, starter_share, 1.0),
+                    PitcherForecast(replacement_batter_id, 1-starter_share, 1.0))
+        if (not pitching_forecast or pitching_forecast[0].player_id != starting_pitcher_id
+                or len({p.player_id for p in pitching_forecast}) != len(pitching_forecast)
+                or any(p.player_id not in by_id or not 0 <= p.batting_share <= 1
+                       or not 0 <= p.appearance_probability <= 1 for p in pitching_forecast)
+                or abs(sum(p.batting_share for p in pitching_forecast)-1) > 1e-9):
+            raise ValueError('invalid pitching forecast')
+        if baseline_lineup is None:
+            positions = {a.player_id: a.defensive_position for a in alignment}
+            baseline_lineup = StartingLineup(school_id=lineup.school_id, reference_year=lineup.reference_year,
+                entries=tuple(replace(e, defensive_position=positions[e.player_id]) for e in lineup.entries))
+        baseline, _ = self._forecast_batting(baseline_lineup, pitching_forecast, values)
+        dual = self._forecast_dh_lineup(lineup, starting_pitcher_id, starting_pitcher_id, values)
+        dual_value, _ = self._forecast_batting(dual, pitching_forecast, values)
+        pitcher_gain = round(dual_value-baseline, 10)
+        normal_gain, normal_id, role_cost, end_probability = 0.0, None, 0.0, 0.0
+        two_way = not two_way_requires_lineup_bat or own >= fmean(batting(p) for p in fielders)
+        if len(players) >= 10:
+            used = {a.player_id for a in alignment}
+            active_pitchers = {p.player_id for p in pitching_forecast if p.batting_share > 0}
+            candidates = [p for p in players if p.player_id not in used and p.player_id in active_pitchers]
+            permanent = [p for p in players if p.player_id not in used and p.player_id not in active_pitchers]
+            if permanent:
+                candidates.append(self._normal_designated_hitter(permanent, set(), selection_grade_bias))
+            ranked = []
+            for dh in candidates:
+                declared = self._forecast_dh_lineup(lineup, starting_pitcher_id, dh.player_id, values)
+                value, probability = self._forecast_batting(declared, pitching_forecast, values)
+                initial_value = sum(values[e.player_id] for e in declared.entries)
+                ranked.append((value + selection_grade_bias*(2-dh.academic_year),
+                    -probability, dh.player_id, value, initial_value-value))
+            if ranked:
+                _, negative_probability, normal_id, value, role_cost = min(ranked, key=lambda r: (-r[0], -r[1], r[2]))
+                normal_gain = round(value-baseline, 10)
+                end_probability = -negative_probability
+        scores = dict(normal_gain=normal_gain, pitcher_gain=pitcher_gain, normal_candidate_id=normal_id,
+                      normal_role_cost=role_cost, normal_dh_end_probability=end_probability)
+        # 同点はDHなし、通常DHと兼任の改善量が同じなら通常DHを優先する。
+        if normal_gain > minimum_batting_gain and (not two_way or normal_gain >= pitcher_gain):
+            return DHSelection('normal', 'projected_lineup_improvement', **scores)
+        if two_way and pitcher_gain > minimum_batting_gain:
+            return DHSelection('pitcher', 'retain_starter_bat', **scores)
+        return DHSelection('none', 'insufficient_players' if len(players) < 10 else
+                           'not_two_way_bat' if not two_way and pitcher_gain > minimum_batting_gain else
+                           'marginal_batting_gain' if max(normal_gain, pitcher_gain if two_way else 0) > 0 else 'no_batting_gain',
+                           **scores)
+
+    @staticmethod
+    def _forecast_dh_lineup(lineup, pitcher_id, dh_id, values):
+        defense = tuple(DefensiveAssignment(a.defensive_position, a.player_id)
+                        for a in lineup.defense or lineup.entries)
+        entries = tuple(replace(e, player_id=dh_id, defensive_position='DH', selection_score=values[dh_id])
+                        if e.player_id == pitcher_id else e for e in lineup.entries)
+        return StartingLineup(lineup.school_id, lineup.reference_year, entries, defense, dh_id)
+
+    @staticmethod
+    def _forecast_batting(lineup, forecast, values):
+        # 配置の遷移は能力値・学校IDから独立。同じ役割構造だけを再利用し、
+        # 各試合の選手ID・能力・球数・選択結果をキャッシュへ入れない。
+        identities = {a.defensive_position: a.player_id for a in lineup.defense or lineup.entries}
+        roles = {pid: pos for pos, pid in identities.items()}
+        active = [forecast[0]] + [p for p in forecast[1:] if p.batting_share > 0]
+        for index, pitching in enumerate(active):
+            roles.setdefault(pitching.player_id, f'relief_{index}')
+        dh = lineup.designated_hitter_id
+        if dh is not None:
+            roles.setdefault(dh, 'designated_hitter')
+        batting_path, ended = _forecast_batting_roles(
+            lineup.reference_year, roles.get(dh), tuple(roles[p.player_id] for p in active))
+        role_values = {role: values[pid] for pid, role in roles.items()}
+        expected = sum(p.batting_share * sum(role_values[role] for role in bats)
+                       for p, bats in zip(active, batting_path))
+        return expected, active[ended].appearance_probability if ended is not None else 0.0
+
+
+    def _normal_designated_hitter(self, players, used, selection_grade_bias):
+        return min((p for p in players if p.player_id not in used), key=lambda p: (
+            -(self._batting_composite(p) + selection_grade_bias * (2-p.academic_year)), p.player_id))
+
     def select_starting_lineup(
         self,
         snapshots: Iterable[PlayerAbilitySnapshot],
@@ -319,11 +459,14 @@ class TeamStrengthGenerator:
         selection_grade_bias: float = 0.0,
         dh_mode: str = "none",
         starting_pitcher_id: str | None = None,
+        designated_hitter_id: str | None = None,
     ) -> StartingLineup:
         players = list(snapshots)
         school_id, reference_year, *_ = self._validate_source(players)
         if dh_mode not in ('none', 'normal', 'pitcher'):
             raise ValueError('unknown DH mode')
+        if designated_hitter_id is not None and dh_mode != 'normal':
+            raise ValueError('explicit DH candidate requires normal mode')
         if dh_mode == 'none' and starting_pitcher_id is not None:
             raise ValueError('explicit starter selection is for DH modes; no-DH uses existing staff selection')
         if starting_pitcher_id is not None and starting_pitcher_id not in {p.player_id for p in players}:
@@ -405,9 +548,14 @@ class TeamStrengthGenerator:
         dh_id = None
         if dh_mode != 'none':
             defense = tuple(DefensiveAssignment(pos, picked[pos].player_id) for pos in STARTING_POSITIONS)
-            dh = picked['P'] if dh_mode == 'pitcher' else min(
-                (p for p in players if p.player_id not in used),
-                key=lambda p: (-(self._batting_composite(p) + selection_grade_bias * (2-p.academic_year)), p.player_id))
+            if designated_hitter_id is not None:
+                pool = [p for p in players if p.player_id == designated_hitter_id and p.player_id not in used]
+                if len(pool) != 1:
+                    raise ValueError('explicit DH candidate must be available and outside defense')
+                dh = pool[0]
+            else:
+                dh = (picked['P'] if dh_mode == 'pitcher' else
+                      self._normal_designated_hitter(players, used, selection_grade_bias))
             dh_id = dh.player_id
             chosen[0] = ('DH', dh, self._batting_composite(dh))
 
@@ -499,6 +647,7 @@ class TeamStrengthGenerator:
         selection_grade_bias: float = 0.0,
         dh_mode: str = "none",
         starting_pitcher_id: str | None = None,
+        designated_hitter_id: str | None = None,
     ) -> TeamStrengthSnapshot:
         players = list(snapshots)
         (
@@ -512,7 +661,7 @@ class TeamStrengthGenerator:
         ) = self._validate_source(players)
         lineup = self.select_starting_lineup(
             players, selection_grade_bias=selection_grade_bias,
-            dh_mode=dh_mode, starting_pitcher_id=starting_pitcher_id)
+            dh_mode=dh_mode, starting_pitcher_id=starting_pitcher_id, designated_hitter_id=designated_hitter_id)
         staff = self.select_pitching_staff(
             players, selection_grade_bias=selection_grade_bias)
         by_id = {player.player_id: player for player in players}
@@ -946,3 +1095,27 @@ def write_team_strength_csv(
         "team_count": count,
         "output": str(output),
     }
+
+
+
+@lru_cache(maxsize=256)
+def _forecast_batting_roles(reference_year, dh_role, pitching_roles):
+    """既存の交代操作で役割だけを再生する。個別試合の状態は共有しない。"""
+    from .match_state import TeamMatchState
+    defense = tuple(DefensiveAssignment(pos, pos) for pos in STARTING_POSITIONS)
+    entries = tuple(LineupEntry(index, 'DH' if pos == 'P' and dh_role is not None else pos,
+                               dh_role if pos == 'P' and dh_role is not None else pos, 0)
+                    for index, pos in enumerate(STARTING_POSITIONS, 1))
+    lineup = StartingLineup('__dh_forecast__', reference_year, entries,
+                            defense if dh_role is not None else (), dh_role)
+    available = set(STARTING_POSITIONS) | set(pitching_roles) | ({dh_role} if dh_role else set())
+    state = TeamMatchState(lineup, available, available_player_ids=available, actual_pitcher_id='P')
+    path, disappearance = [], None
+    for index, pitcher in enumerate(pitching_roles):
+        old_dh = state.designated_hitter_id
+        if index:
+            state.relieve_pitcher(pitcher)
+        if old_dh is not None and state.designated_hitter_id is None:
+            disappearance = index
+        path.append(tuple(s.player_id for s in state.batting_order))
+    return tuple(path), disappearance

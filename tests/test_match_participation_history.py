@@ -389,6 +389,7 @@ class DHMatchHistoryTests(DHHistoryFixtures, unittest.TestCase):
         inp, result, _, row = self.game()
         for sink in ({}, None):
             live = object.__new__(AbilityMatchResolver)
+            live.dh_enabled = False
             live.team_input = lambda **kw: inp.team1 if kw['school_id'] == inp.team1.school_id else inp.team2
             live._match_day = lambda: None
             live._coach_tactics = lambda *a: CoachTactics()

@@ -217,6 +217,7 @@ class Stage13C4PreMainSeasonSQLiteTests(unittest.TestCase):
             self.repo,
             ability_config_dir=ROOT / "config" / "abilities",
             match_config_dir=ROOT / "config" / "match",
+            dh_enabled=False,  # 従来のDHなし・全イベント付きSQLite出力の回帰。
         )
         engine = TournamentEngine(
             self.repo,
@@ -255,6 +256,7 @@ class Stage13C4PreMainSeasonSQLiteTests(unittest.TestCase):
             self.repo,
             ability_config_dir=ROOT / "config" / "abilities",
             match_config_dir=ROOT / "config" / "match",
+            dh_enabled=False,
         )
         engine = TournamentEngine(
             self.repo,
