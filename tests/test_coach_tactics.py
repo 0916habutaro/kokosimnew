@@ -444,6 +444,22 @@ class NationalDHSelectionTests(unittest.TestCase):
                 for s in detail['pitcher_stats']:
                     if s['pitches']:self.assertEqual(s['pitches'],live.season_state.pitch_log[s['player_id']]['2026-07-01'])
 
+    def test_replaced_verified_result_is_revalidated_before_live_side_effects(self):
+        from unittest.mock import Mock
+        live=self.live();teams=(self.team(),self.team('FAKE-DH-B'))
+        live.team_input=lambda **kw:next(t for t in teams if t.school_id==kw['school_id'])
+        simulate=live.simulator.simulate
+        def replaced(*args,**kwargs):
+            result=simulate(*args,**kwargs)
+            return replace(result,team1_score=result.team1_score+1)
+        live._record_pitches=Mock();live._record_games=Mock();live.detail_sink={}
+        with patch.object(live.simulator,'simulate',side_effect=replaced):
+            with self.assertRaises(ValueError):
+                live(match_id='FAKE-REPLACED',competition_id='FAKE-CUP',reference_year=2026,
+                     generation_seed=20261022,team1=teams[0].school_id,team2=teams[1].school_id)
+        live._record_pitches.assert_not_called();live._record_games.assert_not_called()
+        self.assertEqual({},live.detail_sink)
+
 
 if __name__ == "__main__":
     unittest.main()

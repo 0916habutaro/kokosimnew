@@ -23,6 +23,7 @@ from .match_contract import (
     match_contract_provenance,
     validate_match_simulation_input,
     validate_match_simulation_result,
+    _history_after_validation,
 )
 from .match_state import ChangeMoment, CompletedPlateAppearanceMoment, TeamMatchState
 from .team_strength import TeamStrengthGenerator
@@ -996,13 +997,15 @@ class MatchSimulator:
         pitch_allowances: Mapping[str, int] | None = None,
         tactics: Mapping[str, CoachTactics] | None = None,
         state_sink: dict[str, TeamMatchState] | None = None,
+        validated_history_sink: dict | None = None,
         lineup_changes: tuple[LineupAdjustment, ...] = (),
     ) -> MatchSimulationResult:
         """``pitch_allowances``：選手 → この試合であと何球投げられるか（球数制限）。
         届いたら次の打者から投げない。None なら制限なし。
         state_sink指定時は、成功した試合の開始配置・最終状態・交代履歴を返す。
         lineup_changesは直接計算の明示交代。全国進行からは渡さない。
-        DH記録の本番保存はこの計算経路からは行わない。"""
+        validated_history_sinkは厳密検証した入力・結果そのものとA詳細を一時的に返す。
+        この計算経路から永続保存は行わない。"""
         validate_match_simulation_input(match_input)
         rules = rules or GameRules()
         regulation = (
@@ -1585,6 +1588,9 @@ class MatchSimulator:
             config_dir=self.config_dir,
             final_states=states,
         )
+        if validated_history_sink is not None and dh_game:
+            validated_history_sink.update(
+                match_input=match_input, result=result, history=_history_after_validation(result))
         if state_sink is not None:
             state_sink.update(states)
         return result

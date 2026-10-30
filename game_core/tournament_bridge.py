@@ -588,17 +588,24 @@ class AbilityMatchResolver:
             team2=team2_input,
             team_generation_seed=team_generation_seed,
         )
+        declared_dh = any(t.team_strength.starting_lineup.designated_hitter_id is not None
+                          for t in (team1_input, team2_input))
+        verified = {}
         result = self.simulator.simulate(
             match_input,
             rules=self.rules_for(competition_id, match_id),
             pitch_allowances=allowances,
+            **({'validated_history_sink': verified} if declared_dh else {}),
             **({"tactics": tactics} if any(t != CoachTactics() for t in tactics.values()) else {}),
         )
         dh_detail = None
         if (any(r.starting_designated_hitter_id is not None for r in result.team_participation)
-                or any(t.team_strength.starting_lineup.designated_hitter_id is not None
-                       for t in (team1_input, team2_input))):
-            dh_detail = validated_match_history(result, match_input, config_dir=self.simulator.config_dir)
+                or declared_dh):
+            if verified.get('match_input') is match_input and verified.get('result') is result:
+                dh_detail = verified['history']
+            else:
+                # 独自シミュレーターや検証後に差し替えられた結果は省略せず照合する。
+                dh_detail = validated_match_history(result, match_input, config_dir=self.simulator.config_dir)
         self._record_pitches(result, day)
         self._record_games(competition_id, result)
         highlights = game_highlights(result.events)

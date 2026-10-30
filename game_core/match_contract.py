@@ -909,8 +909,13 @@ def dh_history_fingerprint(value: dict) -> str:
 def validated_match_history(result: MatchSimulationResult, match_input: MatchSimulationInput, *,
                             config_dir: str | Path = 'config/match') -> dict:
     """全イベントで検証してから、イベントを含まないA詳細と照合値を生成する。"""
-    from .highlights import game_highlights
     validate_match_simulation_result(result, match_input, config_dir=config_dir)
+    return _history_after_validation(result)
+
+
+def _history_after_validation(result: MatchSimulationResult) -> dict:
+    """厳密検証の直後だけに使う共通のA詳細投影。"""
+    from .highlights import game_highlights
     detail = replace(result, events=()).to_dict()
     detail.pop('events')
     detail['highlights'] = game_highlights(result.events)
