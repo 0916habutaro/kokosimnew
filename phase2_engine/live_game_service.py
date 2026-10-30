@@ -1128,7 +1128,18 @@ class LiveGameService:
             kind=kind,
             resolver_contract=session.resolver_contract,
         )
-        return {**saved, "historical_archive": self._sync_history(session)}
+        archive = self._sync_history(session)
+        if archive.get('inserted', 0) or archive.get('already_archived', 0):
+            # 履歴のコミット後だけarchivedフラグと詳細の解放をJSONへ反映する。
+            # 中断時は先に書いた完全なJSONから従来どおり復旧できる。
+            refreshed = self.slots.refresh_after_archive(
+                session.slot_id, session.plan, session.state, kind=kind,
+                resolver_contract=session.resolver_contract,
+                expected_checksum=saved['payload_checksum'],
+            )
+            if refreshed is not None:
+                saved = refreshed
+        return {**saved, "historical_archive": archive}
 
     def autosave_game(self, session: LiveGameSession) -> dict:
         return self.save_game(session, kind=SAVE_KIND_AUTOSAVE)

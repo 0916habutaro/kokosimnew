@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from phase2_engine import (
     DataRepository,
@@ -193,6 +194,60 @@ class Stage13E3E2SaveSlotsGameServiceTests(
                 session.state.history,
                 loaded.state.history,
             )
+
+    def test_archive_commit_refresh_avoids_reimport_and_keeps_one_backup_per_save(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service = self._service(tmp, autosave_after_action=False)
+            session = service.new_game('compact', rng_seed=self.seed,
+                                       start_date='2026-07-01', save_initial=False)
+            service.advance_through(session, '2026-08-31', autosave=False)
+            first = service.save_game(session)
+            self.assertGreater(first['historical_archive']['inserted'], 0)
+            self.assertEqual(0, first['backup_count'])
+            sync = service._sync_history
+            imported = []
+
+            def observe(loaded):
+                result = sync(loaded)
+                imported.append(result)
+                return result
+
+            with patch.object(service, '_sync_history', side_effect=observe):
+                loaded = service.load_game('compact')
+            self.assertEqual(0, imported[-1]['inserted'])
+            self.assertEqual(0, imported[-1]['already_archived'])
+            self.assertEqual(session.state.public_snapshot(), loaded.state.public_snapshot())
+            service.next_day(loaded, autosave=False)
+            second = service.save_game(loaded)
+            self.assertEqual(1, second['backup_count'])
+            backup = service.slots.inspect('compact', source='manual_backup_1')
+            self.assertEqual(first['current_date'], backup['current_date'])
+            target = Path(second['path'])
+            unchanged = target.read_bytes()
+            self.assertIsNone(service.slots.refresh_after_archive(
+                'compact', loaded.plan, loaded.state, kind=SAVE_KIND_MANUAL,
+                resolver_contract=loaded.resolver_contract,
+                expected_checksum=first['payload_checksum']))
+            self.assertEqual(unchanged, target.read_bytes())
+
+    def test_archive_or_refresh_failure_keeps_the_initial_json_recoverable(self):
+        for step in ('archive', 'refresh'):
+            with self.subTest(step=step), tempfile.TemporaryDirectory() as tmp:
+                service = self._service(tmp, autosave_after_action=False)
+                session = service.new_game('recover', rng_seed=self.seed,
+                                           start_date='2026-07-01', save_initial=False)
+                service.advance_through(session, '2026-08-31', autosave=False)
+                expected = session.state.completed_results()
+                self.assertTrue(expected)
+                obj, method = ((service, '_sync_history') if step == 'archive'
+                               else (service.slots, 'refresh_after_archive'))
+                with patch.object(obj, method, side_effect=OSError('interrupted')):
+                    with self.assertRaisesRegex(OSError, 'interrupted'):
+                        service.save_game(session)
+                self.assertTrue(service.slots.save_path('recover', SAVE_KIND_MANUAL).is_file())
+                restored = service.load_game('recover')
+                self.assertEqual(session.state.current_date, restored.state.current_date)
+                self.assertEqual(expected, restored.state.completed_results())
 
     def test_manual_rolling_backups_are_bounded_and_recoverable(
         self,
