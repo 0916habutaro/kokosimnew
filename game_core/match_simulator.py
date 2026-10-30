@@ -863,6 +863,37 @@ class MatchSimulator:
 
         raise ValueError(f"unsupported event_type: {event_type}")
 
+    @staticmethod
+    def _finish_walkoff(event_type, batter_id, bases_before, bases, scored, rbi, runs_needed):
+        """本塁打以外は勝ち越し点で終了。安打の塁打は規則9.06(f)で確定する。"""
+        if event_type not in ('single', 'double', 'triple', 'reached_on_error'):
+            return event_type, scored, rbi
+        # 三塁側からホームへ着く順で勝ち越し走者を決める。
+        counted = [pid for pid in reversed(bases_before) if pid in scored][:runs_needed]
+        credited = 1
+        if event_type != 'reached_on_error':
+            hit_bases = ('single', 'double', 'triple').index(event_type) + 1
+            winning_runner = counted[-1]
+            advanced = 3 - bases_before.index(winning_runner)
+            credited = min(hit_bases, advanced)
+            recorded_type = ('single', 'double', 'triple')[credited-1]
+        else:
+            recorded_type = event_type
+        if recorded_type == event_type and len(counted) == len(scored):
+            return event_type, scored, rbi
+        # 勝ち越し後の走者を得点させず、前後の走者順と占有塁を維持する。
+        destinations = {pid: index+1 for index, pid in enumerate(bases) if pid}
+        terminal = [None, None, None]
+        highest = 3
+        for runner in reversed(bases_before):
+            if runner is not None and runner not in counted:
+                target = min(highest, destinations.get(runner, 3))
+                terminal[target-1] = runner
+                highest = target-1
+        terminal[credited-1] = batter_id
+        bases[:] = terminal
+        return recorded_type, counted, min(rbi, len(counted))
+
     def _pitcher_limit(
         self,
         pitcher: PlayerAbilitySnapshot,
@@ -1319,6 +1350,8 @@ class MatchSimulator:
                             pa_rng,
                         )
 
+                    # 球数は抽選した打球結果のまま。サヨナラの記録確定で乱数を引き直さない。
+                    pitch_event_type = event_type
                     scored, outs_on_play, rbi = self._apply_event(
                         event_type=event_type,
                         batter_id=batter_id,
@@ -1327,6 +1360,11 @@ class MatchSimulator:
                         defense_strength=defense_values[defense_id],
                         rng=event_rng,
                     )
+                    if (half == 'bottom' and inning >= regulation
+                            and team_runs[team2_id] + len(scored) > team_runs[team1_id]):
+                        event_type, scored, rbi = self._finish_walkoff(
+                            event_type, batter_id, bases_before, bases, scored, rbi,
+                            team_runs[team1_id]-team_runs[team2_id]+1)
                     scored_runners = runner_responsibility.record_play(
                         bases_before=bases_before,
                         bases_after=bases,
@@ -1339,7 +1377,7 @@ class MatchSimulator:
                     earned_run_tracker.record_play(
                         bases_before=bases_before, bases_after=bases,
                         scored_runners=scored_runners, batter_id=batter_id,
-                        pitcher_id=pitcher_id, event_type=event_type,
+                        pitcher_id=pitcher_id, event_type=pitch_event_type,
                         plate_appearance_no=pa_no, outs_before=outs,
                         outs_on_play=outs_on_play,
                     )
@@ -1375,7 +1413,7 @@ class MatchSimulator:
                         int(pitcher_stat["batters_faced"]) + 1
                     )
                     pitches_on_play = self._pitches(
-                        event_type,
+                        pitch_event_type,
                         rng_for(
                             match_input.generation_seed,
                             self.params["rng_namespace_policy"]["pitches"].format(
@@ -1444,6 +1482,7 @@ class MatchSimulator:
                                 ),
                                 *((('pitches', str(pitches_on_play)),) if dh_game else ()),
                                 *((('scored_runners', '|'.join(scored)),) if dh_game else ()),
+                                *((('walkoff_hit', pitch_event_type),) if event_type != pitch_event_type else ()),
                             ),
                         )
                     )
@@ -1617,6 +1656,18 @@ def validate_run_accounting(result: MatchSimulationResult) -> None:
                     reconstruction.substitute_runner(outgoing, incoming)
         if len(scored) != event.runs_scored:
             raise ValueError('scoring runner count differs from event runs')
+        hit_before_finish = metadata.get('walkoff_hit', event.event_type)
+        if 'walkoff_hit' in metadata:
+            hits = ('single', 'double', 'triple')
+            if (event.plate_appearance_no != len(result.events) or event.half != 'bottom'
+                    or result.winner_id != result.team2_school_id or not scored
+                    or event.event_type not in hits or hit_before_finish not in hits
+                    or hits.index(hit_before_finish) <= hits.index(event.event_type)):
+                raise ValueError('invalid walkoff hit evidence')
+            winning_runner = scored[-1]
+            if (winning_runner not in before or hits.index(event.event_type)+1
+                    != min(hits.index(hit_before_finish)+1, 3-before.index(winning_runner))):
+                raise ValueError('walkoff hit credit differs from winning runner advance')
         for pid in scored:
             batter_runs[event.offense_school_id, pid] += 1
         runners = responsibility.record_play(
@@ -1625,7 +1676,7 @@ def validate_run_accounting(result: MatchSimulationResult) -> None:
             event_type=event.event_type, plate_appearance_no=event.plate_appearance_no)
         reconstruction.record_play(
             bases_before=before, bases_after=after, scored_runners=runners,
-            batter_id=event.batter_id, pitcher_id=event.pitcher_id, event_type=event.event_type,
+            batter_id=event.batter_id, pitcher_id=event.pitcher_id, event_type=hit_before_finish,
             plate_appearance_no=event.plate_appearance_no, outs_before=outs, outs_on_play=event.outs_on_play)
         outs += event.outs_on_play
         if outs > 3 or str(outs) != metadata.get('outs_after'):

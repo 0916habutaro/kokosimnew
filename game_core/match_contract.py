@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import asdict, dataclass, field, fields, replace
 import hashlib
 import json
@@ -752,6 +753,14 @@ def validate_match_simulation_result(
     if event_runs[team2_id] != result.team2_score:
         raise ValueError("match result: team2 event runs != score")
 
+    last = events[-1]
+    if (result.ending_half == 'bottom' and result.winner_id == team2_id
+            and last.runs_scored and result.team2_score-last.runs_scored <= result.team1_score
+            and last.event_type != 'home_run' and result.team2_score != result.team1_score+1):
+        raise ValueError(f'match={result.match_id}, PA={last.plate_appearance_no}, '
+                         f'player={last.batter_id}: non-home-run walkoff score '
+                         f'expected={result.team1_score+1}, actual={result.team2_score}')
+
     batters = list(result.batter_stats)
     pitchers = list(result.pitcher_stats)
     _validate_unique_player_stats(batters, label="batter stats")
@@ -799,29 +808,41 @@ def validate_match_simulation_result(
             raise ValueError(
                 f"pitcher stats: unknown player {row.player_id}"
             )
-    if any(r.starting_designated_hitter_id is not None for r in result.team_participation):
+    has_dh = any(r.starting_designated_hitter_id is not None for r in result.team_participation)
+    if has_dh:
         from .match_simulator import validate_run_accounting
         validate_run_accounting(result)
-        # DHでは守備専用Pと打撃専用DHの取り違えを、選手ごとの実イベントでも拒否する。
-        hit_types = {'single', 'double', 'triple', 'home_run'}
-        for row in batters:
-            actual = [e for e in events if e.offense_school_id == row.school_id and e.batter_id == row.player_id]
-            expected = {'plate_appearances': len(actual), 'hits': sum(e.event_type in hit_types for e in actual),
-                        'at_bats': sum(bool(catalog[e.event_type]['counts_as_at_bat']) for e in actual),
-                        'doubles': sum(e.event_type == 'double' for e in actual),
-                        'triples': sum(e.event_type == 'triple' for e in actual),
-                        'home_runs': sum(e.event_type == 'home_run' for e in actual),
-                        'rbi': sum(e.rbi for e in actual)}
-            expected.update({key: sum(e.event_type == event_type for e in actual) for key, event_type in (
-                ('walks', 'walk'), ('strikeouts', 'strikeout'), ('hit_by_pitch', 'hit_by_pitch'),
-                ('sacrifice_flies', 'sacrifice_fly'), ('sacrifice_bunts', 'sacrifice_bunt'))})
-            if any(getattr(row, key) != value for key, value in expected.items()):
-                raise ValueError('batter individual stats differ from actual events')
-        for row in pitchers:
-            actual = [e for e in events if e.defense_school_id == row.school_id and e.pitcher_id == row.player_id]
-            expected = {'batters_faced': len(actual), 'outs_recorded': sum(e.outs_on_play for e in actual),
-                        'hits_allowed': sum(e.event_type in hit_types for e in actual),
-                        'home_runs_allowed': sum(e.event_type == 'home_run' for e in actual)}
+    # DHの有無によらず、チーム合計だけでなく各選手の実イベントへ照合する。
+    # 盗塁/盗塁死を発生させるイベントは現行モデルに存在しない。
+    batting_events, pitching_events = defaultdict(list), defaultdict(list)
+    for event in events:
+        batting_events[event.offense_school_id, event.batter_id].append(event)
+        pitching_events[event.defense_school_id, event.pitcher_id].append(event)
+    hit_types = {'single', 'double', 'triple', 'home_run'}
+    for row in batters:
+        actual = batting_events[row.school_id, row.player_id]
+        expected = {'plate_appearances': len(actual), 'hits': sum(e.event_type in hit_types for e in actual),
+                    'at_bats': sum(bool(catalog[e.event_type]['counts_as_at_bat']) for e in actual),
+                    'doubles': sum(e.event_type == 'double' for e in actual),
+                    'triples': sum(e.event_type == 'triple' for e in actual),
+                    'home_runs': sum(e.event_type == 'home_run' for e in actual),
+                    'rbi': sum(e.rbi for e in actual), 'stolen_bases': 0, 'caught_stealing': 0}
+        expected.update({key: sum(e.event_type == event_type for e in actual) for key, event_type in (
+            ('walks', 'walk'), ('strikeouts', 'strikeout'), ('hit_by_pitch', 'hit_by_pitch'),
+            ('sacrifice_flies', 'sacrifice_fly'), ('sacrifice_bunts', 'sacrifice_bunt'))})
+        differences = {key: (value, getattr(row, key)) for key, value in expected.items()
+                       if getattr(row, key) != value}
+        if differences:
+            raise ValueError(
+                f'batter individual stats differ from actual events: '
+                f'match={result.match_id}, player={row.player_id}, '
+                f'PA={[e.plate_appearance_no for e in actual]}, expected/actual={differences}')
+    for row in pitchers:
+        actual = pitching_events[row.school_id, row.player_id]
+        expected = {'batters_faced': len(actual), 'outs_recorded': sum(e.outs_on_play for e in actual),
+                    'hits_allowed': sum(e.event_type in hit_types for e in actual),
+                    'home_runs_allowed': sum(e.event_type == 'home_run' for e in actual)}
+        if has_dh:
             try:
                 pitches = [int(dict(e.metadata)['pitches']) for e in actual]
             except (KeyError, TypeError, ValueError) as exc:
@@ -829,10 +850,15 @@ def validate_match_simulation_result(
             if any(n < 1 for n in pitches):
                 raise ValueError('invalid event pitch count')
             expected['pitches'] = sum(pitches)
-            expected.update({key: sum(e.event_type == event_type for e in actual) for key, event_type in (
-                ('walks', 'walk'), ('strikeouts', 'strikeout'), ('hit_batters', 'hit_by_pitch'))})
-            if any(getattr(row, key) != value for key, value in expected.items()):
-                raise ValueError('pitcher individual stats differ from actual events')
+        expected.update({key: sum(e.event_type == event_type for e in actual) for key, event_type in (
+            ('walks', 'walk'), ('strikeouts', 'strikeout'), ('hit_batters', 'hit_by_pitch'))})
+        differences = {key: (value, getattr(row, key)) for key, value in expected.items()
+                       if getattr(row, key) != value}
+        if differences:
+            raise ValueError(
+                f'pitcher individual stats differ from actual events: '
+                f'match={result.match_id}, player={row.player_id}, '
+                f'PA={[e.plate_appearance_no for e in actual]}, expected/actual={differences}')
 
     batter_ids = {row.player_id for row in batters}
     pitcher_ids = {row.player_id for row in pitchers}
