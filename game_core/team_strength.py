@@ -326,7 +326,8 @@ class TeamStrengthGenerator:
                        starter_share: float, selection_grade_bias: float = 0.0,
                        minimum_batting_gain: float = 0.0,
                        two_way_requires_lineup_bat: bool = True,
-                       baseline_batter_ids: Iterable[str] | None = None) -> DHSelection:
+                       baseline_batter_ids: Iterable[str] | None = None,
+                       candidate_lineup: StartingLineup | None = None) -> DHSelection:
         """同じ実先発で、打順9枠の予想打撃合成値を比較する。
 
         DHなしは継投後の打者へ移る。兼任は先発の打撃を残せるが、
@@ -342,9 +343,13 @@ class TeamStrengthGenerator:
             raise ValueError('starter batting share must be within 0..1')
         batting = self._batting_composite
         own = batting(pitcher)
-        lineup = self.select_starting_lineup(players, dh_mode='pitcher',
+        lineup = candidate_lineup or self.select_starting_lineup(players, dh_mode='pitcher',
             starting_pitcher_id=starting_pitcher_id, selection_grade_bias=selection_grade_bias)
-        fielders = [by_id[a.player_id] for a in lineup.defense if a.defensive_position != 'P']
+        validate_starting_lineup(lineup)
+        if lineup.player_for_position('P') != starting_pitcher_id:
+            raise ValueError('DH comparison lineup has another starting pitcher')
+        alignment = lineup.defense or lineup.entries
+        fielders = [by_id[a.player_id] for a in alignment if a.defensive_position != 'P']
         baseline_ids = tuple(baseline_batter_ids) if baseline_batter_ids is not None else tuple(
             [p.player_id for p in fielders] + [starting_pitcher_id])
         if len(set(baseline_ids)) != 9 or starting_pitcher_id not in baseline_ids:
@@ -357,9 +362,8 @@ class TeamStrengthGenerator:
         normal_gain = 0.0
         two_way = not two_way_requires_lineup_bat or own >= fmean(batting(p) for p in fielders)
         if len(players) >= 10:
-            lineup = self.select_starting_lineup(players, dh_mode='normal',
-                starting_pitcher_id=starting_pitcher_id, selection_grade_bias=selection_grade_bias)
-            normal_gain = round(alignment_gain + batting(by_id[lineup.designated_hitter_id]) - baseline, 10)
+            dh = self._normal_designated_hitter(players, {a.player_id for a in alignment}, selection_grade_bias)
+            normal_gain = round(alignment_gain + batting(dh) - baseline, 10)
         # 同点はDHなし、通常DHと兼任の改善量が同じなら通常DHを優先する。
         if normal_gain > minimum_batting_gain and (not two_way or normal_gain >= pitcher_gain):
             return DHSelection('normal', 'lineup_improvement', normal_gain, pitcher_gain)
@@ -368,6 +372,10 @@ class TeamStrengthGenerator:
         return DHSelection('none', 'insufficient_players' if len(players) < 10 else
                            'not_two_way_bat' if not two_way and pitcher_gain > minimum_batting_gain else 'no_batting_gain',
                            normal_gain, pitcher_gain)
+
+    def _normal_designated_hitter(self, players, used, selection_grade_bias):
+        return min((p for p in players if p.player_id not in used), key=lambda p: (
+            -(self._batting_composite(p) + selection_grade_bias * (2-p.academic_year)), p.player_id))
 
     def select_starting_lineup(
         self,
@@ -462,9 +470,8 @@ class TeamStrengthGenerator:
         dh_id = None
         if dh_mode != 'none':
             defense = tuple(DefensiveAssignment(pos, picked[pos].player_id) for pos in STARTING_POSITIONS)
-            dh = picked['P'] if dh_mode == 'pitcher' else min(
-                (p for p in players if p.player_id not in used),
-                key=lambda p: (-(self._batting_composite(p) + selection_grade_bias * (2-p.academic_year)), p.player_id))
+            dh = (picked['P'] if dh_mode == 'pitcher' else
+                  self._normal_designated_hitter(players, used, selection_grade_bias))
             dh_id = dh.player_id
             chosen[0] = ('DH', dh, self._batting_composite(dh))
 

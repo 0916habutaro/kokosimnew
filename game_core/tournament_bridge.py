@@ -513,7 +513,10 @@ class AbilityMatchResolver:
             starter_share=min(1.0, max(0.0, limit / expected_bf)),
             selection_grade_bias=tactics.selection_grade_bias, minimum_batting_gain=self._dh_minimum_gain,
             two_way_requires_lineup_bat=self._dh_two_way_lineup_bat,
-            baseline_batter_ids=tuple(s.player_id for s in base.batting_order))
+            baseline_batter_ids=tuple(s.player_id for s in base.batting_order),
+            candidate_lineup=(team.team_strength.starting_lineup
+                if (actual == team.team_strength.starting_lineup.player_for_position('P')
+                    and (self.member_provider is not None or tactics.selection_grade_bias == 0)) else None))
         if decision.mode == 'none':
             return team
         strength = self.team_generator.generate(team.player_abilities,
