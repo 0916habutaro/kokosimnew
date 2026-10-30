@@ -24,7 +24,7 @@ from .match_contract import (
     validate_match_simulation_input,
     validate_match_simulation_result,
 )
-from .match_state import ChangeMoment, TeamMatchState
+from .match_state import ChangeMoment, CompletedPlateAppearanceMoment, TeamMatchState
 from .team_strength import TeamStrengthGenerator
 
 
@@ -37,6 +37,26 @@ class GameRules:
 
     tiebreak_start_inning: int | None = None
     mercy: tuple[tuple[int, int], ...] = ()
+
+
+@dataclass(frozen=True)
+class LineupAdjustment:
+    """直接試合計算での明示的な交代指示。AIや全国自動進行からは生成しない。"""
+    next_plate_appearance_no: int
+    school_id: str
+    batting_changes: tuple[tuple[int, str], ...] = ()
+    defensive_changes: tuple[tuple[str, str], ...] = ()
+    medical_exception: str | None = None
+    umpire_approved: bool = False
+
+    def __post_init__(self):
+        for name in ('batting_changes', 'defensive_changes'):
+            pairs = tuple(tuple(pair) for pair in getattr(self, name))
+            if any(len(pair) != 2 for pair in pairs) or len({p[0] for p in pairs}) != len(pairs):
+                raise ValueError('duplicate or invalid adjustment entries')
+            object.__setattr__(self, name, pairs)
+        if type(self.next_plate_appearance_no) is not int or self.next_plate_appearance_no < 1:
+            raise ValueError('adjustment requires a positive next plate appearance')
 
 
 @dataclass(frozen=True)
@@ -340,7 +360,12 @@ class MatchSimulator:
             team.team_strength.pitching_staff.entries,
             key=lambda entry: entry.order,
         )
-        return tuple(entry.player_id for entry in entries)
+        order = tuple(entry.player_id for entry in entries)
+        lineup = team.team_strength.starting_lineup
+        if lineup.designated_hitter_id is not None:
+            planned = lineup.player_for_position('P')
+            return (planned, *(pid for pid in order if pid != planned))
+        return order
 
     def _game_staff(
         self,
@@ -386,7 +411,11 @@ class MatchSimulator:
         """開始前にP配置を確定する。外れた先発予定選手は未出場の控えに戻す。"""
         lineup = team.team_strength.starting_lineup
         planned_pitcher = lineup.player_for_position("P")
-        if actual_pitcher_id != planned_pitcher:
+        if actual_pitcher_id != planned_pitcher and lineup.designated_hitter_id is not None:
+            lineup = self._strength_generator().select_starting_lineup(
+                team.player_abilities, starting_pitcher_id=actual_pitcher_id,
+                dh_mode='pitcher' if lineup.designated_hitter_id == planned_pitcher else 'normal')
+        elif actual_pitcher_id != planned_pitcher:
             position = next((entry.defensive_position for entry in lineup.entries
                              if entry.player_id == actual_pitcher_id), None)
             if position is None:
@@ -955,11 +984,13 @@ class MatchSimulator:
         pitch_allowances: Mapping[str, int] | None = None,
         tactics: Mapping[str, CoachTactics] | None = None,
         state_sink: dict[str, TeamMatchState] | None = None,
+        lineup_changes: tuple[LineupAdjustment, ...] = (),
     ) -> MatchSimulationResult:
         """``pitch_allowances``：選手 → この試合であと何球投げられるか（球数制限）。
         届いたら次の打者から投げない。None なら制限なし。
         state_sink指定時は、成功した試合の開始配置・最終状態・交代履歴を返す。
-        これらの実行時情報は試合結果やセーブには自動保存しない。"""
+        lineup_changesは直接計算の明示交代。全国進行からは渡さない。
+        DH記録の本番保存はこの計算経路からは行わない。"""
         validate_match_simulation_input(match_input)
         rules = rules or GameRules()
         regulation = (
@@ -1046,6 +1077,42 @@ class MatchSimulator:
         last_inning = 1
         ending_half = "bottom"
         game_over = False
+        dh_game = any(s.designated_hitter_id is not None for s in states.values())
+        adjustments = {}
+        for adjustment in lineup_changes:
+            if not isinstance(adjustment, LineupAdjustment) or adjustment.school_id not in states:
+                raise ValueError('invalid lineup adjustment team or request')
+            adjustments.setdefault(adjustment.next_plate_appearance_no, []).append(adjustment)
+        boundary_order = 0
+
+        def before_moment():
+            nonlocal boundary_order
+            if dh_game:
+                boundary_order += 1
+            return ChangeMoment(inning, half, pa_no+1, boundary_order)
+
+        def check_new_pitcher(school_id, incoming):
+            if incoming in pitcher_rows[school_id] and int(pitcher_rows[school_id][incoming]['batters_faced']) > 0:
+                raise ValueError(f'{school_id}: pitcher reentry is not supported: {incoming}')
+            if pitch_allowances is not None and pitch_allowances.get(incoming, math.inf) <= 0:
+                raise ValueError(f'{school_id}: incoming pitcher has no pitch allowance')
+
+        def refresh_after_change(school_id, old_pitcher, *, defense_changed=True):
+            state = states[school_id]
+            pitcher_id = state.current_pitcher_id
+            for slot in state.batting_order:
+                if slot.player_id not in batter_rows[school_id]:
+                    batter_rows[school_id][slot.player_id] = self._empty_batter_stats(slot.player_id, school_id)
+            if defense_changed:
+                defense_values[school_id] = self._current_defense(state, player_maps[school_id])
+            if pitcher_id != old_pitcher:
+                order = pitcher_orders[school_id]
+                pitcher_index[school_id] = order.index(pitcher_id) if pitcher_id in order else len(order)
+                pitcher_rows[school_id].setdefault(pitcher_id, self._empty_pitcher_stats(pitcher_id, school_id))
+                opponent_id = team2_id if school_id == team1_id else team1_id
+                if (old_pitcher == state.initial_lineup.player_for_position('P')
+                        and states[opponent_id].dh_batting_required):
+                    states[opponent_id].record_opposing_starter_replaced(moment=before_moment())
 
         for inning in range(1, hard_max + 1):
             last_inning = inning
@@ -1081,12 +1148,28 @@ class MatchSimulator:
                     rules.tiebreak_start_inning is not None
                     and inning >= rules.tiebreak_start_inning
                 ):
-                    lead = lineup_index[offense_id]
-                    bases[0] = states[offense_id].player_at_order((lead - 1) % 9 + 1)
-                    bases[1] = states[offense_id].player_at_order((lead - 2) % 9 + 1)
                     tiebreak_pending = True
 
                 while outs < 3:
+                    boundary_order = 0
+                    for adjustment in adjustments.pop(pa_no+1, ()):
+                        changed_state = states[adjustment.school_id]
+                        old_pitcher = changed_state.current_pitcher_id
+                        incoming = dict(adjustment.defensive_changes).get('P', old_pitcher)
+                        if incoming != old_pitcher:
+                            check_new_pitcher(adjustment.school_id, incoming)
+                        applied = changed_state.transition(
+                            batting_changes=dict(adjustment.batting_changes),
+                            defensive_changes=dict(adjustment.defensive_changes),
+                            medical_exception=adjustment.medical_exception,
+                            umpire_approved=adjustment.umpire_approved,
+                            moment=before_moment())
+                        if applied is None:
+                            raise ValueError('lineup adjustment must change the state')
+                        refresh_after_change(adjustment.school_id, old_pitcher,
+                                             defense_changed=bool(applied.defensive_changes))
+                        if adjustment.school_id == defense_id:
+                            fielding_pending = True
                     staff = pitcher_orders[defense_id]
                     current_index = pitcher_index[defense_id]
                     state = states[defense_id]
@@ -1106,31 +1189,42 @@ class MatchSimulator:
                         and int(pitcher_stat["pitches"])
                         >= pitch_allowances.get(pitcher_id, math.inf)
                     )
-                    if limit_reached and current_index + 1 >= len(staff):
+                    # 明示交代で投手陣の途中を選んでも、未登板の候補を失わない。
+                    next_index = 0
+                    while next_index < len(staff) and (
+                            staff[next_index] == pitcher_id
+                            or staff[next_index] in state.exited_player_ids
+                            or (staff[next_index] in pitcher_rows[defense_id]
+                                and int(pitcher_rows[defense_id][staff[next_index]]['batters_faced']) > 0)
+                            or (staff[next_index] == state.initial_lineup.designated_hitter_id
+                                and 'pitcher' in state.retired_two_way_roles)):
+                        next_index += 1
+                    if limit_reached and next_index >= len(staff):
                         raise ValueError(f"{defense_id}: no available relief pitcher within pitch limits")
                     if limit_reached or self._should_change_pitcher(
                         pitcher=pitcher,
                         stats={**pitcher_stat, "runs_allowed": outing_runs[pitcher_id]},
-                        starter=current_index == 0,
-                        has_next=current_index + 1 < staff_sizes[defense_id],
+                        starter=pitcher_id == state.initial_lineup.player_for_position('P'),
+                        has_next=next_index < staff_sizes[defense_id],
                         tactics=policies[defense_id],
                     ):
-                        pitcher_index[defense_id] += 1
-                        current_index = pitcher_index[defense_id]
+                        current_index = next_index
+                        pitcher_index[defense_id] = current_index
                         incoming = staff[current_index]
-                        if incoming in pitcher_rows[defense_id]:
-                            raise ValueError(f"{defense_id}: pitcher reentry is not supported: {incoming}")
-                        state.change_pitcher(incoming, moment=ChangeMoment(inning, half, pa_no + 1))
+                        check_new_pitcher(defense_id, incoming)
+                        old_pitcher = state.current_pitcher_id
+                        extra_defense = {}
+                        if state.designated_hitter_id is not None and old_pitcher != state.designated_hitter_id:
+                            # 野手の緊急登板ではDHが空いた守備へ入り、旧投手は退く。
+                            vacated = next((a.defensive_position for a in state.defensive_alignment
+                                            if a.player_id == incoming and a.defensive_position != 'P'), None)
+                            if vacated is not None:
+                                extra_defense[vacated] = state.designated_hitter_id
+                        state.change_pitcher(incoming, defensive_changes=extra_defense, moment=before_moment())
+                        refresh_after_change(defense_id, old_pitcher)
                         fielding_pending = True
                         state.validate(actual_pitcher_id=incoming)
                         pitcher_id = state.current_pitcher_id
-                        if pitcher_id not in batter_rows[defense_id]:
-                            batter_rows[defense_id][pitcher_id] = self._empty_batter_stats(
-                                pitcher_id, defense_id,
-                            )
-                        defense_values[defense_id] = self._current_defense(
-                            state, player_maps[defense_id],
-                        )
                         if pitcher_id not in pitcher_rows[defense_id]:
                             pitcher_rows[defense_id][pitcher_id] = (
                                 self._empty_pitcher_stats(
@@ -1146,6 +1240,11 @@ class MatchSimulator:
                     if fielding_pending:
                         state.record_fielding_appearance()
                         fielding_pending = False
+                    if tiebreak_pending:
+                        # 打席前の明示交代も反映した打順から配置する。
+                        lead = lineup_index[offense_id]
+                        bases[0] = states[offense_id].player_at_order((lead - 1) % 9 + 1)
+                        bases[1] = states[offense_id].player_at_order((lead - 2) % 9 + 1)
                     batter_id = states[offense_id].player_at_order(lineup_index[offense_id] % 9 + 1)
                     lineup_index[offense_id] += 1
                     batter = player_maps[offense_id][batter_id]
@@ -1259,7 +1358,7 @@ class MatchSimulator:
                     pitcher_stat["batters_faced"] = (
                         int(pitcher_stat["batters_faced"]) + 1
                     )
-                    pitcher_stat["pitches"] = int(pitcher_stat["pitches"]) + self._pitches(
+                    pitches_on_play = self._pitches(
                         event_type,
                         rng_for(
                             match_input.generation_seed,
@@ -1269,6 +1368,7 @@ class MatchSimulator:
                             ),
                         ),
                     )
+                    pitcher_stat['pitches'] = int(pitcher_stat['pitches']) + pitches_on_play
                     pitcher_stat["outs_recorded"] = (
                         int(pitcher_stat["outs_recorded"])
                         + outs_on_play
@@ -1326,9 +1426,15 @@ class MatchSimulator:
                                     "pitcher_staff_order",
                                     str(current_index + 1),
                                 ),
+                                *((('pitches', str(pitches_on_play)),) if dh_game else ()),
                             ),
                         )
                     )
+
+                    if (states[offense_id].dh_batting_required
+                            and states[offense_id].designated_hitter_id == batter_id):
+                        states[offense_id].record_completed_plate_appearance(
+                            batter_id, moment=CompletedPlateAppearanceMoment(inning, half, pa_no))
 
                     if (
                         half == "bottom"
@@ -1392,6 +1498,8 @@ class MatchSimulator:
             raise RuntimeError(
                 f"{match_input.match_id}: game tied after hard_max_innings={hard_max}"
             )
+        if adjustments:
+            raise ValueError('lineup adjustment refers to an unplayed plate appearance')
 
         if team_runs[team1_id] > team_runs[team2_id]:
             winner_id, loser_id = team1_id, team2_id

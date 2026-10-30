@@ -317,9 +317,28 @@ class TeamStrengthGenerator:
         snapshots: Iterable[PlayerAbilitySnapshot],
         *,
         selection_grade_bias: float = 0.0,
+        dh_mode: str = "none",
+        starting_pitcher_id: str | None = None,
     ) -> StartingLineup:
         players = list(snapshots)
         school_id, reference_year, *_ = self._validate_source(players)
+        if dh_mode not in ('none', 'normal', 'pitcher'):
+            raise ValueError('unknown DH mode')
+        if dh_mode == 'none' and starting_pitcher_id is not None:
+            raise ValueError('explicit starter selection is for DH modes; no-DH uses existing staff selection')
+        if starting_pitcher_id is not None and starting_pitcher_id not in {p.player_id for p in players}:
+            raise ValueError('starting pitcher is not available')
+        if dh_mode == 'normal' and len(players) < 10:
+            raise ValueError('normal DH requires ten available players')
+        if dh_mode == 'pitcher' and starting_pitcher_id is None:
+            pitchers = [p for p in players if p.primary_position == 'P']
+            if not pitchers:
+                raise ValueError('pitcher/DH selection requires a pitcher')
+            # 両能力の低い側を優先して比べ、片方だけ優れた選手へ偏らせない。
+            # 既存の合成値を使う明示選考であり、兼任の使用率は決めない。
+            starting_pitcher_id = min(pitchers, key=lambda p: (
+                -min(self._batting_composite(p), self._pitcher_quality(p)),
+                -self._pitcher_quality(p), -self._batting_composite(p), p.player_id)).player_id
 
         def best(position, pool):
             def key(player):
@@ -337,10 +356,15 @@ class TeamStrengthGenerator:
         # 適性で回す（部員が少ないとき）。投手がいなければ肩の強い野手が投げる。
         picked: dict[str, PlayerAbilitySnapshot] = {}
         used: set[str] = set()
+        if starting_pitcher_id is not None:
+            picked['P'] = next(p for p in players if p.player_id == starting_pitcher_id)
+            used.add(starting_pitcher_id)
         for position in STARTING_POSITIONS:
+            if position in picked:
+                continue
             pool = [
                 player for player in players
-                if player.primary_position == position
+                if player.primary_position == position and player.player_id not in used
             ]
             if pool:
                 player = best(position, pool)
@@ -377,6 +401,15 @@ class TeamStrengthGenerator:
             )
             for position in STARTING_POSITIONS
         ]
+        defense = ()
+        dh_id = None
+        if dh_mode != 'none':
+            defense = tuple(DefensiveAssignment(pos, picked[pos].player_id) for pos in STARTING_POSITIONS)
+            dh = picked['P'] if dh_mode == 'pitcher' else min(
+                (p for p in players if p.player_id not in used),
+                key=lambda p: (-(self._batting_composite(p) + selection_grade_bias * (2-p.academic_year)), p.player_id))
+            dh_id = dh.player_id
+            chosen[0] = ('DH', dh, self._batting_composite(dh))
 
         ordered = sorted(
             chosen,
@@ -402,6 +435,8 @@ class TeamStrengthGenerator:
             school_id=school_id,
             reference_year=reference_year,
             entries=entries,
+            defense=defense,
+            designated_hitter_id=dh_id,
         )
         validate_starting_lineup(lineup)
         return lineup
@@ -462,6 +497,8 @@ class TeamStrengthGenerator:
         snapshots: Iterable[PlayerAbilitySnapshot],
         *,
         selection_grade_bias: float = 0.0,
+        dh_mode: str = "none",
+        starting_pitcher_id: str | None = None,
     ) -> TeamStrengthSnapshot:
         players = list(snapshots)
         (
@@ -474,11 +511,12 @@ class TeamStrengthGenerator:
             intake_config_sha,
         ) = self._validate_source(players)
         lineup = self.select_starting_lineup(
-            players, selection_grade_bias=selection_grade_bias)
+            players, selection_grade_bias=selection_grade_bias,
+            dh_mode=dh_mode, starting_pitcher_id=starting_pitcher_id)
         staff = self.select_pitching_staff(
             players, selection_grade_bias=selection_grade_bias)
         by_id = {player.player_id: player for player in players}
-        starters = [by_id[player_id] for player_id in lineup.starter_ids]
+        starters = [by_id[entry.player_id] for entry in lineup.entries]
 
         contact_strength = fmean(
             float(player.contact) for player in starters
@@ -555,7 +593,7 @@ class TeamStrengthGenerator:
         )
 
         defense_strength = self.defense_for_alignment(
-            by_id, ((e.defensive_position, e.player_id) for e in lineup.entries),
+            by_id, ((e.defensive_position, e.player_id) for e in lineup.defense or lineup.entries),
         )
 
         qualities = [entry.quality for entry in staff.entries]
@@ -838,7 +876,9 @@ def validate_team_strength_snapshot(
     lineup_pitcher = snapshot.starting_lineup.player_for_position(
         "P"
     )
-    if lineup_pitcher != snapshot.pitching_staff.ace_player_id:
+    # DHを明示した試合は打撃適性や実先発指定も選考へ使う。投手陣の能力順は維持する。
+    if (snapshot.starting_lineup.designated_hitter_id is None
+            and lineup_pitcher != snapshot.pitching_staff.ace_player_id):
         raise ValueError(
             f"{snapshot.school_id}: lineup pitcher must match pitching staff ace"
         )

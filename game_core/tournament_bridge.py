@@ -522,6 +522,9 @@ class AbilityMatchResolver:
             team2=team2_input,
             team_generation_seed=team_generation_seed,
         )
+        if any(t.team_strength.starting_lineup.designated_hitter_id is not None
+               for t in (team1_input, team2_input)):
+            raise ValueError('DH games are not connected to live progression/persistence')
         day = self._match_day()
         tactics = {sid: self._coach_tactics(sid, day) for sid in (team1, team2)}
         result = self.simulator.simulate(
@@ -532,6 +535,8 @@ class AbilityMatchResolver:
             ),
             **({"tactics": tactics} if any(t != CoachTactics() for t in tactics.values()) else {}),
         )
+        if any(r.starting_designated_hitter_id is not None for r in result.team_participation):
+            raise ValueError('DH results cannot enter live progression/persistence')
         self._record_pitches(result, day)
         self._record_games(competition_id, result)
         highlights = game_highlights(result.events)
