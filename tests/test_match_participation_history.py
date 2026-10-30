@@ -323,6 +323,22 @@ class DHHistoryFixtures:
 
 
 class DHMatchHistoryTests(DHHistoryFixtures, unittest.TestCase):
+    def test_presave_validation_uses_the_simulators_match_configuration(self):
+        import shutil
+        from game_core.match_contract import validated_match_history
+        inp = self.dh.match()
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp)/'match'
+            shutil.copytree(Path(__file__).resolve().parents[1]/'config'/'match', config)
+            path = config/'match_simulation_v1.json'
+            document = json.loads(path.read_text())
+            document['revision'] += 1
+            path.write_text(json.dumps(document))
+            result = fixtures.MatchSimulator(config).simulate(inp)
+            with self.assertRaisesRegex(ValueError, 'config provenance'):
+                validated_match_history(result, inp)
+            self.assertIn('dh_verification', validated_match_history(result, inp, config_dir=config))
+
     def test_opponent_starter_notice_and_final_batter_completion_survive_storage(self):
         teams = list(self.dh.by_mode['normal'])
         lineup = teams[0].team_strength.starting_lineup
@@ -378,7 +394,7 @@ class DHMatchHistoryTests(DHHistoryFixtures, unittest.TestCase):
             live._coach_tactics = lambda *a: CoachTactics()
             live.rules_for = lambda *a: fixtures.GameRules()
             live._pitch_allowances = lambda *a: None
-            live.simulator = SimpleNamespace(simulate=lambda *a, **kw: result)
+            live.simulator = SimpleNamespace(config_dir='config/match', simulate=lambda *a, **kw: result)
             live._record_pitches, live._record_games = Mock(), Mock()
             live.detail_sink = sink
             resolved = live(match_id=inp.match_id, competition_id=inp.competition_id, reference_year=2026,

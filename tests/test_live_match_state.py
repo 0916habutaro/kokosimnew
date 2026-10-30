@@ -725,7 +725,7 @@ class DHSimulationTests(unittest.TestCase):
         live._coach_tactics = lambda *a: CoachTactics()
         live.rules_for = lambda *a: GameRules()
         live._pitch_allowances = lambda *a: None
-        live.simulator = SimpleNamespace(simulate=lambda *a, **kw: result)
+        live.simulator = SimpleNamespace(config_dir='config/match', simulate=lambda *a, **kw: result)
         live._record_pitches = Mock()
         live._record_games = Mock()
         live.detail_sink = {}

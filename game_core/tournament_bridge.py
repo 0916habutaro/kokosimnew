@@ -536,7 +536,7 @@ class AbilityMatchResolver:
         if (any(r.starting_designated_hitter_id is not None for r in result.team_participation)
                 or any(t.team_strength.starting_lineup.designated_hitter_id is not None
                        for t in (team1_input, team2_input))):
-            dh_detail = validated_match_history(result, match_input)
+            dh_detail = validated_match_history(result, match_input, config_dir=self.simulator.config_dir)
         self._record_pitches(result, day)
         self._record_games(competition_id, result)
         highlights = game_highlights(result.events)
