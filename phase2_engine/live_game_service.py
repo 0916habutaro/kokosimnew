@@ -1068,9 +1068,10 @@ class LiveGameService:
             if persistence is None:
                 # 終わった大会の試合の記録はまとめて圧縮する（試合履歴を小さく保つ）
                 packed = archive.packed_competitions(year)
-                for cid, scheduled in season.competitions.items():
-                    if cid not in packed and getattr(scheduled, "is_complete", False):
-                        archive.pack_competition(year, cid)
+                archive.pack_competitions(year, (
+                    cid for cid, scheduled in season.competitions.items()
+                    if cid not in packed and getattr(scheduled, "is_complete", False)
+                ))
             for key in result:
                 result[key] += counts.get(key, 0)
         if persistence:

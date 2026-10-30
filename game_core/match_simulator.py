@@ -71,6 +71,20 @@ class _RunnerResponsibility:
     plate_appearance_no: int | None = None
 
 
+class _DeferredEventRandom:
+    """独立した進塁用乱数を、実際に使う打席だけ初期化する。"""
+
+    __slots__ = ('_seed', '_namespace', '_rng')
+
+    def __init__(self, seed, namespace):
+        self._seed, self._namespace, self._rng = seed, namespace, None
+
+    def __getattr__(self, name):
+        if self._rng is None:
+            self._rng = rng_for(self._seed, self._namespace)
+        return getattr(self._rng, name)
+
+
 class _RunnerResponsibilityTracker:
     """Inning-local responsibility, separate from the existing base/outcome model.
 
@@ -1056,6 +1070,15 @@ class MatchSimulator:
             match_input.team1.school_id: match_input.team1,
             match_input.team2.school_id: match_input.team2,
         }
+        # 同じ試合の同じ投打能力・守備値なら重みは変わらない。試合をまたがず、
+        # 独自の確率/抽選実装では再利用しない（試験用の打席列も従来どおり）。
+        weight_model = self._event_weights
+        reuse_weights = (type(self) is MatchSimulator
+                         and getattr(weight_model, '__func__', None) is _EVENT_WEIGHT_MODEL
+                         and self._weighted_choice is _WEIGHTED_CHOICE_MODEL)
+        weight_cache = {}
+        defer_event_random = (type(self) is MatchSimulator and rng_for is _RNG_FACTORY
+            and getattr(self._apply_event, '__func__', None) is _APPLY_EVENT_MODEL)
         policies = {sid: (tactics or {}).get(sid, CoachTactics()) for sid in teams}
         team1_id = match_input.team1.school_id
         team2_id = match_input.team2.school_id
@@ -1318,7 +1341,7 @@ class MatchSimulator:
                         match_id=match_input.match_id,
                         event_no=event_no,
                     )
-                    event_rng = rng_for(
+                    event_rng = (_DeferredEventRandom if defer_event_random else rng_for)(
                         match_input.generation_seed,
                         event_namespace,
                     )
@@ -1336,11 +1359,12 @@ class MatchSimulator:
                     ):
                         event_type = "sacrifice_bunt"
                     else:
-                        weights = self._event_weights(
-                            batter,
-                            pitcher,
-                            defense_values[defense_id],
-                        )
+                        weight_key = (batter_id, pitcher_id, defense_values[defense_id])
+                        weights = weight_cache.get(weight_key) if reuse_weights else None
+                        if weights is None:
+                            weights = weight_model(batter, pitcher, defense_values[defense_id])
+                            if reuse_weights:
+                                weight_cache[weight_key] = weights
                         event_type = self._weighted_choice(pa_rng, weights)
                         event_type = self._maybe_sacrifice_fly(
                             event_type,
@@ -1626,6 +1650,12 @@ class MatchSimulator:
         if state_sink is not None:
             state_sink.update(states)
         return result
+
+
+_EVENT_WEIGHT_MODEL = MatchSimulator._event_weights
+_WEIGHTED_CHOICE_MODEL = MatchSimulator._weighted_choice
+_APPLY_EVENT_MODEL = MatchSimulator._apply_event
+_RNG_FACTORY = rng_for
 
 
 def validate_run_accounting(result: MatchSimulationResult) -> None:

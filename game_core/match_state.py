@@ -757,12 +757,24 @@ def _validate_dh_event_history(records, team_ids, reference_year, known_ids, eve
     from collections import Counter
     pa_counts, bf_counts = Counter(), Counter()
     if recorded:
-        timeline = ((pa, inning, half, None) for (inning, half), (first, last) in ranges.items()
-                    for pa in range(first, last+1))
+        # 全イベントのない履歴では、配置が変わらない区間を9人の打順周期で数える。
+        # 半イニングの先頭・すべての規則入力は従来どおり1打席ずつ再生する。
+        boundaries = sorted(by_pa)
+
+        def recorded_timeline():
+            for (inning, half), (first, last) in ranges.items():
+                if first > last:
+                    continue
+                points = [first] + [pa for pa in boundaries if first < pa <= last]
+                for index, pa in enumerate(points):
+                    following = points[index+1] if index+1 < len(points) else last+1
+                    yield pa, inning, half, None, following-pa-1
+
+        timeline = recorded_timeline()
     else:
-        timeline = ((e.plate_appearance_no, e.inning, e.half, e) for e in events)
+        timeline = ((e.plate_appearance_no, e.inning, e.half, e, 0) for e in events)
     seen = 0
-    for pa_no, inning, half_name, event in timeline:
+    for pa_no, inning, half_name, event, unchanged in timeline:
         offense, defense = team_ids if half_name == 'top' else tuple(reversed(team_ids))
         seen += 1
         if pa_no != seen:
@@ -835,6 +847,25 @@ def _validate_dh_event_history(records, team_ids, reference_year, known_ids, eve
                     or (change.moment.inning, change.moment.half) != half):
                 raise ValueError('completed DH notification differs from actual event')
             apply_lineup_change(states[offense], change)
+        if unchanged:
+            state = states[offense]
+            start = batting_slots[offense]-1
+            batters = state.batting_order
+            # 区間内に先発DHの初打席があれば、そのPAの完了通知が必要。
+            if state.dh_batting_required:
+                dh_index = next(i for i, slot in enumerate(batters)
+                                if slot.player_id == state.designated_hitter_id)
+                if (dh_index-start) % 9 < unchanged:
+                    raise ValueError('missing or unexpected completed DH plate appearance notification')
+            turns, extra = divmod(unchanged, 9)
+            if turns:
+                for slot in batters:
+                    pa_counts[offense, slot.player_id] += turns
+            for offset in range(extra):
+                pa_counts[offense, batters[(start+offset) % 9].player_id] += 1
+            bf_counts[defense, states[defense].current_pitcher_id] += unchanged
+            batting_slots[offense] = (start+unchanged) % 9+1
+            seen += unchanged
     if seen != total_plate_appearances or by_pa:
         raise ValueError('unapplied lineup changes or missing events')
     _check_final_participation(records, states, final_states)

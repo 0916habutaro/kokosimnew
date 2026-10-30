@@ -12,6 +12,7 @@ import sqlite3
 import threading
 import zlib
 from contextlib import closing, contextmanager
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Iterable, Mapping
 
@@ -257,6 +258,11 @@ def _validate_participation_payload(payload: Mapping[str, object]) -> None:
 
 def _digest(payload: str) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _compress_competition(payload: bytes) -> bytes:
+    # 保存済み大会と同じ圧縮率・バイト列を維持する。
+    return zlib.compress(payload, 9)
 
 
 def _validate_dh_payload(payload, records, known):
@@ -888,36 +894,48 @@ class HistoricalMatchArchive:
 
     def pack_competition(self, year: int, competition_id: str) -> int:
         """終わった大会の試合の記録をまとめて圧縮する。まとめた試合の数を返す。"""
+        return self.pack_competitions(year, (competition_id,))
+
+    def pack_competitions(self, year: int, competition_ids: Iterable[str]) -> int:
+        """同じA形式・圧縮設定で大会をまとめる。SQL操作は呼出スレッドだけで行う。"""
+        competition_ids = tuple(dict.fromkeys(competition_ids))
+        if not competition_ids:
+            return 0
+        packed_keys = []
+        count = 0
         with self._connection() as conn:
             conn.executescript(_SCHEMA)
-            with conn:
+            with conn, ThreadPoolExecutor(max_workers=2) as pool:
                 conn.execute("BEGIN IMMEDIATE")
-                rows = conn.execute(
-                    """SELECT match_id, payload_json, record_sha256 FROM historical_matches
-                       WHERE year=? AND competition_id=? AND payload_json != ''""",
-                    (year, competition_id),
-                ).fetchall()
-                if not rows:
-                    return 0
-                payloads = dict(self._packed(conn, year, competition_id))
-                for match_id, raw, digest in rows:
-                    if _digest(raw) != digest:
-                        raise HistoricalMatchConflictError(
-                            f"archived match changed: {competition_id}/{match_id}"
-                        )
-                    payloads[match_id] = raw
-                conn.execute(
-                    "INSERT OR REPLACE INTO packed_competitions VALUES (?, ?, ?)",
-                    (year, competition_id, zlib.compress(_canonical(payloads).encode("utf-8"), 9)),
-                )
-                conn.execute(
-                    """UPDATE historical_matches SET payload_json=''
-                       WHERE year=? AND competition_id=?""",
-                    (year, competition_id),
-                )
-                with _PACKED_LOCK:
-                    _PACKED_CACHE.pop((str(self.db_path), year, competition_id), None)
-                return len(rows)
+                # 一度に保持する未圧縮データは2大会まで。順序・zlib level 9は維持する。
+                for offset in range(0, len(competition_ids), 2):
+                    prepared = []
+                    for cid in competition_ids[offset:offset+2]:
+                        rows = conn.execute(
+                            """SELECT match_id, payload_json, record_sha256 FROM historical_matches
+                               WHERE year=? AND competition_id=? AND payload_json != ''""",
+                            (year, cid),
+                        ).fetchall()
+                        if not rows:
+                            continue
+                        payloads = dict(self._packed(conn, year, cid))
+                        for match_id, raw, digest in rows:
+                            if _digest(raw) != digest:
+                                raise HistoricalMatchConflictError(f"archived match changed: {cid}/{match_id}")
+                            payloads[match_id] = raw
+                        prepared.append((cid, len(rows), _canonical(payloads).encode('utf-8')))
+                    raw_payloads = [raw for _, _, raw in prepared]
+                    encoded = (pool.map(_compress_competition, raw_payloads) if len(prepared) > 1
+                               else map(_compress_competition, raw_payloads))
+                    for (cid, size, _), blob in zip(prepared, encoded, strict=True):
+                        conn.execute("INSERT OR REPLACE INTO packed_competitions VALUES (?, ?, ?)", (year, cid, blob))
+                        conn.execute("UPDATE historical_matches SET payload_json='' WHERE year=? AND competition_id=?", (year, cid))
+                        packed_keys.append((str(self.db_path), year, cid))
+                        count += size
+            with _PACKED_LOCK:
+                for key in packed_keys:
+                    _PACKED_CACHE.pop(key, None)
+        return count
 
     def store_closed_season(self, year: int, snapshot: bytes, names: Mapping[str, str],
                             *, school_records: Iterable[Mapping] = (),

@@ -847,6 +847,65 @@ class DHSimulationTests(unittest.TestCase):
             sim = MatchSimulator()
             self.assertEqual(sim.simulate(inp).to_dict(), sim.simulate(inp).to_dict())
 
+    def test_weight_reuse_matches_uncached_games_after_defensive_and_ability_changes(self):
+        from copy import deepcopy
+        from game_core.match_simulator import LineupAdjustment
+
+        class Uncached(MatchSimulator):
+            pass
+
+        for mode in ('none', 'normal', 'pitcher'):
+            with self.subTest(mode=mode):
+                cached, reference = MatchSimulator(), Uncached()
+                cached.params, reference.params = deepcopy(cached.params), deepcopy(reference.params)
+                original = self.match(mode)
+                team = original.team2
+                alignment = team.team_strength.starting_lineup
+                cf, rf = alignment.player_for_position('CF'), alignment.player_for_position('RF')
+                changes = (LineupAdjustment(2, team.school_id,
+                           defensive_changes=(('CF', rf), ('RF', cf))),)
+                first = cached.simulate(original, lineup_changes=changes)
+                self.assertEqual(first.to_dict(), reference.simulate(original, lineup_changes=changes).to_dict())
+                changed_players = tuple(replace(p, contact=10, power=10) for p in team.player_abilities)
+                changed_team = replace(team, player_abilities=changed_players,
+                    team_strength=self.generator.generate(changed_players, dh_mode=mode))
+                changed = replace(original, team2=changed_team)
+                result = cached.simulate(changed)
+                self.assertEqual(result.to_dict(), reference.simulate(changed).to_dict())
+                self.assertNotEqual(first.to_dict(), result.to_dict())
+                # 同じ実体で設定を変えても、前の試合の重みを持ち越さない。
+                for simulator in (cached, reference):
+                    simulator.params['plate_appearance_model']['base_probabilities']['single'] *= 3
+                self.assertEqual(cached.simulate(original).to_dict(), reference.simulate(original).to_dict())
+
+    def test_injected_probability_model_still_runs_for_each_plate_appearance(self):
+        calls = []
+        original = MatchSimulator._event_weights
+
+        def observed(simulator, *args):
+            calls.append(args[0].player_id)
+            return original(simulator, *args)
+
+        with patch.object(MatchSimulator, '_event_weights', observed), \
+                patch.object(MatchSimulator, '_should_sacrifice_bunt', return_value=False):
+            result = MatchSimulator().simulate(self.match('normal'))
+        self.assertEqual([e.batter_id for e in result.events], calls)
+
+    def test_deferred_advance_random_preserves_the_original_independent_stream(self):
+        from game_core.match_simulator import _DeferredEventRandom
+        from phase2_engine.randomness import rng_for
+
+        for seed in (20261022, 20261027):
+            namespace = 'FAKE-ADVANCE:1'
+            reference = rng_for(seed, namespace)
+            with patch('game_core.match_simulator.rng_for', wraps=rng_for) as factory:
+                deferred = _DeferredEventRandom(seed, namespace)
+                self.assertEqual(0, factory.call_count)
+                self.assertEqual(reference.random(), deferred.random())
+                self.assertEqual(reference.randint(1, 6), deferred.randint(1, 6))
+                self.assertEqual(reference.getstate(), deferred.getstate())
+                self.assertEqual(1, factory.call_count)
+
     def test_selection_uses_best_available_dh_batting_and_two_way_pitcher(self):
         players = self.by_mode['normal'][0].player_abilities
         target = next(p for p in players if p.primary_position == 'P')
