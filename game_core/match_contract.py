@@ -381,6 +381,10 @@ def validate_match_simulation_input(
             "match simulation input: teams must differ"
         )
 
+    # DHは状態モデルのみ。打席処理・選考への接続まで本番実行を拒否する。
+    if any(team.team_strength.starting_lineup.designated_hitter_id is not None
+           for team in (match_input.team1, match_input.team2)):
+        raise ValueError("DH game execution is not connected")
     validate_team_match_input(match_input.team1)
     validate_team_match_input(match_input.team2)
 
