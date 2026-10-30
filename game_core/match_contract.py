@@ -6,7 +6,7 @@ from typing import Iterable
 
 from .abilities import PlayerAbilitySnapshot
 from .match_config import load_and_validate_match_configs
-from .team_strength import TeamStrengthSnapshot
+from .team_strength import TeamStrengthSnapshot, validate_starting_lineup, validate_pitching_staff
 from .match_state import TeamMatchParticipation, TeamMatchState, validate_match_participation
 
 
@@ -272,6 +272,8 @@ def validate_team_match_input(team: TeamMatchInput) -> None:
     if not team.school_id:
         raise ValueError("team match input: school_id required")
     strength = team.team_strength
+    validate_starting_lineup(strength.starting_lineup)
+    validate_pitching_staff(strength.pitching_staff)
     if strength.school_id != team.school_id:
         raise ValueError(
             "team match input: TeamStrength school_id mismatch"
@@ -381,10 +383,6 @@ def validate_match_simulation_input(
             "match simulation input: teams must differ"
         )
 
-    # DHは状態モデルのみ。打席処理・選考への接続まで本番実行を拒否する。
-    if any(team.team_strength.starting_lineup.designated_hitter_id is not None
-           for team in (match_input.team1, match_input.team2)):
-        raise ValueError("DH game execution is not connected")
     validate_team_match_input(match_input.team1)
     validate_team_match_input(match_input.team2)
 
@@ -765,6 +763,14 @@ def validate_match_simulation_result(
         team1_id: _player_map(match_input.team1),
         team2_id: _player_map(match_input.team2),
     }
+    for team, record in zip((match_input.team1, match_input.team2), result.team_participation):
+        declared = team.team_strength.starting_lineup
+        if (declared.designated_hitter_id is None) != (record.starting_designated_hitter_id is None):
+            raise ValueError('starting DH declaration differs from match input')
+        if declared.designated_hitter_id is not None:
+            dual = declared.designated_hitter_id == declared.player_for_position('P')
+            if dual != (record.starting_designated_hitter_id == record.starting_pitcher_id):
+                raise ValueError('starting pitcher/DH roles differ from declared mode')
     validate_match_participation(
         result.team_participation, team_ids=(team1_id, team2_id),
         reference_year=result.reference_year, last_inning=result.last_inning,
@@ -791,6 +797,38 @@ def validate_match_simulation_result(
             raise ValueError(
                 f"pitcher stats: unknown player {row.player_id}"
             )
+    if any(r.starting_designated_hitter_id is not None for r in result.team_participation):
+        # DHでは守備専用Pと打撃専用DHの取り違えを、選手ごとの実イベントでも拒否する。
+        hit_types = {'single', 'double', 'triple', 'home_run'}
+        for row in batters:
+            actual = [e for e in events if e.offense_school_id == row.school_id and e.batter_id == row.player_id]
+            expected = {'plate_appearances': len(actual), 'hits': sum(e.event_type in hit_types for e in actual),
+                        'at_bats': sum(bool(catalog[e.event_type]['counts_as_at_bat']) for e in actual),
+                        'doubles': sum(e.event_type == 'double' for e in actual),
+                        'triples': sum(e.event_type == 'triple' for e in actual),
+                        'home_runs': sum(e.event_type == 'home_run' for e in actual),
+                        'rbi': sum(e.rbi for e in actual)}
+            expected.update({key: sum(e.event_type == event_type for e in actual) for key, event_type in (
+                ('walks', 'walk'), ('strikeouts', 'strikeout'), ('hit_by_pitch', 'hit_by_pitch'),
+                ('sacrifice_flies', 'sacrifice_fly'), ('sacrifice_bunts', 'sacrifice_bunt'))})
+            if any(getattr(row, key) != value for key, value in expected.items()):
+                raise ValueError('batter individual stats differ from actual events')
+        for row in pitchers:
+            actual = [e for e in events if e.defense_school_id == row.school_id and e.pitcher_id == row.player_id]
+            expected = {'batters_faced': len(actual), 'outs_recorded': sum(e.outs_on_play for e in actual),
+                        'hits_allowed': sum(e.event_type in hit_types for e in actual),
+                        'home_runs_allowed': sum(e.event_type == 'home_run' for e in actual)}
+            try:
+                pitches = [int(dict(e.metadata)['pitches']) for e in actual]
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError('DH events require pitch counts') from exc
+            if any(n < 1 for n in pitches):
+                raise ValueError('invalid event pitch count')
+            expected['pitches'] = sum(pitches)
+            expected.update({key: sum(e.event_type == event_type for e in actual) for key, event_type in (
+                ('walks', 'walk'), ('strikeouts', 'strikeout'), ('hit_batters', 'hit_by_pitch'))})
+            if any(getattr(row, key) != value for key, value in expected.items()):
+                raise ValueError('pitcher individual stats differ from actual events')
 
     batter_ids = {row.player_id for row in batters}
     pitcher_ids = {row.player_id for row in pitchers}

@@ -185,6 +185,8 @@ def _validate_participation_payload(payload: Mapping[str, object]) -> None:
     if not isinstance(payload["team_participation"], list):
         raise ValueError("team_participation: expected list")
     records = tuple(TeamMatchParticipation.from_dict(row) for row in payload["team_participation"])
+    if any(r.starting_designated_hitter_id is not None for r in records):
+        raise ValueError('DH match persistence is not connected')
     innings = payload.get("inning_scores") or ()
     played = [row for row in innings if row["was_played"]]
     if not played:

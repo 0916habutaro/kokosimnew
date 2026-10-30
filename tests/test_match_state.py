@@ -229,7 +229,7 @@ class MatchStateIntegrationTests(unittest.TestCase):
         return TeamMatchState(team.team_strength.starting_lineup,
                               (p.player_id for p in team.player_abilities), **kwargs)
 
-    def test_dh_state_is_valid_but_production_execution_is_not_enabled(self):
+    def test_dh_state_connects_to_direct_simulation(self):
         from game_core.team_strength import DefensiveAssignment
         original = self.teams[0]
         old = original.team_strength.starting_lineup
@@ -242,8 +242,8 @@ class MatchStateIntegrationTests(unittest.TestCase):
         team = replace(original,team_strength=replace(original.team_strength,starting_lineup=dh))
         inp = MatchSimulationInput('FAKE-DH-GATE','FAKE-CUP',2026,
                                   team.team_strength.generation_seed,team,self.teams[1])
-        with self.assertRaisesRegex(ValueError,'DH game execution is not connected'):
-            MatchSimulator().simulate(inp)
+        result = MatchSimulator().simulate(inp)
+        self.assertEqual(pitcher, result.team_participation[0].starting_designated_hitter_id)
 
     def test_actual_position_comes_from_lineup_even_when_primary_position_differs(self):
         team = self.teams[0]
@@ -507,9 +507,9 @@ class DHMatchStateTests(unittest.TestCase):
         self.round_trip(s)
 
     def test_timed_successor_dh_fielding_double_switch_replays(self):
-        from game_core.match_state import ChangeMoment, replay_team_participation
+        from game_core.match_state import ChangeMoment, CompletedPlateAppearanceMoment, replay_team_participation
         s = self.make()
-        s.record_completed_plate_appearance('DH', moment=ChangeMoment(1, 'top', 2))
+        s.record_completed_plate_appearance('DH', moment=CompletedPlateAppearanceMoment(1, 'top', 2))
         s.transition(batting_changes={1: 'B', 8: 'RP'},
                      defensive_changes={'CF': 'B', 'P': 'RP'},
                      moment=ChangeMoment(2, 'bottom', 12))
@@ -694,10 +694,10 @@ class DHMatchStateTests(unittest.TestCase):
         self.assertIsNone(state.designated_hitter_id)
 
     def test_timed_dh_participation_replays(self):
-        from game_core.match_state import ChangeMoment, replay_team_participation
+        from game_core.match_state import ChangeMoment, CompletedPlateAppearanceMoment, replay_team_participation
         s = self.make(True)
         s.change_pitcher('RP',moment=ChangeMoment(1,'top',1))
-        s.record_completed_plate_appearance('P',moment=ChangeMoment(1,'bottom',4))
+        s.record_completed_plate_appearance('P',moment=CompletedPlateAppearanceMoment(1,'bottom',4))
         s.substitute('P','B',moment=ChangeMoment(3,'bottom',20))
         s.record_fielding_appearance()
         restored = replay_team_participation(s.participation(),2026,s.registered_player_ids)

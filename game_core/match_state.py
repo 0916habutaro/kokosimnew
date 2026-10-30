@@ -30,13 +30,39 @@ class ChangeMoment:
     inning: int
     half: str
     next_plate_appearance_no: int
+    order: int = 0
 
     def __post_init__(self):
         if (type(self.inning) is not int or self.inning < 1
                 or self.half not in ("top", "bottom")
                 or type(self.next_plate_appearance_no) is not int
-                or self.next_plate_appearance_no < 1):
+                or self.next_plate_appearance_no < 1
+                or type(self.order) is not int or self.order < 0):
             raise ValueError("invalid change moment")
+
+
+@dataclass(frozen=True, slots=True)
+class CompletedPlateAppearanceMoment:
+    """結果確定後の規則通知。次打席の存在を必要としない。"""
+    inning: int
+    half: str
+    completed_plate_appearance_no: int
+
+    def __post_init__(self):
+        ChangeMoment(self.inning, self.half, self.completed_plate_appearance_no)
+
+
+def _moment_key(moment):
+    if isinstance(moment, CompletedPlateAppearanceMoment):
+        return (moment.completed_plate_appearance_no, 1, 0)
+    return (moment.next_plate_appearance_no, 0, moment.order)
+
+
+def _read_moment(value):
+    if value is None:
+        return None
+    cls = CompletedPlateAppearanceMoment if 'completed_plate_appearance_no' in value else ChangeMoment
+    return cls(**value)
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,7 +87,7 @@ class LineupChange:
     outgoing_player_id: str | None
     incoming_player_id: str | None
     defensive_changes: tuple[DefensiveChange, ...]
-    moment: ChangeMoment | None = None
+    moment: ChangeMoment | CompletedPlateAppearanceMoment | None = None
     dh_action: DHAction | None = None
 
     def to_dict(self) -> dict:
@@ -69,6 +95,8 @@ class LineupChange:
         out["defensive_changes"] = [asdict(change) for change in self.defensive_changes]
         if self.dh_action is None:
             out.pop('dh_action')
+        if isinstance(self.moment, ChangeMoment) and self.moment.order == 0:
+            out['moment'].pop('order')
         return out
 
 
@@ -113,7 +141,7 @@ class TeamMatchParticipation:
                     **{key: item[key] for key in ("sequence", "school_id", "kind", "batting_order",
                                                    "outgoing_player_id", "incoming_player_id")},
                     defensive_changes=tuple(DefensiveChange(**c) for c in item["defensive_changes"]),
-                    moment=ChangeMoment(**item["moment"]) if item["moment"] is not None else None,
+                    moment=_read_moment(item['moment']),
                     dh_action=DHAction.from_dict(item['dh_action']) if item.get('dh_action') is not None else None,
                 ) for item in value["changes"]),
                 tuple(value["fielding_player_ids"]),
@@ -312,8 +340,11 @@ class TeamMatchState:
     def _commit(self, candidate: _TeamStateData, kind: _ChangeKind, *, slot: int | None = None,
                 outgoing: str | None = None, incoming: str | None = None,
                 actual_pitcher_id: str | None = None,
-                moment: ChangeMoment | None = None,
+                moment: ChangeMoment | CompletedPlateAppearanceMoment | None = None,
                 dh_action: DHAction | None = None) -> LineupChange | None:
+        expected_moment = CompletedPlateAppearanceMoment if kind == 'dh_plate_appearance' else ChangeMoment
+        if moment is not None and not isinstance(moment, expected_moment):
+            raise ValueError('lineup change has an invalid phase')
         self._validate(candidate, actual_pitcher_id)
         if candidate == self._data:
             return None
@@ -409,7 +440,7 @@ class TeamMatchState:
         return dh if dh is not None and dh == self.initial_lineup.player_for_position('P') else None
 
     def record_completed_plate_appearance(self, player_id: str, *,
-                                         moment: ChangeMoment | None = None) -> LineupChange | None:
+                                         moment: CompletedPlateAppearanceMoment | None = None) -> LineupChange | None:
         """打撃完了の規則入力。実際の打席処理への接続は次工程で行う。"""
         if player_id not in {s.player_id for s in self.batting_order}:
             raise ValueError('completed batter is not in the batting order')
@@ -542,6 +573,9 @@ class TeamMatchState:
                              if a.player_id == incoming_player_id and a.defensive_position != 'P'), None)
             if position is not None:
                 changes[position] = current
+            if self.designated_hitter_id is None and position is None and batting_changes is None:
+                batting_changes = {s.batting_order: incoming_player_id for s in self.batting_order
+                                   if s.player_id == current}
             return self.transition(defensive_changes={**changes, **(defensive_changes or {})},
                                    batting_changes=batting_changes, moment=moment)
         if batting_changes is not None:
@@ -590,9 +624,10 @@ def _participation_start(record: TeamMatchParticipation, reference_year: int,
 
 def apply_lineup_change(state: TeamMatchState, change: LineupChange, *, require_moment: bool = True) -> None:
     """保存した差分を既存の状態操作で検証して適用する。失敗時は状態を保つ。"""
+    moment_type = CompletedPlateAppearanceMoment if change.kind == 'dh_plate_appearance' else ChangeMoment
     if (type(change.sequence) is not int or change.sequence != len(state.history) + 1
             or change.school_id != state.school_id
-            or (not isinstance(change.moment, ChangeMoment) and (require_moment or change.moment is not None))
+            or (not isinstance(change.moment, moment_type) and (require_moment or change.moment is not None))
             or (change.batting_order is not None
                 and (type(change.batting_order) is not int or not 1 <= change.batting_order <= 9))):
         raise ValueError("invalid lineup change sequence, school, slot or moment")
@@ -648,7 +683,7 @@ def replay_team_participation(record: TeamMatchParticipation, reference_year: in
         moment = change.moment
         if moment is None:
             raise ValueError("lineup change requires a moment")
-        key = (moment.inning * 2 + (moment.half == "bottom"), moment.next_plate_appearance_no)
+        key = (moment.inning * 2 + (moment.half == "bottom"), _moment_key(moment))
         if previous is not None and (
             key[0] < previous[0] or key[1] < previous[1]
             or (key[0] != previous[0] and key[1] == previous[1])
@@ -662,6 +697,122 @@ def replay_team_participation(record: TeamMatchParticipation, reference_year: in
         raise ValueError("invalid fielding appearances")
     state._data = replace(state._data, fielding=fielding)
     return state
+
+
+def _check_final_participation(records, states, final_states):
+    fields = ('batting_order', 'defensive_alignment', 'exited_player_ids', 'fielding_player_ids',
+              'designated_hitter_id', 'dh_batting_required', 'retired_two_way_roles')
+    for record in records:
+        actual = states[record.school_id]
+        if actual.participation() != record:
+            raise ValueError('participation differs from actual game appearances')
+        if final_states is not None and any(
+                getattr(actual, field) != getattr(final_states[record.school_id], field) for field in fields):
+            raise ValueError('replayed final lineup differs from runtime state')
+
+
+def _validate_dh_event_history(records, team_ids, reference_year, known_ids, events,
+                               final_states, ranges, total_plate_appearances):
+    """同じ状態操作を打席前・結果確定後の順に再生し、規則通知の根拠も照合する。"""
+    if events is None:
+        raise ValueError('DH participation validation requires plate appearance events')
+    states = {r.school_id: _participation_start(r, reference_year,
+              None if known_ids is None else known_ids[r.school_id]) for r in records}
+    by_pa = {}
+    for record in records:
+        previous = None
+        for change in record.changes:
+            moment = change.moment
+            expected_type = CompletedPlateAppearanceMoment if change.kind == 'dh_plate_appearance' else ChangeMoment
+            if not isinstance(moment, expected_type):
+                raise ValueError('rule notification has an invalid phase')
+            key = _moment_key(moment)
+            if previous is not None and key < previous:
+                raise ValueError('lineup change moments are out of order')
+            previous = key
+            if not 1 <= key[0] <= total_plate_appearances:
+                raise ValueError('lineup change occurs outside the played game')
+            if ranges:
+                first, last = ranges.get((moment.inning, moment.half), (1, 0))
+                if not first <= key[0] <= last:
+                    raise ValueError('lineup change belongs to another half inning')
+            by_pa.setdefault(key[0], []).append(change)
+    batting_slots = dict.fromkeys(team_ids, 1)
+    previous_half = None
+    previous_bases = None
+    seen = 0
+    for event in events:
+        seen += 1
+        if event.plate_appearance_no != seen:
+            raise ValueError('plate appearances must be contiguous')
+        boundary = by_pa.pop(seen, [])
+        half = (event.inning, event.half)
+        expected_bases = list(previous_bases) if half == previous_half else None
+        before = sorted((c for c in boundary if isinstance(c.moment, ChangeMoment)), key=lambda c: c.moment.order)
+        if [c.moment.order for c in before] != list(range(1, len(before)+1)):
+            raise ValueError('DH boundary changes require a unique execution order')
+        expected_notices = set()
+        for change in before:
+            if (change.moment.inning, change.moment.half) != (event.inning, event.half):
+                raise ValueError('lineup change moment differs from actual event')
+            state = states[change.school_id]
+            opponent_id = next(sid for sid in team_ids if sid != change.school_id)
+            if change.kind == 'dh_opponent_pitcher':
+                if change.school_id not in expected_notices or not state.dh_batting_required:
+                    raise ValueError('opponent starter notification lacks an actual replacement')
+                expected_notices.remove(change.school_id)
+            old_pitcher = state.current_pitcher_id
+            if (expected_bases is not None and change.school_id == event.offense_school_id
+                    and change.kind == 'dh_transition' and change.dh_action is not None):
+                for slot in change.dh_action.batting_changes:
+                    outgoing = state.player_at_order(slot.batting_order)
+                    expected_bases = [slot.player_id if pid == outgoing else pid for pid in expected_bases]
+            apply_lineup_change(state, change)
+            if old_pitcher != state.current_pitcher_id:
+                if (old_pitcher == state.initial_lineup.player_for_position('P')
+                        and states[opponent_id].dh_batting_required):
+                    expected_notices.add(opponent_id)
+        if expected_notices:
+            raise ValueError('missing opponent starter replacement notification')
+        offense, defense = event.offense_school_id, event.defense_school_id
+        if (offense, defense) != (team_ids if event.half == 'top' else tuple(reversed(team_ids))):
+            raise ValueError('event teams differ from actual half inning')
+        if (states[offense].player_at_order(batting_slots[offense]) != event.batter_id
+                or states[defense].current_pitcher_id != event.pitcher_id):
+            raise ValueError('event batter or pitcher differs from lineup history')
+        batting_slots[offense] = batting_slots[offense] % 9 + 1
+        metadata = dict(event.metadata)
+        try:
+            before_bases = metadata['bases_before'].split('|')
+            after_bases = metadata['bases_after'].split('|')
+        except (KeyError, AttributeError) as exc:
+            raise ValueError('DH events require actual base runners') from exc
+        batters = {s.player_id for s in states[offense].batting_order}
+        for runners in (before_bases, after_bases):
+            occupied = [pid for pid in runners if pid]
+            if len(runners) != 3 or len(occupied) != len(set(occupied)) or not set(occupied) <= batters:
+                raise ValueError('base runners differ from actual batting roles')
+        if expected_bases is not None and expected_bases != before_bases:
+            raise ValueError('base runners do not continue the preceding play/substitution')
+        previous_bases = after_bases
+        # 守備交代はP以外の変更も含む。規則通知だけでは出場を増やさない。
+        defense_changed = any(c.school_id == defense and c.defensive_changes for c in before)
+        if half != previous_half or defense_changed:
+            states[defense].record_fielding_appearance()
+        previous_half = half
+        after = [c for c in boundary if isinstance(c.moment, CompletedPlateAppearanceMoment)]
+        required = states[offense].dh_batting_required and states[offense].designated_hitter_id == event.batter_id
+        if len(after) != int(required):
+            raise ValueError('missing or unexpected completed DH plate appearance notification')
+        for change in after:
+            if (change.school_id != offense or change.dh_action is None
+                    or change.dh_action.player_id != event.batter_id
+                    or (change.moment.inning, change.moment.half) != half):
+                raise ValueError('completed DH notification differs from actual event')
+            apply_lineup_change(states[offense], change)
+    if seen != total_plate_appearances or by_pa:
+        raise ValueError('unapplied lineup changes or missing events')
+    _check_final_participation(records, states, final_states)
 
 
 def validate_match_participation(
@@ -683,6 +834,13 @@ def validate_match_participation(
             next_pa += count
         if next_pa - 1 != total_plate_appearances:
             raise ValueError("inning plate appearances differ from batter totals")
+    if any(r.starting_designated_hitter_id is not None for r in records):
+        events = None if events is None else tuple(events)
+        if events and (events[-1].inning, events[-1].half) != (last_inning, ending_half):
+            raise ValueError('last plate appearance differs from game ending')
+        _validate_dh_event_history(records, team_ids, reference_year, known_ids, events,
+                                   final_states, ranges, total_plate_appearances)
+        return
     for record in records:
         previous = None
         for change in record.changes:
@@ -702,20 +860,7 @@ def validate_match_participation(
                 if not first <= moment.next_plate_appearance_no <= last:
                     raise ValueError("lineup change plate appearance does not belong to its half inning")
     def check_final(states):
-        for record in records:
-            actual = states[record.school_id]
-            if actual.participation() != record:
-                raise ValueError("participation differs from actual game appearances")
-            if final_states is not None:
-                expected = final_states[record.school_id]
-                if (actual.batting_order != expected.batting_order
-                        or actual.defensive_alignment != expected.defensive_alignment
-                        or actual.exited_player_ids != expected.exited_player_ids
-                        or actual.fielding_player_ids != expected.fielding_player_ids
-                        or actual.designated_hitter_id != expected.designated_hitter_id
-                        or actual.dh_batting_required != expected.dh_batting_required
-                        or actual.retired_two_way_roles != expected.retired_two_way_roles):
-                    raise ValueError("replayed final lineup differs from runtime state")
+        _check_final_participation(records, states, final_states)
 
     if events is None and half_plate_appearances is None:
         check_final({r.school_id: replay_team_participation(

@@ -329,5 +329,419 @@ class LiveMatchStateTests(unittest.TestCase):
         self.assertTrue(changed)
 
 
+class DHSimulationTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.generator = TeamStrengthGenerator()
+        cls.by_mode = {}
+        for mode in ('none', 'normal', 'pitcher'):
+            teams = []
+            for sid in ('FAKE-DH-SIM-A', 'FAKE-DH-SIM-B'):
+                players = tuple(replace(p, player_id=sid+'-'+p.player_id)
+                                for p in make_roster_abilities(school_id=sid))
+                strength = cls.generator.generate(players, dh_mode=mode)
+                if mode != 'none':
+                    # 第1打席と通知時点を固定する。能力・守備は生成結果のまま。
+                    lineup = strength.starting_lineup
+                    ordered = sorted(lineup.entries, key=lambda e: (e.player_id != lineup.designated_hitter_id, e.batting_order))
+                    slots = {e.player_id: i for i, e in enumerate(ordered, 1)}
+                    lineup = replace(lineup, entries=tuple(replace(e, batting_order=slots[e.player_id]) for e in lineup.entries))
+                    strength = replace(strength, starting_lineup=lineup)
+                teams.append(TeamMatchInput(sid, strength, players))
+            cls.by_mode[mode] = tuple(teams)
+
+    def match(self, mode='normal', teams=None):
+        return MatchSimulationInput('FAKE-DH-FIXED', 'FAKE-DH-CUP', 2026, 20261022,
+                                    *(teams or self.by_mode[mode]), team_generation_seed=2026100701)
+
+    def play(self, mode='normal', *, teams=None, top=('home_run',), bottom=(), changes=(), **kwargs):
+        inp = self.match(mode, teams)
+        sim = _ScriptedSimulator({inp.team2.school_id: top, inp.team1.school_id: bottom}, changes)
+        states = {}
+        result = sim.simulate(inp, regulation_innings=kwargs.pop('regulation_innings', 1), state_sink=states, **kwargs)
+        self.check_result(inp, result, states)
+        return inp, result, states
+
+    def check_result(self, inp, result, states):
+        import json
+        from game_core.match_state import replay_team_participation, TeamMatchParticipation
+        validate_match_simulation_result(result, inp, final_states=states)
+        for record in result.team_participation:
+            restored = replay_team_participation(TeamMatchParticipation.from_dict(json.loads(json.dumps(record.to_dict()))), 2026)
+            actual = states[record.school_id]
+            self.assertEqual(actual.participation(), restored.participation())
+            self.assertEqual(actual.retired_two_way_roles, restored.retired_two_way_roles)
+            self.assertEqual(actual.exited_player_ids, restored.exited_player_ids)
+            self.assertEqual(actual.dh_batting_required, restored.dh_batting_required)
+            self.assertEqual(actual.to_dict(), TeamMatchState.from_dict(json.loads(json.dumps(actual.to_dict()))).to_dict())
+        for sid in states:
+            participants = ({r.player_id for r in result.batter_stats if r.school_id == sid and r.plate_appearances}
+                            | {r.player_id for r in result.pitcher_stats if r.school_id == sid and r.batters_faced}
+                            | set(states[sid].fielding_player_ids))
+            self.assertTrue(participants <= states[sid].registered_player_ids)
+            self.assertEqual(len({r.player_id for r in result.batter_stats if r.school_id == sid}),
+                             len([r for r in result.batter_stats if r.school_id == sid]))
+
+    def test_three_modes_use_nine_batters_and_independent_defense(self):
+        for mode, count in (('none', 9), ('normal', 10), ('pitcher', 9)):
+            with self.subTest(mode=mode):
+                _, result, states = self.play(mode)
+                for record in result.team_participation:
+                    state = states[record.school_id]
+                    self.assertEqual(count, len(state.active_player_ids))
+                    self.assertEqual(9, len(state.batting_order))
+                    self.assertEqual(9, len(state.defensive_alignment))
+                    participants = ({b.player_id for b in result.batter_stats
+                                     if b.school_id == record.school_id and b.plate_appearances}
+                                    | {p.player_id for p in result.pitcher_stats
+                                       if p.school_id == record.school_id and p.batters_faced}
+                                    | set(state.fielding_player_ids))
+                    self.assertEqual(count, len(participants))
+                    if mode == 'normal':
+                        self.assertNotIn(record.starting_pitcher_id, {b.player_id for b in state.batting_order})
+                        self.assertNotIn(record.starting_designated_hitter_id, state.fielding_player_ids)
+                        self.assertNotIn(record.starting_pitcher_id, {b.player_id for b in result.batter_stats})
+                    elif mode == 'pitcher':
+                        self.assertEqual(record.starting_pitcher_id, record.starting_designated_hitter_id)
+                        self.assertTrue(any(b.player_id == record.starting_pitcher_id and b.plate_appearances for b in result.batter_stats))
+
+    def test_normal_dh_multiple_relief_changes_do_not_change_batting_order(self):
+        team = self.by_mode['normal'][1]
+        staff = MatchSimulator._pitcher_order(team)
+        _, result, states = self.play(changes=((staff[0], 1), (staff[1], 1)))
+        state = states[team.school_id]
+        self.assertEqual(3, len([p for p in result.pitcher_stats if p.school_id == team.school_id]))
+        self.assertEqual(tuple(e.player_id for e in sorted(state.initial_lineup.entries, key=lambda e:e.batting_order)),
+                         tuple(b.player_id for b in state.batting_order))
+        self.assertEqual(state.initial_lineup.designated_hitter_id, state.designated_hitter_id)
+
+    def test_two_way_pitcher_role_ends_before_own_first_batting_obligation(self):
+        team = self.by_mode['pitcher'][1]
+        starter = team.team_strength.starting_lineup.designated_hitter_id
+        _, result, states = self.play('pitcher', changes=((starter, 1),))
+        state = states[team.school_id]
+        self.assertEqual(starter, state.designated_hitter_id)
+        self.assertNotIn(starter, state.exited_player_ids)
+        self.assertEqual({'pitcher'}, state.retired_two_way_roles)
+        self.assertTrue(any(b.player_id == starter and b.plate_appearances for b in result.batter_stats))
+        self.assertTrue(any(c.kind == 'dh_plate_appearance' for c in state.history))
+        self.assertFalse(any(c.kind == 'dh_opponent_pitcher' for c in state.history))
+
+    def test_opponent_starter_notification_only_waives_opponents_duty(self):
+        teams = list(self.by_mode['normal'])
+        lineup = teams[0].team_strength.starting_lineup
+        # 先攻DHを9番にして、相手先発交代時点では未打席にする。
+        entries = tuple(replace(e, batting_order=9 if e.batting_order == 1 else e.batting_order-1) for e in lineup.entries)
+        teams[0] = replace(teams[0], team_strength=replace(teams[0].team_strength, starting_lineup=replace(lineup, entries=entries)))
+        starter = teams[1].team_strength.starting_lineup.player_for_position('P')
+        _, _, states = self.play(teams=teams, changes=((starter, 1),))
+        self.assertEqual(['dh_opponent_pitcher'], [c.kind for c in states[teams[0].school_id].history])
+        own = states[teams[1].school_id]
+        self.assertTrue(any(c.kind == 'dh_plate_appearance' for c in own.history))
+        self.assertFalse(any(c.kind == 'dh_opponent_pitcher' for c in own.history))
+
+    def test_two_way_dh_role_can_end_while_pitcher_continues(self):
+        from game_core.match_simulator import LineupAdjustment
+        team = self.by_mode['pitcher'][0]
+        lineup = team.team_strength.starting_lineup
+        bench = next(p.player_id for p in team.player_abilities if p.player_id not in lineup.starter_ids)
+        _, result, states = self.play('pitcher', lineup_changes=(LineupAdjustment(2, team.school_id, ((1, bench),)),))
+        state = states[team.school_id]
+        self.assertEqual(lineup.designated_hitter_id, state.current_pitcher_id)
+        self.assertEqual(bench, state.designated_hitter_id)
+        self.assertEqual({'batter'}, state.retired_two_way_roles)
+        self.assertTrue(any(p.player_id == state.current_pitcher_id and p.batters_faced for p in result.pitcher_stats))
+
+    def test_dh_pinch_runner_inherits_base_and_scores_without_changing_pitcher_liability(self):
+        from game_core.match_simulator import LineupAdjustment
+        for mode in ('normal', 'pitcher'):
+            for event_type, earned in (('walk', 2), ('reached_on_error', 1)):
+                with self.subTest(mode=mode, event_type=event_type):
+                    team = self.by_mode[mode][0]
+                    lineup = team.team_strength.starting_lineup
+                    dh = lineup.designated_hitter_id
+                    bench = next(p.player_id for p in team.player_abilities if p.player_id not in lineup.starter_ids)
+                    opposing_starter = self.by_mode[mode][1].team_strength.starting_lineup.player_for_position('P')
+                    plan = LineupAdjustment(2, team.school_id, ((1, bench),))
+                    inp, result, states = self.play(mode, top=(event_type, 'home_run'),
+                                                  changes=((opposing_starter, 1),), lineup_changes=(plan,))
+                    rows = {b.player_id: b for b in result.batter_stats}
+                    self.assertEqual(0, rows[dh].runs)
+                    self.assertEqual((0, 1), (rows[bench].plate_appearances, rows[bench].runs))
+                    self.assertEqual(bench, dict(result.events[1].metadata)['bases_before'].split('|')[0])
+                    old = next(p for p in result.pitcher_stats if p.player_id == opposing_starter)
+                    self.assertEqual(1, old.runs_allowed)
+                    self.assertEqual(earned, sum(p.earned_runs for p in result.pitcher_stats))
+                    event = result.events[1]
+                    metadata = dict(event.metadata)
+                    metadata['bases_before'] = metadata['bases_before'].replace(bench, dh)
+                    events = (result.events[0], replace(event, metadata=tuple(metadata.items())), *result.events[2:])
+                    with self.assertRaisesRegex(ValueError, 'base runners'):
+                        validate_match_simulation_result(replace(result, events=events), inp)
+                    if mode == 'pitcher':
+                        self.assertEqual(dh, states[team.school_id].current_pitcher_id)
+
+    def test_first_batting_obligation_rejects_early_dh_substitute(self):
+        from game_core.match_simulator import LineupAdjustment
+        team = self.by_mode['pitcher'][1]
+        bench = next(p.player_id for p in team.player_abilities if p.player_id not in team.team_strength.starting_lineup.starter_ids)
+        with self.assertRaisesRegex(ValueError, 'complete the first plate appearance'):
+            self.play('pitcher', lineup_changes=(LineupAdjustment(2, team.school_id, ((1, bench),)),))
+
+    def test_retired_two_way_roles_and_full_exit_cannot_reenter_in_simulation(self):
+        from game_core.match_simulator import LineupAdjustment
+        team = self.by_mode['pitcher'][0]
+        lineup = team.team_strength.starting_lineup
+        starter = lineup.designated_hitter_id
+        bench = [p.player_id for p in team.player_abilities if p.player_id not in lineup.starter_ids]
+        rp = next(pid for pid in MatchSimulator._pitcher_order(team) if pid in bench)
+        batter = next(pid for pid in bench if pid != rp)
+        cases = (
+            (LineupAdjustment(2, team.school_id, defensive_changes=(('P', rp),)),
+             LineupAdjustment(3, team.school_id, defensive_changes=(('P', starter),))),
+            (LineupAdjustment(2, team.school_id, ((1, batter),)),
+             LineupAdjustment(3, team.school_id, ((1, starter),))),
+            (LineupAdjustment(2, team.school_id, ((1, batter),), (('P', rp),)),
+             LineupAdjustment(3, team.school_id, ((1, starter),))),
+        )
+        for plan in cases:
+            with self.subTest(plan=plan), self.assertRaises(ValueError):
+                self.play('pitcher', lineup_changes=plan)
+
+    def test_umpire_approved_medical_exception_allows_unfinished_dh_substitution(self):
+        from game_core.match_simulator import LineupAdjustment
+        team = self.by_mode['pitcher'][1]
+        lineup = team.team_strength.starting_lineup
+        bench = next(p.player_id for p in team.player_abilities if p.player_id not in lineup.starter_ids)
+        plan = LineupAdjustment(2, team.school_id, ((1, bench),), medical_exception='injury', umpire_approved=True)
+        _, _, states = self.play('pitcher', lineup_changes=(plan,))
+        self.assertEqual(bench, states[team.school_id].designated_hitter_id)
+
+    def test_dh_loss_double_switch_and_later_relief_inherit_pitcher_batting_slot(self):
+        from game_core.match_simulator import LineupAdjustment
+        team = self.by_mode['normal'][0]
+        lineup = team.team_strength.starting_lineup
+        bench = [p.player_id for p in team.player_abilities if p.player_id not in lineup.starter_ids]
+        cf_slot = next(e.batting_order for e in lineup.entries if e.defensive_position == 'CF')
+        rp = next(pid for pid in MatchSimulator._pitcher_order(team) if pid in bench)
+        batter = next(pid for pid in bench if pid != rp)
+        plan = LineupAdjustment(2, team.school_id, ((1, batter), (cf_slot, rp)), (('CF', batter), ('P', rp)))
+        _, _, states = self.play(lineup_changes=(plan,), changes=((rp, 1),))
+        state = states[team.school_id]
+        self.assertIsNone(state.designated_hitter_id)
+        self.assertEqual(state.current_pitcher_id, state.player_at_order(cf_slot))
+        self.assertEqual({b.player_id for b in state.batting_order}, {a.player_id for a in state.defensive_alignment})
+
+    def test_pitch_limit_resolves_actual_starter_before_dh_declaration(self):
+        for mode in ('normal', 'pitcher'):
+            team = self.by_mode[mode][1]
+            old = team.team_strength.starting_lineup.player_for_position('P')
+            _, result, states = self.play(mode, pitch_allowances={old: 0})
+            record = result.team_participation[1]
+            self.assertNotEqual(old, record.starting_pitcher_id)
+            self.assertEqual(record.starting_pitcher_id, result.events[0].pitcher_id)
+            self.assertEqual(mode == 'pitcher', record.starting_pitcher_id == record.starting_designated_hitter_id)
+            self.assertFalse(states[team.school_id].exited_player_ids)
+
+    def test_emergency_fielder_can_start_in_both_dh_modes(self):
+        for mode in ('normal', 'pitcher'):
+            team = self.by_mode[mode][1]
+            fielder = team.team_strength.starting_lineup.player_for_position('SS')
+            allowances = {p.player_id: 500 if p.player_id == fielder else 0 for p in team.player_abilities}
+            _, result, _ = self.play(mode, pitch_allowances=allowances)
+            record = result.team_participation[1]
+            self.assertEqual(fielder, record.starting_pitcher_id)
+            self.assertEqual(mode == 'pitcher', fielder == record.starting_designated_hitter_id)
+
+    def test_pitch_limit_forces_fielder_relief_and_dh_loss(self):
+        team = self.by_mode['normal'][1]
+        lineup = team.team_strength.starting_lineup
+        starter = lineup.player_for_position('P')
+        fielder = lineup.player_for_position('SS')
+        allowances = {p.player_id: 0 for p in team.player_abilities}
+        allowances.update({starter: 100, fielder: 500})
+        with patch.object(_ScriptedSimulator, '_pitches', return_value=50):
+            _, result, states = self.play(pitch_allowances=allowances)
+        state = states[team.school_id]
+        self.assertIsNone(state.designated_hitter_id)
+        self.assertEqual(fielder, state.current_pitcher_id)
+        self.assertEqual(lineup.designated_hitter_id, state.player_for_position('SS'))
+        self.assertTrue(all(p.pitches <= allowances.get(p.player_id, 500) for p in result.pitcher_stats))
+
+    def test_pitch_limit_with_no_remaining_pitcher_fails_clearly(self):
+        team = self.by_mode['normal'][1]
+        allowances = {p.player_id: 0 for p in team.player_abilities}
+        allowances[team.team_strength.starting_lineup.player_for_position('P')] = 100
+        with patch.object(_ScriptedSimulator, '_pitches', return_value=100):
+            with self.assertRaisesRegex(ValueError, 'no available relief pitcher'):
+                self.play(pitch_allowances=allowances)
+
+    def test_explicit_fielder_pitching_does_not_discard_unused_relief_pitchers(self):
+        from game_core.match_simulator import LineupAdjustment
+        team = self.by_mode['normal'][1]
+        lineup = team.team_strength.starting_lineup
+        fielder = lineup.player_for_position('SS')
+        # 先発DHを空いたSSへ回す。野手Pは既定の投手陣順には入っていない。
+        plan = LineupAdjustment(2, team.school_id, defensive_changes=(('P', fielder), ('SS', lineup.designated_hitter_id)))
+        _, result, states = self.play(lineup_changes=(plan,), changes=((fielder, 1),))
+        state = states[team.school_id]
+        self.assertNotEqual(fielder, state.current_pitcher_id)
+        self.assertEqual(3, len([p for p in result.pitcher_stats if p.school_id == team.school_id and p.batters_faced]))
+
+    def test_last_walkoff_plate_appearance_has_completion_without_fictional_next_pa(self):
+        from game_core.match_state import CompletedPlateAppearanceMoment
+        _, result, states = self.play(top=(), bottom=('home_run',))
+        state = states[result.team2_school_id]
+        completion = next(c for c in state.history if c.kind == 'dh_plate_appearance')
+        self.assertIsInstance(completion.moment, CompletedPlateAppearanceMoment)
+        self.assertEqual(len(result.events), completion.moment.completed_plate_appearance_no)
+        self.assertEqual('bottom', completion.moment.half)
+
+    def test_tiebreak_uses_actual_dh_batting_order(self):
+        _, result, states = self.play(top=('field_out',)*3+('home_run',),
+                                      regulation_innings=1, rules=GameRules(tiebreak_start_inning=2))
+        event = next(e for e in result.events if e.inning == 2)
+        state = states[event.offense_school_id]
+        self.assertEqual('|'.join((state.player_at_order(3), state.player_at_order(2), '')), dict(event.metadata)['bases_before'])
+        self.assertEqual(3, event.runs_scored)
+        self.assertEqual(1, sum(p.earned_runs for p in result.pitcher_stats))
+
+    def test_tiebreak_runners_reflect_substitution_before_first_extra_inning_batter(self):
+        from game_core.match_simulator import LineupAdjustment
+        team = self.by_mode['normal'][0]
+        lineup = team.team_strength.starting_lineup
+        second = next(e for e in lineup.entries if e.batting_order == 2)
+        bench = next(p.player_id for p in team.player_abilities if p.player_id not in lineup.starter_ids)
+        plan = LineupAdjustment(7, team.school_id, ((2, bench),), ((second.defensive_position, bench),))
+        _, result, _ = self.play(top=('field_out',)*3+('home_run',), lineup_changes=(plan,),
+                                  rules=GameRules(tiebreak_start_inning=2))
+        event = next(e for e in result.events if e.inning == 2)
+        self.assertEqual(bench, dict(event.metadata)['bases_before'].split('|')[1])
+
+    def test_dh_relief_preserves_inherited_runs_and_earned_runs(self):
+        for mode in ('normal', 'pitcher'):
+            starter = self.by_mode[mode][1].team_strength.starting_lineup.player_for_position('P')
+            _, result, _ = self.play(mode, top=('walk', 'walk', 'home_run'), changes=((starter, 1),))
+            row = next(p for p in result.pitcher_stats if p.player_id == starter)
+            self.assertEqual((1, 1), (row.runs_allowed, row.earned_runs))
+            self.assertEqual(3, sum(p.runs_allowed for p in result.pitcher_stats))
+
+    def test_cold_game_and_skipped_bottom_have_valid_notifications(self):
+        _, result, _ = self.play(top=(), bottom=('home_run',), regulation_innings=9, rules=GameRules(mercy=((2, 1),)))
+        self.assertEqual('top', result.ending_half)
+        self.assertFalse(result.inning_scores[-1].was_played)
+
+    def test_all_three_modes_are_deterministic_with_real_probability_model(self):
+        for mode in self.by_mode:
+            inp = self.match(mode)
+            sim = MatchSimulator()
+            self.assertEqual(sim.simulate(inp).to_dict(), sim.simulate(inp).to_dict())
+
+    def test_selection_uses_best_available_dh_batting_and_two_way_pitcher(self):
+        players = self.by_mode['normal'][0].player_abilities
+        target = next(p for p in players if p.primary_position == 'P')
+        target = replace(target, contact=100, power=100, plate_discipline=100, strikeout_resistance=100,
+                         stuff=1, control=1, stamina=1, strikeout=1)
+        players = tuple(target if p.player_id == target.player_id else p for p in players)
+        normal = self.generator.select_starting_lineup(players, dh_mode='normal')
+        defense = {a.player_id for a in normal.defense}
+        self.assertNotIn(target.player_id, defense)
+        self.assertEqual(target.player_id, normal.designated_hitter_id)
+        dual = self.generator.select_starting_lineup(players, dh_mode='pitcher')
+        self.assertNotEqual(target.player_id, dual.designated_hitter_id)
+        target = replace(target, velocity_kmh=165, stuff=100, control=100, stamina=100, strikeout=100,
+                         groundball=100, composure=100)
+        players = tuple(target if p.player_id == target.player_id else p for p in players)
+        dual = self.generator.select_starting_lineup(players, dh_mode='pitcher')
+        self.assertEqual(target.player_id, dual.designated_hitter_id)
+
+    def test_unavailable_or_unregistered_starter_and_too_small_dh_roster_are_rejected(self):
+        from game_core.match_contract import validate_match_simulation_input
+        inp = self.match()
+        team = inp.team1
+        pid = team.team_strength.starting_lineup.player_for_position('P')
+        for bad in (replace(team, player_abilities=tuple(p for p in team.player_abilities if p.player_id != pid)),
+                    replace(team, registered_player_ids=frozenset(p.player_id for p in team.player_abilities if p.player_id != pid))):
+            with self.assertRaises(ValueError):
+                validate_match_simulation_input(replace(inp, team1=bad))
+        with self.assertRaises(ValueError):
+            self.generator.generate(team.player_abilities[:9], dh_mode='normal')
+
+    def test_forged_completed_notification_phase_or_missing_notification_is_rejected(self):
+        from game_core.match_state import ChangeMoment
+        inp, result, _ = self.play()
+        record = result.team_participation[0]
+        completion = record.changes[0]
+        bad = replace(completion, moment=ChangeMoment(1, 'top', 1, 1))
+        for changes in ((), (bad,)):
+            with self.assertRaises(ValueError):
+                validate_match_simulation_result(replace(result, team_participation=(replace(record, changes=changes), result.team_participation[1])), inp)
+
+    def test_opponent_starter_notice_cannot_precede_actual_replacement(self):
+        teams = list(self.by_mode['normal'])
+        lineup = teams[0].team_strength.starting_lineup
+        entries = tuple(replace(e, batting_order=9 if e.batting_order == 1 else e.batting_order-1) for e in lineup.entries)
+        teams[0] = replace(teams[0], team_strength=replace(teams[0].team_strength, starting_lineup=replace(lineup, entries=entries)))
+        starter = teams[1].team_strength.starting_lineup.player_for_position('P')
+        inp, result, _ = self.play(teams=teams, changes=((starter, 1),))
+        records = []
+        for record in result.team_participation:
+            changes = tuple(replace(c, moment=replace(c.moment, order=3-c.moment.order))
+                            if getattr(c.moment, 'next_plate_appearance_no', None) == 2 else c for c in record.changes)
+            records.append(replace(record, changes=changes))
+        with self.assertRaisesRegex(ValueError, 'lacks an actual replacement'):
+            validate_match_simulation_result(replace(result, team_participation=tuple(records)), inp)
+
+    def test_forged_pitcher_pitch_counts_are_rejected(self):
+        inp, result, _ = self.play()
+        rows = (replace(result.pitcher_stats[0], pitches=result.pitcher_stats[0].pitches+1), *result.pitcher_stats[1:])
+        with self.assertRaisesRegex(ValueError, 'individual stats differ'):
+            validate_match_simulation_result(replace(result, pitcher_stats=rows), inp)
+
+    def test_forged_individual_batting_stats_are_rejected_with_unchanged_team_totals(self):
+        inp, result, _ = self.play()
+        rows = list(result.batter_stats)
+        first, second = rows[:2]
+        rows[0] = replace(first, player_id=second.player_id)
+        rows[1] = replace(second, player_id=first.player_id)
+        with self.assertRaisesRegex(ValueError, 'individual stats differ'):
+            validate_match_simulation_result(replace(result, batter_stats=tuple(rows)), inp)
+
+    def test_dh_records_cannot_enter_option_a_or_live_resolver(self):
+        from game_core.tournament_bridge import AbilityMatchResolver
+        from phase2_engine.historical_match_archive import _validate_participation_payload
+        inp, result, _ = self.play()
+        with self.assertRaisesRegex(ValueError, 'DH match persistence is not connected'):
+            _validate_participation_payload({'team_participation': [r.to_dict() for r in result.team_participation]})
+        live = object.__new__(AbilityMatchResolver)
+        live.team_input = lambda **kw: inp.team1 if kw['school_id'] == inp.team1.school_id else inp.team2
+        with self.assertRaisesRegex(ValueError, 'live progression/persistence'):
+            live(match_id=inp.match_id, competition_id=inp.competition_id, reference_year=2026,
+                 generation_seed=20261022, team1=inp.team1.school_id, team2=inp.team2.school_id)
+
+    def test_dh_result_from_injected_simulator_is_rejected_before_live_side_effects(self):
+        from unittest.mock import Mock
+        from game_core.coaches import CoachTactics
+        from game_core.tournament_bridge import AbilityMatchResolver
+        _, result, _ = self.play()
+        inp = self.match('none')
+        live = object.__new__(AbilityMatchResolver)
+        live.team_input = lambda **kw: inp.team1 if kw['school_id'] == inp.team1.school_id else inp.team2
+        live._match_day = lambda: None
+        live._coach_tactics = lambda *a: CoachTactics()
+        live.rules_for = lambda *a: GameRules()
+        live._pitch_allowances = lambda *a: None
+        live.simulator = SimpleNamespace(simulate=lambda *a, **kw: result)
+        live._record_pitches = Mock()
+        live._record_games = Mock()
+        live.detail_sink = {}
+        with self.assertRaisesRegex(ValueError, 'DH results cannot enter'):
+            live(match_id=inp.match_id, competition_id=inp.competition_id, reference_year=2026,
+                 generation_seed=20261022, team1=inp.team1.school_id, team2=inp.team2.school_id)
+        live._record_pitches.assert_not_called()
+        live._record_games.assert_not_called()
+        self.assertEqual({}, live.detail_sink)
+
+
 if __name__ == '__main__':
     unittest.main()
