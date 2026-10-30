@@ -110,6 +110,15 @@ class PitchingStaff:
 
 
 @dataclass(frozen=True)
+class DHSelection:
+    """試合前の比較結果。共有キャッシュや試合の永久記録には入れない。"""
+    mode: str
+    reason: str
+    normal_gain: float = 0.0
+    pitcher_gain: float = 0.0
+
+
+@dataclass(frozen=True)
 class TeamStrengthSnapshot:
     school_id: str
     reference_year: int
@@ -311,6 +320,54 @@ class TeamStrengthGenerator:
             for ability_id in weights
         }
         return _weighted(values, weights)
+
+    def select_dh_mode(self, snapshots: Iterable[PlayerAbilitySnapshot], *,
+                       starting_pitcher_id: str, replacement_batter_id: str,
+                       starter_share: float, selection_grade_bias: float = 0.0,
+                       minimum_batting_gain: float = 0.0,
+                       two_way_requires_lineup_bat: bool = True,
+                       baseline_batter_ids: Iterable[str] | None = None) -> DHSelection:
+        """同じ実先発で、打順9枠の予想打撃合成値を比較する。
+
+        DHなしは継投後の打者へ移る。兼任は先発の打撃を残せるが、
+        より打てる救援への打順引継ぎを失う。通常DHには10人が必要。
+        """
+        players = tuple(snapshots)
+        self._validate_source(list(players))
+        by_id = {p.player_id: p for p in players}
+        pitcher = by_id[starting_pitcher_id]
+        if pitcher.primary_position != 'P':
+            return DHSelection('none', 'emergency_pitcher')
+        if not 0 <= starter_share <= 1:
+            raise ValueError('starter batting share must be within 0..1')
+        batting = self._batting_composite
+        own = batting(pitcher)
+        lineup = self.select_starting_lineup(players, dh_mode='pitcher',
+            starting_pitcher_id=starting_pitcher_id, selection_grade_bias=selection_grade_bias)
+        fielders = [by_id[a.player_id] for a in lineup.defense if a.defensive_position != 'P']
+        baseline_ids = tuple(baseline_batter_ids) if baseline_batter_ids is not None else tuple(
+            [p.player_id for p in fielders] + [starting_pitcher_id])
+        if len(set(baseline_ids)) != 9 or starting_pitcher_id not in baseline_ids:
+            raise ValueError('DH comparison requires nine actual no-DH batters including starter')
+        # 少人数校で実先発が元の野手だった場合も、組み直した8人との差を含める。
+        alignment_gain = sum(batting(p) for p in fielders) - sum(
+            batting(by_id[pid]) for pid in baseline_ids if pid != starting_pitcher_id)
+        baseline = starter_share * own + (1-starter_share) * batting(by_id[replacement_batter_id])
+        pitcher_gain = round(alignment_gain + own - baseline, 10)
+        normal_gain = 0.0
+        two_way = not two_way_requires_lineup_bat or own >= fmean(batting(p) for p in fielders)
+        if len(players) >= 10:
+            lineup = self.select_starting_lineup(players, dh_mode='normal',
+                starting_pitcher_id=starting_pitcher_id, selection_grade_bias=selection_grade_bias)
+            normal_gain = round(alignment_gain + batting(by_id[lineup.designated_hitter_id]) - baseline, 10)
+        # 同点はDHなし、通常DHと兼任の改善量が同じなら通常DHを優先する。
+        if normal_gain > minimum_batting_gain and (not two_way or normal_gain >= pitcher_gain):
+            return DHSelection('normal', 'lineup_improvement', normal_gain, pitcher_gain)
+        if two_way and pitcher_gain > minimum_batting_gain:
+            return DHSelection('pitcher', 'retain_starter_bat', normal_gain, pitcher_gain)
+        return DHSelection('none', 'insufficient_players' if len(players) < 10 else
+                           'not_two_way_bat' if not two_way and pitcher_gain > minimum_batting_gain else 'no_batting_gain',
+                           normal_gain, pitcher_gain)
 
     def select_starting_lineup(
         self,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 import re
 from copy import deepcopy
@@ -39,6 +40,7 @@ class AbilityMatchResolver:
         team_generation_seed: int | None = None,
         roster_provider: Callable[[int, str], SchoolRoster | None] | None = None,
         member_provider: Callable[[str, str], CompetitionMembers] | None = None,
+        dh_enabled: bool | None = None,
     ):
         self.repo = repo
         self.roster_generator = PlayerRosterGenerator()
@@ -62,6 +64,15 @@ class AbilityMatchResolver:
             json.loads(rules_path.read_text(encoding="utf-8"))
             if rules_path.is_file() else None
         )
+        dh_settings = (self.game_rules or {}).get('dh_selection', {})
+        self.dh_enabled = dh_settings.get('enabled', False) if dh_enabled is None else dh_enabled
+        self._dh_minimum_gain = dh_settings.get('minimum_batting_gain', 0.0)
+        self._dh_two_way_lineup_bat = dh_settings.get('two_way_requires_lineup_bat', True)
+        if (type(self.dh_enabled) is not bool or isinstance(self._dh_minimum_gain, bool)
+                or type(self._dh_two_way_lineup_bat) is not bool
+                or not isinstance(self._dh_minimum_gain, (int, float))
+                or not math.isfinite(self._dh_minimum_gain) or self._dh_minimum_gain < 0):
+            raise ValueError('invalid DH selection settings')
         # 進行中の年度の状態（本大会の何回戦か・あと何回戦かを見る）。
         # live_members.PlayerSeason.attach で入れる
         self.season_state = None
@@ -460,6 +471,56 @@ class AbilityMatchResolver:
                 days = log.setdefault(stat.player_id, {})
                 days[day.isoformat()] = days.get(day.isoformat(), 0) + stat.pitches
 
+    def _select_dh_input(self, team, allowances, tactics, *, competition_id=''):
+        """キャッシュされた当日選手集合から、この試合だけの申告を作る。"""
+        if not self.dh_enabled:
+            return team
+        # 明示入力の申告は上書きしない。テスト・直接試合の指定と全国AIを分離する。
+        if team.team_strength.starting_lineup.designated_hitter_id is not None:
+            return team
+        source = self.ability_generator.source
+        day = self._match_day()
+        if self.member_provider is not None and source is not None and day is not None and hasattr(source, 'condition'):
+            available = {p.player_id for p in team.player_abilities}
+            members = self.member_provider(competition_id, team.school_id).players
+            if any(p.player_id in available and source.condition(p, day)[0] for p in members):
+                # 健康な9人も揃わない既存の救済経路では、追加のDHを起用しない。
+                return team
+        order, _ = self.simulator._game_staff(team, allowances)
+        if not order:
+            return team  # 球数制限による試合不可は既存シミュレーターが扱う。
+        actual = order[0]
+        players = {p.player_id: p for p in team.player_abilities}
+        pitcher = self.simulator._as_pitcher(players[actual])
+        base = self.simulator._initial_state(team, actual)
+        replacement = order[1] if len(order) > 1 else actual
+        if replacement in {s.player_id for s in base.batting_order}:
+            replacement = actual  # 野手の登板では元の投手の打順が残る。
+        model = self.simulator.params
+        pa_model = model['plate_appearance_model']
+        weights = {event: max(pa_model['probability_floor'], weight)
+                   for event, weight in pa_model['base_probabilities'].items()}
+        total = sum(weights.values())
+        outs = sum(weights.get(e, 0) for e in ('strikeout', 'field_out', 'fielder_choice'))
+        expected_bf = model['innings']['default_regulation_innings'] * 3 * total / outs
+        pitch_mean = sum(w * (model['pitch_count']['by_event'][e][0]
+                              + model['pitch_count']['by_event'][e][1]/2) for e, w in weights.items()) / total
+        limit = self.simulator._pitcher_limit(pitcher, starter=True) * tactics.bf_multiplier
+        if allowances is not None:
+            limit = min(limit, allowances.get(actual, math.inf) / pitch_mean)
+        decision = self.team_generator.select_dh_mode(team.player_abilities,
+            starting_pitcher_id=actual, replacement_batter_id=replacement,
+            starter_share=min(1.0, max(0.0, limit / expected_bf)),
+            selection_grade_bias=tactics.selection_grade_bias, minimum_batting_gain=self._dh_minimum_gain,
+            two_way_requires_lineup_bat=self._dh_two_way_lineup_bat,
+            baseline_batter_ids=tuple(s.player_id for s in base.batting_order))
+        if decision.mode == 'none':
+            return team
+        strength = self.team_generator.generate(team.player_abilities,
+            dh_mode=decision.mode, starting_pitcher_id=actual,
+            selection_grade_bias=tactics.selection_grade_bias)
+        return replace(team, team_strength=strength)
+
     def _rounds_left(self, competition_id: str, match_id: str) -> int | None:
         """本大会の試合なら、決勝まであと何回戦か（決勝は0）。分からなければ None。"""
         found = re.search(r"-MAIN-R(\d+)-", match_id)
@@ -513,6 +574,11 @@ class AbilityMatchResolver:
             raise ValueError(
                 "ability resolver team generation seed mismatch"
             )
+        day = self._match_day()
+        tactics = {sid: self._coach_tactics(sid, day) for sid in (team1, team2)}
+        allowances = self._pitch_allowances((team1_input, team2_input), day)
+        team1_input = self._select_dh_input(team1_input, allowances, tactics[team1], competition_id=competition_id)
+        team2_input = self._select_dh_input(team2_input, allowances, tactics[team2], competition_id=competition_id)
         match_input = MatchSimulationInput(
             match_id=match_id,
             competition_id=competition_id,
@@ -522,14 +588,10 @@ class AbilityMatchResolver:
             team2=team2_input,
             team_generation_seed=team_generation_seed,
         )
-        day = self._match_day()
-        tactics = {sid: self._coach_tactics(sid, day) for sid in (team1, team2)}
         result = self.simulator.simulate(
             match_input,
             rules=self.rules_for(competition_id, match_id),
-            pitch_allowances=self._pitch_allowances(
-                (team1_input, team2_input), day,
-            ),
+            pitch_allowances=allowances,
             **({"tactics": tactics} if any(t != CoachTactics() for t in tactics.values()) else {}),
         )
         dh_detail = None

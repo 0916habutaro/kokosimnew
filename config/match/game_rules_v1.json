@@ -1,6 +1,6 @@
 {
   "config_id": "game_rules_v1",
-  "revision": 2,
+  "revision": 3,
   "status": "rules_2026_10_26",
   "description_ja": "高校野球の試合の規定（game_definition.md §11）。タイブレーク・得点差コールド・球数制限。どの大会・どの試合に使うかもここで決める。",
   "tiebreak": {
@@ -19,6 +19,12 @@
     "pitches": 500,
     "days": 7,
     "source_ja": "1人の投手が投げられるのは1週間（試合の日を含む7日間）に500球まで。日本高野連・都道府県高野連が主催するすべての公式戦。2020年春から試行、2025年から高校野球特別規則（高校野球ドットコム https://www.hb-nippon.com/articles/2629）。上限に届いた打者の打撃が終わるまでは投げられ、次の打者から交代する（センバツLIVE！ https://news.yahoo.co.jp/articles/0df36cffe66cbcf8e7fa7b297250d82b0d2cbd3b）"
+  },
+  "dh_selection": {
+    "enabled": true,
+    "minimum_batting_gain": 0.0,
+    "two_way_requires_lineup_bat": true,
+    "notes_ja": "全正式試合で開始前に能力を比較する。実先発を球数制限で確定し、投手の打順1枠についてDHなし（継投後の打者を含む）、通常DH、兼任DHの予想打撃合成値を比較する。兼任候補は自校の先発野手8人の平均以上の打撃合成値を要する。先発の打撃比率は既存のBF基準・スタミナ・采配・球数残量と中立打席モデルから概算する。改善がない同点はDHなし。採用率の目標や乱数は使わない。兼任による降板後の打撃継続と、打撃役を固定する制約を比較する。"
   },
   "notes_ja": {
     "thresholds": "[回, 点差]：その回が終わった時点（後攻が勝っているときは表が終わった時点）で点差がこれ以上なら試合終了",
