@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from game_core.match_state import TeamMatchParticipation, apply_lineup_change, replay_team_participation
+from game_core.match_state import (TeamMatchParticipation, ChangeMoment, CompletedPlateAppearanceMoment,
+                                  apply_lineup_change, replay_team_participation)
 
 from ..competition_schedule_runtime import SCHEDULE_PENDING
 from ..tournament_runtime import MATCH_BYE, MainTournamentRuntimeState
@@ -36,6 +37,7 @@ EVENT_LABELS = {
     "strikeout": "三振",
 }
 POSITION_LABELS = {
+    'DH': 'DH', 'P_DH': '投・DH',
     "P": "投", "C": "捕", "1B": "一", "2B": "二", "3B": "三",
     "SS": "遊", "LF": "左", "CF": "中", "RF": "右",
 }
@@ -312,6 +314,114 @@ def _outs_to_innings(outs: int) -> str:
     return f"{whole}" + (f" {rest}/3" if rest else "")
 
 
+def _dh_match_lineups(detail, teams, names, player_name, year):
+    """DHも同じ状態操作で再生。内部規則通知は選手交代の表示に混ぜない。"""
+    lineups, changes = {}, []
+    positions, orders = {t: {} for t in teams}, {t: {} for t in teams}
+    exited, fielding = {}, {}
+    halves = []
+    next_pa = 1
+    for row in detail['inning_scores']:
+        if row['plate_appearances']:
+            halves.append((next_pa, next_pa+row['plate_appearances']-1, row['half']))
+        next_pa += row['plate_appearances']
+
+    def person(team, pid):
+        return dict(player_id=pid, name=player_name(team, pid))
+
+    def roles(state):
+        result = {a.player_id: a.defensive_position for a in state.defensive_alignment}
+        if state.designated_hitter_id:
+            result[state.designated_hitter_id] = ('P_DH' if state.current_pitcher_id == state.designated_hitter_id else 'DH')
+        return result
+
+    for raw in detail['team_participation']:
+        record = TeamMatchParticipation.from_dict(raw)
+        team = record.school_id
+        final = replay_team_participation(record, year)
+        state = replay_team_participation(replace(record, changes=(), fielding_player_ids=()), year,
+                                          registered=final.registered_player_ids)
+        exited[team], fielding[team] = final.exited_player_ids, set(record.fielding_player_ids)
+        dh = record.starting_designated_hitter_id
+        lineups[team] = dict(starting_pitcher_id=record.starting_pitcher_id, players=[
+            {**person(team, s.player_id), 'batting_order': s.batting_order,
+             'position_code': 'P_DH' if s.player_id == dh == record.starting_pitcher_id else s.defensive_position,
+             'position': POSITION_LABELS['P_DH' if s.player_id == dh == record.starting_pitcher_id else s.defensive_position]}
+            for s in sorted(record.starting_lineup, key=lambda s: s.batting_order)])
+        lineups[team]['designated_hitter_id'] = dh
+        lineups[team]['retired_roles'] = ({dh: sorted(final.retired_two_way_roles)}
+                                         if dh == record.starting_pitcher_id else {})
+        if dh is not None and dh != record.starting_pitcher_id:
+            lineups[team]['pitcher'] = {**person(team, record.starting_pitcher_id), 'batting_order': None,
+                                      'position_code': 'P', 'position': '投（打順外）'}
+        orders[team].update((s.player_id, s.batting_order) for s in state.batting_order)
+
+        def apply(change):
+            before_roles = roles(state)
+            before_bats = state.batting_order
+            old_dh, old_p = state.designated_hitter_id, state.current_pitcher_id
+            old_exited, old_retired = state.exited_player_ids, state.retired_two_way_roles
+            apply_lineup_change(state, change)
+            if change.kind in ('dh_plate_appearance', 'dh_opponent_pitcher'):
+                return
+            after_roles = roles(state)
+            batting = [dict(batting_order=b.batting_order, outgoing=person(team, a.player_id),
+                            incoming=person(team, b.player_id))
+                       for a, b in zip(before_bats, state.batting_order, strict=True) if a.player_id != b.player_id]
+            orders[team].update((b.player_id, b.batting_order) for b in state.batting_order)
+            dh_lost = old_dh is not None and state.designated_hitter_id is None
+            p_changed = old_p != state.current_pitcher_id
+            labels = (['DH解除'] if dh_lost else []) + (['投手交代'] if p_changed else [])
+            if not labels:
+                labels = ['DH交代' if old_dh != state.designated_hitter_id else '選手交代' if batting else '守備変更']
+            changes.append(dict(
+                sequence=change.sequence, school_id=team, school_name=names(team),
+                inning=change.moment.inning, half=HALF_LABELS[change.moment.half],
+                next_plate_appearance_no=change.moment.next_plate_appearance_no, order=change.moment.order,
+                kind=change.kind, label='・'.join(labels), outgoing=None, incoming=None, batting_order=None,
+                moves=[{**person(team, pid), 'before': POSITION_LABELS[before_roles[pid]],
+                        'after': POSITION_LABELS[after_roles[pid]]} for pid in sorted(before_roles.keys() & after_roles.keys())
+                       if before_roles[pid] != after_roles[pid]],
+                batting_changes=batting, dh_ended=dh_lost,
+                pitcher_change=(dict(outgoing=person(team, old_p), incoming=person(team, state.current_pitcher_id)) if p_changed else None),
+                fully_exited=[person(team, pid) for pid in sorted(state.exited_player_ids-old_exited)],
+                roles_ended=[{**person(team, dh), 'role': '投手' if role == 'pitcher' else '打撃'}
+                             for role in sorted(state.retired_two_way_roles-old_retired)]))
+
+        def note(pid, role):
+            history = positions[team].setdefault(pid, [])
+            if not history or history[-1] != role:
+                history.append(role)
+
+        cursor = 0
+        for first, last, half in halves:
+            defense = teams[1] if half == 'top' else teams[0]
+            for pa in range(first, last+1):
+                while cursor < len(record.changes):
+                    change = record.changes[cursor]
+                    if not isinstance(change.moment, ChangeMoment) or change.moment.next_plate_appearance_no != pa:
+                        break
+                    apply(change)
+                    cursor += 1
+                actual_roles = roles(state)
+                if defense == team:
+                    for a in state.defensive_alignment:
+                        if a.player_id in fielding[team]:
+                            note(a.player_id, actual_roles[a.player_id])
+                elif state.designated_hitter_id:
+                    note(state.designated_hitter_id, actual_roles[state.designated_hitter_id])
+                while cursor < len(record.changes):
+                    change = record.changes[cursor]
+                    if not isinstance(change.moment, CompletedPlateAppearanceMoment) or change.moment.completed_plate_appearance_no != pa:
+                        break
+                    apply(change)
+                    cursor += 1
+        if cursor != len(record.changes):
+            raise ValueError('unplayed lineup change in screen record')
+    changes.sort(key=lambda c: (c['next_plate_appearance_no'], c['order'], teams.index(c['school_id']), c['sequence']))
+    return lineups, changes, positions, orders, exited, fielding
+
+
 def _match_lineups(detail, teams, names, player_name, year):
     """保存済みの配置を既存の復元操作でたどり、表示用の行と守備履歴へ投影する。"""
     lineups = dict.fromkeys(teams)
@@ -322,6 +432,9 @@ def _match_lineups(detail, teams, names, player_name, year):
     fielding = {team: set() for team in teams}
     if not detail.get("team_participation"):
         return lineups, changes, positions, orders, exited, fielding
+    if any(r.get('starting_designated_hitter_id') is not None
+           or any(c.get('dh_action') is not None for c in r['changes']) for r in detail['team_participation']):
+        return _dh_match_lineups(detail, teams, names, player_name, year)
 
     spans = []
     next_pa = 1
@@ -505,4 +618,24 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
         ]
         for team in (team1, team2)
     }
+    for team in (team1, team2):
+        lineup = lineups[team]
+        if not lineup or lineup.get('designated_hitter_id') is None:
+            continue
+        endings = lineup['retired_roles']
+        batting_ids = {b['player_id'] for b in out['batting'][team]}
+        for table in ('batting', 'pitching'):
+            for stat in out[table][team]:
+                pid = stat['player_id']
+                ended = endings.get(pid, ())
+                labels = [('投手役終了' if role == 'pitcher' else '打撃役終了') for role in ended]
+                if not labels:
+                    if pid not in batting_ids:
+                        labels = ['守備専任']
+                    elif pid not in fielding[team]:
+                        labels = ['打撃専任']
+                stat['role_label'] = '・'.join(labels)
+                if table == 'pitching':
+                    stat['position'] = position(team, pid)
+                    stat['exited'] = pid in exited[team]
     return out

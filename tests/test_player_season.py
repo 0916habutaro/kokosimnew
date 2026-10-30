@@ -151,5 +151,47 @@ class PlayerSeasonServiceTests(unittest.TestCase):
             self.assertTrue(all(" " in b["name"] for b in batting))
 
 
+class DHPlayerSaveTests(unittest.TestCase):
+    def test_explicit_dh_games_survive_real_service_save_resume_without_duplicate_archive_rows(self):
+        from dataclasses import replace
+        from game_core.tournament_bridge import AbilityMatchResolver
+        import test_stage13e3e2_save_slots_game_service as small
+        small.Stage13E3E2SaveSlotsGameServiceTests.setUpClass()
+        fixture = small.Stage13E3E2SaveSlotsGameServiceTests()
+        original = AbilityMatchResolver.team_input
+
+        def explicit_dh(resolver, **kwargs):
+            team = original(resolver, **kwargs)
+            if kwargs.get('competition_id') == 'CMP000029':
+                team = replace(team, team_strength=resolver.team_generator.generate(team.player_abilities, dh_mode='normal'))
+            return team
+
+        with tempfile.TemporaryDirectory() as tmp:
+            service = LiveGameService(fixture.repo, DATA_ROOT, save_root=tmp,
+                resolver_contract=PLAYER_RESOLVER_CONTRACT, autosave_after_action=False,
+                planner_factory=fixture._planner_factory)
+            with patch.object(AbilityMatchResolver, 'team_input', explicit_dh):
+                session = service.new_game('dh', rng_seed=fixture.seed, start_date='2026-07-01',
+                                           injury_level='none', save_initial=False)
+                session.state.advance_through('2026-07-12')
+                service.save_game(session)
+                index = service.historical_match_index('dh', 2026)
+                dh_rows = []
+                for row in index:
+                    saved = service.historical_match('dh', 2026, row['competition_id'], row['match_id'])
+                    if any(r.get('starting_designated_hitter_id') for r in saved.get('team_participation', ())):
+                        dh_rows.append((row, saved))
+                self.assertTrue(dh_rows)
+                loaded = service.load_game('dh')
+                self.assertEqual(session.state.completed_results(), loaded.state.completed_results())
+                service.save_game(loaded)
+                self.assertEqual(len(index), len(service.historical_match_index('dh', 2026)))
+                row, before = dh_rows[0]
+                self.assertEqual(before, service.historical_match('dh', 2026, row['competition_id'], row['match_id']))
+                view = GameScreenData(service, loaded).match(2026, row['competition_id'], row['match_id'])
+                self.assertTrue(all(lineup.get('pitcher') for lineup in view['lineups'].values()))
+                self.assertFalse(loaded.state.pending_match_details)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -729,20 +729,21 @@ async function renderMatches(content) {
 async function renderMatchDetail(content, detail) {
   const m = await call("match", detail.year, detail.competitionId, detail.matchId);
   if (!m) return;
+  const hasDh = Object.values(m.lineups || {}).some((r) => r && r.designated_hitter_id);
   const link = (team, person) => playerLink(team, person.player_id, person.name, m.school_year);
   const highlights = (m.highlights || []).map((h) => h.kind === "score"
     ? `<div class="hl ${h.is_home_run ? "hr" : ""}"><span class="inn">${h.inning}回${h.half}</span><span class="what">${esc(h.school_name)}　${esc(h.player_name)}　${esc(h.event)}で${h.runs}点</span></div>`
     : `<div class="hl pc"><span class="inn">${h.inning}回${h.half}</span><span class="what">${esc(h.school_name)}　投手交代 → ${esc(h.player_name)}</span></div>`).join("");
-  const batting = (team) => `<div class="match-table-wrap"><table class="stat-table batting-table"><tr><th>打順</th><th>打者</th><th>守備</th><th>打数</th><th>安打</th><th>打点</th><th>本塁打</th><th>四球</th><th>三振</th></tr>
-    ${(m.batting[team] || []).map((b) => `<tr><td>${b.batting_order || "−"}</td><td>${link(team, b)}${b.exited ? '<small class="appearance">交代済</small>' : ""}</td><td class="pos">${esc(b.position)}</td><td>${b.at_bats}</td><td>${b.hits}</td><td>${b.rbi}</td><td>${b.home_runs}</td><td>${b.walks}</td><td>${b.strikeouts}</td></tr>`).join("")}</table></div>`;
+  const batting = (team) => `<div class="match-table-wrap"><table class="stat-table batting-table"><tr><th>打順</th><th>打者</th><th>${hasDh ? "守備・役割" : "守備"}</th><th>打数</th><th>安打</th><th>打点</th><th>本塁打</th><th>四球</th><th>三振</th></tr>
+    ${(m.batting[team] || []).map((b) => `<tr><td>${b.batting_order || "−"}</td><td>${link(team, b)}${b.exited ? '<small class="appearance">交代済</small>' : ""}${b.role_label ? `<small class="appearance">${esc(b.role_label)}</small>` : ""}</td><td class="pos">${esc(b.position)}</td><td>${b.at_bats}</td><td>${b.hits}</td><td>${b.rbi}</td><td>${b.home_runs}</td><td>${b.walks}</td><td>${b.strikeouts}</td></tr>`).join("")}</table></div>`;
   const pitching = (team) => `<div class="match-table-wrap"><table class="stat-table"><tr><th>投手</th><th>回</th><th>球数</th><th>打者</th><th>安打</th><th>失点</th><th>自責</th><th>四球</th><th>三振</th></tr>
-    ${(m.pitching[team] || []).map((p) => `<tr><td>${link(team, p)}</td><td>${esc(p.innings)}</td><td>${p.pitches || ""}</td><td>${p.batters_faced}</td><td>${p.hits_allowed}</td><td>${p.runs_allowed}</td><td>${p.earned_runs}</td><td>${p.walks}</td><td>${p.strikeouts}</td></tr>`).join("")}</table></div>`;
+    ${(m.pitching[team] || []).map((p) => `<tr><td>${link(team, p)}${p.position ? `<small class="appearance">${esc(p.position)}</small>` : ""}${p.role_label ? `<small class="appearance">${esc(p.role_label)}</small>` : ""}${p.exited ? '<small class="appearance">交代済</small>' : ""}</td><td>${esc(p.innings)}</td><td>${p.pitches || ""}</td><td>${p.batters_faced}</td><td>${p.hits_allowed}</td><td>${p.runs_allowed}</td><td>${p.earned_runs}</td><td>${p.walks}</td><td>${p.strikeouts}</td></tr>`).join("")}</table></div>`;
   const teams = [[m.team1_id, m.team1_name], [m.team2_id, m.team2_name]];
   const lineup = (team) => {
     const record = (m.lineups || {})[team];
     if (!record) return '<p class="muted">配置記録なし</p>';
-    return `<table class="list lineup-table"><thead><tr><th>打順</th><th>守備</th><th>選手</th></tr></thead><tbody>
-      ${record.players.map((p) => `<tr><td class="num">${p.batting_order}</td><td class="pos">${esc(p.position)}</td><td>${link(team, p)}</td></tr>`).join("")}</tbody></table>`;
+    return `<table class="list lineup-table${record.designated_hitter_id ? " dh-lineup" : ""}"><thead><tr><th>打順</th><th>${record.designated_hitter_id ? "守備・役割" : "守備"}</th><th>選手</th></tr></thead><tbody>
+      ${[...record.players, ...(record.pitcher ? [record.pitcher] : [])].map((p) => `<tr><td class="num">${p.batting_order || "−"}</td><td class="pos">${esc(p.position)}</td><td>${link(team, p)}</td></tr>`).join("")}</tbody></table>`;
   };
   const history = () => {
     if (!m.has_lineup_record) return '<div class="panel muted">配置記録なし</div>';
@@ -753,6 +754,10 @@ async function renderMatchDetail(content, detail) {
       <div class="change-what"><span class="badge">${esc(c.label)}</span>
         ${c.outgoing && c.incoming ? `<span>${link(c.school_id, c.outgoing)} → ${link(c.school_id, c.incoming)} <span class="muted">（${c.batting_order}番）</span></span>` : ""}
         ${c.moves.length ? `<div class="position-moves">${c.moves.map((p) => `<span>${link(c.school_id, p)} <span class="muted">${esc(p.before)} → ${esc(p.after)}</span></span>`).join("<span class='muted'>／</span>")}</div>` : ""}
+        ${c.pitcher_change ? `<div class="dh-change-line">投手：${link(c.school_id, c.pitcher_change.outgoing)} → ${link(c.school_id, c.pitcher_change.incoming)}</div>` : ""}
+        ${(c.batting_changes || []).map((b) => `<div class="dh-change-line">${b.batting_order}番：${link(c.school_id, b.outgoing)} → ${link(c.school_id, b.incoming)}</div>`).join("")}
+        ${(c.roles_ended || []).map((p) => `<div class="dh-change-line">${link(c.school_id, p)}：${esc(p.role)}役終了</div>`).join("")}
+        ${(c.fully_exited || []).length ? `<div class="dh-change-line">完全退場：${c.fully_exited.map((p) => link(c.school_id, p)).join("、")}</div>` : ""}
       </div></div>`).join("")}</div>`;
   };
   const tabs = [["lineups", "先発打順・守備配置"], ["changes", "交代履歴"], ["stats", "個人成績"]];
@@ -783,7 +788,7 @@ async function renderMatchDetail(content, detail) {
     body.setAttribute("aria-labelledby", `m-tab-${key}`);
     if (key === "lineups") body.innerHTML = `<div class="cols">${teams.map(([team, name]) => `<div class="panel"><h3>${esc(name)}</h3>${lineup(team)}</div>`).join("")}</div>`;
     else if (key === "changes") body.innerHTML = history();
-    else body.innerHTML = `<p class="muted match-note">${m.has_lineup_record ? "守備欄はこの試合で守った位置です。位置の変化は「→」、交代前後の選手は同じ打順で表示します。" : "配置記録なし：この試合の打順・実守備位置は不明です。"}</p>
+    else body.innerHTML = `<p class="muted match-note">${hasDh ? "守備・役割欄は当時の配置です。「DH」は打撃専任、「投・DH」は兼任を表します。位置と役割の変化は「→」で表示します。" : m.has_lineup_record ? "守備欄はこの試合で守った位置です。位置の変化は「→」、交代前後の選手は同じ打順で表示します。" : "配置記録なし：この試合の打順・実守備位置は不明です。"}</p>
       <div class="cols">${teams.map(([team, name]) => `<div class="panel"><h3>${esc(name)}</h3>${batting(team)}<div class="stat-gap"></div>${pitching(team)}</div>`).join("")}</div>`;
     bindPlayerLinks(body);
     refreshLocation();
