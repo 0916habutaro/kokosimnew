@@ -213,6 +213,30 @@ class Stage43CHistoricalArchiveTests(unittest.TestCase):
         with closing(sqlite3.connect(self.path)) as con:
             self.assertEqual(2, con.execute("SELECT count(*) FROM historical_matches WHERE payload_json != ''").fetchone()[0])
 
+    def test_reader_sees_committed_packing_before_cache_invalidation(self):
+        from contextlib import contextmanager
+
+        self.sync([make_record()])
+        expected = self.archive.get_match(2026, 'CMP-1', 'M1')
+        archive, observed = self.archive, []
+
+        class ObserveCommit(sqlite3.Connection):
+            def __exit__(connection, *args):
+                result = super().__exit__(*args)
+                if args[0] is None:
+                    # 別の読込がCOMMIT直後、圧縮側のキャッシュ破棄前に来る場合。
+                    observed.append(archive.get_match(2026, 'CMP-1', 'M1'))
+                return result
+
+        @contextmanager
+        def connection():
+            with closing(sqlite3.connect(self.path, factory=ObserveCommit)) as conn:
+                yield conn
+
+        with patch.object(archive, '_connection', connection):
+            archive.pack_competitions(2026, ('CMP-1',))
+        self.assertEqual([expected], observed)
+
     def test_corrupt_later_competition_rolls_back_prior_batch_writes(self):
         rows = []
         for cid in ('CMP-1', 'CMP-2', 'CMP-3'):
@@ -341,7 +365,9 @@ class Stage43CHistoricalArchiveTests(unittest.TestCase):
             slot_id="career", state=state, plan=object(),
             resolver_contract="deterministic_test",
         )
-        with patch.object(service.slots, "save", return_value={"kind": "manual"}) as saved:
+        with patch.object(service.slots, "save", return_value={
+            "kind": "manual", "payload_checksum": "fake-json-checksum",
+        }) as saved:
             with patch("phase2_engine.live_game_service.plan_fingerprint", return_value="plan123"):
                 first = service.save_game(session)
                 second = service.save_game(session)

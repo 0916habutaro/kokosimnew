@@ -836,7 +836,11 @@ class HistoricalMatchArchive:
             return self._read_match_payload(conn, year, competition_id, match_id, row[0], row[1])
 
     def _read_match_payload(self, conn, year, competition_id, match_id, raw, digest):
-        raw = raw or self._packed(conn, year, competition_id).get(match_id)
+        if not raw:
+            raw = self._packed(conn, year, competition_id).get(match_id)
+            if raw is None:
+                # COMMIT直後、圧縮側が旧キャッシュを破棄する前の読込にも対応する。
+                raw = self._packed(conn, year, competition_id, refresh=True).get(match_id)
         if not isinstance(raw, str) or _digest(raw) != digest:
             raise HistoricalMatchConflictError(f'archived match missing or changed: {competition_id}/{match_id}')
         payload = json.loads(raw)
@@ -844,11 +848,11 @@ class HistoricalMatchArchive:
             raise HistoricalMatchConflictError('archived match identity differs from index')
         return expand_payload(payload)
 
-    def _packed(self, conn, year: int, competition_id: str) -> dict[str, str]:
+    def _packed(self, conn, year: int, competition_id: str, *, refresh: bool = False) -> dict[str, str]:
         """まとめて圧縮した大会の試合の記録（最近開いた大会はとっておく）。"""
         key = (str(self.db_path), year, competition_id)
         with _PACKED_LOCK:
-            cached = _PACKED_CACHE.get(key)
+            cached = None if refresh else _PACKED_CACHE.get(key)
         if cached is None:
             row = conn.execute(
                 "SELECT payloads FROM packed_competitions WHERE year=? AND competition_id=?",
