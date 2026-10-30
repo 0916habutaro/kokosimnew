@@ -473,6 +473,125 @@ class DHSimulationTests(unittest.TestCase):
                 self.assertEqual([(e.batter_id, e.pitcher_id) for e in result.events], sim.frames)
                 validate_match_simulation_result(result, inp)
 
+    def test_non_home_run_walkoff_records_only_winning_run_and_credited_hit(self):
+        for mode in ('none', 'normal', 'pitcher'):
+            for hit in ('double', 'triple'):
+                with self.subTest(mode=mode, hit=hit):
+                    _, result, _ = self.play(mode, top=(), bottom=('walk', 'walk', 'walk', hit))
+                    event = result.events[-1]
+                    self.assertEqual((0, 1), (result.team1_score, result.team2_score))
+                    self.assertEqual(('single', 1, 1), (event.event_type, event.runs_scored, event.rbi))
+                    batter = next(b for b in result.batter_stats if b.player_id == event.batter_id)
+                    self.assertEqual((1, 0, 0), (batter.hits, batter.doubles, batter.triples))
+                    self.assertEqual(1, sum(p.runs_allowed for p in result.pitcher_stats))
+
+    def test_walkoff_hit_credit_depends_on_winning_runners_original_base(self):
+        for mode in ('none', 'normal', 'pitcher'):
+            for script, score, credit in (
+                (('double', 'triple'), 1, 'double'),
+                (('walk', 'triple'), 1, 'triple'),
+                (('walk', 'walk', 'walk', 'triple'), 2, 'double'),
+            ):
+                top = ('home_run',) if score == 2 else ()
+                with self.subTest(mode=mode, script=script, top=top):
+                    _, result, _ = self.play(mode, top=top, bottom=script)
+                    event = result.events[-1]
+                    self.assertEqual(score, result.team2_score)
+                    self.assertEqual(credit, event.event_type)
+                    self.assertEqual(score, event.runs_scored)
+
+    def test_walkoff_home_run_keeps_all_runs_and_bases(self):
+        for mode in ('none', 'normal', 'pitcher'):
+            with self.subTest(mode=mode):
+                _, result, _ = self.play(mode, top=(), bottom=('walk', 'walk', 'walk', 'home_run'))
+                event = result.events[-1]
+                self.assertEqual((0, 4), (result.team1_score, result.team2_score))
+                self.assertEqual(('home_run', 4, 4), (event.event_type, event.runs_scored, event.rbi))
+
+    def test_walkoff_hit_credit_does_not_shorten_error_free_hit_for_earned_runs(self):
+        for mode in ('none', 'normal', 'pitcher'):
+            with self.subTest(mode=mode):
+                _, result, _ = self.play(mode, top=(),
+                    bottom=('single','reached_on_error','sacrifice_bunt','triple'))
+                event = result.events[-1]
+                self.assertEqual((0, 1), (result.team1_score, result.team2_score))
+                self.assertEqual('single', event.event_type)
+                self.assertEqual('triple', dict(event.metadata)['walkoff_hit'])
+                # 失策がなくても、二塁にいるはずの先頭打者は元の三塁打で生還する。
+                self.assertEqual(1, sum(p.earned_runs for p in result.pitcher_stats))
+
+    def test_tiebreak_walkoff_records_only_automatic_winning_runner_as_unearned(self):
+        for mode in ('none', 'normal', 'pitcher'):
+            with self.subTest(mode=mode):
+                _, result, _ = self.play(mode, top=(), bottom=('field_out',)*3+('triple',),
+                                         rules=GameRules(tiebreak_start_inning=2))
+                self.assertEqual((0, 1), (result.team1_score, result.team2_score))
+                event = result.events[-1]
+                self.assertEqual((2, 'double', 1), (event.inning, event.event_type, event.runs_scored))
+                self.assertEqual(0, sum(p.earned_runs for p in result.pitcher_stats))
+
+    def test_walkoff_hit_credit_keeps_pitch_count_from_drawn_event(self):
+        for mode in ('none', 'normal', 'pitcher'):
+            with self.subTest(mode=mode):
+                inp = self.match(mode)
+                sim = _ScriptedSimulator({inp.team1.school_id: ('walk','walk','walk','triple')})
+                for key in sim.params['pitch_count']['by_event']:
+                    sim.params['pitch_count']['by_event'][key] = [1, 0]
+                sim.params['pitch_count']['by_event']['triple'] = [7, 0]
+                result = sim.simulate(inp, regulation_innings=1)
+                self.assertEqual('single', result.events[-1].event_type)
+                self.assertEqual(10, sum(p.pitches for p in result.pitcher_stats
+                                         if p.school_id == inp.team1.school_id))
+
+    def test_strict_validation_rejects_scoring_after_the_winning_non_home_run(self):
+        class UnfinishedWalkoff(_ScriptedSimulator):
+            @staticmethod
+            def _finish_walkoff(event_type, batter_id, before, bases, scored, rbi, needed):
+                return event_type, scored, rbi
+
+        for mode in ('none', 'normal', 'pitcher'):
+            with self.subTest(mode=mode):
+                inp = self.match(mode)
+                sim = UnfinishedWalkoff({inp.team1.school_id: ('walk','walk','walk','triple')})
+                with self.assertRaisesRegex(ValueError, 'non-home-run walkoff score'):
+                    sim.simulate(inp, regulation_innings=1)
+
+    def test_walkoff_terminal_bases_conserve_runners_and_their_order(self):
+        team = self.by_mode['none'][0]
+        players = {p.player_id: p for p in team.player_abilities}
+        ids = [e.player_id for e in team.team_strength.starting_lineup.entries]
+        sim = MatchSimulator()
+        for mask in range(1, 8):
+            before = [ids[i] if mask & (1 << i) else None for i in range(3)]
+            for event in ('single', 'double', 'triple', 'reached_on_error'):
+                for draw in (0.0, 0.999):
+                    bases = list(before)
+                    scored, _, rbi = sim._apply_event(event_type=event, batter_id=ids[3], bases=bases,
+                        offense_players=players, defense_strength=50,
+                        rng=SimpleNamespace(random=lambda: draw))
+                    for needed in range(1, len(scored)+1):
+                        with self.subTest(mask=mask, event=event, draw=draw, needed=needed):
+                            terminal = list(bases)
+                            kind, runs, credit = sim._finish_walkoff(
+                                event, ids[3], before, terminal, scored, rbi, needed)
+                            self.assertEqual(needed, len(runs))
+                            self.assertEqual(Counter([p for p in before if p]+[ids[3]]),
+                                             Counter([p for p in terminal if p]+runs))
+                            self.assertEqual(3-len(set(terminal)-{None}), terminal.count(None))
+                            retained = [p for p in before if p and p not in runs]
+                            self.assertEqual(retained, [p for p in terminal if p in retained])
+                            self.assertTrue(all(terminal.index(p) >= before.index(p) for p in retained))
+                            self.assertLessEqual(credit, needed)
+
+    def test_ordinary_hits_before_final_inning_keep_all_runs_and_hit_credit(self):
+        for mode in ('none', 'normal', 'pitcher'):
+            with self.subTest(mode=mode):
+                _, result, _ = self.play(mode, top=(), bottom=('walk','walk','walk','triple'),
+                                         regulation_innings=2)
+                hit = next(e for e in result.events if e.event_type == 'triple')
+                self.assertEqual((1, 3, 3), (hit.inning, hit.runs_scored, hit.rbi))
+                self.assertEqual((0, 3), (result.team1_score, result.team2_score))
+
     def test_three_modes_use_nine_batters_and_independent_defense(self):
         for mode, count in (('none', 9), ('normal', 10), ('pitcher', 9)):
             with self.subTest(mode=mode):

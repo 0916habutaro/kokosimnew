@@ -753,6 +753,14 @@ def validate_match_simulation_result(
     if event_runs[team2_id] != result.team2_score:
         raise ValueError("match result: team2 event runs != score")
 
+    last = events[-1]
+    if (result.ending_half == 'bottom' and result.winner_id == team2_id
+            and last.runs_scored and result.team2_score-last.runs_scored <= result.team1_score
+            and last.event_type != 'home_run' and result.team2_score != result.team1_score+1):
+        raise ValueError(f'match={result.match_id}, PA={last.plate_appearance_no}, '
+                         f'player={last.batter_id}: non-home-run walkoff score '
+                         f'expected={result.team1_score+1}, actual={result.team2_score}')
+
     batters = list(result.batter_stats)
     pitchers = list(result.pitcher_stats)
     _validate_unique_player_stats(batters, label="batter stats")
