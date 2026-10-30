@@ -452,6 +452,35 @@ class DHSimulationTests(unittest.TestCase):
         self.assertEqual({'batter'}, state.retired_two_way_roles)
         self.assertTrue(any(p.player_id == state.current_pitcher_id and p.batters_faced for p in result.pitcher_stats))
 
+    def test_dh_pinch_runner_inherits_base_and_scores_without_changing_pitcher_liability(self):
+        from game_core.match_simulator import LineupAdjustment
+        for mode in ('normal', 'pitcher'):
+            for event_type, earned in (('walk', 2), ('reached_on_error', 1)):
+                with self.subTest(mode=mode, event_type=event_type):
+                    team = self.by_mode[mode][0]
+                    lineup = team.team_strength.starting_lineup
+                    dh = lineup.designated_hitter_id
+                    bench = next(p.player_id for p in team.player_abilities if p.player_id not in lineup.starter_ids)
+                    opposing_starter = self.by_mode[mode][1].team_strength.starting_lineup.player_for_position('P')
+                    plan = LineupAdjustment(2, team.school_id, ((1, bench),))
+                    inp, result, states = self.play(mode, top=(event_type, 'home_run'),
+                                                  changes=((opposing_starter, 1),), lineup_changes=(plan,))
+                    rows = {b.player_id: b for b in result.batter_stats}
+                    self.assertEqual(0, rows[dh].runs)
+                    self.assertEqual((0, 1), (rows[bench].plate_appearances, rows[bench].runs))
+                    self.assertEqual(bench, dict(result.events[1].metadata)['bases_before'].split('|')[0])
+                    old = next(p for p in result.pitcher_stats if p.player_id == opposing_starter)
+                    self.assertEqual(1, old.runs_allowed)
+                    self.assertEqual(earned, sum(p.earned_runs for p in result.pitcher_stats))
+                    event = result.events[1]
+                    metadata = dict(event.metadata)
+                    metadata['bases_before'] = metadata['bases_before'].replace(bench, dh)
+                    events = (result.events[0], replace(event, metadata=tuple(metadata.items())), *result.events[2:])
+                    with self.assertRaisesRegex(ValueError, 'base runners'):
+                        validate_match_simulation_result(replace(result, events=events), inp)
+                    if mode == 'pitcher':
+                        self.assertEqual(dh, states[team.school_id].current_pitcher_id)
+
     def test_first_batting_obligation_rejects_early_dh_substitute(self):
         from game_core.match_simulator import LineupAdjustment
         team = self.by_mode['pitcher'][1]

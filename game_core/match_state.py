@@ -739,12 +739,15 @@ def _validate_dh_event_history(records, team_ids, reference_year, known_ids, eve
             by_pa.setdefault(key[0], []).append(change)
     batting_slots = dict.fromkeys(team_ids, 1)
     previous_half = None
+    previous_bases = None
     seen = 0
     for event in events:
         seen += 1
         if event.plate_appearance_no != seen:
             raise ValueError('plate appearances must be contiguous')
         boundary = by_pa.pop(seen, [])
+        half = (event.inning, event.half)
+        expected_bases = list(previous_bases) if half == previous_half else None
         before = sorted((c for c in boundary if isinstance(c.moment, ChangeMoment)), key=lambda c: c.moment.order)
         if [c.moment.order for c in before] != list(range(1, len(before)+1)):
             raise ValueError('DH boundary changes require a unique execution order')
@@ -759,6 +762,11 @@ def _validate_dh_event_history(records, team_ids, reference_year, known_ids, eve
                     raise ValueError('opponent starter notification lacks an actual replacement')
                 expected_notices.remove(change.school_id)
             old_pitcher = state.current_pitcher_id
+            if (expected_bases is not None and change.school_id == event.offense_school_id
+                    and change.kind == 'dh_transition' and change.dh_action is not None):
+                for slot in change.dh_action.batting_changes:
+                    outgoing = state.player_at_order(slot.batting_order)
+                    expected_bases = [slot.player_id if pid == outgoing else pid for pid in expected_bases]
             apply_lineup_change(state, change)
             if old_pitcher != state.current_pitcher_id:
                 if (old_pitcher == state.initial_lineup.player_for_position('P')
@@ -773,7 +781,20 @@ def _validate_dh_event_history(records, team_ids, reference_year, known_ids, eve
                 or states[defense].current_pitcher_id != event.pitcher_id):
             raise ValueError('event batter or pitcher differs from lineup history')
         batting_slots[offense] = batting_slots[offense] % 9 + 1
-        half = (event.inning, event.half)
+        metadata = dict(event.metadata)
+        try:
+            before_bases = metadata['bases_before'].split('|')
+            after_bases = metadata['bases_after'].split('|')
+        except (KeyError, AttributeError) as exc:
+            raise ValueError('DH events require actual base runners') from exc
+        batters = {s.player_id for s in states[offense].batting_order}
+        for runners in (before_bases, after_bases):
+            occupied = [pid for pid in runners if pid]
+            if len(runners) != 3 or len(occupied) != len(set(occupied)) or not set(occupied) <= batters:
+                raise ValueError('base runners differ from actual batting roles')
+        if expected_bases is not None and expected_bases != before_bases:
+            raise ValueError('base runners do not continue the preceding play/substitution')
+        previous_bases = after_bases
         # 守備交代はP以外の変更も含む。規則通知だけでは出場を増やさない。
         defense_changed = any(c.school_id == defense and c.defensive_changes for c in before)
         if half != previous_half or defense_changed:

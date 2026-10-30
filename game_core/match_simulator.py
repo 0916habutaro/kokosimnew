@@ -80,6 +80,12 @@ class _RunnerResponsibilityTracker:
         self._active: dict[str, _RunnerResponsibility] = {}
         self._pitcher_order: dict[str, int] = {}
 
+    def substitute_runner(self, outgoing: str, incoming: str) -> None:
+        if outgoing not in self._active or incoming in self._active:
+            raise ValueError('invalid runner substitution')
+        origin = self._active.pop(outgoing)
+        self._active[incoming] = replace(origin, player_id=incoming)
+
     def seed_tiebreak(
         self, bases: list[str | None], pitcher_id: str,
     ) -> None:
@@ -286,6 +292,12 @@ class _EarnedRunTracker:
         self._team: _ErrorFreeInning | None = None
         self._runs: list[tuple[_RunnerKey, _RunnerResponsibility]] = []
         self._unearned: set[_RunnerKey] = set()
+
+    def substitute_runner(self, outgoing: str, incoming: str) -> None:
+        if outgoing not in self._active or incoming in self._active:
+            raise ValueError('invalid earned-run runner substitution')
+        # 仮想イニングは元の出塁キーを使い続け、実走者IDへの対応だけを変える。
+        self._active[incoming] = self._active.pop(outgoing)
 
     def record_play(self, *, bases_before, bases_after, scored_runners,
                     batter_id, pitcher_id, event_type, plate_appearance_no,
@@ -1155,6 +1167,10 @@ class MatchSimulator:
                     for adjustment in adjustments.pop(pa_no+1, ()):
                         changed_state = states[adjustment.school_id]
                         old_pitcher = changed_state.current_pitcher_id
+                        runner_changes = [(changed_state.player_at_order(slot), incoming)
+                                          for slot, incoming in adjustment.batting_changes
+                                          if adjustment.school_id == offense_id
+                                          and changed_state.player_at_order(slot) in bases]
                         incoming = dict(adjustment.defensive_changes).get('P', old_pitcher)
                         if incoming != old_pitcher:
                             check_new_pitcher(adjustment.school_id, incoming)
@@ -1168,6 +1184,10 @@ class MatchSimulator:
                             raise ValueError('lineup adjustment must change the state')
                         refresh_after_change(adjustment.school_id, old_pitcher,
                                              defense_changed=bool(applied.defensive_changes))
+                        for outgoing, incoming in runner_changes:
+                            runner_responsibility.substitute_runner(outgoing, incoming)
+                            earned_run_tracker.substitute_runner(outgoing, incoming)
+                            bases[bases.index(outgoing)] = incoming
                         if adjustment.school_id == defense_id:
                             fielding_pending = True
                     staff = pitcher_orders[defense_id]
