@@ -229,6 +229,22 @@ class MatchStateIntegrationTests(unittest.TestCase):
         return TeamMatchState(team.team_strength.starting_lineup,
                               (p.player_id for p in team.player_abilities), **kwargs)
 
+    def test_dh_state_is_valid_but_production_execution_is_not_enabled(self):
+        from game_core.team_strength import DefensiveAssignment
+        original = self.teams[0]
+        old = original.team_strength.starting_lineup
+        pitcher = old.player_for_position('P')
+        dh = replace(old, entries=tuple(replace(e, defensive_position='DH')
+                                       if e.defensive_position == 'P' else e for e in old.entries),
+                     defense=tuple(DefensiveAssignment(e.defensive_position,e.player_id)
+                                   for e in old.entries), designated_hitter_id=pitcher)
+        TeamMatchState(dh,(p.player_id for p in original.player_abilities)).validate()
+        team = replace(original,team_strength=replace(original.team_strength,starting_lineup=dh))
+        inp = MatchSimulationInput('FAKE-DH-GATE','FAKE-CUP',2026,
+                                  team.team_strength.generation_seed,team,self.teams[1])
+        with self.assertRaisesRegex(ValueError,'DH game execution is not connected'):
+            MatchSimulator().simulate(inp)
+
     def test_actual_position_comes_from_lineup_even_when_primary_position_differs(self):
         team = self.teams[0]
         lineup = team.team_strength.starting_lineup
@@ -304,6 +320,316 @@ class MatchStateIntegrationTests(unittest.TestCase):
             # stats, line score, winner and deterministic reproduction.
             self.assertEqual(before, after)
         self.assertEqual(originals, tuple(t.to_dict() for t in self.teams))
+
+
+
+class DHMatchStateTests(unittest.TestCase):
+    def make(self, dual=False):
+        from game_core.team_strength import DefensiveAssignment
+        dh = 'P' if dual else 'DH'
+        lineup = StartingLineup('FAKE-DH', 2026, tuple(
+            LineupEntry(i+1, 'DH' if i == 0 else pos, dh if i == 0 else pos, 50.0)
+            for i, pos in enumerate(STARTING_POSITIONS)
+        ), tuple(DefensiveAssignment(pos, pos) for pos in STARTING_POSITIONS), dh)
+        return TeamMatchState(lineup, {*STARTING_POSITIONS, 'DH', 'RP', 'B', 'X'})
+
+    def ready(self, dual=False):
+        state = self.make(dual)
+        state.record_completed_plate_appearance(state.designated_hitter_id)
+        return state
+
+    def rejected(self, state, operation):
+        import json
+        before = json.dumps(state.to_dict(), sort_keys=True)
+        with self.assertRaises(ValueError):
+            operation()
+        self.assertEqual(before, json.dumps(state.to_dict(), sort_keys=True))
+        state.validate()
+
+    def round_trip(self, state):
+        import json
+        from game_core.match_state import TeamMatchParticipation
+        restored = TeamMatchState.from_dict(json.loads(json.dumps(state.to_dict())))
+        self.assertEqual(state.to_dict(), restored.to_dict())
+        self.assertEqual(state.retired_two_way_roles, restored.retired_two_way_roles)
+        self.assertEqual(state.exited_player_ids, restored.exited_player_ids)
+        self.assertEqual(state.dh_batting_required, restored.dh_batting_required)
+        self.assertEqual(state.participation(), TeamMatchParticipation.from_dict(state.participation().to_dict()))
+        return restored
+
+    def test_normal_dh_has_ten_active_and_nine_defenders(self):
+        s = self.make()
+        self.assertEqual(10, len(s.active_player_ids))
+        self.assertEqual(9, len(s.batting_order))
+        self.assertNotIn('P', {b.player_id for b in s.batting_order})
+        s.record_fielding_appearance()
+        self.assertEqual(set(STARTING_POSITIONS), s.fielding_player_ids)
+        self.assertNotIn('DH', s.fielding_player_ids)
+        self.round_trip(s)
+
+    def test_two_way_is_nine_people_not_two_players(self):
+        s = self.make(True)
+        self.assertEqual(9, len(s.active_player_ids))
+        self.assertEqual('P', s.player_at_order(1))
+        self.assertEqual('P', s.current_pitcher_id)
+        self.round_trip(s)
+
+    def test_declared_dh_is_required_at_start(self):
+        s = self.make()
+        with self.assertRaises(ValueError):
+            TeamMatchState(replace(s.initial_lineup, designated_hitter_id=None), s.registered_player_ids)
+        with self.assertRaises(ValueError):
+            TeamMatchState(replace(s.initial_lineup, defense=()), s.registered_player_ids)
+
+    def test_normal_pitcher_substitution_preserves_dh(self):
+        s = self.make()
+        s.change_pitcher('RP')
+        self.assertEqual('DH', s.designated_hitter_id)
+        self.assertEqual({'P'}, s.exited_player_ids)
+        self.assertTrue(s.dh_batting_required)
+        self.round_trip(s)
+
+    def test_two_way_can_leave_pitching_and_remain_dh(self):
+        s = self.make(True)
+        s.change_pitcher('RP')
+        self.assertEqual('P', s.designated_hitter_id)
+        self.assertNotIn('P', s.exited_player_ids)
+        self.assertNotIn('P', s.bench_player_ids)
+        self.assertEqual({'pitcher'}, s.retired_two_way_roles)
+        self.rejected(s, lambda: s.change_pitcher('P'))
+        self.round_trip(s)
+
+    def test_two_way_can_leave_dh_and_remain_pitcher(self):
+        s = self.ready(True)
+        s.substitute('P', 'B')
+        self.assertEqual('P', s.current_pitcher_id)
+        self.assertEqual('B', s.designated_hitter_id)
+        self.assertNotIn('P', s.exited_player_ids)
+        self.assertEqual({'batter'}, s.retired_two_way_roles)
+        self.rejected(s, lambda: s.substitute('B', 'P'))
+        self.round_trip(s)
+
+    def test_two_way_exits_only_after_both_roles_end(self):
+        s = self.ready(True)
+        s.change_pitcher('RP')
+        s.substitute('P', 'B')
+        self.assertIn('P', s.exited_player_ids)
+        self.rejected(s, lambda: s.change_pitcher('P'))
+        self.rejected(s, lambda: s.substitute('B', 'P'))
+        self.round_trip(s)
+
+    def test_new_pitcher_batting_ends_dh_instead_of_creating_second_two_way(self):
+        s = self.ready(True)
+        s.transition(batting_changes={1: 'RP'}, defensive_changes={'P': 'RP'})
+        self.assertIsNone(s.designated_hitter_id)
+        self.assertEqual(9, len(s.active_player_ids))
+        self.assertIn('P', s.exited_player_ids)
+        self.round_trip(s)
+
+    def test_dh_pinch_hitter_or_runner_inherits_slot(self):
+        for incoming in ('B', 'X'):
+            s = self.ready()
+            s.substitute('DH', incoming)
+            self.assertEqual(incoming, s.designated_hitter_id)
+            self.assertEqual(incoming, s.player_at_order(1))
+            self.assertIn('DH', s.exited_player_ids)
+            self.round_trip(s)
+
+    def test_dh_taking_field_ends_dh_and_assigns_pitcher_slot(self):
+        s = self.make()
+        self.rejected(s, lambda: s.change_positions({'CF': 'DH'}))
+        s.change_positions({'CF': 'DH'}, batting_changes={8: 'P'})
+        self.assertIsNone(s.designated_hitter_id)
+        self.assertEqual('P', s.player_at_order(8))
+        self.assertEqual('DH', s.player_for_position('CF'))
+        self.assertIn('CF', s.exited_player_ids)
+        self.assertFalse(s.dh_batting_required)
+        self.round_trip(s)
+
+    def test_pitcher_moving_to_field_ends_dh(self):
+        s = self.make()
+        s.change_pitcher('RF', batting_changes={1: 'P'})
+        self.assertIsNone(s.designated_hitter_id)
+        self.assertEqual('RF', s.current_pitcher_id)
+        self.assertEqual('P', s.player_for_position('RF'))
+        self.assertIn('DH', s.exited_player_ids)
+        self.round_trip(s)
+
+    def test_fielder_pitching_without_old_pitcher_remaining_ends_dh(self):
+        s = self.make()
+        s.transition(batting_changes={1: 'B'}, defensive_changes={'P': 'RF', 'RF': 'B'})
+        self.assertIsNone(s.designated_hitter_id)
+        self.assertEqual('RF', s.current_pitcher_id)
+        self.assertEqual({'P', 'DH'}, s.exited_player_ids)
+        self.round_trip(s)
+
+    def test_pitcher_pinch_hitting_or_running_only_for_dh(self):
+        s = self.ready()
+        s.substitute('DH', 'P')
+        self.assertIsNone(s.designated_hitter_id)
+        self.assertEqual(9, len(s.active_player_ids))
+        self.round_trip(s)
+        s = self.ready()
+        self.rejected(s, lambda: s.transition(batting_changes={1:'B', 8:'P'}, defensive_changes={'CF':'B'}))
+
+    def test_dh_can_pitch_and_end_dh(self):
+        s = self.make()
+        s.change_pitcher('DH')
+        self.assertIsNone(s.designated_hitter_id)
+        self.assertEqual('DH', s.current_pitcher_id)
+        self.assertIn('P', s.exited_player_ids)
+        self.round_trip(s)
+
+    def test_multiple_changes_have_explicit_batting_order(self):
+        for pitcher_slot, bench_slot in ((8, 9), (9, 8)):
+            s = self.make()
+            s.transition(defensive_changes={'CF':'DH', 'RF':'LF', 'LF':'B'},
+                         batting_changes={pitcher_slot:'P', bench_slot:'B'})
+            self.assertIsNone(s.designated_hitter_id)
+            self.assertEqual('P', s.player_at_order(pitcher_slot))
+            self.assertEqual({'CF','RF'}, s.exited_player_ids)
+            self.round_trip(s)
+
+    def test_active_batter_cannot_be_reordered_by_double_switch(self):
+        s = self.ready()
+        self.rejected(s, lambda: s.transition(batting_changes={2:'1B',3:'C'}))
+
+    def test_first_at_bat_required_for_normal_and_two_way_dh(self):
+        for dual in (False, True):
+            s = self.make(dual)
+            self.rejected(s, lambda: s.substitute(s.designated_hitter_id, 'B'))
+            s.record_completed_plate_appearance(s.designated_hitter_id)
+            s.substitute(s.designated_hitter_id, 'B')
+            self.assertFalse(s.dh_batting_required)
+            self.round_trip(s)
+
+    def test_own_starter_leaving_does_not_waive_two_way_batting_obligation(self):
+        s = self.make(True)
+        s.change_pitcher('RP')
+        self.rejected(s, lambda: s.substitute('P', 'B'))
+        restored = self.round_trip(s)
+        self.rejected(restored, lambda: restored.substitute('P', 'B'))
+
+    def test_opposing_starter_change_waives_obligation(self):
+        for dual in (False, True):
+            s = self.make(dual)
+            s.record_opposing_starter_replaced()
+            s.substitute(s.designated_hitter_id, 'B')
+            self.round_trip(s)
+
+    def test_umpire_approved_injury_or_illness_exception(self):
+        for reason in ('injury', 'illness'):
+            s = self.make(True)
+            s.change_pitcher('RP')
+            self.rejected(s, lambda: s.substitute('P','B', medical_exception=reason))
+            s.substitute('P','B', medical_exception=reason, umpire_approved=True)
+            self.round_trip(s)
+        s = self.make()
+        self.rejected(s, lambda: s.substitute('DH','B', medical_exception='fatigue', umpire_approved=True))
+        self.rejected(s, lambda: s.substitute('DH','B', umpire_approved=True))
+
+    def test_two_way_moving_to_other_defense_ends_obligation(self):
+        s = self.make(True)
+        s.transition(defensive_changes={'P':'RP', 'CF':'P'}, batting_changes={8:'RP'})
+        self.assertIsNone(s.designated_hitter_id)
+        self.assertFalse(s.dh_batting_required)
+        s.substitute('P', 'B')
+        self.round_trip(s)
+
+    def test_official_case_four_requires_pitcher_replacement_after_dh_role_retired(self):
+        s = self.ready(True)
+        s.substitute('P', 'B')
+        self.rejected(s, lambda: s.transition(defensive_changes={'LF':'B'}, batting_changes={7:'P'}))
+        s.transition(defensive_changes={'LF':'B','P':'RP'}, batting_changes={7:'RP'})
+        self.assertEqual({'P','LF'}, s.exited_player_ids)
+        self.round_trip(s)
+
+    def test_retired_pitcher_can_field_elsewhere_but_cannot_pitch_again(self):
+        s = self.make(True)
+        s.change_pitcher('RP')
+        s.change_positions({'CF':'P'}, batting_changes={8:'RP'})
+        self.assertEqual('P', s.player_for_position('CF'))
+        self.rejected(s, lambda: s.change_pitcher('P'))
+        restored = self.round_trip(s)
+        self.rejected(restored, lambda: restored.change_pitcher('P'))
+
+    def test_duplicate_fielding_batting_and_exited_reentry_are_atomic(self):
+        s = self.ready()
+        for fn in (lambda:s.transition(batting_changes={2:'DH'}),
+                   lambda:s.transition(defensive_changes={'CF':'RF'}),
+                   lambda:s.transition(defensive_changes={'CF':'UNKNOWN'}),
+                   lambda:s.transition(batting_changes={True:'B'})):
+            self.rejected(s, fn)
+        s.substitute('DH', 'B')
+        self.rejected(s, lambda:s.substitute('B','DH'))
+        self.rejected(s, lambda:s.transition(batting_changes={1:'DH'},defensive_changes={'CF':'DH'}))
+
+    def test_dh_cannot_be_reintroduced_after_loss(self):
+        s = self.ready()
+        s.substitute('DH','P')
+        self.rejected(s, lambda:s.transition(batting_changes={1:'B'}))
+        self.assertIsNone(s.designated_hitter_id)
+        self.round_trip(s)
+
+    def test_initial_duplicate_defense_and_wrong_pitcher_are_rejected(self):
+        s = self.make()
+        defense = s.initial_lineup.defense
+        for changed in (defense[:-1], (replace(defense[0],player_id='C'),*defense[1:])):
+            with self.assertRaises(ValueError):
+                TeamMatchState(replace(s.initial_lineup,defense=tuple(changed)),s.registered_player_ids)
+        with self.assertRaises(ValueError):
+            TeamMatchState(s.initial_lineup,s.registered_player_ids,actual_pitcher_id='RP')
+
+    def test_dh_pitcher_operation_cannot_claim_another_p_assignment(self):
+        s = self.make()
+        self.rejected(s, lambda:s.change_pitcher('RP', defensive_changes={'P':'P'}))
+        self.rejected(s, lambda:s.substitute('DH','DH'))
+        self.rejected(s, lambda:s.substitute('CF','P'))
+
+    def test_snapshot_cannot_claim_fielding_by_a_pure_dh(self):
+        s = self.make()
+        snapshot = s.to_dict()
+        snapshot['participation']['fielding_player_ids'] = ['DH']
+        with self.assertRaises(ValueError):
+            TeamMatchState.from_dict(snapshot)
+
+    def test_defense_and_batting_inputs_are_immutable_copies(self):
+        s = self.make()
+        entries = list(s.initial_lineup.entries)
+        defense = list(s.initial_lineup.defense)
+        lineup = replace(s.initial_lineup, entries=entries, defense=defense)
+        state = TeamMatchState(lineup, s.registered_player_ids)
+        entries.clear()
+        defense.clear()
+        state.validate()
+        self.assertEqual(9, len(state.initial_lineup.entries))
+        self.assertEqual(9, len(state.initial_lineup.defense))
+
+    def test_defense_only_pitcher_must_be_registered_and_available(self):
+        s = self.make()
+        with self.assertRaises(ValueError):
+            TeamMatchState(s.initial_lineup, s.registered_player_ids - {'P'})
+        with self.assertRaises(ValueError):
+            TeamMatchState(s.initial_lineup, s.registered_player_ids,
+                           available_player_ids=s.registered_player_ids - {'P'})
+
+    def test_non_dh_game_cannot_add_a_batting_only_player(self):
+        s = self.make()
+        plain = StartingLineup('FAKE-DH',2026,tuple(
+            LineupEntry(i+1,pos,pos,50.0) for i,pos in enumerate(STARTING_POSITIONS)))
+        state = TeamMatchState(plain,s.registered_player_ids)
+        self.rejected(state,lambda:state.transition(batting_changes={1:'DH'}))
+        self.assertIsNone(state.designated_hitter_id)
+
+    def test_timed_dh_participation_replays(self):
+        from game_core.match_state import ChangeMoment, replay_team_participation
+        s = self.make(True)
+        s.change_pitcher('RP',moment=ChangeMoment(1,'top',1))
+        s.record_completed_plate_appearance('P',moment=ChangeMoment(1,'bottom',4))
+        s.substitute('P','B',moment=ChangeMoment(3,'bottom',20))
+        s.record_fielding_appearance()
+        restored = replay_team_participation(s.participation(),2026,s.registered_player_ids)
+        self.assertEqual(s.to_dict(),restored.to_dict())
 
 
 if __name__ == '__main__':

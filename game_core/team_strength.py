@@ -39,28 +39,45 @@ class LineupEntry:
         return asdict(self)
 
 
+@dataclass(frozen=True, slots=True)
+class DefensiveAssignment:
+    defensive_position: str
+    player_id: str
+
+
 @dataclass(frozen=True)
 class StartingLineup:
     school_id: str
     reference_year: int
     entries: tuple[LineupEntry, ...]
+    defense: tuple[DefensiveAssignment, ...] = ()
+    designated_hitter_id: str | None = None
+
+    def __post_init__(self):
+        object.__setattr__(self, 'entries', tuple(self.entries))
+        object.__setattr__(self, 'defense', tuple(self.defense))
 
     @property
     def starter_ids(self) -> tuple[str, ...]:
-        return tuple(entry.player_id for entry in self.entries)
+        batters = tuple(entry.player_id for entry in self.entries)
+        return batters + tuple(a.player_id for a in self.defense if a.player_id not in batters)
 
     def player_for_position(self, position: str) -> str:
-        for entry in self.entries:
+        for entry in self.defense or self.entries:
             if entry.defensive_position == position:
                 return entry.player_id
         raise KeyError(position)
 
     def to_dict(self) -> dict:
-        return {
+        out = {
             "school_id": self.school_id,
             "reference_year": self.reference_year,
             "entries": [entry.to_dict() for entry in self.entries],
         }
+        if self.defense or self.designated_hitter_id is not None:
+            out["defense"] = [asdict(a) for a in self.defense]
+            out["designated_hitter_id"] = self.designated_hitter_id
+        return out
 
 
 @dataclass(frozen=True)
@@ -729,18 +746,36 @@ def validate_starting_lineup(lineup: StartingLineup) -> None:
         raise ValueError(
             f"{lineup.school_id}: starting lineup must contain 9 players"
         )
-    positions = [
-        entry.defensive_position for entry in lineup.entries
-    ]
-    if set(positions) != set(STARTING_POSITIONS):
-        raise ValueError(
-            f"{lineup.school_id}: starting positions mismatch"
-        )
+    positions = [entry.defensive_position for entry in lineup.entries]
+    if lineup.designated_hitter_id is None:
+        if set(positions) != set(STARTING_POSITIONS):
+            raise ValueError(f"{lineup.school_id}: starting positions mismatch")
+    else:
+        if set(positions) != (set(STARTING_POSITIONS) - {"P"}) | {"DH"}:
+            raise ValueError("DH batting lineup must contain eight fielders and DH")
+        dh = next(e.player_id for e in lineup.entries if e.defensive_position == "DH")
+        if dh != lineup.designated_hitter_id or not lineup.defense:
+            raise ValueError("DH declaration and independent defense are required")
+    if lineup.defense:
+        defense = {a.defensive_position: a.player_id for a in lineup.defense}
+        if len(lineup.defense) != 9 or set(defense) != set(STARTING_POSITIONS):
+            raise ValueError("starting defense must contain nine positions")
+        if len(set(defense.values())) != 9:
+            raise ValueError("duplicate starting defender")
+        for e in lineup.entries:
+            if e.defensive_position != "DH" and defense.get(e.defensive_position) != e.player_id:
+                raise ValueError("starting batting role differs from defense")
+        if lineup.designated_hitter_id in defense.values() and defense['P'] != lineup.designated_hitter_id:
+            raise ValueError("only the starting pitcher may also be DH")
+    if any(not isinstance(pid, str) or not pid.strip() for pid in lineup.starter_ids):
+        raise ValueError("starter IDs must be nonempty strings")
     player_ids = [entry.player_id for entry in lineup.entries]
     if len(player_ids) != len(set(player_ids)):
         raise ValueError(
             f"{lineup.school_id}: duplicate starter"
         )
+    if any(type(entry.batting_order) is not int for entry in lineup.entries):
+        raise ValueError('batting order must be integer 1..9')
     orders = sorted(
         entry.batting_order for entry in lineup.entries
     )

@@ -1,25 +1,19 @@
-"""試合中の出場状態。DHなしの9人配置を扱い、先発選考や交代判断は行わない。"""
+"""試合中の出場状態。DHの有無・役割を検証し、先発選考や交代判断は行わない。"""
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass, replace
 from typing import Literal
 
-from .team_strength import STARTING_POSITIONS, LineupEntry, StartingLineup, validate_starting_lineup
+from .team_strength import STARTING_POSITIONS, LineupEntry, StartingLineup, DefensiveAssignment, validate_starting_lineup
 
 
-_ChangeKind = Literal["position_change", "substitution", "pitcher_change"]
+_ChangeKind = Literal["position_change", "substitution", "pitcher_change", "dh_transition", "dh_plate_appearance", "dh_opponent_pitcher"]
 
 
 @dataclass(frozen=True, slots=True)
 class BattingOrderSlot:
     batting_order: int
-    player_id: str
-
-
-@dataclass(frozen=True, slots=True)
-class DefensiveAssignment:
-    defensive_position: str
     player_id: str
 
 
@@ -46,6 +40,19 @@ class ChangeMoment:
 
 
 @dataclass(frozen=True, slots=True)
+class DHAction:
+    batting_changes: tuple[BattingOrderSlot, ...] = ()
+    player_id: str | None = None
+    medical_exception: str | None = None
+    umpire_approved: bool = False
+
+    @classmethod
+    def from_dict(cls, value):
+        return cls(tuple(BattingOrderSlot(**s) for s in value['batting_changes']),
+                   value['player_id'], value['medical_exception'], value['umpire_approved'])
+
+
+@dataclass(frozen=True, slots=True)
 class LineupChange:
     sequence: int
     school_id: str
@@ -55,10 +62,13 @@ class LineupChange:
     incoming_player_id: str | None
     defensive_changes: tuple[DefensiveChange, ...]
     moment: ChangeMoment | None = None
+    dh_action: DHAction | None = None
 
     def to_dict(self) -> dict:
         out = asdict(self)
         out["defensive_changes"] = [asdict(change) for change in self.defensive_changes]
+        if self.dh_action is None:
+            out.pop('dh_action')
         return out
 
 
@@ -76,15 +86,21 @@ class TeamMatchParticipation:
     starting_pitcher_id: str
     changes: tuple[LineupChange, ...]
     fielding_player_ids: tuple[str, ...]
+    starting_designated_hitter_id: str | None = None
+    starting_defense: tuple[DefensiveAssignment, ...] = ()
 
     def to_dict(self) -> dict:
-        return {
+        out = {
             "school_id": self.school_id,
             "starting_lineup": [asdict(slot) for slot in self.starting_lineup],
             "starting_pitcher_id": self.starting_pitcher_id,
             "changes": [change.to_dict() for change in self.changes],
             "fielding_player_ids": list(self.fielding_player_ids),
         }
+        if self.starting_designated_hitter_id is not None:
+            out['starting_designated_hitter_id'] = self.starting_designated_hitter_id
+            out['starting_defense'] = [asdict(a) for a in self.starting_defense]
+        return out
 
     @classmethod
     def from_dict(cls, value: dict) -> TeamMatchParticipation:
@@ -97,9 +113,12 @@ class TeamMatchParticipation:
                     **{key: item[key] for key in ("sequence", "school_id", "kind", "batting_order",
                                                    "outgoing_player_id", "incoming_player_id")},
                     defensive_changes=tuple(DefensiveChange(**c) for c in item["defensive_changes"]),
-                    moment=ChangeMoment(**item["moment"]),
+                    moment=ChangeMoment(**item["moment"]) if item["moment"] is not None else None,
+                    dh_action=DHAction.from_dict(item['dh_action']) if item.get('dh_action') is not None else None,
                 ) for item in value["changes"]),
                 tuple(value["fielding_player_ids"]),
+                value.get('starting_designated_hitter_id'),
+                tuple(DefensiveAssignment(**a) for a in value.get('starting_defense', ())),
             )
         except (KeyError, TypeError) as exc:
             raise ValueError("invalid team participation record") from exc
@@ -112,6 +131,10 @@ class _TeamStateData:
     exited: frozenset[str] = frozenset()
     history: tuple[LineupChange, ...] = ()
     fielding: frozenset[str] = frozenset()
+    dh_id: str | None = None
+    dh_pending: bool = False
+    pitcher_role_retired: bool = False
+    batter_role_retired: bool = False
 
 
 class TeamMatchState:
@@ -137,17 +160,20 @@ class TeamMatchState:
             raise ValueError("registered player IDs must be nonempty strings")
         self._school_id = starting_lineup.school_id
         self._registered = registered
+        if isinstance(available_player_ids, str):
+            raise ValueError('available players must be a collection of IDs')
         self._available = registered if available_player_ids is None else frozenset(available_player_ids)
         if not self._available <= registered:
             raise ValueError("available players must be registered")
         self._initial_lineup = starting_lineup
-        positions = {entry.defensive_position: entry.player_id for entry in starting_lineup.entries}
+        positions = {entry.defensive_position: entry.player_id for entry in starting_lineup.defense or starting_lineup.entries}
         data = _TeamStateData(
             batting_order=tuple(
                 BattingOrderSlot(entry.batting_order, entry.player_id)
                 for entry in sorted(starting_lineup.entries, key=lambda e: e.batting_order)
             ),
-            defense=self._alignment(positions),
+            defense=self._alignment(positions), dh_id=starting_lineup.designated_hitter_id,
+            dh_pending=starting_lineup.designated_hitter_id is not None,
         )
         self._validate(data, actual_pitcher_id)
         self._data = data
@@ -179,7 +205,7 @@ class TeamMatchState:
 
     @property
     def active_player_ids(self) -> frozenset[str]:
-        return frozenset(slot.player_id for slot in self.batting_order)
+        return frozenset(slot.player_id for slot in self.batting_order) | frozenset(a.player_id for a in self.defensive_alignment)
 
     @property
     def current_pitcher_id(self) -> str:
@@ -204,8 +230,9 @@ class TeamMatchState:
 
     def record_fielding_appearance(self) -> None:
         """実際の守備開始時と交代時だけ呼ぶ。成長・怪我の計算は変更しない。"""
-        if any(slot.player_id not in self.fielding_player_ids for slot in self.batting_order):
-            self._data = replace(self._data, fielding=self.fielding_player_ids | self.active_player_ids)
+        defenders = frozenset(a.player_id for a in self.defensive_alignment)
+        if not defenders <= self.fielding_player_ids:
+            self._data = replace(self._data, fielding=self.fielding_player_ids | defenders)
 
     def participation(self) -> TeamMatchParticipation:
         return TeamMatchParticipation(
@@ -214,6 +241,9 @@ class TeamMatchState:
                   for e in sorted(self.initial_lineup.entries, key=lambda e: e.batting_order)),
             self.initial_lineup.player_for_position("P"), self.history,
             tuple(sorted(self.fielding_player_ids)),
+            self.initial_lineup.designated_hitter_id,
+            tuple(DefensiveAssignment(a.defensive_position, a.player_id)
+                  for a in self.initial_lineup.defense),
         )
 
     def player_at_order(self, batting_order: int) -> str:
@@ -241,13 +271,29 @@ class TeamMatchState:
         fielders = frozenset(a.player_id for a in data.defense)
         if len(batters) != 9 or len(fielders) != 9:
             raise ValueError("duplicate player in batting order or defense")
-        if batters != fielders:
-            raise ValueError("batting and defensive players differ without DH")
-        if not batters <= self._registered or not data.exited <= self._registered:
+        if data.dh_id is None:
+            if batters != fielders or data.dh_pending:
+                raise ValueError("batting and defensive players differ without DH")
+        else:
+            if self.initial_lineup.designated_hitter_id is None:
+                raise ValueError('DH cannot be introduced during the game')
+            pitcher = data.defense[0].player_id
+            if data.dh_id not in batters or batters - {data.dh_id} != fielders - {pitcher}:
+                raise ValueError('DH batting and defensive roles differ')
+            if data.dh_id in fielders and data.dh_id != self._initial_two_way_id():
+                raise ValueError('only the declared starting pitcher may be pitcher/DH')
+        two_way = self._initial_two_way_id()
+        if two_way is not None:
+            if data.pitcher_role_retired and data.defense[0].player_id == two_way:
+                raise ValueError('a retired pitcher role cannot be regained')
+            if data.batter_role_retired and two_way in batters:
+                raise ValueError('a retired batting role cannot be regained')
+        active = batters | fielders
+        if not active <= self._registered or not data.exited <= self._registered:
             raise ValueError("unregistered player")
-        if not batters <= self._available:
+        if not active <= self._available:
             raise ValueError("unavailable player")
-        if batters & data.exited:
+        if active & data.exited:
             raise ValueError("an exited player cannot reenter")
         if actual_pitcher_id is not None and data.defense[0].player_id != actual_pitcher_id:
             raise ValueError(
@@ -266,7 +312,8 @@ class TeamMatchState:
     def _commit(self, candidate: _TeamStateData, kind: _ChangeKind, *, slot: int | None = None,
                 outgoing: str | None = None, incoming: str | None = None,
                 actual_pitcher_id: str | None = None,
-                moment: ChangeMoment | None = None) -> LineupChange | None:
+                moment: ChangeMoment | None = None,
+                dh_action: DHAction | None = None) -> LineupChange | None:
         self._validate(candidate, actual_pitcher_id)
         if candidate == self._data:
             return None
@@ -276,14 +323,136 @@ class TeamMatchState:
             if before.player_id != after.player_id
         )
         change = LineupChange(len(self.history) + 1, self.school_id, kind, slot, outgoing,
-                              incoming, changes, moment)
+                              incoming, changes, moment, dh_action)
         candidate = replace(candidate, history=(*self.history, change))
         self._data = candidate
         return change
 
+    @property
+    def designated_hitter_id(self) -> str | None:
+        return self._data.dh_id
+
+    @property
+    def dh_batting_required(self) -> bool:
+        return self._data.dh_pending
+
+    @property
+    def retired_two_way_roles(self) -> frozenset[str]:
+        return frozenset(role for role, retired in (
+            ('pitcher', self._data.pitcher_role_retired),
+            ('batter', self._data.batter_role_retired),
+        ) if retired)
+
+    def transition(self, *, batting_changes: Mapping[int, str] | None = None,
+                   defensive_changes: Mapping[str, str] | None = None,
+                   medical_exception: str | None = None, umpire_approved: bool = False,
+                   moment: ChangeMoment | None = None) -> LineupChange | None:
+        """同時交代を一括適用する。DH消滅時の新投手等の打順は呼出側が明示する。
+
+        医療例外は球審が負傷・病気による出場不可を認めた場合のみ申告する。
+        DH宣言を途中から作成・復活させる引数は持たない。
+        """
+        changes = dict(batting_changes or {})
+        if any(type(n) is not int or not 1 <= n <= 9 for n in changes):
+            raise ValueError('batting order must be 1..9')
+        if (medical_exception not in (None, 'injury', 'illness')
+                or type(umpire_approved) is not bool
+                or (medical_exception is None) != (not umpire_approved)):
+            raise ValueError('medical exception requires injury/illness and umpire approval')
+        bats = tuple(BattingOrderSlot(s.batting_order, changes.get(s.batting_order, s.player_id))
+                     for s in self.batting_order)
+        new_batters = {s.player_id for s in bats}
+        for slot in self.batting_order:
+            if slot.player_id in new_batters and bats[slot.batting_order-1].player_id != slot.player_id:
+                raise ValueError('an active batter cannot change batting slots')
+        positions = self._positions(defensive_changes or {})
+        old_defense = {a.defensive_position: a.player_id for a in self.defensive_alignment}
+        old_pitcher = self.current_pitcher_id
+        dh = self.designated_hitter_id
+        # 先発P+DHがPに残ること自体はDH消滅の理由ではない。
+        fielded_dh = dh is not None and any(
+            pid == dh and (pos != 'P' or old_pitcher != dh)
+            for pos, pid in positions.items())
+        pitcher_moves = any(pos != 'P' and pid == old_pitcher for pos, pid in positions.items())
+        fielder_pitches = positions['P'] in {pid for pos, pid in old_defense.items() if pos != 'P'}
+        structural_end = fielded_dh or pitcher_moves or fielder_pitches
+        pitcher_bats = dh is not None and old_pitcher != dh and old_pitcher in new_batters
+        dh_slot = next((s.batting_order for s in self.batting_order if s.player_id == dh), None)
+        if pitcher_bats and not structural_end and bats[dh_slot-1].player_id != old_pitcher:
+            raise ValueError('the active pitcher may pinch hit/run only for DH')
+        # 新しい投手を同時にDHとする5.11(b)の再適用は認めない。
+        replacement_pitches = dh_slot is not None and positions['P'] == bats[dh_slot-1].player_id and positions['P'] != old_pitcher
+        ends = structural_end or pitcher_bats or replacement_pitches
+        if (self.dh_batting_required and dh not in new_batters
+                and not structural_end and medical_exception is None):
+            raise ValueError('starting DH must complete the first plate appearance')
+        new_dh = None if dh is None or ends else bats[dh_slot-1].player_id
+        active = new_batters | set(positions.values())
+        two_way = self._initial_two_way_id()
+        candidate = replace(
+            self._data, batting_order=bats, defense=self._alignment(positions), dh_id=new_dh,
+            dh_pending=self.dh_batting_required and new_dh == dh,
+            exited=self.exited_player_ids | (self.active_player_ids - active),
+            pitcher_role_retired=self._data.pitcher_role_retired or
+                (two_way is not None and positions['P'] != two_way),
+            batter_role_retired=self._data.batter_role_retired or
+                (two_way is not None and two_way not in new_batters),
+        )
+        action = DHAction(tuple(BattingOrderSlot(n, pid) for n, pid in sorted(changes.items())),
+                          medical_exception=medical_exception, umpire_approved=umpire_approved)
+        return self._commit(candidate, 'dh_transition', moment=moment, dh_action=action)
+
+    def _initial_two_way_id(self) -> str | None:
+        dh = self.initial_lineup.designated_hitter_id
+        return dh if dh is not None and dh == self.initial_lineup.player_for_position('P') else None
+
+    def record_completed_plate_appearance(self, player_id: str, *,
+                                         moment: ChangeMoment | None = None) -> LineupChange | None:
+        """打撃完了の規則入力。実際の打席処理への接続は次工程で行う。"""
+        if player_id not in {s.player_id for s in self.batting_order}:
+            raise ValueError('completed batter is not in the batting order')
+        if not self.dh_batting_required or player_id != self.designated_hitter_id:
+            return None
+        return self._commit(replace(self._data, dh_pending=False), 'dh_plate_appearance',
+                            moment=moment, dh_action=DHAction(player_id=player_id))
+
+    def record_opposing_starter_replaced(self, *,
+                                        moment: ChangeMoment | None = None) -> LineupChange | None:
+        """5.11(a)(2)の例外。自チーム先発の交代には使用しない。"""
+        if not self.dh_batting_required:
+            return None
+        return self._commit(replace(self._data, dh_pending=False), 'dh_opponent_pitcher',
+                            moment=moment, dh_action=DHAction())
+
+    def to_dict(self) -> dict:
+        """状態モデル用の記録。A方式への書込みはこの段階では接続しない。"""
+        return {'reference_year': self.initial_lineup.reference_year,
+                'registered': sorted(self.registered_player_ids),
+                'available': sorted(self.available_player_ids),
+                'participation': self.participation().to_dict()}
+
+    @classmethod
+    def from_dict(cls, value: dict) -> TeamMatchState:
+        record = TeamMatchParticipation.from_dict(value['participation'])
+        state = _participation_start(record, value['reference_year'], value['registered'],
+                                     available=value['available'])
+        for change in record.changes:
+            apply_lineup_change(state, change, require_moment=False)
+        fielding = frozenset(record.fielding_player_ids)
+        participants = {a.player_id for a in state.initial_lineup.defense or state.initial_lineup.entries}
+        for change in record.changes:
+            participants.update(c.after_player_id for c in change.defensive_changes)
+        if len(fielding) != len(record.fielding_player_ids) or not fielding <= participants:
+            raise ValueError('invalid fielding appearances')
+        state._data = replace(state._data, fielding=fielding)
+        return state
+
     def change_positions(self, assignments: Mapping[str, str], *,
+                         batting_changes: Mapping[int, str] | None = None,
                          moment: ChangeMoment | None = None) -> LineupChange | None:
         """位置→選手IDの交換・循環をまとめて適用し、打順は維持する。"""
+        if self.initial_lineup.designated_hitter_id is not None or batting_changes is not None:
+            return self.transition(defensive_changes=assignments, batting_changes=batting_changes, moment=moment)
         return self._change_positions(assignments, "position_change", moment=moment)
 
     def _change_positions(self, assignments: Mapping[str, str], kind: _ChangeKind, *,
@@ -300,8 +469,27 @@ class TeamMatchState:
 
     def substitute(self, outgoing_player_id: str, incoming_player_id: str, *,
                    defensive_changes: Mapping[str, str] | None = None,
+                   medical_exception: str | None = None, umpire_approved: bool = False,
                    moment: ChangeMoment | None = None) -> LineupChange:
         """控えが退場者の打順枠を継承。付随する位置変更も1操作で検証する。"""
+        if self.initial_lineup.designated_hitter_id is not None:
+            if outgoing_player_id not in self.active_player_ids:
+                raise ValueError('outgoing player is not active')
+            if outgoing_player_id == incoming_player_id:
+                raise ValueError('a player cannot substitute for themselves')
+            if incoming_player_id in self.active_player_ids and not (
+                    incoming_player_id == self.current_pitcher_id
+                    and outgoing_player_id == self.designated_hitter_id):
+                raise ValueError('incoming player is already active')
+            bats = {s.batting_order: incoming_player_id for s in self.batting_order
+                    if s.player_id == outgoing_player_id}
+            defense = {a.defensive_position: incoming_player_id for a in self.defensive_alignment
+                       if a.player_id == outgoing_player_id and outgoing_player_id != self.designated_hitter_id}
+            return self.transition(batting_changes=bats, defensive_changes={**defense, **(defensive_changes or {})},
+                                   medical_exception=medical_exception, umpire_approved=umpire_approved,
+                                   moment=moment)
+        if medical_exception is not None or umpire_approved:
+            raise ValueError('DH medical exception requires a declared DH')
         return self._substitute(outgoing_player_id, incoming_player_id,
                                 defensive_changes or {}, "substitution", moment=moment)
 
@@ -334,6 +522,7 @@ class TeamMatchState:
 
     def change_pitcher(self, incoming_player_id: str, *, outgoing_player_id: str | None = None,
                        defensive_changes: Mapping[str, str] | None = None,
+                       batting_changes: Mapping[int, str] | None = None,
                        moment: ChangeMoment | None = None) -> LineupChange | None:
         """配置操作のみ。登板可否・球数・再登板の規則は呼出側で判断する。
 
@@ -341,6 +530,20 @@ class TeamMatchState:
         別の出場選手を交代対象に指定すると、その打順枠へ控え投手が入り、現投手はその守備へ残る。
         """
         current = self.current_pitcher_id
+        if self.initial_lineup.designated_hitter_id is not None:
+            if (defensive_changes or {}).get('P', incoming_player_id) != incoming_player_id:
+                raise ValueError('P assignment differs from incoming pitcher')
+            if outgoing_player_id is not None:
+                raise ValueError('use atomic transition for simultaneous DH substitutions')
+            changes = {'P': incoming_player_id}
+            position = next((a.defensive_position for a in self.defensive_alignment
+                             if a.player_id == incoming_player_id and a.defensive_position != 'P'), None)
+            if position is not None:
+                changes[position] = current
+            return self.transition(defensive_changes={**changes, **(defensive_changes or {})},
+                                   batting_changes=batting_changes, moment=moment)
+        if batting_changes is not None:
+            raise ValueError('explicit batting changes require transition')
         if incoming_player_id == current:
             if outgoing_player_id is not None or defensive_changes:
                 raise ValueError("current pitcher requires no replacement")
@@ -363,24 +566,31 @@ class TeamMatchState:
 
 
 def _participation_start(record: TeamMatchParticipation, reference_year: int,
-                         registered: Iterable[str] | None = None) -> TeamMatchState:
+                         registered: Iterable[str] | None = None, *,
+                         available: Iterable[str] | None = None) -> TeamMatchState:
     if not isinstance(record.starting_pitcher_id, str) or not record.starting_pitcher_id:
         raise ValueError("starting pitcher is required")
     if registered is None:
         registered = {s.player_id for s in record.starting_lineup} | {
             c.after_player_id for change in record.changes for c in change.defensive_changes
+        } | {a.player_id for a in record.starting_defense} | {
+            slot.player_id for change in record.changes if change.dh_action is not None
+            for slot in change.dh_action.batting_changes
         }
     lineup = StartingLineup(record.school_id, reference_year, tuple(
         LineupEntry(s.batting_order, s.defensive_position, s.player_id, 0.0)
         for s in record.starting_lineup
-    ))
-    return TeamMatchState(lineup, registered, actual_pitcher_id=record.starting_pitcher_id)
+    ), tuple(DefensiveAssignment(a.defensive_position, a.player_id) for a in record.starting_defense),
+        record.starting_designated_hitter_id)
+    return TeamMatchState(lineup, registered, actual_pitcher_id=record.starting_pitcher_id,
+                          available_player_ids=available)
 
 
-def apply_lineup_change(state: TeamMatchState, change: LineupChange) -> None:
+def apply_lineup_change(state: TeamMatchState, change: LineupChange, *, require_moment: bool = True) -> None:
     """保存した差分を既存の状態操作で検証して適用する。失敗時は状態を保つ。"""
     if (type(change.sequence) is not int or change.sequence != len(state.history) + 1
-            or change.school_id != state.school_id or not isinstance(change.moment, ChangeMoment)
+            or change.school_id != state.school_id
+            or (not isinstance(change.moment, ChangeMoment) and (require_moment or change.moment is not None))
             or (change.batting_order is not None
                 and (type(change.batting_order) is not int or not 1 <= change.batting_order <= 9))):
         raise ValueError("invalid lineup change sequence, school, slot or moment")
@@ -393,7 +603,23 @@ def apply_lineup_change(state: TeamMatchState, change: LineupChange) -> None:
         positions[pos] = assignment.after_player_id
     before = state._data
     try:
-        if change.kind == "position_change":
+        if change.dh_action is not None:
+            action = change.dh_action
+            if change.kind == 'dh_transition':
+                if len({s.batting_order for s in action.batting_changes}) != len(action.batting_changes):
+                    raise ValueError('duplicate batting changes')
+                applied = state.transition(batting_changes={s.batting_order: s.player_id for s in action.batting_changes},
+                    defensive_changes=positions, medical_exception=action.medical_exception,
+                    umpire_approved=action.umpire_approved, moment=change.moment)
+            elif change.kind == 'dh_plate_appearance':
+                applied = state.record_completed_plate_appearance(action.player_id, moment=change.moment)
+            elif change.kind == 'dh_opponent_pitcher':
+                applied = state.record_opposing_starter_replaced(moment=change.moment)
+            else:
+                raise ValueError('invalid DH action')
+        elif state.initial_lineup.designated_hitter_id is not None:
+            raise ValueError('DH changes require rule inputs')
+        elif change.kind == "position_change":
             applied = state.change_positions(positions, moment=change.moment)
         elif change.kind == "substitution":
             applied = state.substitute(change.outgoing_player_id, change.incoming_player_id,
@@ -414,7 +640,7 @@ def replay_team_participation(record: TeamMatchParticipation, reference_year: in
                               registered: Iterable[str] | None = None) -> TeamMatchState:
     """能力・現在名簿を使わず開始配置と差分だけから最終配置・退場者を復元する。"""
     state = _participation_start(record, reference_year, registered)
-    participants = set(state.active_player_ids)
+    participants = {a.player_id for a in state.defensive_alignment}
     previous = None
     for change in record.changes:
         moment = change.moment
@@ -427,7 +653,7 @@ def replay_team_participation(record: TeamMatchParticipation, reference_year: in
         ):
             raise ValueError("lineup change moments are out of order")
         apply_lineup_change(state, change)
-        participants.update(state.active_player_ids)
+        participants.update(a.player_id for a in state.defensive_alignment)
         previous = key
     fielding = frozenset(record.fielding_player_ids)
     if len(fielding) != len(record.fielding_player_ids) or not fielding <= participants:
@@ -483,7 +709,10 @@ def validate_match_participation(
                 if (actual.batting_order != expected.batting_order
                         or actual.defensive_alignment != expected.defensive_alignment
                         or actual.exited_player_ids != expected.exited_player_ids
-                        or actual.fielding_player_ids != expected.fielding_player_ids):
+                        or actual.fielding_player_ids != expected.fielding_player_ids
+                        or actual.designated_hitter_id != expected.designated_hitter_id
+                        or actual.dh_batting_required != expected.dh_batting_required
+                        or actual.retired_two_way_roles != expected.retired_two_way_roles):
                     raise ValueError("replayed final lineup differs from runtime state")
 
     if events is None and half_plate_appearances is None:
