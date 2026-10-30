@@ -469,12 +469,25 @@ class DHMatchStateTests(unittest.TestCase):
         self.rejected(s, lambda: s.transition(
             batting_changes={1: 'B'}, defensive_changes={'CF': 'B', 'P': 'RP'}))
 
+    def test_successor_dh_fielding_can_assign_retained_pitcher_to_fielder_slot(self):
+        s = self.ready()
+        s.transition(batting_changes={1: 'B', 8: 'P'}, defensive_changes={'CF': 'B'})
+        self.assertIsNone(s.designated_hitter_id)
+        self.assertEqual('P', s.current_pitcher_id)
+        self.assertEqual('P', s.player_at_order(8))
+        self.assertEqual('B', s.player_for_position('CF'))
+        self.assertEqual({'DH', 'CF'}, s.exited_player_ids)
+        self.round_trip(s)
+
     def test_successor_dh_fielding_does_not_waive_first_plate_appearance(self):
         for dual in (False, True):
             s = self.make(dual)
             self.rejected(s, lambda: s.transition(
                 batting_changes={1: 'B', 8: 'RP'},
                 defensive_changes={'CF': 'B', 'P': 'RP'}))
+        s = self.make()
+        self.rejected(s, lambda: s.transition(
+            batting_changes={1: 'B', 8: 'P'}, defensive_changes={'CF': 'B'}))
 
     def test_successor_fielding_cannot_restore_retired_batting_role(self):
         s = self.ready(True)
@@ -529,7 +542,7 @@ class DHMatchStateTests(unittest.TestCase):
         self.assertEqual(9, len(s.active_player_ids))
         self.round_trip(s)
         s = self.ready()
-        self.rejected(s, lambda: s.transition(batting_changes={1:'B', 8:'P'}, defensive_changes={'CF':'B'}))
+        self.rejected(s, lambda: s.transition(batting_changes={8: 'P'}))
 
     def test_dh_can_pitch_and_end_dh(self):
         s = self.make()
