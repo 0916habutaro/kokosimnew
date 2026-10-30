@@ -380,13 +380,15 @@ class TeamMatchState:
         dh_slot = next((s.batting_order for s in self.batting_order if s.player_id == dh), None)
         if pitcher_bats and not structural_end and bats[dh_slot-1].player_id != old_pitcher:
             raise ValueError('the active pitcher may pinch hit/run only for DH')
-        # 新しい投手を同時にDHとする5.11(b)の再適用は認めない。
-        replacement_pitches = dh_slot is not None and positions['P'] == bats[dh_slot-1].player_id and positions['P'] != old_pitcher
-        ends = structural_end or pitcher_bats or replacement_pitches
+        candidate_dh = None if dh_slot is None else bats[dh_slot-1].player_id
+        # DH枠の後継者が同時に守備へ入る場合も消滅する（新投手の打順入りを含む）。
+        # 後継者の守備入りでは、交代前の先発DHの初回打撃義務を免除しない。
+        replacement_fields = dh_slot is not None and candidate_dh != dh and candidate_dh in positions.values()
+        ends = structural_end or pitcher_bats or replacement_fields
         if (self.dh_batting_required and dh not in new_batters
                 and not structural_end and medical_exception is None):
             raise ValueError('starting DH must complete the first plate appearance')
-        new_dh = None if dh is None or ends else bats[dh_slot-1].player_id
+        new_dh = None if dh is None or ends else candidate_dh
         active = new_batters | set(positions.values())
         two_way = self._initial_two_way_id()
         candidate = replace(

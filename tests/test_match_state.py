@@ -446,6 +446,65 @@ class DHMatchStateTests(unittest.TestCase):
         self.assertFalse(s.dh_batting_required)
         self.round_trip(s)
 
+    def test_successor_dh_fielding_and_new_pitcher_double_switch(self):
+        for dual in (False, True):
+            with self.subTest(dual=dual):
+                s = self.ready(dual)
+                old_dh = s.designated_hitter_id
+                s.transition(batting_changes={1: 'B', 8: 'RP'},
+                             defensive_changes={'CF': 'B', 'P': 'RP'})
+                self.assertIsNone(s.designated_hitter_id)
+                self.assertEqual('B', s.player_at_order(1))
+                self.assertEqual('RP', s.player_at_order(8))
+                self.assertEqual('B', s.player_for_position('CF'))
+                self.assertEqual('RP', s.current_pitcher_id)
+                self.assertEqual({old_dh, 'CF', 'P'}, s.exited_player_ids)
+                self.assertEqual({b.player_id for b in s.batting_order}, s.active_player_ids)
+                self.assertEqual(9, len(s.active_player_ids))
+                self.assertFalse(s.dh_batting_required)
+                self.round_trip(s)
+
+    def test_successor_dh_fielding_requires_pitcher_batting_slot(self):
+        s = self.ready()
+        self.rejected(s, lambda: s.transition(
+            batting_changes={1: 'B'}, defensive_changes={'CF': 'B', 'P': 'RP'}))
+
+    def test_successor_dh_fielding_does_not_waive_first_plate_appearance(self):
+        for dual in (False, True):
+            s = self.make(dual)
+            self.rejected(s, lambda: s.transition(
+                batting_changes={1: 'B', 8: 'RP'},
+                defensive_changes={'CF': 'B', 'P': 'RP'}))
+
+    def test_successor_fielding_cannot_restore_retired_batting_role(self):
+        s = self.ready(True)
+        s.substitute('P', 'X')
+        self.rejected(s, lambda: s.transition(
+            batting_changes={1: 'B', 8: 'P'}, defensive_changes={'CF': 'B'}))
+        restored = self.round_trip(s)
+        self.rejected(restored, lambda: restored.transition(
+            batting_changes={1: 'B', 8: 'P'}, defensive_changes={'CF': 'B'}))
+
+    def test_successor_dh_without_fielding_survives_simultaneous_pitcher_change(self):
+        s = self.ready()
+        s.transition(batting_changes={1: 'B'}, defensive_changes={'P': 'RP'})
+        self.assertEqual('B', s.designated_hitter_id)
+        self.assertEqual(10, len(s.active_player_ids))
+        self.assertEqual({'DH', 'P'}, s.exited_player_ids)
+        self.round_trip(s)
+
+    def test_timed_successor_dh_fielding_double_switch_replays(self):
+        from game_core.match_state import ChangeMoment, replay_team_participation
+        s = self.make()
+        s.record_completed_plate_appearance('DH', moment=ChangeMoment(1, 'top', 2))
+        s.transition(batting_changes={1: 'B', 8: 'RP'},
+                     defensive_changes={'CF': 'B', 'P': 'RP'},
+                     moment=ChangeMoment(2, 'bottom', 12))
+        s.record_fielding_appearance()
+        restored = replay_team_participation(s.participation(), 2026, s.registered_player_ids)
+        self.assertEqual(s.to_dict(), restored.to_dict())
+        self.round_trip(restored)
+
     def test_pitcher_moving_to_field_ends_dh(self):
         s = self.make()
         s.change_pitcher('RF', batting_changes={1: 'P'})
