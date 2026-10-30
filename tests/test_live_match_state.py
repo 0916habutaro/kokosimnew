@@ -1,6 +1,6 @@
 """架空の選手で、開始配置・継投・打順・記録の本番接続を確かめる。"""
 from collections import Counter
-from dataclasses import replace
+from dataclasses import fields, replace
 from datetime import date
 from pathlib import Path
 import tempfile
@@ -381,6 +381,97 @@ class DHSimulationTests(unittest.TestCase):
             self.assertTrue(participants <= states[sid].registered_player_ids)
             self.assertEqual(len({r.player_id for r in result.batter_stats if r.school_id == sid}),
                              len([r for r in result.batter_stats if r.school_id == sid]))
+
+    def test_three_modes_reject_batter_stats_inconsistent_with_actual_events(self):
+        for mode in ('none', 'normal', 'pitcher'):
+            inp, result, _ = self.play(mode)
+            hitter = next(row for row in result.batter_stats if row.home_runs)
+            out = next(row for row in result.batter_stats if row.at_bats and not row.hits)
+            cases = (
+                (hitter, dict(home_runs=0, doubles=1)),
+                (hitter, dict(rbi=0)),
+                (hitter, dict(strikeouts=1)),
+                (out, dict(at_bats=out.at_bats-1, walks=out.walks+1)),
+                (hitter, dict(stolen_bases=1)),
+                (hitter, dict(caught_stealing=1)),
+            )
+            for target, values in cases:
+                with self.subTest(mode=mode, fields=values):
+                    corrupted = replace(result, batter_stats=tuple(
+                        replace(row, **values) if row == target else row for row in result.batter_stats))
+                    with self.assertRaises(ValueError):
+                        validate_match_simulation_result(corrupted, inp)
+
+    def test_three_modes_reject_pitcher_stats_inconsistent_with_actual_events(self):
+        for mode in ('none', 'normal', 'pitcher'):
+            inp, result, _ = self.play(mode)
+            target = next(row for row in result.pitcher_stats if row.hits_allowed)
+            for values in (dict(outs_recorded=target.outs_recorded+1), dict(home_runs_allowed=0),
+                           dict(strikeouts=1), dict(walks=1)):
+                with self.subTest(mode=mode, fields=values):
+                    corrupted = replace(result, pitcher_stats=tuple(
+                        replace(row, **values) if row == target else row for row in result.pitcher_stats))
+                    with self.assertRaises(ValueError):
+                        validate_match_simulation_result(corrupted, inp)
+
+    def test_unchanged_team_totals_do_not_hide_swapped_individual_batting_stats(self):
+        for mode in ('none', 'normal', 'pitcher'):
+            with self.subTest(mode=mode):
+                inp, result, _ = self.play(mode)
+                hitter = next(row for row in result.batter_stats if row.home_runs)
+                out = next(row for row in result.batter_stats
+                           if row.school_id == hitter.school_id and row.at_bats and not row.hits)
+                sources = {hitter.player_id: out, out.player_id: hitter}
+                swapped = tuple(replace(row, **{
+                    f.name: getattr(sources[row.player_id], f.name) for f in fields(row)
+                    if f.name not in ('player_id', 'school_id')}) if row.player_id in sources else row
+                    for row in result.batter_stats)
+                for f in fields(hitter):
+                    if f.name not in ('player_id', 'school_id'):
+                        self.assertEqual(sum(getattr(row, f.name) for row in result.batter_stats),
+                                         sum(getattr(row, f.name) for row in swapped))
+                with self.assertRaises(ValueError):
+                    validate_match_simulation_result(replace(result, batter_stats=swapped), inp)
+
+    def test_every_plate_appearance_has_one_available_defender_per_position_including_bunts(self):
+        owner = self
+
+        class EveryPlay(ObservedSimulator):
+            def __init__(self, scripts, changes):
+                super().__init__(scripts, changes)
+                self.frames = []
+                self.bunted = False
+
+            def _should_sacrifice_bunt(self, batter, bases, outs, margin, rng):
+                if not self.bunted and bases[0] and not bases[2] and outs < 2:
+                    self.bunted = True
+                    return True
+                return False
+
+            def _apply_event(self, **kwargs):
+                offense = kwargs['offense_players'][kwargs['batter_id']].school_id
+                defense = next(sid for sid in self.states if sid != offense)
+                for state in self.states.values():
+                    alignment = state.defensive_alignment
+                    owner.assertEqual(STARTING_POSITIONS, tuple(a.defensive_position for a in alignment))
+                    ids = {a.player_id for a in alignment}
+                    owner.assertEqual(9, len(ids))
+                    owner.assertTrue(ids <= state.registered_player_ids & state.available_player_ids)
+                    owner.assertFalse(state.active_player_ids & state.exited_player_ids)
+                self.frames.append((kwargs['batter_id'], self.states[defense].current_pitcher_id))
+                return super()._apply_event(**kwargs)
+
+        for mode in ('none', 'normal', 'pitcher'):
+            with self.subTest(mode=mode):
+                inp = self.match(mode)
+                changes = tuple((t.team_strength.starting_lineup.player_for_position('P'), 1)
+                                for t in (inp.team1, inp.team2))
+                sim = EveryPlay({inp.team2.school_id: ('walk', 'home_run')}, changes)
+                result = sim.simulate(inp, regulation_innings=1)
+                self.assertTrue(sim.bunted)
+                self.assertTrue(any(e.event_type == 'sacrifice_bunt' for e in result.events))
+                self.assertEqual([(e.batter_id, e.pitcher_id) for e in result.events], sim.frames)
+                validate_match_simulation_result(result, inp)
 
     def test_three_modes_use_nine_batters_and_independent_defense(self):
         for mode, count in (('none', 9), ('normal', 10), ('pitcher', 9)):

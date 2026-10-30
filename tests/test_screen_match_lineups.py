@@ -87,6 +87,23 @@ class MatchLineupScreenTests(unittest.TestCase):
         self.assertEqual(1, len({rows[pid]['batting_order'] for pid in staff}))
         self.assertEqual({'投'}, {rows[pid]['position'] for pid in staff})
         self.assertEqual([True, True, False], [rows[pid]['exited'] for pid in staff])
+        # 同じ「投」の3行は時間の異なる守備履歴。各打席で同時に投げるのは1人。
+        from game_core.match_state import apply_lineup_change
+        record = next(r for r in result.team_participation if r.school_id == team)
+        state = replay_team_participation(replace(record, changes=(), fielding_player_ids=()), 2026,
+                                          registered=self.players[team])
+        pending = iter(record.changes)
+        change = next(pending, None)
+        actual_pitchers = set()
+        for event in result.events:
+            while change is not None and change.moment.next_plate_appearance_no == event.plate_appearance_no:
+                apply_lineup_change(state, change)
+                change = next(pending, None)
+            if event.defense_school_id == team:
+                pitchers = [a.player_id for a in state.defensive_alignment if a.defensive_position == 'P']
+                self.assertEqual([event.pitcher_id], pitchers)
+                actual_pitchers.update(pitchers)
+        self.assertEqual(set(staff), actual_pitchers)
         for shown in view['lineup_changes']:
             event = result.events[shown['next_plate_appearance_no'] - 1]
             self.assertEqual((event.inning, '表' if event.half == 'top' else '裏'),
