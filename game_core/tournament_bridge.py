@@ -12,7 +12,7 @@ from phase2_engine.models import MatchResolution
 from phase2_engine.randomness import rng_for
 from phase2_engine.repository import DataRepository
 
-from .match_contract import MatchSimulationInput, TeamMatchInput
+from .match_contract import MatchSimulationInput, TeamMatchInput, validated_match_history
 from .coaches import CoachTactics
 from .highlights import game_highlights
 from .match_simulator import GameRules, MatchSimulator
@@ -522,9 +522,6 @@ class AbilityMatchResolver:
             team2=team2_input,
             team_generation_seed=team_generation_seed,
         )
-        if any(t.team_strength.starting_lineup.designated_hitter_id is not None
-               for t in (team1_input, team2_input)):
-            raise ValueError('DH games are not connected to live progression/persistence')
         day = self._match_day()
         tactics = {sid: self._coach_tactics(sid, day) for sid in (team1, team2)}
         result = self.simulator.simulate(
@@ -535,20 +532,23 @@ class AbilityMatchResolver:
             ),
             **({"tactics": tactics} if any(t != CoachTactics() for t in tactics.values()) else {}),
         )
-        if any(r.starting_designated_hitter_id is not None for r in result.team_participation):
-            raise ValueError('DH results cannot enter live progression/persistence')
+        dh_detail = None
+        if (any(r.starting_designated_hitter_id is not None for r in result.team_participation)
+                or any(t.team_strength.starting_lineup.designated_hitter_id is not None
+                       for t in (team1_input, team2_input))):
+            dh_detail = validated_match_history(result, match_input)
         self._record_pitches(result, day)
         self._record_games(competition_id, result)
         highlights = game_highlights(result.events)
         if self.detail_sink is not None:
             # 確定した開始配置・交代履歴・守備出場IDも結果からそのまま履歴へ渡す。
-            full = replace(result, events=()).to_dict()
+            full = dh_detail if dh_detail is not None else replace(result, events=()).to_dict()
             full["team_generation_seed"] = team_generation_seed
             full["highlights"] = highlights
             self.detail_sink[f"{competition_id}:{match_id}"] = full
             detail = {"team_generation_seed": team_generation_seed}
         else:
-            detail = result.to_dict()
+            detail = dh_detail if dh_detail is not None else result.to_dict()
             detail["team_generation_seed"] = team_generation_seed
             detail["highlights"] = highlights
         return MatchResolution(

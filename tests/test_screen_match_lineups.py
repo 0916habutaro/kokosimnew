@@ -14,6 +14,7 @@ from phase2_engine.screen.app import ScreenApi
 from phase2_engine.screen.competition_views import match_detail
 from phase2_engine.screen.data import GameScreenData
 import test_live_match_state as fixtures
+import test_match_participation_history as history_fixtures
 
 
 class MatchLineupScreenTests(unittest.TestCase):
@@ -242,6 +243,115 @@ class MatchLineupScreenTests(unittest.TestCase):
         self.assertEqual(self.players[sid][pid].display_name, player['name'])
         self.assertEqual('卒業', player['status'])
         self.assertEqual(pid, player['player_id'])
+
+
+class DHMatchScreenTests(history_fixtures.DHHistoryFixtures, unittest.TestCase):
+    def test_no_dh_explicit_transition_also_preserves_batting_slot_and_saved_view(self):
+        from game_core.match_simulator import LineupAdjustment
+        team = self.dh.by_mode['none'][0]
+        lineup = team.team_strength.starting_lineup
+        slot = next(e.batting_order for e in lineup.entries if e.defensive_position == 'CF')
+        bench = next(p.player_id for p in team.player_abilities if p.player_id not in lineup.starter_ids)
+        plan = LineupAdjustment(2, team.school_id, ((slot, bench),), (('CF', bench),))
+        _, result, _, row = self.game('none', lineup_changes=(plan,))
+        view = self.view(row)
+        self.assertEqual(view, self.view(row, self.saved(row)))
+        batter = next(p for p in view['batting'][result.team1_school_id] if p['player_id'] == bench)
+        self.assertEqual((slot, '中'), (batter['batting_order'], batter['position']))
+
+    def test_mixed_modes_show_only_the_dh_team_pitcher_outside_order(self):
+        teams = (self.dh.by_mode['none'][0], self.dh.by_mode['normal'][1])
+        _, result, _, row = self.game(teams=teams)
+        view = self.view(row)
+        self.assertNotIn('pitcher', view['lineups'][result.team1_school_id])
+        self.assertIn('pitcher', view['lineups'][result.team2_school_id])
+        self.assertEqual(view, self.view(row, self.saved(row)))
+
+    def view(self, row, detail=None):
+        players = {team.school_id: {p.player_id: SimpleNamespace(display_name=f'架空選手{i+1:02d}', primary_position='RF')
+                                   for i, p in enumerate(team.player_abilities)} for team in self.dh.by_mode['normal']}
+        names = {sid: f'架空第{i+1}校' for i, sid in enumerate(players)}
+        return match_detail(row, row['ability_detail'] if detail is None else detail,
+                            names.get, players.get, school_year=2026)
+
+    def test_normal_dh_has_nine_batting_slots_and_separate_pitcher_tenth_row(self):
+        _, result, _, row = self.game()
+        view = self.view(row)
+        for record in result.team_participation:
+            lineup = view['lineups'][record.school_id]
+            self.assertEqual(list(range(1, 10)), [p['batting_order'] for p in lineup['players']])
+            self.assertEqual(record.starting_pitcher_id, lineup['pitcher']['player_id'])
+            self.assertIsNone(lineup['pitcher']['batting_order'])
+            self.assertEqual(10, len({p['player_id'] for p in lineup['players']} | {lineup['pitcher']['player_id']}))
+            self.assertNotIn(record.starting_pitcher_id, {p['player_id'] for p in view['batting'][record.school_id]})
+            dh = next(p for p in view['batting'][record.school_id] if p['player_id'] == record.starting_designated_hitter_id)
+            self.assertEqual(('DH', False, '打撃専任'), (dh['position'], dh['fielded'], dh['role_label']))
+
+    def test_two_way_is_one_starting_person_with_batting_and_pitching_stats(self):
+        _, result, _, row = self.game('pitcher')
+        view = self.view(row)
+        for record in result.team_participation:
+            lineup = view['lineups'][record.school_id]
+            self.assertNotIn('pitcher', lineup)
+            dual = next(p for p in lineup['players'] if p['player_id'] == record.starting_pitcher_id)
+            self.assertEqual('投・DH', dual['position'])
+            self.assertEqual(9, len({p['player_id'] for p in lineup['players']}))
+            for table in ('batting', 'pitching'):
+                self.assertEqual(1, sum(p['player_id'] == dual['player_id'] for p in view[table][record.school_id]))
+
+    def test_internal_rule_notifications_are_not_displayed_as_substitutions(self):
+        _, result, _, row = self.game()
+        self.assertTrue(any(r.changes for r in result.team_participation))
+        self.assertEqual([], self.view(row)['lineup_changes'])
+
+    def test_two_way_partial_and_full_exit_labels_are_distinct(self):
+        from game_core.match_simulator import LineupAdjustment
+        team = self.dh.by_mode['pitcher'][1]
+        lineup = team.team_strength.starting_lineup
+        bench = [p.player_id for p in team.player_abilities if p.player_id not in lineup.starter_ids]
+        rp = next(pid for pid in fixtures.MatchSimulator._pitcher_order(team) if pid in bench)
+        batter = next(pid for pid in bench if pid != rp)
+        for bats, defense, expected in (((), (('P', rp),), {'投手'}), (((1, batter),), (), {'打撃'}),
+                                        (((1, batter),), (('P', rp),), {'投手', '打撃'})):
+            _, _, _, row = self.game('pitcher', regulation_innings=2,
+                lineup_changes=(LineupAdjustment(6, team.school_id, bats, defense),))
+            view = self.view(row)
+            event = next(c for c in view['lineup_changes'] if c['school_id'] == team.school_id)
+            self.assertEqual(expected, {p['role'] for p in event['roles_ended']})
+            self.assertEqual(len(expected) == 2, lineup.designated_hitter_id in {p['player_id'] for p in event['fully_exited']})
+
+    def test_successor_fielding_dh_loss_and_explicit_pitcher_batting_slot_are_visible(self):
+        (_, result, _, row), slot, rp, batter = self.double_switch()
+        view = self.view(row)
+        event = view['lineup_changes'][0]
+        self.assertTrue(event['dh_ended'])
+        self.assertIn('DH解除', event['label'])
+        self.assertEqual({1, slot}, {c['batting_order'] for c in event['batting_changes']})
+        pitcher = next(b for b in view['batting'][result.team1_school_id] if b['player_id'] == rp)
+        self.assertEqual((slot, '投'), (pitcher['batting_order'], pitcher['position']))
+        fielder = next(b for b in view['batting'][result.team1_school_id] if b['player_id'] == batter)
+        self.assertEqual('中', fielder['position'])
+
+    def test_three_modes_have_identical_screen_data_before_save_and_after_packed_sealed_read(self):
+        for mode in ('none', 'normal', 'pitcher'):
+            with self.subTest(mode=mode):
+                _, result, _, row = self.game(mode)
+                before = self.view(row)
+                with tempfile.TemporaryDirectory() as tmp:
+                    path = Path(tmp)/'history.sqlite3'
+                    archive = HistoricalMatchArchive(path)
+                    self.sync(archive, [row])
+                    archive.pack_competition(2026, result.competition_id)
+                    archive.seal_year(2026, expected_match_count=1)
+                    loaded = HistoricalMatchArchive(path).get_match(2026, result.competition_id, result.match_id)
+                    self.assertEqual(before, self.view(row, loaded))
+
+    def test_role_exit_and_double_switch_screen_data_survive_json_and_codec(self):
+        from phase2_engine.historical_match_archive import compact_payload, expand_payload
+        import json
+        (_, _, _, row), _, _, _ = self.double_switch()
+        loaded = expand_payload(json.loads(json.dumps(compact_payload(self.saved(row)))))
+        self.assertEqual(self.view(row), self.view(row, loaded))
 
 
 if __name__ == '__main__':

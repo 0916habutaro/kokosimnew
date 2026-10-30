@@ -707,17 +707,11 @@ class DHSimulationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'individual stats differ'):
             validate_match_simulation_result(replace(result, batter_stats=tuple(rows)), inp)
 
-    def test_dh_records_cannot_enter_option_a_or_live_resolver(self):
-        from game_core.tournament_bridge import AbilityMatchResolver
+    def test_unverified_dh_records_cannot_enter_option_a(self):
         from phase2_engine.historical_match_archive import _validate_participation_payload
-        inp, result, _ = self.play()
-        with self.assertRaisesRegex(ValueError, 'DH match persistence is not connected'):
+        _, result, _ = self.play()
+        with self.assertRaises(ValueError):
             _validate_participation_payload({'team_participation': [r.to_dict() for r in result.team_participation]})
-        live = object.__new__(AbilityMatchResolver)
-        live.team_input = lambda **kw: inp.team1 if kw['school_id'] == inp.team1.school_id else inp.team2
-        with self.assertRaisesRegex(ValueError, 'live progression/persistence'):
-            live(match_id=inp.match_id, competition_id=inp.competition_id, reference_year=2026,
-                 generation_seed=20261022, team1=inp.team1.school_id, team2=inp.team2.school_id)
 
     def test_dh_result_from_injected_simulator_is_rejected_before_live_side_effects(self):
         from unittest.mock import Mock
@@ -735,7 +729,7 @@ class DHSimulationTests(unittest.TestCase):
         live._record_pitches = Mock()
         live._record_games = Mock()
         live.detail_sink = {}
-        with self.assertRaisesRegex(ValueError, 'DH results cannot enter'):
+        with self.assertRaisesRegex(ValueError, 'starting DH declaration'):
             live(match_id=inp.match_id, competition_id=inp.competition_id, reference_year=2026,
                  generation_seed=20261022, team1=inp.team1.school_id, team2=inp.team2.school_id)
         live._record_pitches.assert_not_called()

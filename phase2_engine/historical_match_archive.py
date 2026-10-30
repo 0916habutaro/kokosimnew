@@ -130,8 +130,65 @@ def _compact_table(rows):
 
 def _expand_table(value):
     if isinstance(value, dict) and set(value) == {"columns", "rows"}:
+        if (not isinstance(value['columns'], list)
+                or any(not isinstance(name, str) for name in value['columns'])
+                or len(set(value['columns'])) != len(value['columns'])
+                or not isinstance(value['rows'], list)
+                or any(not isinstance(row, list) or len(row) != len(value['columns']) for row in value['rows'])):
+            raise ValueError('invalid compact table')
         return [dict(zip(value["columns"], row)) for row in value["rows"]]
     return value
+
+
+def _compact_participation(record):
+    out = {**record, 'starting_lineup': _compact_table(record['starting_lineup'])}
+    dh = record.get('starting_designated_hitter_id') is not None
+    if dh:
+        out['starting_defense'] = _compact_table(record['starting_defense'])
+    changes = []
+    for raw in record['changes']:
+        change = {**raw, 'defensive_changes': _compact_table(raw['defensive_changes'])}
+        # DH試合の相手側もorder付きの場合がある。DHなしの従来形は維持する。
+        if dh or raw.get('moment', {}).get('order', 0):
+            moment = raw['moment']
+            change['moment'] = (['A', moment['inning'], moment['half'], moment['completed_plate_appearance_no']]
+                if 'completed_plate_appearance_no' in moment else
+                ['B', moment['inning'], moment['half'], moment['next_plate_appearance_no'], moment.get('order', 0)])
+        if (dh or raw.get('moment', {}).get('order', 0)) and raw.get('dh_action') is not None:
+            action = raw['dh_action']
+            change['dh_action'] = [[[s['batting_order'], s['player_id']] for s in action['batting_changes']],
+                                   action['player_id'], action['medical_exception'], action['umpire_approved']]
+        changes.append(change)
+    out['changes'] = _compact_table(changes)
+    return out
+
+
+def _expand_participation(record):
+    out = {**record, 'starting_lineup': _expand_table(record['starting_lineup'])}
+    if 'starting_defense' in record:
+        out['starting_defense'] = _expand_table(record['starting_defense'])
+    changes = []
+    for raw in _expand_table(record['changes']):
+        change = {**raw, 'defensive_changes': _expand_table(raw['defensive_changes'])}
+        moment = raw['moment']
+        if isinstance(moment, list):
+            if len(moment) == 4 and moment[0] == 'A':
+                change['moment'] = dict(inning=moment[1], half=moment[2], completed_plate_appearance_no=moment[3])
+            elif len(moment) == 5 and moment[0] == 'B':
+                change['moment'] = dict(inning=moment[1], half=moment[2], next_plate_appearance_no=moment[3])
+                if moment[4]:
+                    change['moment']['order'] = moment[4]
+            else:
+                raise ValueError('invalid compact change moment')
+        action = raw.get('dh_action')
+        if isinstance(action, list):
+            if len(action) != 4 or any(len(s) != 2 for s in action[0]):
+                raise ValueError('invalid compact DH action')
+            change['dh_action'] = dict(batting_changes=[dict(batting_order=s[0], player_id=s[1]) for s in action[0]],
+                                      player_id=action[1], medical_exception=action[2], umpire_approved=action[3])
+        changes.append(change)
+    out['changes'] = changes
+    return out
 
 
 def compact_payload(payload: Mapping[str, object]) -> dict:
@@ -139,17 +196,9 @@ def compact_payload(payload: Mapping[str, object]) -> dict:
     if out.get("team_participation"):
         from game_core.highlights import compact_pitching_highlights
 
-        out["highlights"] = compact_pitching_highlights(out.get("highlights"), out["team_participation"])
+        out["highlights"] = compact_pitching_highlights(out.get("highlights"), out["team_participation"], out.get('inning_scores'))
         # 9人の開始配置と変更差分も、既存の表形式で列名を一度だけ保存する。
-        out["team_participation"] = [
-            {**record,
-             "starting_lineup": _compact_table(record["starting_lineup"]),
-             "changes": _compact_table([
-                 {**change, "defensive_changes": _compact_table(change["defensive_changes"])}
-                 for change in record["changes"]
-             ])}
-            for record in out["team_participation"]
-        ]
+        out['team_participation'] = [_compact_participation(r) for r in out['team_participation']]
     for name in _TABLE_FIELDS:
         if name in out:
             out[name] = _compact_table(out[name])
@@ -165,17 +214,9 @@ def expand_payload(payload: Mapping[str, object]) -> dict:
     if "team_participation" in out:
         from game_core.highlights import expand_pitching_highlights
 
-        out["team_participation"] = [
-            {**record,
-             "starting_lineup": _expand_table(record["starting_lineup"]),
-             "changes": [
-                 {**change, "defensive_changes": _expand_table(change["defensive_changes"])}
-                 for change in _expand_table(record["changes"])
-             ]}
-            for record in out["team_participation"]
-        ]
+        out['team_participation'] = [_expand_participation(r) for r in out['team_participation']]
+        out["highlights"] = expand_pitching_highlights(out.get("highlights"), out["team_participation"], out.get('inning_scores'))
         _validate_participation_payload(out)
-        out["highlights"] = expand_pitching_highlights(out.get("highlights"), out["team_participation"])
     return out
 
 
@@ -185,8 +226,7 @@ def _validate_participation_payload(payload: Mapping[str, object]) -> None:
     if not isinstance(payload["team_participation"], list):
         raise ValueError("team_participation: expected list")
     records = tuple(TeamMatchParticipation.from_dict(row) for row in payload["team_participation"])
-    if any(r.starting_designated_hitter_id is not None for r in records):
-        raise ValueError('DH match persistence is not connected')
+    dh = any(r.starting_designated_hitter_id is not None for r in records)
     innings = payload.get("inning_scores") or ()
     played = [row for row in innings if row["was_played"]]
     if not played:
@@ -199,6 +239,14 @@ def _validate_participation_payload(payload: Mapping[str, object]) -> None:
     team_ids = (payload["team1_id"], payload["team2_id"])
     batters = payload.get("batter_stats") or ()
     known = {sid: {row["player_id"] for row in batters if row["school_id"] == sid} for sid in team_ids}
+    if dh:
+        try:
+            if any(_canonical(raw) != _canonical(record.to_dict()) for raw, record in zip(payload['team_participation'], records)):
+                raise ValueError('noncanonical DH participation fields')
+            _validate_dh_payload(payload, records, known)
+        except (KeyError, TypeError, AttributeError, IndexError) as exc:
+            raise ValueError('invalid DH history payload') from exc
+        return
     validate_match_participation(
         records, team_ids=team_ids, reference_year=payload["year"],
         last_inning=played[-1]["inning"], ending_half=played[-1]["half"],
@@ -209,6 +257,85 @@ def _validate_participation_payload(payload: Mapping[str, object]) -> None:
 
 def _digest(payload: str) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _validate_dh_payload(payload, records, known):
+    from game_core.match_contract import (
+        BatterGameStats, PitcherGameStats, dh_history_fingerprint,
+        TeamGameStats, validate_team_game_stats, validate_batter_game_stats, validate_pitcher_game_stats,
+    )
+    from game_core.match_state import validate_recorded_match_participation
+    receipt = payload.get('dh_verification')
+    if (not isinstance(receipt, dict) or set(receipt) != {'version', 'facts_sha256'}
+            or type(receipt['version']) is not int or receipt['version'] != 1):
+        raise ValueError('DH history requires pre-save event verification')
+    if receipt['facts_sha256'] != dh_history_fingerprint(payload):
+        raise ValueError('DH verified facts changed before or after saving')
+    team_ids = (payload['team1_id'], payload['team2_id'])
+    if len(set(team_ids)) != 2 or any(not isinstance(sid, str) or not sid for sid in team_ids):
+        raise ValueError('invalid recorded team identities')
+    innings = payload['inning_scores']
+    if [(r['inning'], r['half']) for r in innings] != [
+            (i, h) for i in range(1, innings[-1]['inning']+1) for h in ('top', 'bottom')]:
+        raise ValueError('invalid recorded inning coverage')
+    for row in innings:
+        team = team_ids[0] if row['half'] == 'top' else team_ids[1]
+        if row['batting_team_id'] != team or (not row['was_played'] and row['runs'] is not None):
+            raise ValueError('invalid recorded inning team/score')
+        if row['was_played'] and _score(row['runs'], 'recorded inning runs') is None:
+            raise ValueError('played inning requires runs')
+    unplayed = [i for i, r in enumerate(innings) if not r['was_played']]
+    if unplayed and unplayed != [len(innings)-1]:
+        raise ValueError('unplayed half must be the final bottom')
+    batters, pitchers = payload['batter_stats'], payload['pitcher_stats']
+    pa, bf = {}, {}
+    for rows, counts, field, cls, validate in (
+            (batters, pa, 'plate_appearances', BatterGameStats, validate_batter_game_stats),
+            (pitchers, bf, 'batters_faced', PitcherGameStats, validate_pitcher_game_stats)):
+        for raw in rows:
+            key = (raw['school_id'], raw['player_id'])
+            if key[0] not in team_ids or key in counts:
+                raise ValueError('invalid/duplicate recorded player stats')
+            stat = cls(**{k: v for k, v in raw.items() if k != 'singles'})
+            validate(stat)
+            if 'singles' in raw and raw['singles'] != stat.singles:
+                raise ValueError('recorded singles differ from hit breakdown')
+            counts[key] = raw[field]
+            known[key[0]].add(key[1])
+    # 開始配置・実守備・交代の参照も取り込み、役割別成績との一致は再生後に照合する。
+    for record in records:
+        ids = known[record.school_id]
+        ids.update(s.player_id for s in record.starting_lineup)
+        ids.update(a.player_id for a in record.starting_defense)
+        ids.update(record.fielding_player_ids)
+        for change in record.changes:
+            ids.update(c.after_player_id for c in change.defensive_changes)
+            if change.dh_action:
+                ids.update(s.player_id for s in change.dh_action.batting_changes)
+    validate_recorded_match_participation(
+        records, team_ids=team_ids, reference_year=payload['year'], known_ids=known,
+        half_plate_appearances={(r['inning'], r['half']): r['plate_appearances'] for r in innings},
+        batter_appearances=pa, pitcher_appearances=bf)
+    scores = (payload['team1_score'], payload['team2_score'])
+    if (any(type(n) is not int or n < 0 for n in scores) or scores[0] == scores[1]
+            or payload['winner_id'] != team_ids[scores[1] > scores[0]]
+            or payload['loser_id'] != team_ids[scores[0] > scores[1]]):
+        raise ValueError('recorded winner/score mismatch')
+    teams = payload['team_stats']
+    if len(teams) != 2 or {t['school_id'] for t in teams} != set(team_ids):
+        raise ValueError('invalid recorded team stats')
+    for team in teams:
+        validate_team_game_stats(TeamGameStats(**team))
+    for sid, opponent, score in ((team_ids[0], team_ids[1], scores[0]), (team_ids[1], team_ids[0], scores[1])):
+        batting = [b for b in batters if b['school_id'] == sid]
+        pitching = [p for p in pitchers if p['school_id'] == opponent]
+        team = next(t for t in teams if t['school_id'] == sid)
+        if (sum(r['runs'] for r in innings if r['batting_team_id'] == sid and r['was_played']) != score
+                or team['runs'] != score or sum(b['runs'] for b in batting) != score
+                or sum(p['runs_allowed'] for p in pitching) != score
+                or sum(b['hits'] for b in batting) != team['hits']
+                or sum(p['hits_allowed'] for p in pitching) != team['hits']):
+            raise ValueError('recorded team/individual totals mismatch')
 
 
 def _score(value: object, label: str) -> int | None:
@@ -387,6 +514,8 @@ def _history_payload(year: int, record: Mapping[str, object]) -> dict:
         if not isinstance(participation, list):
             raise ValueError("team_participation: expected list")
         payload["team_participation"] = participation
+        if detail.get('dh_verification') is not None:
+            payload['dh_verification'] = detail['dh_verification']
         _validate_participation_payload(payload)
     return payload
 
@@ -692,14 +821,22 @@ class HistoricalMatchArchive:
             return None
         with closing(sqlite3.connect(self.db_path, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
             row = conn.execute(
-                """SELECT payload_json FROM historical_matches
+                """SELECT payload_json, record_sha256 FROM historical_matches
                    WHERE year=? AND competition_id=? AND match_id=?""",
                 (year, competition_id, match_id),
             ).fetchone()
             if row is None:
                 return None
-            raw = row[0] or self._packed(conn, year, competition_id)[match_id]
-            return expand_payload(json.loads(raw))
+            return self._read_match_payload(conn, year, competition_id, match_id, row[0], row[1])
+
+    def _read_match_payload(self, conn, year, competition_id, match_id, raw, digest):
+        raw = raw or self._packed(conn, year, competition_id).get(match_id)
+        if not isinstance(raw, str) or _digest(raw) != digest:
+            raise HistoricalMatchConflictError(f'archived match missing or changed: {competition_id}/{match_id}')
+        payload = json.loads(raw)
+        if (payload.get('year'), payload.get('competition_id'), payload.get('match_id')) != (year, competition_id, match_id):
+            raise HistoricalMatchConflictError('archived match identity differs from index')
+        return expand_payload(payload)
 
     def _packed(self, conn, year: int, competition_id: str) -> dict[str, str]:
         """まとめて圧縮した大会の試合の記録（最近開いた大会はとっておく）。"""
@@ -953,13 +1090,13 @@ class HistoricalMatchArchive:
         args.extend((limit, offset))
         with closing(sqlite3.connect(self.db_path, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
             rows = conn.execute(
-                f"""SELECT payload_json, competition_id, match_id FROM historical_matches
+                f"""SELECT payload_json, competition_id, match_id, record_sha256 FROM historical_matches
                     WHERE {filters}
                     ORDER BY match_date, competition_id, match_id
                     LIMIT ? OFFSET ?""",
                 args,
             ).fetchall()
             return [
-                expand_payload(json.loads(raw or self._packed(conn, year, cid)[mid]))
-                for raw, cid, mid in rows
+                self._read_match_payload(conn, year, cid, mid, raw, digest)
+                for raw, cid, mid, digest in rows
             ]

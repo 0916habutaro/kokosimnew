@@ -1447,6 +1447,7 @@ class MatchSimulator:
                                     str(current_index + 1),
                                 ),
                                 *((('pitches', str(pitches_on_play)),) if dh_game else ()),
+                                *((('scored_runners', '|'.join(scored)),) if dh_game else ()),
                             ),
                         )
                     )
@@ -1587,6 +1588,65 @@ class MatchSimulator:
         if state_sink is not None:
             state_sink.update(states)
         return result
+
+
+def validate_run_accounting(result: MatchSimulationResult) -> None:
+    """破棄前のDHイベントで既存の責任投手・自責点処理を再生する。"""
+    runs, earned, batter_runs = Counter(), Counter(), Counter()
+    previous_half = None
+    previous_bases = [None, None, None]
+    outs = 0
+    for event in result.events:
+        metadata = dict(event.metadata)
+        try:
+            before = [pid or None for pid in metadata['bases_before'].split('|')]
+            after = [pid or None for pid in metadata['bases_after'].split('|')]
+            scored = [pid for pid in metadata['scored_runners'].split('|') if pid]
+        except (KeyError, AttributeError) as exc:
+            raise ValueError('DH strict validation requires scoring runner identities') from exc
+        half = (event.inning, event.half)
+        if half != previous_half:
+            responsibility = _RunnerResponsibilityTracker()
+            reconstruction = _EarnedRunTracker()
+            outs = 0
+            if any(before):
+                responsibility.seed_tiebreak(before, event.pitcher_id)
+        else:
+            for outgoing, incoming in zip(previous_bases, before, strict=True):
+                if outgoing is not None and incoming is not None and outgoing != incoming:
+                    responsibility.substitute_runner(outgoing, incoming)
+                    reconstruction.substitute_runner(outgoing, incoming)
+        if len(scored) != event.runs_scored:
+            raise ValueError('scoring runner count differs from event runs')
+        for pid in scored:
+            batter_runs[event.offense_school_id, pid] += 1
+        runners = responsibility.record_play(
+            bases_before=before, bases_after=after, scored_runner_ids=scored,
+            batter_id=event.batter_id, pitcher_id=event.pitcher_id,
+            event_type=event.event_type, plate_appearance_no=event.plate_appearance_no)
+        reconstruction.record_play(
+            bases_before=before, bases_after=after, scored_runners=runners,
+            batter_id=event.batter_id, pitcher_id=event.pitcher_id, event_type=event.event_type,
+            plate_appearance_no=event.plate_appearance_no, outs_before=outs, outs_on_play=event.outs_on_play)
+        outs += event.outs_on_play
+        if outs > 3 or str(outs) != metadata.get('outs_after'):
+            raise ValueError('event outs differ from inning reconstruction')
+        for runner in runners:
+            runs[event.defense_school_id, runner.responsible_pitcher_id] += 1
+        # 無失策の再構成は半イニングの最後に確定する。
+        next_index = event.plate_appearance_no
+        if next_index == len(result.events) or (
+                result.events[next_index].inning, result.events[next_index].half) != half:
+            for pid, count in reconstruction.earned_runs().items():
+                earned[event.defense_school_id, pid] += count
+        previous_half, previous_bases = half, after
+    for row in result.pitcher_stats:
+        key = (row.school_id, row.player_id)
+        if (row.runs_allowed, row.earned_runs) != (runs[key], earned[key]):
+            raise ValueError('pitcher runs/earned runs differ from actual runner liability')
+    for row in result.batter_stats:
+        if row.runs != batter_runs[row.school_id, row.player_id]:
+            raise ValueError('batter individual stats differ from actual scoring runners')
 
 
 def synchronize_tournament_match(

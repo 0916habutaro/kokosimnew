@@ -172,6 +172,7 @@ svg text { font-family: var(--ui); }
 .lineup-table th:first-child, .lineup-table td:first-child { width: 4em; text-align: center; }
 .lineup-table th:nth-child(2), .lineup-table td.pos { width: 4em; text-align: center; }
 .lineup-table td.pos { color: var(--muted); }
+.dh-lineup th:nth-child(2), .dh-lineup td.pos { width: 7em; white-space: nowrap; }
 .match-table-wrap { overflow-x: auto; }
 .match-detail .stat-table th, .match-detail .stat-table td { white-space: nowrap; }
 .match-detail .stat-table td.pos { width: auto; min-width: 4em; white-space: normal; }
@@ -187,6 +188,7 @@ svg text { font-family: var(--ui); }
 .change-school { color: var(--muted); overflow-wrap: anywhere; }
 .change-what { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .position-moves { display: flex; gap: 10px; flex-wrap: wrap; }
+.dh-change-line { flex-basis: 100%; }
 @media (max-width: 1100px) {
   .match-detail .cols { grid-template-columns: 1fr; }
   .lineup-change { grid-template-columns: 110px minmax(0, 1fr); }

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields, replace
+import hashlib
+import json
 from pathlib import Path
 from typing import Iterable
 
@@ -798,6 +800,8 @@ def validate_match_simulation_result(
                 f"pitcher stats: unknown player {row.player_id}"
             )
     if any(r.starting_designated_hitter_id is not None for r in result.team_participation):
+        from .match_simulator import validate_run_accounting
+        validate_run_accounting(result)
         # DHでは守備専用Pと打撃専用DHの取り違えを、選手ごとの実イベントでも拒否する。
         hit_types = {'single', 'double', 'triple', 'home_run'}
         for row in batters:
@@ -888,6 +892,30 @@ def validate_match_simulation_result(
             raise ValueError(
                 f"match result: {school_id} hits != opponent pitcher hits"
             )
+
+
+def dh_history_fingerprint(value: dict) -> str:
+    """厳密検証からA方式の受渡しまでの事実同一性。署名・イベントの代替ではない。"""
+    facts = {key: value.get(key) for key in (
+        'match_id', 'competition_id', 'team1_score', 'team2_score', 'winner_id', 'loser_id',
+        'inning_scores', 'team_stats', 'batter_stats', 'pitcher_stats', 'team_participation', 'highlights')}
+    facts.update(year=value.get('reference_year', value.get('year')),
+                 team1=value.get('team1_school_id', value.get('team1_id')),
+                 team2=value.get('team2_school_id', value.get('team2_id')))
+    raw = json.dumps(facts, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False)
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+
+
+def validated_match_history(result: MatchSimulationResult, match_input: MatchSimulationInput) -> dict:
+    """全イベントで検証してから、イベントを含まないA詳細と照合値を生成する。"""
+    from .highlights import game_highlights
+    validate_match_simulation_result(result, match_input)
+    detail = replace(result, events=()).to_dict()
+    detail.pop('events')
+    detail['highlights'] = game_highlights(result.events)
+    if any(r.starting_designated_hitter_id is not None for r in result.team_participation):
+        detail['dh_verification'] = {'version': 1, 'facts_sha256': dh_history_fingerprint(detail)}
+    return detail
 
 
 def result_score_pair(
