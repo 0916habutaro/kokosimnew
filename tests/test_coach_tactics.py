@@ -426,6 +426,8 @@ class NationalDHSelectionTests(unittest.TestCase):
         self.assertEqual(order[0],forecast[0].player_id)
         # No elective change beyond the last professional, regardless of BF limit.
         self.assertEqual(tuple(order[:count]),tuple(p.player_id for p in forecast))
+        ample={p.player_id:500 for p in team.player_abilities}
+        self.assertEqual(forecast,live._pitching_forecast(team,base,order,count,ample,CoachTactics(),None))
         capped=live._pitching_forecast(team,base,order,count,{order[0]:20},CoachTactics(),None)
         self.assertLess(capped[0].batting_share,forecast[0].batting_share)
         self.assertEqual(before,team.to_dict())

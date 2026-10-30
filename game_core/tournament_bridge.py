@@ -533,6 +533,10 @@ class AbilityMatchResolver:
                                          math.ceil(bf*tactics.bf_multiplier)))
             endpoint = cumulative+budget if index+1 < len(order) else math.inf
             following = remaining(endpoint)
+            # 残りの期待BFが合計へ加減算できない浮動小数点精度なら終了する。
+            # 調整用の確率閾値は設けず、無意味な極遠の野手登板を再生しない。
+            if expected_bf-following == expected_bf:
+                following = 0.0
             share = max(0.0, previous-following)/expected_bf
             if share:
                 reach = _binomial_lower_tail(cumulative, outs-1, out_probability)
