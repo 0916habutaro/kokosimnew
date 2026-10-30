@@ -1236,14 +1236,7 @@ class MatchSimulator:
                         incoming = staff[current_index]
                         check_new_pitcher(defense_id, incoming)
                         old_pitcher = state.current_pitcher_id
-                        extra_defense = {}
-                        if state.designated_hitter_id is not None and old_pitcher != state.designated_hitter_id:
-                            # 野手の緊急登板ではDHが空いた守備へ入り、旧投手は退く。
-                            vacated = next((a.defensive_position for a in state.defensive_alignment
-                                            if a.player_id == incoming and a.defensive_position != 'P'), None)
-                            if vacated is not None:
-                                extra_defense[vacated] = state.designated_hitter_id
-                        state.change_pitcher(incoming, defensive_changes=extra_defense, moment=before_moment())
+                        state.relieve_pitcher(incoming, moment=before_moment())
                         refresh_after_change(defense_id, old_pitcher)
                         fielding_pending = True
                         state.validate(actual_pitcher_id=incoming)

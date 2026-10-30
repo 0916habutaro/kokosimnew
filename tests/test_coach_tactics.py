@@ -9,8 +9,8 @@ from unittest.mock import patch
 from game_core.coaches import CoachEvent, CoachTactics
 from game_core.match_contract import MatchSimulationInput, TeamMatchInput, validate_match_simulation_result
 from game_core.match_simulator import GameRules, MatchSimulator
-from game_core.team_strength import TeamStrengthGenerator, validate_team_strength_snapshot
-from game_core.tournament_bridge import AbilityMatchResolver
+from game_core.team_strength import PitcherForecast, TeamStrengthGenerator, validate_team_strength_snapshot
+from game_core.tournament_bridge import AbilityMatchResolver, _binomial_lower_tail
 from test_coach_intake import books, annual
 from test_stage13b3_team_strength import make_roster_abilities
 
@@ -341,6 +341,119 @@ class NationalDHSelectionTests(unittest.TestCase):
                              selected.team_strength.starting_lineup.player_for_position('P'))
             validate_team_strength_snapshot(selected.team_strength)
             self.assertEqual('none', self.mode(team))
+
+    def forecast_case(self, *, starter_bat=20, relief_bats=(90,10), bench_bat=80):
+        team=self.team(ace_bat=starter_bat,other_bat=60)
+        lineup=team.team_strength.starting_lineup
+        starter=lineup.player_for_position('P')
+        used={e.player_id for e in lineup.entries}
+        relief=[p.player_id for p in team.player_abilities if p.primary_position=='P' and p.player_id not in used]
+        bench=next(p.player_id for p in team.player_abilities if p.primary_position!='P' and p.player_id not in used)
+        values={p.player_id:20 for p in team.player_abilities if p.player_id not in used}
+        values.update(zip(relief,relief_bats));values[bench]=bench_bat
+        players=tuple(replace(p,**{k:values[p.player_id] for k in
+            ('contact','power','plate_discipline','strikeout_resistance','speed','baserunning')})
+            if p.player_id in values else p for p in team.player_abilities)
+        return players,lineup,starter,relief,bench
+
+    def decision(self,players,lineup,forecast,threshold=0):
+        return self.generator.select_dh_mode(players,starting_pitcher_id=forecast[0].player_id,
+            replacement_batter_id=forecast[-1].player_id,starter_share=forecast[0].batting_share,
+            candidate_lineup=lineup,baseline_lineup=lineup,pitching_forecast=forecast,
+            minimum_batting_gain=threshold)
+
+    def test_normal_candidate_accounts_for_batting_lost_after_later_relief(self):
+        players,lineup,starter,relief,bench=self.forecast_case()
+        forecast=tuple(PitcherForecast(pid,share,1) for pid,share in
+                       zip((starter,*relief[:2]),(.4,.3,.3)))
+        d=self.decision(players,lineup,forecast)
+        self.assertEqual(('normal',bench),(d.mode,d.normal_candidate_id))
+        # The best instantaneous hitter loses his slot at the next pitching change.
+        values={p.player_id:self.generator._batting_composite(p) for p in players}
+        declared=self.generator._forecast_dh_lineup(lineup,starter,relief[0],values)
+        value,probability=self.generator._forecast_batting(declared,forecast,values)
+        self.assertAlmostEqual(480+.7*90+.3*10,value)
+        self.assertEqual(1,probability)
+        # When no subsequent change is expected, a pitcher remains a valid best DH.
+        d=self.decision(players,lineup,forecast[:1]+(PitcherForecast(relief[0],.6,1),))
+        self.assertEqual(('normal',relief[0]),(d.mode,d.normal_candidate_id))
+        selected=self.generator.generate(players,dh_mode='normal',starting_pitcher_id=starter,
+                                         designated_hitter_id=relief[2])
+        self.assertEqual(relief[2],selected.starting_lineup.designated_hitter_id)
+        with self.assertRaises(ValueError):
+            self.generator.generate(players,dh_mode='normal',starting_pitcher_id=starter,
+                                    designated_hitter_id=starter)
+
+    def test_non_relief_pitcher_can_be_selected_instead_of_top_relief_hitter(self):
+        players,lineup,starter,relief,bench=self.forecast_case(bench_bat=20)
+        reserve=relief[2]
+        players=tuple(replace(p,contact=85,power=85,plate_discipline=85,strikeout_resistance=85,
+                              speed=85,baserunning=85) if p.player_id==reserve else p for p in players)
+        forecast=tuple(PitcherForecast(pid,share,1) for pid,share in
+                       zip((starter,*relief[:2]),(.4,.3,.3)))
+        d=self.decision(players,lineup,forecast)
+        self.assertEqual(('normal',reserve),(d.mode,d.normal_candidate_id))
+        self.assertEqual(0,d.normal_dh_end_probability)
+
+    def test_two_way_gain_depends_on_duration_and_relief_batting_not_only_eight_fielders(self):
+        players,lineup,starter,relief,_=self.forecast_case(starter_bat=90,relief_bats=(30,20),bench_bat=20)
+        short_relief=(PitcherForecast(starter,.99,1),PitcherForecast(relief[0],.01,.1))
+        d=self.decision(players,lineup,short_relief,threshold=1)
+        self.assertEqual('none',d.mode)
+        self.assertEqual('marginal_batting_gain',d.reason)
+        self.assertAlmostEqual(.6,d.pitcher_gain)
+        long_relief=(PitcherForecast(starter,.6,1),PitcherForecast(relief[0],.4,.8))
+        d=self.decision(players,lineup,long_relief,threshold=1)
+        self.assertEqual('pitcher',d.mode)
+        self.assertAlmostEqual(24,d.pitcher_gain)
+        # Retaining the starter also forgoes a better relief hitter in that batting slot.
+        better=tuple(replace(p,contact=100,power=100,plate_discipline=100,strikeout_resistance=100,
+                             speed=100,baserunning=100) if p.player_id==relief[0] else p for p in players)
+        d=self.decision(better,lineup,long_relief,threshold=1)
+        self.assertEqual('normal',d.mode)
+        self.assertLess(d.pitcher_gain,0)
+
+    def test_forecast_matches_out_distribution_and_keeps_last_pitcher(self):
+        import math
+        for n in (0,1,4,27,60):
+            for k in (0,2,26):
+                exact=sum(math.comb(n,j)*.7**j*.3**(n-j) for j in range(min(k,n)+1))
+                self.assertAlmostEqual(exact,_binomial_lower_tail(n,k,.7))
+        live=self.live();team=self.team();order,count=live.simulator._game_staff(team,None)
+        base=live.simulator._initial_state(team,order[0]);before=team.to_dict()
+        forecast=live._pitching_forecast(team,base,order,count,None,CoachTactics(),None)
+        self.assertAlmostEqual(1,sum(p.batting_share for p in forecast))
+        self.assertEqual(order[0],forecast[0].player_id)
+        # No elective change beyond the last professional, regardless of BF limit.
+        self.assertEqual(tuple(order[:count]),tuple(p.player_id for p in forecast))
+        capped=live._pitching_forecast(team,base,order,count,{order[0]:20},CoachTactics(),None)
+        self.assertLess(capped[0].batting_share,forecast[0].batting_share)
+        self.assertEqual(before,team.to_dict())
+        self.assertEqual((),base.participation().changes)
+
+    def test_role_projection_matches_actual_states_and_does_not_cache_abilities(self):
+        from game_core.match_state import TeamMatchState
+        players,lineup,starter,relief,bench=self.forecast_case()
+        values={p.player_id:self.generator._batting_composite(p) for p in players}
+        fielder=lineup.player_for_position('LF')
+        forecast=tuple(PitcherForecast(pid,share,prob) for pid,share,prob in
+            ((starter,.4,1),(relief[0],.3,.9),(relief[1],.2,.5),(fielder,.1,.2)))
+        for dh in (None,starter,relief[0],bench):
+            declared=lineup if dh is None else self.generator._forecast_dh_lineup(lineup,starter,dh,values)
+            state=TeamMatchState(declared,values,available_player_ids=values,actual_pitcher_id=starter)
+            expected,ended=0,0
+            for index,pitching in enumerate(forecast):
+                old_dh=state.designated_hitter_id
+                if index:state.relieve_pitcher(pitching.player_id)
+                if old_dh is not None and state.designated_hitter_id is None:
+                    ended=pitching.appearance_probability
+                expected+=pitching.batting_share*sum(values[s.player_id] for s in state.batting_order)
+            actual,probability=self.generator._forecast_batting(declared,forecast,values)
+            self.assertAlmostEqual(expected,actual)
+            self.assertEqual(ended,probability)
+            changed={pid:bat+5 for pid,bat in values.items()}
+            updated,_=self.generator._forecast_batting(declared,forecast,changed)
+            self.assertAlmostEqual(actual+45,updated)
 
     def test_nine_available_players_and_one_pitcher_with_good_bat_keep_none(self):
         team = self.team()

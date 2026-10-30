@@ -20,7 +20,20 @@ from .match_simulator import GameRules, MatchSimulator
 from .membership import CompetitionMembers
 from .players import PlayerRosterGenerator, SchoolRoster, validate_school_roster
 from .school_intake import SchoolAwarePlayerAbilityGenerator
-from .team_strength import TeamStrengthGenerator
+from .team_strength import PitcherForecast, TeamStrengthGenerator
+
+
+def _binomial_lower_tail(trials: int, successes: int, probability: float) -> float:
+    """P(Binomial(trials,p) <= successes)。小さいアウト数側から安定して求める。"""
+    if successes >= trials:
+        return 1.0
+    term = math.exp(math.lgamma(trials+1)-math.lgamma(successes+1)-math.lgamma(trials-successes+1)
+                    + successes*math.log(probability)+(trials-successes)*math.log1p(-probability))
+    total = term
+    for count in range(successes, 0, -1):
+        term *= count*(1-probability)/((trials-count+1)*probability)
+        total += term
+    return min(1.0, max(0.0, total))
 
 
 class AbilityMatchResolver:
@@ -471,7 +484,66 @@ class AbilityMatchResolver:
                 days = log.setdefault(stat.player_id, {})
                 days[day.isoformat()] = days.get(day.isoformat(), 0) + stat.pitches
 
-    def _select_dh_input(self, team, allowances, tactics, *, competition_id=''):
+    def _pitching_forecast(self, team, base, order, professional_count, allowances, tactics, opponent):
+        """規定回のアウト獲得に必要な打者数の分布を使い、各継投区間を見積もる。
+
+        試合乱数・実際の将来結果を参照しない。継投を決定する処理ではなく、
+        DH候補がどのくらい打順に残るかの比較だけに使う。
+        """
+        params = self.simulator.params
+        players = {p.player_id: p for p in team.player_abilities}
+        pitcher = self.simulator._as_pitcher(players[order[0]])
+        model = params['plate_appearance_model']
+        if opponent is None:
+            weights = [{event: max(model['probability_floor'], value)
+                        for event, value in model['base_probabilities'].items()}]
+        else:
+            opponents = {p.player_id: p for p in opponent.player_abilities}
+            defense = self.team_generator.defense_for_alignment(players,
+                ((a.defensive_position, a.player_id) for a in base.defensive_alignment))
+            # 基底の純粋な確率計算だけを使用。試験用サブクラスの打席列も消費しない。
+            weights = [MatchSimulator._event_weights(self.simulator, opponents[e.player_id], pitcher, defense)
+                       for e in opponent.team_strength.starting_lineup.entries]
+        out_probability = sum(sum(w.get(e, 0) for e in ('strikeout','field_out','fielder_choice'))
+                              /sum(w.values()) for w in weights)/len(weights)
+        pitch_mean = sum(sum(value*(params['pitch_count']['by_event'][event][0]
+                                   +params['pitch_count']['by_event'][event][1]/2)
+                             for event, value in w.items())/sum(w.values()) for w in weights)/len(weights)
+        outs = params['innings']['default_regulation_innings']*3
+        expected_bf = outs/out_probability
+
+        def remaining(after):
+            if math.isinf(after):
+                return 0.0
+            if after < outs:
+                return expected_bf-after
+            return max(0.0, expected_bf*_binomial_lower_tail(after+1, outs, out_probability)
+                       -after*_binomial_lower_tail(after, outs-1, out_probability))
+
+        estimates = []
+        cumulative, previous = 0, expected_bf
+        for index, pid in enumerate(order):
+            budget = math.inf if allowances is None else allowances.get(pid, math.inf)/pitch_mean
+            if math.isfinite(budget):
+                budget = math.ceil(budget)
+            # 野手は球数による緊急登板のみ。最後の本職投手もBF基準だけでは退かない。
+            if index+1 < professional_count:
+                bf = self.simulator._pitcher_limit(self.simulator._as_pitcher(players[pid]), starter=index==0)
+                budget = min(budget, max(params['pitching_usage']['minimum_bf_before_change'],
+                                         math.ceil(bf*tactics.bf_multiplier)))
+            endpoint = cumulative+budget if index+1 < len(order) else math.inf
+            following = remaining(endpoint)
+            share = max(0.0, previous-following)/expected_bf
+            if share:
+                reach = _binomial_lower_tail(cumulative, outs-1, out_probability)
+                estimates.append(PitcherForecast(pid, share, reach))
+            if math.isinf(endpoint) or following == 0:
+                break
+            cumulative, previous = endpoint, following
+        total = sum(p.batting_share for p in estimates)
+        return tuple(replace(p, batting_share=p.batting_share/total) for p in estimates)
+
+    def _select_dh_input(self, team, allowances, tactics, *, competition_id='', opponent=None):
         """キャッシュされた当日選手集合から、この試合だけの申告を作る。"""
         if not self.dh_enabled:
             return team
@@ -486,34 +558,23 @@ class AbilityMatchResolver:
             if any(p.player_id in available and source.condition(p, day)[0] for p in members):
                 # 健康な9人も揃わない既存の救済経路では、追加のDHを起用しない。
                 return team
-        order, _ = self.simulator._game_staff(team, allowances)
+        order, professional_count = self.simulator._game_staff(team, allowances)
         if not order:
             return team  # 球数制限による試合不可は既存シミュレーターが扱う。
         actual = order[0]
         players = {p.player_id: p for p in team.player_abilities}
-        pitcher = self.simulator._as_pitcher(players[actual])
         base = self.simulator._initial_state(team, actual)
         replacement = order[1] if len(order) > 1 else actual
         if replacement in {s.player_id for s in base.batting_order}:
             replacement = actual  # 野手の登板では元の投手の打順が残る。
-        model = self.simulator.params
-        pa_model = model['plate_appearance_model']
-        weights = {event: max(pa_model['probability_floor'], weight)
-                   for event, weight in pa_model['base_probabilities'].items()}
-        total = sum(weights.values())
-        outs = sum(weights.get(e, 0) for e in ('strikeout', 'field_out', 'fielder_choice'))
-        expected_bf = model['innings']['default_regulation_innings'] * 3 * total / outs
-        pitch_mean = sum(w * (model['pitch_count']['by_event'][e][0]
-                              + model['pitch_count']['by_event'][e][1]/2) for e, w in weights.items()) / total
-        limit = self.simulator._pitcher_limit(pitcher, starter=True) * tactics.bf_multiplier
-        if allowances is not None:
-            limit = min(limit, allowances.get(actual, math.inf) / pitch_mean)
+        forecast = self._pitching_forecast(team, base, order, professional_count, allowances, tactics, opponent)
         decision = self.team_generator.select_dh_mode(team.player_abilities,
             starting_pitcher_id=actual, replacement_batter_id=replacement,
-            starter_share=min(1.0, max(0.0, limit / expected_bf)),
+            starter_share=forecast[0].batting_share,
             selection_grade_bias=tactics.selection_grade_bias, minimum_batting_gain=self._dh_minimum_gain,
             two_way_requires_lineup_bat=self._dh_two_way_lineup_bat,
             baseline_batter_ids=tuple(s.player_id for s in base.batting_order),
+            baseline_lineup=base.initial_lineup, pitching_forecast=forecast,
             candidate_lineup=(team.team_strength.starting_lineup
                 if (actual == team.team_strength.starting_lineup.player_for_position('P')
                     and (self.member_provider is not None or tactics.selection_grade_bias == 0)) else None))
@@ -521,7 +582,8 @@ class AbilityMatchResolver:
             return team
         strength = self.team_generator.generate(team.player_abilities,
             dh_mode=decision.mode, starting_pitcher_id=actual,
-            selection_grade_bias=tactics.selection_grade_bias)
+            selection_grade_bias=tactics.selection_grade_bias,
+            designated_hitter_id=decision.normal_candidate_id if decision.mode=='normal' else None)
         return replace(team, team_strength=strength)
 
     def _rounds_left(self, competition_id: str, match_id: str) -> int | None:
@@ -580,8 +642,11 @@ class AbilityMatchResolver:
         day = self._match_day()
         tactics = {sid: self._coach_tactics(sid, day) for sid in (team1, team2)}
         allowances = self._pitch_allowances((team1_input, team2_input), day)
-        team1_input = self._select_dh_input(team1_input, allowances, tactics[team1], competition_id=competition_id)
-        team2_input = self._select_dh_input(team2_input, allowances, tactics[team2], competition_id=competition_id)
+        original_team1, original_team2 = team1_input, team2_input
+        team1_input = self._select_dh_input(original_team1, allowances, tactics[team1],
+                                          competition_id=competition_id, opponent=original_team2)
+        team2_input = self._select_dh_input(original_team2, allowances, tactics[team2],
+                                          competition_id=competition_id, opponent=original_team1)
         match_input = MatchSimulationInput(
             match_id=match_id,
             competition_id=competition_id,
