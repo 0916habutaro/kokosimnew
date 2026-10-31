@@ -14,6 +14,7 @@ import threading
 
 
 SUMMER_NATIONAL = "national_championship"
+SUMMER_KIND, SPRING_KIND = "summer", "spring"
 SPRING_NATIONAL = "national_invitational"
 LEVEL_RANK = {"national": 3, "regional": 2}
 ABILITY_FIELDS = (
@@ -100,6 +101,34 @@ class SchoolAbilities:
                 if cached is not None and cached[0] == key:
                     out[school_id] = cached[1]
         return out, len(out) == len(members)
+
+
+# ---- 評判・甲子園（学校の一覧の列） ----
+
+
+def reputation_ranks(values: dict[str, float], rank_labels) -> dict[str, str]:
+    """学校ID → 評判のランク。全校の中の順位（下からの割合）が境目以上ならそのランク。
+
+    ``rank_labels`` は高い順の (ランク, 割合の下限)。全校をまとめて1回で並べる。"""
+    order = sorted(values, key=lambda school_id: (values[school_id], school_id))
+    labels = [(label, float(minimum)) for label, minimum in rank_labels]
+    return {
+        school_id: next(
+            (label for label, minimum in labels if (index + 0.5) / len(order) >= minimum), "",
+        )
+        for index, school_id in enumerate(order)
+    }
+
+
+def koshien_appearances(actual: dict | None, game_counts: dict, school_id: str) -> dict:
+    """甲子園の出場回数（夏・春）：実際の記録＋ゲーム内の記録の合計。
+
+    ``game_counts`` は種類（summer・spring）→ {"appearances": 学校ID → 回数}。"""
+    return {
+        kind: (actual or {}).get(kind, {}).get("appearances", 0)
+        + game_counts[kind]["appearances"].get(school_id, 0)
+        for kind in (SUMMER_KIND, SPRING_KIND)
+    }
 
 
 # ---- 成績 ----
@@ -242,7 +271,8 @@ def team_totals(school_id: str, details) -> dict:
 def best_result(results: list[dict]) -> dict | None:
     if not results:
         return None
-    best = max(results, key=lambda r: r["score"])
+    # 点が同じなら新しい大会（8月に春の予選敗退ではなく夏の結果を出す）
+    best = max(results, key=lambda r: (r["score"], r.get("first_date", "")))
     return {
         "label": f"{best['competition_name']} {best['finish']}",
         "score": best["score"],

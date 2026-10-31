@@ -103,14 +103,14 @@ table.list td.n, table.list th.n { text-align: right; font-family: var(--num); }
 .area-tag.REG09 { background: #8fc4e8; }
 .area-tag.REG10 { background: #ff8a5c; }
 .estats { margin: 8px 0 4px; }
-#e-side h4 { margin: 12px 0 4px; font-size: 13px; }
+.school-side h4 { margin: 12px 0 4px; font-size: 13px; }
 /* 予選の勝ち上がり：列の幅を決め、長い回戦名・校名は省略して1行に */
-#e-side .egames { width: 100%; table-layout: fixed; }
-#e-side .egames td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 4px; padding-right: 4px; }
-#e-side .egames td:nth-child(1) { width: 38%; }
-#e-side .egames td:nth-child(2) { width: 1.8em; text-align: center; }
-#e-side .egames td:nth-child(3) { width: 3.6em; text-align: center; }
-#e-side .btn { margin-top: 12px; }
+.school-side .egames { width: 100%; table-layout: fixed; }
+.school-side .egames td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 4px; padding-right: 4px; }
+.school-side .egames td:nth-child(1) { width: 38%; }
+.school-side .egames td:nth-child(2) { width: 1.8em; text-align: center; }
+.school-side .egames td:nth-child(3) { width: 3.6em; text-align: center; }
+.school-side .btn { margin-top: 12px; }
 
 /* 抽選で決める回戦（準々決勝から）。トーナメント表の右に並べる */
 .paper-row { display: flex; align-items: flex-start; gap: 18px; }
@@ -225,9 +225,10 @@ svg text { font-family: var(--ui); }
 
 /* 学校の一覧（見えている行だけ描く） */
 .grid { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.ghead, .grow { display: grid; grid-template-columns: 80px minmax(150px, 1fr) 72px 52px 52px 52px 52px 52px 70px 62px 190px; align-items: center; }
+/* 初期サイズ（1400×900）で右の欄を残したまま全部の列が見える幅（約830px）に収める */
+.ghead, .grow { display: grid; grid-template-columns: 64px minmax(96px, 1fr) 44px repeat(5, 36px) 38px 34px 34px 52px 54px minmax(150px, 1.4fr); align-items: center; font-size: 13px; }
 .ghead { height: 36px; background: var(--panel2); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }
-.ghead div { padding: 0 10px; cursor: pointer; white-space: nowrap; }
+.ghead div { padding: 0 6px; cursor: pointer; white-space: nowrap; overflow: hidden; }
 .ghead div:hover { color: var(--text); }
 .ghead div.sorted { color: var(--accent); }
 .ghead div.n, .grow div.n { text-align: right; }
@@ -235,7 +236,7 @@ svg text { font-family: var(--ui); }
 .grow { height: 32px; position: absolute; left: 0; right: 0; border-bottom: 1px solid #1a2631; cursor: pointer; }
 .grow:hover { background: #18242f; }
 .grow.sel { background: #243444; box-shadow: inset 3px 0 0 var(--accent); }
-.grow div { padding: 0 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.grow div { padding: 0 6px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .grow .n { font-family: var(--num); }
 .badge.b-top { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
 .badge.b-mid { background: #3b4f2f; color: #d6f0c4; }
@@ -278,9 +279,9 @@ nav button[disabled] { opacity: .35; cursor: default; }
 .stat b .rank { font-size: inherit; }
 .ask-body div.field { margin-top: 12px; color: var(--text); }
 .ask-body select { margin-left: 0; }
-#e-side .radar-row { gap: 4px; }
-#e-side .radar { width: 210px; height: 210px; margin: 0; }
-#e-side .overall-rank .rank { font-size: 48px; }
+.school-side .radar-row { gap: 4px; }
+.school-side .radar { width: 210px; height: 210px; margin: 0; }
+.school-side .overall-rank .rank { font-size: 48px; }
 
 .badge.injury { background: #5a2330; color: #ffb3c0; }
 
@@ -316,3 +317,11 @@ button.link { background: none; border: 0; padding: 0; font: inherit; text-align
 .entrants-years td { vertical-align:top; }
 .entrants-years td:first-child { width:270px; }
 .entrants-years details[open] { max-height:440px; overflow:auto; }
+
+/* 学校の詳細の部員：見出しを押すと並べ替え */
+table.list.members th.sortable { cursor: pointer; white-space: nowrap; }
+table.list.members th.sortable:hover { color: var(--text); }
+table.list.members th.sorted { color: var(--accent); }
+table.list.members td { white-space: nowrap; }
+/* 選手の守備位置の適性：ランクと数値の小さな表 */
+table.list.aptitudes th, table.list.aptitudes td { text-align: center; padding: 4px 4px; }
