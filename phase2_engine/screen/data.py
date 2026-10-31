@@ -778,78 +778,201 @@ class GameScreenData:
     # ---- 今日 ----
 
     def today(self) -> dict:
-        """今日の画面：今日の試合数、注目の試合、進行中の大会、直近の大きな結果。"""
+        """今日の画面：今日の試合数、注目の試合、前の試合日の結果、直近の大きな結果。"""
+        abilities = self._today_abilities()
         return {
             "header": self.header(),
-            "featured": self.featured_matches(),
+            "featured": self.featured_matches(abilities),
+            "previous_day": self.previous_day_results(abilities),
             "recent_results": self.recent_results(),
         }
 
-    def featured_matches(self) -> list[dict]:
+    def _today_abilities(self) -> dict:
+        """学校ID → 能力（計算済みの学校だけ）。注目の試合の点に使う。"""
+        if self.abilities is None:
+            return {}
+        members = self._today_members()
+        if members is None:
+            return {}
+        return self.abilities.get(members, self._current_year())[0]
+
+    def _competition_type(self, competition_id: str) -> str:
+        return self.service.repo.competitions.get(competition_id, {}).get(
+            "competition_type", ""
+        )
+
+    def _is_national(self, competition_id: str) -> bool:
+        return self._competition_type(competition_id) in self.config[
+            "national_competition_types"
+        ]
+
+    def _featured_score(self, row: dict, abilities: dict) -> float:
+        """注目の試合の点：大会の点＋回戦の点＋両校の総合の平均×ability_weight。"""
         rule = self.config["featured_match"]
-        competitions = self.service.repo.competitions
-        members = None
-        abilities: dict = {}
-        if self.abilities is not None:
-            members = self._today_members()
-            if members is not None:
-                abilities = self.abilities.get(members, self._current_year())[0]
-        scored = []
-        for row in self.today_matches():
-            if not (row.get("team1_id") and row.get("team2_id")):
-                continue
-            ctype = competitions.get(row["competition_id"], {}).get(
-                "competition_type", ""
-            )
-            points = rule["competition_points"].get(
-                ctype, rule["other_competition_points"]
-            )
-            if row.get("stage_code") == "MAIN":
-                points += rule["round_points"].get(row.get("round_name", ""), 0)
-            overall = [
-                abilities[team]["overall"]
-                for team in (row["team1_id"], row["team2_id"])
-                if abilities.get(team)
-            ]
-            if len(overall) == 2:
-                points += sum(overall) / 2 * float(rule["ability_weight"])
-            scored.append((points, row))
-        scored.sort(key=lambda item: -item[0])
-        # 同じ大会ばかりにならないよう、1つの大会からは max_per_competition 試合まで
+        points = rule["competition_points"].get(
+            self._competition_type(row["competition_id"]),
+            rule["other_competition_points"],
+        )
+        if row.get("stage_code") == "MAIN":
+            points += rule["round_points"].get(row.get("round_name", ""), 0)
+        overall = [
+            abilities[team]["overall"]
+            for team in (row["team1_id"], row["team2_id"])
+            if abilities.get(team)
+        ]
+        if len(overall) == 2:
+            points += sum(overall) / 2 * float(rule["ability_weight"])
+        return points
+
+    def _top_matches(self, rows: list[dict], abilities: dict, count: int) -> list[dict]:
+        """点の高い順に count 試合。1つの大会からは max_per_competition 試合まで。"""
+        limit = int(self.config["featured_match"]["max_per_competition"])
+        scored = sorted(
+            (row for row in rows if row.get("team1_id") and row.get("team2_id")),
+            key=lambda row: -self._featured_score(row, abilities),
+        )
         picked, per_competition = [], {}
-        for _, row in scored:
+        for row in scored:
+            if len(picked) >= count:
+                break
             key = (row.get("school_year"), row["competition_id"])
-            if per_competition.get(key, 0) >= int(rule["max_per_competition"]):
+            if per_competition.get(key, 0) >= limit:
                 continue
             per_competition[key] = per_competition.get(key, 0) + 1
             picked.append(row)
-            if len(picked) >= int(rule["count"]):
-                break
+        return picked
+
+    def featured_matches(self, abilities: dict | None = None) -> list[dict]:
+        """注目の試合。全国大会の試合は大会ごとの上限なしで先に並べ、残りを点の順に。"""
+        if abilities is None:
+            abilities = self._today_abilities()
+        rows = [
+            row for row in self.today_matches()
+            if row.get("team1_id") and row.get("team2_id")
+        ]
+        national = sorted(
+            (row for row in rows if self._is_national(row["competition_id"])),
+            key=lambda row: -self._featured_score(row, abilities),
+        )
+        others = [row for row in rows if not self._is_national(row["competition_id"])]
+        count = int(self.config["featured_match"]["count"])
+        picked = national + self._top_matches(
+            others, abilities, max(0, count - len(national)),
+        )
         return [self._match_summary(row) for row in picked]
 
+    def _completed_rows(self) -> list[dict]:
+        """今の大会の進行にある、終わった試合（両校がそろったもの）。"""
+        return [
+            {**row.public_dict(), "competition_id": cid, "school_year": year}
+            for year, season in _seasons(self.state).items()
+            for cid, scheduled in season.competitions.items()
+            for row in scheduled.matches.values()
+            if row.status == "completed" and row.team1_id and row.team2_id
+            and row.match_date
+        ]
+
+    def previous_day_results(self, abilities: dict | None = None) -> dict:
+        """前の試合日（今日より前で最後に試合があった日）の結果。
+
+        全国大会と地区大会の本大会（config の show_all_*）はその日の全試合、
+        それ以外は注目の試合と同じ点の順に other_count 試合まで。
+        """
+        rule = self.config["previous_day_results"]
+        today = self.state.current_date.isoformat()
+        rows = [row for row in self._completed_rows() if row["match_date"] < today]
+        if not rows:
+            return {"date": "", "date_label": "", "matches": []}
+        day = max(row["match_date"] for row in rows)
+        rows = [row for row in rows if row["match_date"] == day]
+        if abilities is None:
+            abilities = self._today_abilities()
+
+        def show_all(row) -> bool:
+            return (
+                self._competition_type(row["competition_id"])
+                in rule["show_all_competition_types"]
+                and row.get("stage_code") in rule["show_all_stage_codes"]
+            )
+
+        whole = [row for row in rows if show_all(row)]
+        whole.sort(key=lambda row: (
+            not self._is_national(row["competition_id"]),
+            row["competition_id"], row.get("round_no", 0), row["match_id"],
+        ))
+        others = self._top_matches(
+            [row for row in rows if not show_all(row)], abilities,
+            int(rule["other_count"]),
+        )
+        return {
+            "date": day,
+            "date_label": date_label(date.fromisoformat(day)),
+            "matches": [self._match_summary(row) for row in whole + others],
+        }
+
     def recent_results(self) -> list[dict]:
+        """直近の大きな結果。
+
+        - 大きな場面（big_scene）の条件に合う決勝のうち、days 日以内のもの
+        - 全国大会の national_round_names（準々決勝以降）は、その大会が終わるまで
+        - hold_until_national の大会（夏の地方大会）の決勝（代表決定）は、
+          同じ年度の対応する全国大会（夏の甲子園）が終わるまで
+        全国大会の結果を先に、それぞれ新しい順に count 試合まで。
+        夏の地方大会の決勝には qualifier_final を付ける（画面で1行にまとめる）。
+        """
         rule = self.config["recent_results"]
         big = self.config["big_scene"]
-        competitions = self.service.repo.competitions
         since = (
             self.state.current_date - timedelta(days=int(rule["days"]))
         ).isoformat()
-        rows = []
+        # 年度・全国大会の種類 → 終わっていないか
+        national_open = {}
         for year, season in _seasons(self.state).items():
             for cid, scheduled in season.competitions.items():
-                if competitions.get(cid, {}).get("competition_type") not in big["competition_types"]:
-                    continue
-                for row in scheduled.matches.values():
-                    if (
-                        row.status == "completed"
-                        and row.stage_code in big["stage_codes"]
-                        and row.round_name in big["round_names"]
-                        and row.match_date >= since
-                    ):
-                        rows.append({**row.public_dict(), "competition_id": cid,
-                                     "school_year": year})
-        rows.sort(key=lambda r: (r["match_date"], r["competition_id"]), reverse=True)
-        return [self._match_summary(row) for row in rows[: int(rule["count"])]]
+                ctype = self._competition_type(cid)
+                if ctype in self.config["national_competition_types"]:
+                    national_open[(year, ctype)] = not scheduled.is_complete
+        hold = rule["hold_until_national"]
+
+        def shown(row) -> bool:
+            ctype = self._competition_type(row["competition_id"])
+            year = row["school_year"]
+            if row.get("stage_code") not in big["stage_codes"]:
+                return False
+            round_name = row.get("round_name", "")
+            if (
+                ctype in big["competition_types"]
+                and round_name in big["round_names"]
+                and row["match_date"] >= since
+            ):
+                return True
+            if (
+                ctype in self.config["national_competition_types"]
+                and round_name in rule["national_round_names"]
+                and national_open.get((year, ctype))
+            ):
+                return True
+            return (
+                ctype in hold
+                and round_name in rule["qualifier_round_names"]
+                and bool(national_open.get((year, hold[ctype])))
+            )
+
+        def is_qualifier_final(row) -> bool:
+            return (
+                self._competition_type(row["competition_id"]) in hold
+                and row.get("round_name", "") in rule["qualifier_round_names"]
+            )
+
+        rows = [row for row in self._completed_rows() if shown(row)]
+        rows.sort(key=lambda r: (r["match_date"], r["competition_id"], r["match_id"]),
+                  reverse=True)
+        rows.sort(key=lambda r: not self._is_national(r["competition_id"]))
+        # 夏の地方大会の決勝（代表決定）は、画面で1行にまとめて押すと開く
+        return [
+            {**self._match_summary(row), "qualifier_final": is_qualifier_final(row)}
+            for row in rows[: int(rule["count"])]
+        ]
 
     def _match_summary(self, row: dict) -> dict:
         cid = row["competition_id"]

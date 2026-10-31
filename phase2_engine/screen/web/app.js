@@ -207,21 +207,32 @@ function renderPage() {
 
 // ---- 今日 ----
 
-// 試合の表。列の幅を決めておき、校名の長さでスコアの列がずれないようにする
-function matchTable(rows, line, widths) {
-  return `<table class="list fixed"><colgroup>${widths.map((w) => `<col${w ? ` style="width:${w}px"` : ""}>`).join("")}</colgroup>${rows.map(line).join("")}</table>`;
+// 試合の表。列の幅を決めておき、校名の長さでスコアの列がずれないようにする。
+// 今日の画面は2列で狭いので、校名（都道府県付き）は切らずに折り返す（wrap）
+function matchTable(rows, line, widths, wrap = false) {
+  return `<table class="list fixed${wrap ? " wrap" : ""}"><colgroup>${widths.map((w) => `<col${w ? ` style="width:${w}px"` : ""}>`).join("")}</colgroup>${rows.map((row) => line(row)).join("")}</table>`;
 }
-const MATCH_LINE_COLS = [200, 0, 90, 0];
-const MATCH_LINE_COLS_DATED = [200, 0, 90, 0, 100];
+const MATCH_LINE_COLS = [150, 0, 64, 0];
+const MATCH_LINE_COLS_DATED = [150, 0, 64, 0, 130];
 
-function matchLine(m) {
+function matchLine(m, dated = true) {
   const done = m.status === "completed";
   return `<tr class="click" data-year="${m.school_year}" data-cid="${esc(m.competition_id)}" data-id="${esc(m.match_id)}">
-    <td class="muted" style="width:200px">${esc(m.competition_name)}<br><small>${esc(m.round_name)}</small></td>
-    <td style="text-align:right" class="${m.winner_id === m.team1_id ? "w" : ""}">${esc(m.team1_name)}</td>
-    <td class="n" style="width:90px;text-align:center">${done ? `${m.team1_score ?? ""} − ${m.team2_score ?? ""}` : "vs"}</td>
-    <td class="${m.winner_id === m.team2_id ? "w" : ""}">${esc(m.team2_name)}</td>
-    ${done ? `<td class="muted num" style="width:90px">${jpDate(m.match_date)}</td>` : ""}</tr>`;
+    <td class="muted" title="${esc(`${m.competition_name} ${m.round_name}`)}">${esc(m.competition_name)}<br><small>${esc(m.round_name)}</small></td>
+    <td style="text-align:right" class="team ${m.winner_id === m.team1_id ? "w" : ""}">${esc(m.team1_name)}</td>
+    <td class="n" style="text-align:center">${done ? `${m.team1_score ?? ""} − ${m.team2_score ?? ""}` : "vs"}</td>
+    <td class="team ${m.winner_id === m.team2_id ? "w" : ""}">${esc(m.team2_name)}</td>
+    ${done && dated ? `<td class="muted num">${jpDate(m.match_date)}</td>` : ""}</tr>`;
+}
+const matchLineUndated = (m) => matchLine(m, false);
+
+// 直近の大きな結果。夏の地方大会の決勝（代表決定）は1行にまとめ、押すと開く
+function recentResults(rows) {
+  if (!rows.length) return '<div class="muted">最近の大きな結果はありません</div>';
+  const shown = rows.filter((m) => !m.qualifier_final);
+  const finals = rows.filter((m) => m.qualifier_final);
+  return (shown.length ? matchTable(shown, matchLine, MATCH_LINE_COLS_DATED, true) : "")
+    + (finals.length ? `<details class="qualifier-finals"><summary>夏の地方大会の決勝（${finals.length}試合）</summary>${matchTable(finals, matchLine, MATCH_LINE_COLS_DATED, true)}</details>` : "");
 }
 
 async function renderToday(content) {
@@ -229,6 +240,7 @@ async function renderToday(content) {
   if (!data) return;
   renderHeader(data.header);
   const header = data.header;
+  const prev = data.previous_day;
   const competitions = header.active_competitions.slice(0, 12).map((row) =>
     `<tr class="click" data-open-year="${row.school_year}" data-open-id="${esc(row.competition_id)}"><td title="${esc(row.name)}">${esc(row.short_name)}</td><td class="muted">${row.next_date ? "次の試合 " + jpDate(row.next_date) : ""}</td></tr>`).join("");
   content.innerHTML = `<div class="head"><h2>今日</h2><span class="muted">${jpDate(header.date, false)}</span></div>
@@ -236,13 +248,14 @@ async function renderToday(content) {
       <div>
         <div class="panel"><h3>今日の全国の試合</h3><div class="big">${header.today_match_count}<small class="muted" style="font-size:16px"> 試合</small></div></div>
         <div class="panel"><h3>注目の試合</h3>${data.featured.length
-          ? matchTable(data.featured, matchLine, MATCH_LINE_COLS)
+          ? matchTable(data.featured, matchLine, MATCH_LINE_COLS, true)
           : '<div class="muted">今日の試合はありません</div>'}</div>
+        <div class="panel"><h3>前の試合日の結果${prev.date ? `<small class="muted">　${jpDate(prev.date, false)}</small>` : ""}</h3>${prev.matches.length
+          ? matchTable(prev.matches, matchLineUndated, MATCH_LINE_COLS, true)
+          : '<div class="muted">まだ試合はありません</div>'}</div>
       </div>
       <div>
-        <div class="panel"><h3>直近の大きな結果</h3>${data.recent_results.length
-          ? matchTable(data.recent_results, matchLine, MATCH_LINE_COLS_DATED)
-          : '<div class="muted">最近の決勝はありません</div>'}</div>
+        <div class="panel"><h3>直近の大きな結果</h3>${recentResults(data.recent_results)}</div>
         <div class="panel"><h3>開催中の大会</h3>${competitions ? `<table class="list">${competitions}</table>` : '<div class="muted">開催中の大会はありません</div>'}</div>
       </div>
     </div></div>`;

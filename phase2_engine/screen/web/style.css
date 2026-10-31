@@ -61,6 +61,9 @@ select, input[type=search], input[type=date] { height: 32px; background: #0b1117
 table.list { width: 100%; border-collapse: collapse; }
 table.list.fixed { table-layout: fixed; }
 table.list.fixed td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 今日の画面の試合の表：校名だけ折り返す（大会名・回戦・日付は1行で省略。全文は title） */
+table.list.fixed.wrap td.team { white-space: normal; overflow-wrap: anywhere; }
+.qualifier-finals summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 8px 10px; }
 table.list th { text-align: left; color: var(--muted); font-weight: 400; font-size: 12px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--panel2); position: sticky; top: 0; z-index: 1; }
 /* 一覧の枠（.scroll）の上の余白の分だけ上で止め、スクロールした行が見出しの上にのぞかないようにする */
 .scroll table.list th { top: -16px; }
