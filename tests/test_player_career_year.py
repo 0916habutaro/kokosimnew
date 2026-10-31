@@ -70,6 +70,11 @@ class PlayerCareerYearTests(unittest.TestCase):
         cls.boundary_sealed = any(y['year'] == 2026 and y['status'] == 'sealed'
                                  for y in cls.service._history_archive('year').list_years())
         cls.service.advance_through(cls.march, "2027-04-05")
+        # 対照側も同じ日に保存し、一時的な未保存詳細の範囲をそろえる。
+        control_service.advance_to(control, "2027-03-31", autosave=False)
+        control_service.save_game(control)
+        control_service.next_day(control, autosave=False)
+        control_service.save_game(control)
         control_service.advance_through(control, "2027-04-05")
         old_cups = {cid for cid, day in competition_start_dates(cls.march.state.plans[2027]).items()
                     if day < date(2027, 4, 1)}
