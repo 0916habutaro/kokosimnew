@@ -49,7 +49,32 @@ class PlayerCareerYearTests(unittest.TestCase):
         control = control_service.load_game("year")
         control.state.coaches.intake_config['max_abs_z'] = 0.0
         # 4月：春季県大会は3月の部員のまま続く。前の年度の名簿は大会が終わるまで残す
+        # 直前の保存で3月分の成長・翌年度生成を先行実行せず、再開後の3/31で行う。
+        cls.service.advance_to(cls.march, "2027-03-31", autosave=False)
+        def roster_values():
+            # 共有する監督・評判は別の既存テストで照合し、ここでは選手の保存値を比較する。
+            return {k: v for k, v in cls.march.state.rosters.__getstate__().items()
+                    if k not in ('coaches', 'reputation')}
+        cls.before_boundary = pickle.loads(pickle.dumps(roster_values()))
+        cls.service.save_game(cls.march)
+        cls.march = cls.service.load_game("year")
+        cls.before_boundary_restored = (cls.before_boundary == roster_values())
+        cls.service.next_day(cls.march, autosave=False)
+        cls.after_boundary_date = cls.march.state.current_date
+        after_boundary = pickle.loads(pickle.dumps(roster_values()))
+        matches_after_boundary = cls.march.state.completed_results()
+        cls.service.save_game(cls.march)
+        cls.march = cls.service.load_game("year")
+        cls.after_boundary_restored = (after_boundary == roster_values()
+                                      and matches_after_boundary == cls.march.state.completed_results())
+        cls.boundary_sealed = any(y['year'] == 2026 and y['status'] == 'sealed'
+                                 for y in cls.service._history_archive('year').list_years())
         cls.service.advance_through(cls.march, "2027-04-05")
+        # 対照側も同じ日に保存し、一時的な未保存詳細の範囲をそろえる。
+        control_service.advance_to(control, "2027-03-31", autosave=False)
+        control_service.save_game(control)
+        control_service.next_day(control, autosave=False)
+        control_service.save_game(control)
         control_service.advance_through(control, "2027-04-05")
         old_cups = {cid for cid, day in competition_start_dates(cls.march.state.plans[2027]).items()
                     if day < date(2027, 4, 1)}
@@ -99,6 +124,12 @@ class PlayerCareerYearTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
+
+    def test_save_resume_immediately_before_and_after_year_end_keeps_player_state(self):
+        self.assertTrue(self.before_boundary_restored)
+        self.assertEqual(date(2027, 4, 1), self.after_boundary_date)
+        self.assertTrue(self.after_boundary_restored)
+        self.assertTrue(self.boundary_sealed)
 
     def test_saved_reputation_is_shared_with_intake_after_load(self):
         rep = self.session.state.reputation

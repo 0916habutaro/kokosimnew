@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import unittest
-from dataclasses import replace
+from dataclasses import fields, replace
 from pathlib import Path
 
 from game_core.match_config import load_and_validate_match_configs
@@ -36,6 +36,19 @@ MATCH_CONFIG_DIR = ROOT / "config" / "match"
 
 
 class Stage13C1MatchContractTests(unittest.TestCase):
+    def test_every_count_field_still_rejects_non_integer_or_negative_values(self):
+        for cls, validate in ((BatterGameStats, validate_batter_game_stats),
+                              (PitcherGameStats, validate_pitcher_game_stats)):
+            baseline = cls('FAKE-PLAYER', 'FAKE-SCHOOL')
+            validate(baseline)
+            for item in fields(baseline):
+                if item.name in ('player_id', 'school_id'):
+                    continue
+                for invalid in (True, False, -1, 1.0, None, {}):
+                    with self.subTest(kind=cls.__name__, field=item.name, value=invalid):
+                        with self.assertRaises(ValueError):
+                            validate(replace(baseline, **{item.name: invalid}))
+
     @classmethod
     def setUpClass(cls):
         cls.repo = DataRepository(ROOT / "data")

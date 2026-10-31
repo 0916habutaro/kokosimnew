@@ -213,6 +213,19 @@ class Stage43CHistoricalArchiveTests(unittest.TestCase):
         with closing(sqlite3.connect(self.path)) as con:
             self.assertEqual(2, con.execute("SELECT count(*) FROM historical_matches WHERE payload_json != ''").fetchone()[0])
 
+    def test_bulk_registration_rolls_back_when_a_later_sql_insert_fails(self):
+        self.sync([make_record('M0')])
+        with closing(sqlite3.connect(self.path)) as conn, conn:
+            conn.execute("""CREATE TRIGGER refuse_later_match BEFORE INSERT ON historical_matches
+                WHEN NEW.match_id='M2' BEGIN SELECT RAISE(ABORT, 'insert failed'); END""")
+        with self.assertRaisesRegex(sqlite3.IntegrityError, 'insert failed'):
+            self.sync([make_record('M0'), make_record('M1'), make_record('M2')])
+        self.assertEqual(['M0'], [r['match_id'] for r in self.archive.list_matches(2026)])
+        with closing(sqlite3.connect(self.path)) as conn, conn:
+            conn.execute('DROP TRIGGER refuse_later_match')
+        self.assertEqual({'inserted': 2, 'already_archived': 1},
+                         self.sync([make_record('M0'), make_record('M1'), make_record('M2')]))
+
     def test_reader_sees_committed_packing_before_cache_invalidation(self):
         from contextlib import contextmanager
 

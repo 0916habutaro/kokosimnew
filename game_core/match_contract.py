@@ -418,8 +418,9 @@ def validate_match_simulation_input(
 
 
 def validate_batter_game_stats(stats: BatterGameStats) -> None:
-    values = asdict(stats)
-    for key, value in values.items():
+    # 値の検証に再帰的な辞書コピーは不要。全項目の型・範囲は同じ順で調べる。
+    for item in fields(stats):
+        key, value = item.name, getattr(stats, item.name)
         if key in {"player_id", "school_id"}:
             continue
         if not isinstance(value, int) or isinstance(value, bool) or value < 0:
@@ -453,8 +454,8 @@ def validate_batter_game_stats(stats: BatterGameStats) -> None:
 
 
 def validate_pitcher_game_stats(stats: PitcherGameStats) -> None:
-    values = asdict(stats)
-    for key, value in values.items():
+    for item in fields(stats):
+        key, value = item.name, getattr(stats, item.name)
         if key in {"player_id", "school_id"}:
             continue
         if not isinstance(value, int) or isinstance(value, bool) or value < 0:
