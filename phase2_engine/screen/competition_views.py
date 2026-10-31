@@ -583,7 +583,7 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
     # 勝利投手・敗戦投手（決められないときは None）と本塁打
     record = pitchers_of_record(detail)
     out["decisions"] = {
-        key: {"school_id": school, "name": player_name(school, pid)}
+        key: {"school_id": school, "player_id": pid, "name": player_name(school, pid)}
         for key, (school, pid) in record.items()
     } if record else None
     out["home_runs"] = [

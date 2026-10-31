@@ -116,6 +116,21 @@ def _prefecture_short(name: str) -> str:
     return name[:-1] if name.endswith(("都", "府", "県")) else name
 
 
+def stage_names(repo, config: dict) -> dict[str, str]:
+    """ステージID → 画面に出す段階名。「シード決定イベント」などは config の
+    stage_display_names（大会の資料の呼び方）で置き換える。"""
+    names = {
+        stage["stage_id"]: stage.get("stage_name", "")
+        for cid in repo.competitions
+        for stage in repo.stages(cid)
+    }
+    names.update({
+        stage_id: row["name"]
+        for stage_id, row in config.get("stage_display_names", {}).items()
+    })
+    return names
+
+
 def date_label(day: date) -> str:
     return f"{day.year}年{day.month}月{day.day}日（{WEEKDAYS[day.weekday()]}）"
 
@@ -166,11 +181,7 @@ class GameScreenData:
         self._mercy = json.loads(
             (config_root / "match" / "game_rules_v1.json").read_text(encoding="utf-8")
         )["mercy_rule"]["thresholds"]
-        self._stage_names = {
-            stage["stage_id"]: stage.get("stage_name", "")
-            for cid in service.repo.competitions
-            for stage in service.repo.stages(cid)
-        }
+        self._stage_names = stage_names(service.repo, self.config)
 
     @property
     def state(self):
@@ -1092,7 +1103,8 @@ class GameScreenData:
         if count not in (5, 10, 20):
             raise ValueError('表示年数は5・10・20年から選んでください')
         last = int(f.get('end') or latest)
-        first = int(f.get('start') or max(1, last - count + 1))
+        # 既定の範囲はゲーム開始の年度（記録のある最も古い年度）から
+        first = int(f.get('start') or max(earliest, last - count + 1))
         if first < 1 or last > latest or first > last:
             raise ValueError('開始年度・終了年度を確認してください')
         memberships = _csv_rows(self.service.repo.data_dir, 'prefecture_region_memberships.csv')
@@ -1125,7 +1137,11 @@ class GameScreenData:
         reader = archive.competition_entrants if entrants else archive.competition_best8
         stored = {r['school_year']: r for r in reader(cid, first, last)} if cid else {}
         rows = []
-        for year in range(last, first - 1, -1) if cid else ():
+        # ゲーム開始より前の年度は「記録なし」で並べず、範囲だけを返す（画面で1行にする）
+        before_start = (
+            {'start': first, 'end': min(last, earliest - 1)} if first < earliest else None
+        )
+        for year in range(last, max(first, earliest) - 1, -1) if cid else ():
             season = live.get(year)
             if season is not None and cid in season.annual_templates:
                 plan = self._plans().get(year)
@@ -1149,6 +1165,7 @@ class GameScreenData:
             row['can_open'] = (season is not None and cid in season.annual_templates) or year in stored
             rows.append(row)
         return {'filters': f, 'start': first, 'end': last, 'earliest': earliest, 'latest': latest,
+                'before_start': before_start,
                 'catalog': catalog, 'competitions': eligible, 'rows': rows,
                 'regions': region_names, 'prefectures': self.prefectures,
                 'summer_areas': {c['competition_id']: c['name'].replace('夏・', '')
