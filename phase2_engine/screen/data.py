@@ -47,6 +47,7 @@ from .player_views import (
     ability_values,
     member_abilities,
     member_stats,
+    member_tables,
     rank,
     season_stats,
     snapshot_values,
@@ -1811,17 +1812,18 @@ class GameScreenData:
         rows = []
         for player in sorted(players, key=lambda p: (-p.academic_year, p.roster_no)):
             values = snapshot_values(rosters.ability(player)) if rosters is not None else None
+            stats = member_stats(season_stats(details, player.player_id))
             rows.append({
                 "player_id": player.player_id,
                 "name": player.display_name,
                 "hometown": self.prefectures.get(player.hometown_prefecture_code, ""),
                 "grade": player.academic_year,
                 "position": POSITION_LABELS.get(player.primary_position, ""),
-                "pitcher": player.primary_position == "P",
                 "bats": player.bats, "throws": player.throws,
                 "injury": self._injury_now(player),
                 "abilities": member_abilities(values, player.primary_position, bands),
-                "stats": member_stats(season_stats(details, player.player_id)),
+                "stats": stats,
+                "tables": member_tables(player.primary_position, stats),
             })
         return rows
 

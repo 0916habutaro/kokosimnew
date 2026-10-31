@@ -225,9 +225,10 @@ svg text { font-family: var(--ui); }
 
 /* 学校の一覧（見えている行だけ描く） */
 .grid { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.ghead, .grow { display: grid; grid-template-columns: 80px minmax(150px, 1fr) 72px 52px 52px 52px 52px 52px 52px 78px 44px 70px 62px 190px; align-items: center; }
+/* 初期サイズ（1400×900）で右の欄を残したまま全部の列が見える幅（約830px）に収める */
+.ghead, .grow { display: grid; grid-template-columns: 64px minmax(96px, 1fr) 44px repeat(5, 36px) 38px 34px 34px 52px 54px minmax(150px, 1.4fr); align-items: center; font-size: 13px; }
 .ghead { height: 36px; background: var(--panel2); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }
-.ghead div { padding: 0 10px; cursor: pointer; white-space: nowrap; }
+.ghead div { padding: 0 6px; cursor: pointer; white-space: nowrap; overflow: hidden; }
 .ghead div:hover { color: var(--text); }
 .ghead div.sorted { color: var(--accent); }
 .ghead div.n, .grow div.n { text-align: right; }
@@ -235,7 +236,7 @@ svg text { font-family: var(--ui); }
 .grow { height: 32px; position: absolute; left: 0; right: 0; border-bottom: 1px solid #1a2631; cursor: pointer; }
 .grow:hover { background: #18242f; }
 .grow.sel { background: #243444; box-shadow: inset 3px 0 0 var(--accent); }
-.grow div { padding: 0 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.grow div { padding: 0 6px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .grow .n { font-family: var(--num); }
 .badge.b-top { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
 .badge.b-mid { background: #3b4f2f; color: #d6f0c4; }

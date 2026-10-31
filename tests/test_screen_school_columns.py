@@ -12,9 +12,10 @@ from phase2_engine.screen.player_views import (
     aptitude_rows,
     member_abilities,
     member_stats,
+    member_tables,
     season_stats,
 )
-from phase2_engine.screen.school_views import koshien_appearances, reputation_ranks
+from phase2_engine.screen.school_views import best_result, koshien_appearances, reputation_ranks
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,7 +29,11 @@ class MemberTests(unittest.TestCase):
         values = {"velocity_kmh": 141, "control": 82, "stamina": 55,
                   "contact": 91, "power": 45, "speed": 70, "fielding": 20}
         pitcher = member_abilities(values, "P", BANDS)
-        self.assertEqual(["velocity_kmh", "control", "stamina"], list(pitcher))
+        # 投手は野手の表にも出ることがあるので、野手の能力も持つ
+        self.assertEqual(
+            ["velocity_kmh", "control", "stamina", "contact", "power", "speed", "fielding"],
+            list(pitcher),
+        )
         # 球速はランクを付けず km/h
         self.assertEqual({"value": 141, "rank": ""}, pitcher["velocity_kmh"])
         self.assertEqual("A", pitcher["control"]["rank"])
@@ -53,9 +58,20 @@ class MemberTests(unittest.TestCase):
         self.assertAlmostEqual(3.0, pitcher["era"])
         self.assertEqual(27, pitcher["outs"])
         self.assertEqual(
-            {"average": None, "home_runs": None, "era": None, "outs": None},
+            {"average": None, "home_runs": None, "plate_appearances": 0, "era": None, "outs": None},
             member_stats(season_stats(details, "nobody")),
         )
+
+    def test_pitcher_with_plate_appearances_is_also_a_batter(self):
+        details = [{
+            "batter_stats": [{"player_id": "p1", "plate_appearances": 4, "at_bats": 3, "hits": 1}],
+            "pitcher_stats": [{"player_id": "p1", "outs_recorded": 27, "earned_runs": 0},
+                              {"player_id": "p2", "outs_recorded": 3, "earned_runs": 0}],
+        }]
+        self.assertEqual(["pitchers", "batters"],
+                         member_tables("P", member_stats(season_stats(details, "p1"))))
+        self.assertEqual(["pitchers"], member_tables("P", member_stats(season_stats(details, "p2"))))
+        self.assertEqual(["batters"], member_tables("SS", member_stats(season_stats(details, "p3"))))
 
 
 class AptitudeTests(unittest.TestCase):
@@ -67,6 +83,15 @@ class AptitudeTests(unittest.TestCase):
 
 
 class SchoolColumnTests(unittest.TestCase):
+    def test_best_result_prefers_newer_competition_on_tie(self):
+        results = [
+            {"competition_name": "春の大会", "finish": "予選敗退", "score": 1000, "first_date": "2026-04-05"},
+            {"competition_name": "夏の大会", "finish": "1回戦敗退", "score": 1000, "first_date": "2026-07-10"},
+            {"competition_name": "秋の大会", "finish": "予選敗退", "score": 900, "first_date": "2026-09-01"},
+        ]
+        self.assertEqual("夏の大会 1回戦敗退", best_result(results)["label"])
+        self.assertIsNone(best_result([]))
+
     def test_reputation_ranks_by_share(self):
         values = {f"s{i:02d}": float(i) for i in range(10)}
         ranks = reputation_ranks(values, [["A", 0.9], ["B", 0.5], ["C", 0.0]])

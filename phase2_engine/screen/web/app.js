@@ -822,7 +822,8 @@ const SCHOOL_COLS = [
   ["pref", "都道府県"], ["name", "校名"], ["ownership", "設置者"],
   ["overall", "総合", 1], ["batting", "打撃", 1], ["pitching", "投手", 1],
   ["defense", "守備", 1], ["running", "走力", 1], ["reputation", "評判", 1],
-  ["koshien_summer", "甲子園 夏", 1], ["koshien_spring", "春", 1],
+  ["koshien_summer", "夏", 1, "甲子園の出場回数（夏。実際の記録＋ゲーム内の記録）"],
+  ["koshien_spring", "春", 1, "甲子園の出場回数（春。実際の記録＋ゲーム内の記録）"],
   ["record", "勝敗", 1], ["rate", "勝率", 1],
   ["best", "今年度の最高成績"],
 ];
@@ -925,8 +926,8 @@ function applySchoolFilter() {
     return (x < y ? -1 : x > y ? 1 : 0) * st.sortDir;
   });
   $("s-count").textContent = `${st.view.length.toLocaleString()} 校`;
-  $("s-head").innerHTML = SCHOOL_COLS.map(([key, label, num]) =>
-    `<div data-k="${key}" class="${num ? "n" : ""} ${key === st.sortKey ? "sorted" : ""}">${label}${key === st.sortKey ? (st.sortDir > 0 ? " ▲" : " ▼") : ""}</div>`).join("");
+  $("s-head").innerHTML = SCHOOL_COLS.map(([key, label, num, title]) =>
+    `<div data-k="${key}"${title ? ` title="${esc(title)}"` : ""} class="${num ? "n" : ""} ${key === st.sortKey ? "sorted" : ""}">${label}${key === st.sortKey ? (st.sortDir > 0 ? " ▲" : " ▼") : ""}</div>`).join("");
   $("s-head").querySelectorAll("div").forEach((d) => d.addEventListener("click", () => {
     const key = d.dataset.k, numeric = (SCHOOL_COLS.find((c) => c[0] === key) || [])[2] || key === "best";
     st.sortDir = st.sortKey === key ? -st.sortDir : (numeric ? -1 : 1);
@@ -1262,14 +1263,15 @@ const fmtInnings = (outs) => outs === null ? "−" : `${Math.floor(outs / 3)}${o
 const MEMBER_HANDS = ["hands", "投打", (m) => m.throws + m.bats, (m) => `${HANDS[m.throws] || m.throws}投${HANDS[m.bats] || m.bats}打`];
 const MEMBER_STATE = ["injury", "状態", (m) => m.injury ? 1 : 0, (m) => injuryBadge(m.injury)];
 const MEMBER_TABLES = [
-  ["pitchers", "投手", (m) => m.pitcher, [
+  ["pitchers", "投手", (m) => m.tables.includes("pitchers"), [
     ...MEMBER_BASE, MEMBER_HANDS,
     memberAbility("velocity_kmh", "球速"), memberAbility("control", "制球"), memberAbility("stamina", "スタミナ"),
     ["era", "防御率", (m) => m.stats.era ?? 1e9, (m) => m.stats.era === null ? "−" : m.stats.era.toFixed(2), 1, 1],
     ["outs", "投球回", (m) => m.stats.outs ?? -1, (m) => fmtInnings(m.stats.outs), 1],
     MEMBER_STATE,
   ]],
-  ["batters", "野手", (m) => !m.pitcher, [
+  // 本職が投手でも今年度に打席があれば野手の表にも出す
+  ["batters", "野手", (m) => m.tables.includes("batters"), [
     ...MEMBER_BASE, ["position", "守備位置", (m) => m.position, (m) => esc(m.position)], MEMBER_HANDS,
     memberAbility("contact", "ミート"), memberAbility("power", "長打"), memberAbility("speed", "走力"), memberAbility("fielding", "守備"),
     ["average", "打率", (m) => m.stats.average ?? -1, (m) => fmtAvg(m.stats.average), 1],

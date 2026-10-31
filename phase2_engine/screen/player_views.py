@@ -120,8 +120,9 @@ MEMBER_BATTER = (("contact", "ミート"), ("power", "長打"), ("speed", "走�
 
 
 def member_abilities(values: dict | None, position: str, bands) -> dict:
-    """部員の一覧の能力（投手は球速・制球・スタミナ、野手はミート・長打・走力・守備）。"""
-    keys = MEMBER_PITCHER if position == "P" else MEMBER_BATTER
+    """部員の一覧の能力（野手はミート・長打・走力・守備。投手は球速・制球・スタミナも。
+    打席に立った投手は野手の表にも出すので、投手にも野手の能力を持たせる）。"""
+    keys = (MEMBER_PITCHER + MEMBER_BATTER) if position == "P" else MEMBER_BATTER
     return {
         key: {
             "value": (values or {}).get(key),
@@ -138,10 +139,18 @@ def member_stats(stats: dict) -> dict:
         "average": batting["hits"] / batting["at_bats"]
         if batting and batting["at_bats"] else None,
         "home_runs": batting["home_runs"] if batting else None,
+        "plate_appearances": batting["plate_appearances"] if batting else 0,
         "era": pitching["earned_runs"] * 27 / pitching["outs_recorded"]
         if pitching and pitching["outs_recorded"] else None,
         "outs": pitching["outs_recorded"] if pitching else None,
     }
+
+
+def member_tables(position: str, stats: dict) -> list[str]:
+    """部員を出す表（pitchers・batters）。本職が投手でも今年度に打席があれば野手の表にも。"""
+    if position != "P":
+        return ["batters"]
+    return ["pitchers", "batters"] if stats["plate_appearances"] else ["pitchers"]
 
 
 def aptitude_rows(aptitudes: dict, labels: dict, bands) -> list[dict]:

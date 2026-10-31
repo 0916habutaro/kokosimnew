@@ -271,7 +271,8 @@ def team_totals(school_id: str, details) -> dict:
 def best_result(results: list[dict]) -> dict | None:
     if not results:
         return None
-    best = max(results, key=lambda r: r["score"])
+    # 点が同じなら新しい大会（8月に春の予選敗退ではなく夏の結果を出す）
+    best = max(results, key=lambda r: (r["score"], r.get("first_date", "")))
     return {
         "label": f"{best['competition_name']} {best['finish']}",
         "score": best["score"],
