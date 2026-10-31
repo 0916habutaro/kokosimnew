@@ -247,6 +247,11 @@ class Stage43G92LegacyConcurrencyTests(unittest.TestCase):
                         if 'INSERT INTO historical_matches' in sql:
                             raise RuntimeError('injected after insert')
                         return cursor
+                    def executemany(self, sql, parameters):
+                        cursor = super().executemany(sql, parameters)
+                        if 'INSERT INTO historical_matches' in sql:
+                            raise RuntimeError('injected after insert')
+                        return cursor
                 def connect():
                     con = sqlite3.connect(a.db_path, factory=Fault)
                     con.row_factory = sqlite3.Row
