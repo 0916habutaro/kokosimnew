@@ -34,7 +34,8 @@
     "recent_results": "今日の画面の「直近の大きな結果」：(1) 大きな場面（big_scene）の条件に合う決勝のうち days 日以内のもの、(2) 全国大会の national_round_names（準々決勝以降）はその大会が終わるまで、(3) hold_until_national の大会（夏の地方大会）の qualifier_round_names（決勝＝代表決定）は同じ年度の対応する全国大会が終わるまで。全国大会を先に、新しい順に count 試合まで",
     "ability_ranks": "学校能力のランク：値がこの数以上ならそのランク（Sから順に見る）。Fの境目より下はG。数値は内部で持ち、画面はランクで出す",
     "national_competition_types": "全国大会（夏の甲子園・選抜・神宮）の大会の種類。今日の画面で全国大会を先に並べるのに使う",
-    "previous_day_results": "今日の画面の「前の試合日の結果」：今日より前で最後に試合があった日の結果。show_all_competition_types の大会の show_all_stage_codes（本大会）は全試合、それ以外は注目の試合と同じ点の順に other_count 試合まで"
+    "previous_day_results": "今日の画面の「前の試合日の結果」：今日より前で最後に試合があった日の結果。show_all_competition_types の大会の show_all_stage_codes（本大会）は全試合、それ以外は注目の試合と同じ点の順に other_count 試合まで",
+    "stage_display_names": "予選の段階名の画面での言い方（ステージID → 名前）。「シード決定イベント」を大会の資料（source_id は data/sources/phase2_sources.csv）の呼び方に合わせる。ないステージは competition_stages.csv の名前のまま"
   },
   "school_overall_weights": {
     "batting_strength": 0.35,
@@ -102,5 +103,43 @@
       "MAIN"
     ],
     "other_count": 6
+  },
+  "stage_display_names": {
+    "STG000198": {
+      "name": "地区ブロック大会",
+      "source_id": "P2SRC009"
+    },
+    "STG000199": {
+      "name": "地区ブロック大会",
+      "source_id": "P2SRC010"
+    },
+    "STG000200": {
+      "name": "地区シード戦",
+      "source_id": "P2SRC058"
+    },
+    "STG000201": {
+      "name": "シード決めトーナメント",
+      "source_id": "P2SRC070"
+    },
+    "STG000202": {
+      "name": "新人大会",
+      "source_id": "P2SRC100"
+    },
+    "STG000203": {
+      "name": "地区別新人戦",
+      "source_id": "P2SRC105"
+    },
+    "STG000204": {
+      "name": "新人大会地区予選",
+      "source_id": "P2SRC133"
+    },
+    "STG000205": {
+      "name": "地区大会",
+      "source_id": "P2SRC135"
+    },
+    "STG000206": {
+      "name": "新人大会",
+      "source_id": "P2SRC139"
+    }
   }
 }

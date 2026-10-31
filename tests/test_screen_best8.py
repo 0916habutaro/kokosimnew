@@ -134,7 +134,9 @@ class Best8ScreenTests(unittest.TestCase):
     def test_empty_read_creates_no_database_and_api_validates_range(self):
         result = ScreenApi(self.data).records_best8()
         self.assertEqual(162, len(result['catalog']))
-        self.assertEqual(10, len(result['rows']))
+        # 既定の範囲はゲーム開始の年度から（開始前の年度は並べない）
+        self.assertEqual([2146], [r['school_year'] for r in result['rows']])
+        self.assertIsNone(result['before_start'])
         self.assertFalse(self.archive.db_path.exists())
         self.assertIn('error', ScreenApi(self.data).records_best8({'count': 6}))
         self.assertIn('error', ScreenApi(self.data).records_best8({'start': 2147, 'end': 2146}))
@@ -184,6 +186,14 @@ class Best8ScreenTests(unittest.TestCase):
         self.assertEqual('架空校FAKE-A', old['groups']['優勝'][0]['name'])
         self.data.service._history_archive = lambda slot: HistoricalMatchArchive(self.archive.db_path)
         self.assertEqual(result, self.data.records_best8(result['filters']))
+
+    def test_years_before_game_start_are_one_range(self):
+        result = self.data.records_best8({'competition_id': self.cid, 'start': 2140, 'end': 2146})
+        self.assertEqual([2146], [r['school_year'] for r in result['rows']])
+        self.assertEqual({'start': 2140, 'end': 2145}, result['before_start'])
+        only_before = self.data.records_entrants({'competition_id': self.cid, 'start': 2140, 'end': 2142})
+        self.assertEqual([], only_before['rows'])
+        self.assertEqual({'start': 2140, 'end': 2142}, only_before['before_start'])
 
     def test_live_runtime_has_priority_over_archive(self):
         self.store(2144)
