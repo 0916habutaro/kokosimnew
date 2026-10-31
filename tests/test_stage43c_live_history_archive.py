@@ -176,6 +176,82 @@ class Stage43CHistoricalArchiveTests(unittest.TestCase):
         reader.join()
         self.assertEqual([], errors)
 
+    def test_batch_packing_keeps_exact_existing_compression_and_reopened_records(self):
+        import zlib
+        from phase2_engine.historical_match_archive import _canonical
+
+        rows = []
+        for cid in ('CMP-1', 'CMP-2', 'CMP-3'):
+            for number in range(2):
+                row = make_record(f'M{number}')
+                row['competition_id'] = row['ability_detail']['competition_id'] = cid
+                rows.append(row)
+        self.sync(rows)
+        expected = {}
+        with closing(sqlite3.connect(self.path)) as con:
+            for cid in ('CMP-1', 'CMP-2', 'CMP-3'):
+                payloads = dict(con.execute('SELECT match_id,payload_json FROM historical_matches WHERE competition_id=?', (cid,)))
+                expected[cid] = zlib.compress(_canonical(payloads).encode('utf-8'), 9)
+        before = [self.archive.get_match(2026, r['competition_id'], r['match_id']) for r in rows]
+        self.assertEqual(6, self.archive.pack_competitions(2026, ('CMP-1', 'CMP-2', 'CMP-3', 'CMP-1')))
+        with closing(sqlite3.connect(self.path)) as con:
+            self.assertEqual(expected, dict(con.execute('SELECT competition_id,payloads FROM packed_competitions')))
+        reopened = HistoricalMatchArchive(self.path)
+        self.assertEqual(before, [reopened.get_match(2026, r['competition_id'], r['match_id']) for r in rows])
+        self.assertEqual(0, self.archive.pack_competitions(2026, expected))
+        self.assertEqual(6, self.archive.seal_year(2026, expected_match_count=6)['match_count'])
+
+    def test_batch_worker_failure_rolls_back_all_packing(self):
+        rows = [make_record('M1'), make_record('M2')]
+        rows[1]['competition_id'] = rows[1]['ability_detail']['competition_id'] = 'CMP-2'
+        self.sync(rows)
+        with patch('phase2_engine.historical_match_archive.zlib.compress', side_effect=ValueError('compression failed')):
+            with self.assertRaisesRegex(ValueError, 'compression failed'):
+                self.archive.pack_competitions(2026, ('CMP-1', 'CMP-2'))
+        self.assertEqual(set(), self.archive.packed_competitions(2026))
+        self.assertEqual(4, self.archive.get_match(2026, 'CMP-1', 'M1')['team1_score'])
+        with closing(sqlite3.connect(self.path)) as con:
+            self.assertEqual(2, con.execute("SELECT count(*) FROM historical_matches WHERE payload_json != ''").fetchone()[0])
+
+    def test_reader_sees_committed_packing_before_cache_invalidation(self):
+        from contextlib import contextmanager
+
+        self.sync([make_record()])
+        expected = self.archive.get_match(2026, 'CMP-1', 'M1')
+        archive, observed = self.archive, []
+
+        class ObserveCommit(sqlite3.Connection):
+            def __exit__(connection, *args):
+                result = super().__exit__(*args)
+                if args[0] is None:
+                    # 別の読込がCOMMIT直後、圧縮側のキャッシュ破棄前に来る場合。
+                    observed.append(archive.get_match(2026, 'CMP-1', 'M1'))
+                return result
+
+        @contextmanager
+        def connection():
+            with closing(sqlite3.connect(self.path, factory=ObserveCommit)) as conn:
+                yield conn
+
+        with patch.object(archive, '_connection', connection):
+            archive.pack_competitions(2026, ('CMP-1',))
+        self.assertEqual([expected], observed)
+
+    def test_corrupt_later_competition_rolls_back_prior_batch_writes(self):
+        rows = []
+        for cid in ('CMP-1', 'CMP-2', 'CMP-3'):
+            row = make_record()
+            row['competition_id'] = row['ability_detail']['competition_id'] = cid
+            rows.append(row)
+        self.sync(rows)
+        with closing(sqlite3.connect(self.path)) as con, con:
+            con.execute("UPDATE historical_matches SET record_sha256='CORRUPT' WHERE competition_id='CMP-3'")
+        with self.assertRaises(HistoricalMatchConflictError):
+            self.archive.pack_competitions(2026, ('CMP-1', 'CMP-2', 'CMP-3'))
+        self.assertEqual(set(), self.archive.packed_competitions(2026))
+        with closing(sqlite3.connect(self.path)) as con:
+            self.assertEqual(3, con.execute("SELECT count(*) FROM historical_matches WHERE payload_json != ''").fetchone()[0])
+
     def test_failed_vacuum_is_logged_and_does_not_stop_the_game(self):
         """空き容量が足りないなどで VACUUM が失敗しても、ログに残して続ける
         （次の年度を閉じるときにまた詰める）。"""
@@ -289,7 +365,9 @@ class Stage43CHistoricalArchiveTests(unittest.TestCase):
             slot_id="career", state=state, plan=object(),
             resolver_contract="deterministic_test",
         )
-        with patch.object(service.slots, "save", return_value={"kind": "manual"}) as saved:
+        with patch.object(service.slots, "save", return_value={
+            "kind": "manual", "payload_checksum": "fake-json-checksum",
+        }) as saved:
             with patch("phase2_engine.live_game_service.plan_fingerprint", return_value="plan123"):
                 first = service.save_game(session)
                 second = service.save_game(session)

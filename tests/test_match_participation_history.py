@@ -323,6 +323,49 @@ class DHHistoryFixtures:
 
 
 class DHMatchHistoryTests(DHHistoryFixtures, unittest.TestCase):
+    def test_recorded_batting_cycles_equal_actual_events_and_keep_first_dh_obligation(self):
+        from copy import deepcopy
+        from game_core.match_contract import dh_history_fingerprint
+        from game_core.match_state import _validate_dh_event_history
+        from phase2_engine.historical_match_archive import _validate_participation_payload
+
+        for mode in ('none', 'normal', 'pitcher'):
+            with self.subTest(mode=mode):
+                teams = []
+                for team in self.dh.by_mode[mode]:
+                    lineup = team.team_strength.starting_lineup
+                    if mode != 'none':
+                        ordered = sorted(lineup.entries,
+                            key=lambda e: (e.player_id == lineup.designated_hitter_id, e.batting_order))
+                        lineup = replace(lineup, entries=tuple(replace(e, batting_order=i)
+                                          for i, e in enumerate(ordered, 1)))
+                    teams.append(replace(team, team_strength=replace(team.team_strength, starting_lineup=lineup)))
+                inp, result, _, row = self.game(mode, teams=teams, top=('walk',)*20)
+                ranges, next_pa = {}, 1
+                for half in result.inning_scores:
+                    ranges[half.inning, half.half] = (next_pa, next_pa+half.plate_appearances-1)
+                    next_pa += half.plate_appearances
+                args = (result.team_participation, (inp.team1.school_id, inp.team2.school_id),
+                        2026, {t.school_id: {p.player_id for p in t.player_abilities} for t in teams})
+                actual = _validate_dh_event_history(*args, result.events, None, ranges, next_pa-1)
+                recorded = _validate_dh_event_history(*args, None, None, ranges, next_pa-1, recorded=True)
+                self.assertEqual(actual, recorded)
+                self.saved(row)
+                if mode == 'none':
+                    continue
+                payload = self.saved(row)
+                for change_kind in ('remove', 'late'):
+                    bad = deepcopy(payload)
+                    changes = bad['team_participation'][0]['changes']
+                    index = next(i for i, c in enumerate(changes) if c['kind'] == 'dh_plate_appearance')
+                    if change_kind == 'remove':
+                        changes.pop(index)
+                    else:
+                        changes[index]['moment']['completed_plate_appearance_no'] += 1
+                    bad['dh_verification']['facts_sha256'] = dh_history_fingerprint(bad)
+                    with self.assertRaisesRegex(ValueError, 'completed DH plate appearance notification'):
+                        _validate_participation_payload(bad)
+
     def test_presave_validation_uses_the_simulators_match_configuration(self):
         import shutil
         from game_core.match_contract import validated_match_history

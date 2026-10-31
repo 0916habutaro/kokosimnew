@@ -476,6 +476,23 @@ class SaveSlotManager:
             slot_id,
             kind,
         )
+        return self._write_current(slot_id, plan, state, kind=kind,
+                                   resolver_contract=resolver_contract)
+
+    def refresh_after_archive(
+        self, slot_id: str, plan, state, *, kind: str, resolver_contract: str, expected_checksum: str,
+    ) -> dict | None:
+        """A履歴コミット後に同じ保存操作のJSONを更新する。バックアップは増やさない。"""
+        target = self.save_path(slot_id, kind)
+        if not target.is_file():
+            return None
+        if inspect_live_season_save(target)['payload_checksum'] != expected_checksum:
+            return None  # 現在のJSONが別の保存へ更新済みなら反映しない。
+        return self._write_current(slot_id, plan, state, kind=kind,
+                                   resolver_contract=resolver_contract)
+
+    def _write_current(self, slot_id, plan, state, *, kind, resolver_contract):
+        target = self.save_path(slot_id, kind)
         payload = write_live_season_save(
             target,
             plan,

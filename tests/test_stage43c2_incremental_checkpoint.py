@@ -104,7 +104,7 @@ class Stage43C2IncrementalCheckpointTests(unittest.TestCase):
     def _save_checkpoint(self, *args, **kwargs):
         count = len(self.state.competitions["CMP-1"].matches)
         self.save_points.append((self.state.current_date.isoformat(), count))
-        return {"kind": kwargs.get("kind")}
+        return {"kind": kwargs.get("kind"), "payload_checksum": "fake-json-checksum"}
 
     def test_long_jump_checkpoints_match_days_before_final_date(self):
         with patch("phase2_engine.live_game_service.plan_fingerprint",
