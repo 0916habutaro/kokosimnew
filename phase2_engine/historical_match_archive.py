@@ -794,7 +794,7 @@ class HistoricalMatchArchive:
                         "SELECT competition_id, match_id, record_sha256 "
                         "FROM historical_matches WHERE year=?", (year,),
                     )
-                }
+                } if normalized else {}
                 pending = []
                 same = 0
                 for key, payload, raw, fingerprint in normalized:
@@ -811,11 +811,11 @@ class HistoricalMatchArchive:
                             f"sealed year {year} cannot accept new matches"
                         )
                     pending.append((
-                            *key, payload["match_date"], payload["date_source"],
-                            payload["team1_id"], payload["team2_id"],
-                            payload["team1_score"], payload["team2_score"],
-                            payload["score_source"], fingerprint, raw,
-                        ))
+                        *key, payload["match_date"], payload["date_source"],
+                        payload["team1_id"], payload["team2_id"],
+                        payload["team1_score"], payload["team2_score"],
+                        payload["score_source"], fingerprint, raw,
+                    ))
                 conn.executemany(
                     """INSERT INTO historical_matches (
                         year, competition_id, match_id, match_date,
