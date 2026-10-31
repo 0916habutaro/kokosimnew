@@ -29,6 +29,7 @@ from .competition_views import (
     other_stage_matches,
 )
 from .competition_names import CompetitionNames
+from .match_summary import called_label
 from .coach_views import CoachHistory, official_record, tournament_record
 from ..competition_records import competition_records
 from .koshien_records import (
@@ -63,6 +64,7 @@ from .school_views import (
     koshien_summary,
     normalized_rows,
     reputation_ranks,
+    round_label,
     year_results,
 )
 
@@ -175,6 +177,10 @@ class GameScreenData:
         self.abilities = self._new_abilities()
         self._closed_years: dict[int, dict] = {}
         self._coach_history = None
+        # コールドの規則（[回, 点差]）。試合の行に「7回コールド」を付けるのに使う
+        self._mercy = json.loads(
+            (config_root / "match" / "game_rules_v1.json").read_text(encoding="utf-8")
+        )["mercy_rule"]["thresholds"]
         self._stage_names = stage_names(service.repo, self.config)
 
     @property
@@ -465,7 +471,7 @@ class GameScreenData:
                 school_id, competition_id, data.get("match_date", ""), int(school_year),
             ),
             lambda school_id: self._players(season, competition_id, school_id),
-            school_year=int(school_year),
+            school_year=int(school_year), mercy=self._mercy,
         )
         out["school_year"] = int(school_year)
         out["competition_name"] = self._competition_name(
@@ -486,6 +492,12 @@ class GameScreenData:
         })
         target = day or (played[-1] if played else self.state.current_date.isoformat())
         names = self.names
+        # コールドの試合（年度ごとにまとめて読む）
+        called = {}
+        for year in {year for year, _, row in rows if row.match_date == target}:
+            done = [(cid, row.match_id) for y, cid, row in rows
+                    if y == year and row.match_date == target and row.status == "completed"]
+            called.update({(year, *key): label for key, label in self._called_many(year, done).items()})
         items = [
             {
                 "school_year": year,
@@ -501,6 +513,7 @@ class GameScreenData:
                 else self.stage_label(row.match_id, row.group_name),
                 "team1_name": self.team_name(row.team1_id, cid, row.match_date, year),
                 "team2_name": self.team_name(row.team2_id, cid, row.match_date, year),
+                "called": called.get((year, cid, row.match_id), ""),
             }
             for year, cid, row in rows
             if row.match_date == target
@@ -640,6 +653,38 @@ class GameScreenData:
                 for r in results
             ],
         }
+
+    def _called(self, year: int, competition_id: str, match_id: str, status: str) -> str:
+        """終わった試合がコールドなら「7回コールド」。保存済みの記録から。"""
+        if status != "completed":
+            return ""
+        return self._called_many(year, [(competition_id, match_id)]).get((competition_id, match_id), "")
+
+    def _called_many(self, year: int, keys) -> dict[tuple, str]:
+        """(大会ID, 試合ID) → 「7回コールド」（コールドの試合だけ）。
+
+        まだ書き出していない試合はセーブの中の記録、書き出した試合は履歴から、
+        点と半イニングの記録だけをまとめて読む。"""
+        season = _seasons(self.state).get(year)
+        pending = getattr(season, "pending_match_details", None) or {}
+        records, rest = {}, []
+        for cid, mid in keys:
+            detail = pending.get(f"{cid}:{mid}")
+            if detail is not None:
+                records[cid, mid] = detail
+            else:
+                rest.append((cid, mid))
+        if rest and self.session is not None:
+            try:
+                records.update(self.service.historical_match_scores(self.session.slot_id, year, rest))
+            except (OSError, ValueError):
+                pass
+        out = {}
+        for key, detail in records.items():
+            label = called_label(detail, self._mercy)
+            if label:
+                out[key] = label
+        return out
 
     def _match_record(self, year: int, competition_id: str, match_id: str) -> dict | None:
         """試合の個人成績（終わった試合）。まだ書き出していない試合はセーブの中から。"""
@@ -802,7 +847,7 @@ class GameScreenData:
                 school_id, competition_id, row.get("match_date", ""), year,
             ),
             lambda school_id: self._roster_players(year, school_id),
-            school_year=year,
+            school_year=year, mercy=self._mercy,
         )
         out["school_year"] = year
         out["competition_name"] = self.competition_names(
@@ -1032,6 +1077,7 @@ class GameScreenData:
             "team2_score": row.get("team2_score"),
             "winner_id": row.get("winner_id", ""),
             "status": row.get("status", ""),
+            "called": self._called(year, cid, row["match_id"], row.get("status", "")),
         }
 
     # ---- 記録 ----
@@ -1344,9 +1390,15 @@ class GameScreenData:
         if year in self._closed_years and year not in _seasons(self.state):
             return self._closed_years[year]
         rows, rounds = self._year_rows(year)
+        # 進行中の年度は、終わっていない大会の勝ち残りを「〇回戦進出（勝ち残り）」に
+        season = _seasons(self.state).get(year)
+        unfinished = {
+            cid for cid, scheduled in season.competitions.items()
+            if not scheduled.is_complete
+        } if season is not None else set()
         results = year_results(
             rows, self.service.repo.competitions, rounds,
-            self.competition_names,
+            self.competition_names, unfinished,
         )
         if year not in _seasons(self.state):
             self._closed_years[year] = results
@@ -1944,6 +1996,7 @@ class GameScreenData:
                 "won": row["winner_id"] == school_id,
                 "score": row[f"team{mine}_score"],
                 "opponent_score": row[f"team{3 - mine}_score"],
+                "called": self._called(year, row["competition_id"], row["match_id"], "completed"),
             })
         out.sort(key=lambda m: (m["match_date"], m["match_id"]))
         return {"school_id": school_id, "school_year": year, "matches": out}
@@ -2069,13 +2122,6 @@ NATIONAL_TYPES = (
     ("national_autumn_championship", "明治神宮大会"),
 )
 FINISH_GROUPS = ("優勝", "準優勝", "ベスト4", "ベスト8")
-
-
-def round_label(round_no: int, total_rounds: int) -> str:
-    """MAIN の回戦名（履歴の試合は回戦名を持たないので番号から）。"""
-    return {0: "決勝", 1: "準決勝", 2: "準々決勝"}.get(
-        total_rounds - round_no, f"{round_no}回戦"
-    )
 
 
 def _match_fields(row) -> dict:

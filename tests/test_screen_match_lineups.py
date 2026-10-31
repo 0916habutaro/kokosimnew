@@ -217,6 +217,7 @@ class MatchLineupScreenTests(unittest.TestCase):
         data.team_name = lambda sid, *args: self.names[sid]
         data._competition_name = lambda *args: '架空テスト大会'
         data.competition_names = lambda cid, fallback: '架空テスト大会'
+        data._mercy = [[5, 10], [7, 7]]
         return data
 
     def test_current_and_packed_sealed_previous_year_routes_show_identical_recorded_configuration(self):

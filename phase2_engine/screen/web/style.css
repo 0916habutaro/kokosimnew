@@ -340,3 +340,7 @@ details.coach-references[open] summary { margin-bottom: 8px; }
 .bracket-side[hidden] { display: none; }
 .bracket-side .side-close { float: right; }
 .bracket-hint { font-size: 12px; margin-right: 10px; }
+/* コールドの札と、得点板の下の勝敗投手・本塁打 */
+small.called { color: var(--accent); font-size: 10.5px; font-family: var(--ui); }
+.board-called { margin-top: 6px; color: var(--accent); font-weight: 700; font-size: 13px; }
+p.decisions { margin: 8px 0 4px; }

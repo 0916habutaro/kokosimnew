@@ -1214,6 +1214,10 @@ class LiveGameService:
             )
         return self._closed_seasons[key]
 
+    def historical_match_scores(self, slot_id: str, year: int, keys) -> dict[tuple, dict]:
+        """試合の一覧用：(大会ID, 試合ID) → 点と半イニングの記録だけ。"""
+        return self._history_archive(slot_id).match_scores(year, keys)
+
     def historical_match_index(self, slot_id: str, year: int) -> list[dict]:
         return self._history_archive(slot_id).match_index(year)
 

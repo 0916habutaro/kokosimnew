@@ -43,6 +43,15 @@ class RecordTests(unittest.TestCase):
         self.assertEqual("ベスト16", finish_label(False, 3, 6)[0])
         self.assertEqual("1回戦敗退", finish_label(False, 1, 6)[0])
         self.assertEqual("決勝進出", finish_label(True, 4, 5)[0])
+        # 大会が終わるまでは勝ち残りの学校を「〇回戦進出（勝ち残り）」にする（並べ替えの深さは同じ）
+        self.assertEqual("3回戦進出（勝ち残り）", finish_label(True, 2, 6, finished=False)[0])
+        self.assertEqual(finish_label(True, 2, 6)[1], finish_label(True, 2, 6, finished=False)[1])
+        self.assertEqual("ベスト16", finish_label(True, 2, 6)[0])
+        self.assertEqual("準々決勝進出（勝ち残り）", finish_label(True, 2, 5, finished=False)[0])
+        self.assertEqual("決勝進出（勝ち残り）", finish_label(True, 4, 5, finished=False)[0])
+        # 負けた学校・優勝校は大会の途中でも変わらない
+        self.assertEqual("ベスト16", finish_label(False, 3, 6, finished=False)[0])
+        self.assertEqual("優勝", finish_label(True, 3, 3, finished=False)[0])
 
     def test_year_results_from_history_rows(self):
         # 履歴の試合は回戦名を持たないので、試合IDから MAIN の回戦を読む
@@ -62,6 +71,11 @@ class RecordTests(unittest.TestCase):
         self.assertEqual(("優勝", 2, 1), (champion["finish"], champion["wins"], champion["losses"]))
         self.assertEqual("準優勝", results["D"][0]["finish"])
         self.assertEqual("予選敗退", results["E"][0]["finish"])
+        # 終わっていない大会では、勝ち残っている学校は「〇回戦進出（勝ち残り）」
+        live = year_results(rows[:2] + rows[3:], competitions, {"C1": 2},
+                            lambda cid, name: "夏の甲子園", {"C1"})
+        self.assertEqual("決勝進出（勝ち残り）", live["A"][0]["finish"])
+        self.assertEqual("ベスト4", live["B"][0]["finish"])
         self.assertEqual("夏の甲子園 優勝", best_result(results["A"])["label"])
         koshien = koshien_summary({2026: results["A"], 2027: results["D"]})
         self.assertEqual(2, koshien["summer"]["appearances"])
