@@ -325,3 +325,8 @@ table.list.members th.sorted { color: var(--accent); }
 table.list.members td { white-space: nowrap; }
 /* 選手の守備位置の適性：ランクと数値の小さな表 */
 table.list.aptitudes th, table.list.aptitudes td { text-align: center; padding: 4px 4px; }
+
+/* コールドの札と、得点板の下の勝敗投手・本塁打 */
+small.called { color: var(--accent); font-size: 10.5px; font-family: var(--ui); }
+.board-called { margin-top: 6px; color: var(--accent); font-weight: 700; font-size: 13px; }
+p.decisions { margin: 8px 0 4px; }

@@ -172,12 +172,26 @@ def normalized_rows(rows) -> list[dict]:
     return out
 
 
-def finish_label(won_last: bool, last_round: int, total_rounds: int) -> tuple[str, int]:
-    """MAIN での到達（表示, 並べ替えの深さ）。勝ち残っている学校は到達した回戦。"""
+def round_label(round_no: int, total_rounds: int) -> str:
+    """MAIN の回戦名（決勝・準決勝・準々決勝・〇回戦）。"""
+    return {0: "決勝", 1: "準決勝", 2: "準々決勝"}.get(
+        total_rounds - round_no, f"{round_no}回戦"
+    )
+
+
+def finish_label(won_last: bool, last_round: int, total_rounds: int,
+                 finished: bool = True) -> tuple[str, int]:
+    """MAIN での到達（表示, 並べ替えの深さ）。
+
+    大会が終わるまで（``finished`` が偽）勝ち残っている学校は「3回戦進出（勝ち残り）」。
+    並べ替えの深さは、終わったあとの「ベスト16」などと同じにする。"""
     if last_round >= total_rounds:
         return ("優勝", 100) if won_last else ("準優勝", 50)
     reached = last_round + 1 if won_last else last_round
     best = 2 ** (total_rounds - reached + 1)
+    if won_last and not finished:
+        depth = 40 if best == 2 else {4: 25, 8: 12, 16: 6}.get(best, 2)
+        return f"{round_label(reached, total_rounds)}進出（勝ち残り）", depth
     if best == 2:
         return "決勝進出", 40
     if best <= 16:
@@ -188,8 +202,10 @@ def finish_label(won_last: bool, last_round: int, total_rounds: int) -> tuple[st
 
 
 def year_results(rows: list[dict], competitions: dict, total_rounds: dict,
-                 short_name) -> dict[str, list[dict]]:
-    """学校ID → その年度の大会ごとの成績。"""
+                 short_name, unfinished=()) -> dict[str, list[dict]]:
+    """学校ID → その年度の大会ごとの成績。
+
+    ``unfinished`` はまだ終わっていない大会のID（勝ち残りの学校を「〇回戦進出（勝ち残り）」に）。"""
     by_school: dict[str, dict[str, dict]] = {}
     max_round: dict[str, int] = {}
     for row in rows:
@@ -220,6 +236,7 @@ def year_results(rows: list[dict], competitions: dict, total_rounds: dict,
                 rounds = total_rounds.get(cid) or max_round.get(cid, 1)
                 label, depth = finish_label(
                     entry["won_last_main"], entry["last_main_round"], rounds,
+                    finished=cid not in unfinished,
                 )
             else:
                 label, depth = "予選敗退", 0

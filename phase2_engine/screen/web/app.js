@@ -212,15 +212,20 @@ function renderPage() {
 function matchTable(rows, line, widths, wrap = false) {
   return `<table class="list fixed${wrap ? " wrap" : ""}"><colgroup>${widths.map((w) => `<col${w ? ` style="width:${w}px"` : ""}>`).join("")}</colgroup>${rows.map((row) => line(row)).join("")}</table>`;
 }
-const MATCH_LINE_COLS = [150, 0, 64, 0];
-const MATCH_LINE_COLS_DATED = [150, 0, 64, 0, 130];
+const MATCH_LINE_COLS = [150, 0, 80, 0];
+const MATCH_LINE_COLS_DATED = [150, 0, 80, 0, 130];
+
+// コールドで終わった試合の札（スコアの下に「7回コールド」）
+function calledTag(m) {
+  return m.called ? `<br><small class="called">${esc(m.called)}</small>` : "";
+}
 
 function matchLine(m, dated = true) {
   const done = m.status === "completed";
   return `<tr class="click" data-year="${m.school_year}" data-cid="${esc(m.competition_id)}" data-id="${esc(m.match_id)}">
     <td class="muted" title="${esc(`${m.competition_name} ${m.round_name}`)}">${esc(m.competition_name)}<br><small>${esc(m.round_name)}</small></td>
     <td style="text-align:right" class="team ${m.winner_id === m.team1_id ? "w" : ""}">${esc(m.team1_name)}</td>
-    <td class="n" style="text-align:center">${done ? `${m.team1_score ?? ""} − ${m.team2_score ?? ""}` : "vs"}</td>
+    <td class="n" style="text-align:center">${done ? `${m.team1_score ?? ""} − ${m.team2_score ?? ""}${calledTag(m)}` : "vs"}</td>
     <td class="team ${m.winner_id === m.team2_id ? "w" : ""}">${esc(m.team2_name)}</td>
     ${done && dated ? `<td class="muted num">${jpDate(m.match_date)}</td>` : ""}</tr>`;
 }
@@ -707,7 +712,15 @@ function scoreboard(m, wide = false) {
     <td class="team">${esc(b.name)}</td>${cells(b.innings)}<td class="total">${b.runs ?? ""}</td>
     ${hasHits ? `<td class="sub">${b.hits ?? ""}</td><td class="sub">${b.errors ?? ""}</td>` : ""}</tr>`).join("");
   return `<div class="board ${wide ? "wide" : ""}"><table><tr><th></th>${Array.from({ length: n }, (_, i) => `<th>${i + 1}</th>`).join("")}
-    <th>計</th>${hasHits ? "<th>安</th><th>失</th>" : ""}</tr>${rows}</table></div>`;
+    <th>計</th>${hasHits ? "<th>安</th><th>失</th>" : ""}</tr>${rows}</table>${m.called ? `<div class="board-called">${esc(m.called)}</div>` : ""}</div>`;
+}
+
+// 得点板の下の1行：「勝 〇〇　敗 〇〇　本塁打 〇〇（3回）」
+function decisionsLine(m) {
+  const parts = [];
+  if (m.decisions) parts.push(`<span class="muted">勝</span> ${esc(m.decisions.win.name)}`, `<span class="muted">敗</span> ${esc(m.decisions.loss.name)}`);
+  if ((m.home_runs || []).length) parts.push(`<span class="muted">本塁打</span> ${m.home_runs.map((h) => `${esc(h.name)}（${h.inning}回）`).join("、")}`);
+  return parts.length ? `<p class="decisions">${parts.join("　")}</p>` : "";
 }
 
 // ---- 試合：その日の一覧 → 詳細 ----
@@ -737,7 +750,7 @@ async function renderMatches(content) {
       <div class="panel"><h3>${esc(competition)}</h3>${matchTable(matches, (m) => `<tr class="click" data-year="${m.school_year}" data-cid="${esc(m.competition_id)}" data-id="${esc(m.match_id)}">
         <td class="muted" title="${esc(m.round_name)}">${esc(m.round_name)}</td>
         <td style="text-align:right" class="${m.winner_id === m.team1_id ? "w" : ""}">${esc(m.team1_name)}</td>
-        <td class="n" style="text-align:center">${m.status === "completed" ? `${m.team1_score} − ${m.team2_score}` : "−"}</td>
+        <td class="n" style="text-align:center">${m.status === "completed" ? `${m.team1_score} − ${m.team2_score}${calledTag(m)}` : "−"}</td>
         <td class="${m.winner_id === m.team2_id ? "w" : ""}">${esc(m.team2_name)}</td></tr>`, [300, 0, 90, 0])}</div>`).join("") || '<div class="empty">この日の試合はありません。</div>'}</div>`;
   if (data.prev_date) $("d-prev").addEventListener("click", () => { state.matches.date = data.prev_date; renderPage(); });
   if (data.next_date) $("d-next").addEventListener("click", () => { state.matches.date = data.next_date; renderPage(); });
@@ -785,6 +798,7 @@ async function renderMatchDetail(content, detail) {
       <span class="muted num">${slashDate(m.match_date)}</span></div>
     <div class="scroll match-detail">
       ${scoreboard(m, true)}
+      ${decisionsLine(m)}
       <p><span class="link" data-school="${esc(m.team1_id)}">${esc(m.team1_name)}</span>　／　<span class="link" data-school="${esc(m.team2_id)}">${esc(m.team2_name)}</span>　<span class="muted">（学校の画面へ）</span></p>
       ${m.has_detail ? `
         <details class="panel match-highlights"><summary>試合の要点</summary>${highlights || '<div class="muted">得点はありませんでした</div>'}</details>
@@ -1436,7 +1450,7 @@ async function schoolGames(body, d) {
     <div class="panel"><table class="list"><tr><th>日</th><th>大会</th><th>回戦</th><th>相手</th><th></th><th class="n">スコア</th></tr>
     ${data.matches.map((m) => `<tr class="click" data-year="${m.school_year}" data-cid="${esc(m.competition_id)}" data-id="${esc(m.match_id)}">
       <td class="num">${slashDate(m.match_date)}</td><td>${esc(m.competition_name)}</td><td>${esc(m.round_name)}</td>
-      <td>${esc(m.opponent_name)}</td><td class="${m.won ? "w" : ""}">${m.won ? "○" : "●"}</td><td class="n">${m.score}-${m.opponent_score}</td></tr>`).join("")
+      <td>${esc(m.opponent_name)}</td><td class="${m.won ? "w" : ""}">${m.won ? "○" : "●"}</td><td class="n">${m.score}-${m.opponent_score}${calledTag(m)}</td></tr>`).join("")
       || '<tr><td class="muted">試合はありません</td></tr>'}</table></div>`;
   $("sg-year").addEventListener("change", (e) => { st.gamesYear = Number(e.target.value); renderPage(); });
   body.querySelectorAll("tr.click").forEach((tr) => tr.addEventListener("click", () =>

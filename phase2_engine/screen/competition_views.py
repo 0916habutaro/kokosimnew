@@ -10,6 +10,7 @@ from dataclasses import replace
 from game_core.match_state import (TeamMatchParticipation, ChangeMoment, CompletedPlateAppearanceMoment,
                                   apply_lineup_change, replay_team_participation)
 
+from .match_summary import called_label, home_runs, pitchers_of_record
 from ..competition_schedule_runtime import SCHEDULE_PENDING
 from ..tournament_runtime import MATCH_BYE, MainTournamentRuntimeState
 from ..competition_history import result_main as main_runtime
@@ -507,7 +508,8 @@ def _match_lineups(detail, teams, names, player_name, year):
     return lineups, changes, positions, orders, exited, fielding
 
 
-def match_detail(row: dict, detail: dict | None, names, players, *, school_year=None) -> dict:
+def match_detail(row: dict, detail: dict | None, names, players, *, school_year=None,
+                 mercy=()) -> dict:
     """試合の画面：得点板、試合の要点、両チームの個人成績。
 
     ``players(school_id)`` は選手ID → 選手。名前の解決にだけ使い、本職を実配置にしない。
@@ -522,6 +524,8 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
         "team1_name": names(team1),
         "team2_name": names(team2),
         "has_detail": detail is not None,
+        # 「7回コールド」など（mercy はコールドの規則 [回, 点差]）
+        "called": called_label(detail, mercy),
     }
     if detail is None:
         return out
@@ -576,6 +580,16 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                 "player_name": player_name(school, item[4]),
             })
     out["highlights"] = highlights
+    # 勝利投手・敗戦投手（決められないときは None）と本塁打
+    record = pitchers_of_record(detail)
+    out["decisions"] = {
+        key: {"school_id": school, "name": player_name(school, pid)}
+        for key, (school, pid) in record.items()
+    } if record else None
+    out["home_runs"] = [
+        {**hr, "name": player_name(hr["school_id"], hr["player_id"])}
+        for hr in home_runs(detail)
+    ]
 
     def position(school_id, player_id):
         if lineups[school_id] is None:

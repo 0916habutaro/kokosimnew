@@ -839,6 +839,35 @@ class HistoricalMatchArchive:
                 return None
             return self._read_match_payload(conn, year, competition_id, match_id, row[0], row[1])
 
+    def match_scores(self, year: int, keys) -> dict[tuple, dict]:
+        """(大会ID, 試合ID) → 点と半イニングの記録だけ（試合の一覧に「7回コールド」を付ける）。
+
+        一覧の行ごとに試合の記録を全部戻して検証すると遅いので、読み取りだけで
+        点と ``inning_scores`` を取り出す。保存の形は変えない。ない試合は入れない。"""
+        keys = list(keys)
+        if not keys or not self.db_path.is_file():
+            return {}
+        out = {}
+        with closing(sqlite3.connect(self.db_path, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
+            for competition_id, match_id in keys:
+                row = conn.execute(
+                    """SELECT payload_json, record_sha256 FROM historical_matches
+                       WHERE year=? AND competition_id=? AND match_id=?""",
+                    (year, competition_id, match_id),
+                ).fetchone()
+                if row is None:
+                    continue
+                raw = row[0] or self._packed(conn, year, competition_id).get(match_id)
+                if not isinstance(raw, str) or _digest(raw) != row[1]:
+                    continue
+                payload = json.loads(raw)
+                out[competition_id, match_id] = {
+                    "team1_score": payload.get("team1_score"),
+                    "team2_score": payload.get("team2_score"),
+                    "inning_scores": _expand_table(payload.get("inning_scores")) or [],
+                }
+        return out
+
     def _read_match_payload(self, conn, year, competition_id, match_id, raw, digest):
         if not raw:
             raw = self._packed(conn, year, competition_id).get(match_id)
