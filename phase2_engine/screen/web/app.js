@@ -498,7 +498,7 @@ function entrantsView(rows) {
         <span class="area-tag ${esc(r.region_id)}">${esc(r.area)}</span>
       </div>`).join("")}
     </div>
-    <aside class="side" id="e-side"></aside>
+    <aside class="side school-side" id="e-side"></aside>
   </div>`;
 }
 
@@ -508,6 +508,11 @@ async function showEntrant(view, schoolId) {
   const side = $("e-side");
   if (!d || !side) return;
   view.entrant = schoolId;
+  drawSchoolSide(side, d, { noAbilities: "能力は今の年度の大会だけ出ます", noResults: "予選の成績はありません" });
+}
+
+// 学校の右の欄（出場校一覧と学校一覧で共通）：総合ランク・レーダー・チームの成績・大会ごとの勝ち上がり
+function drawSchoolSide(side, d, { noAbilities, noResults }) {
   const a = d.abilities;
   const st = d.stats;
   const avg = (v) => v === null ? "—" : v.toFixed(3).replace(/^0/, "");
@@ -515,14 +520,15 @@ async function showEntrant(view, schoolId) {
     <table class="list small egames">${r.games.map((g) => `<tr class="click" data-cid="${esc(g.competition_id)}" data-mid="${esc(g.match_id)}">
       <td title="${esc(g.round_name)}">${esc(g.round_name)}</td><td class="${g.won ? "w" : "l"}">${g.won ? "○" : "●"}</td>
       <td class="num">${g.score === null ? "" : `${g.score}-${g.opponent_score}`}</td><td title="${esc(g.opponent_name)}">${esc(g.opponent_name)}</td></tr>`).join("")}</table>`).join("");
-  side.innerHTML = `<h3>${esc(d.name)}</h3><div class="muted">${esc(d.prefecture)}</div>
+  side.innerHTML = `<h3>${esc(d.name)}</h3><div class="muted">${esc(d.prefecture)}・${esc(d.ownership)}</div>
+    <div class="muted" style="font-size:12px">${esc(d.official_name)}</div>
     ${a ? `<div class="radar-row">${abilityRadar(a)}<div class="overall-rank"><span>総合</span>${rankHtml(a.overall)}</div></div>`
-      : '<div class="muted">能力は今の年度の大会だけ出ます</div>'}
+      : `<div class="muted">${esc(noAbilities)}</div>`}
     <div class="estats">チーム打率 <b class="num">${avg(st.batting_average)}</b>　本塁打 <b class="num">${st.home_runs ?? "—"}</b>　防御率 <b class="num">${st.era === null ? "—" : st.era.toFixed(2)}</b></div>
-    ${results || '<div class="muted">予選の成績はありません</div>'}
-    <button class="btn" id="e-school">学校の詳細へ</button>`;
-  $("e-school").addEventListener("click", () => openSchool(schoolId));
-  side.querySelectorAll("tr.click").forEach((tr) => tr.addEventListener("click", () => openMatch(view.year, tr.dataset.cid, tr.dataset.mid)));
+    ${results || `<div class="muted">${esc(noResults)}</div>`}
+    <button class="btn side-school">学校の詳細へ</button>`;
+  side.querySelector(".side-school").addEventListener("click", () => openSchool(d.school_id));
+  side.querySelectorAll("tr.click").forEach((tr) => tr.addEventListener("click", () => openMatch(d.school_year, tr.dataset.cid, tr.dataset.mid)));
 }
 
 function setZoom(zoom) {
@@ -815,7 +821,9 @@ async function renderMatchDetail(content, detail) {
 const SCHOOL_COLS = [
   ["pref", "都道府県"], ["name", "校名"], ["ownership", "設置者"],
   ["overall", "総合", 1], ["batting", "打撃", 1], ["pitching", "投手", 1],
-  ["defense", "守備", 1], ["running", "走力", 1], ["record", "勝敗", 1], ["rate", "勝率", 1],
+  ["defense", "守備", 1], ["running", "走力", 1], ["reputation", "評判", 1],
+  ["koshien_summer", "甲子園 夏", 1], ["koshien_spring", "春", 1],
+  ["record", "勝敗", 1], ["rate", "勝率", 1],
   ["best", "今年度の最高成績"],
 ];
 
@@ -878,7 +886,7 @@ async function renderSchools(content) {
       <div class="spacer"></div><span class="muted num" id="s-count"></span></div>
     <div class="body">
       <div class="grid"><div class="ghead" id="s-head"></div><div class="gscroll" id="s-scroll"><div id="s-space"></div></div></div>
-      <aside class="side" id="s-side"><div class="empty">学校を選ぶと、今年度の成績が出ます。</div></aside>
+      <aside class="side school-side" id="s-side"><div class="empty">学校を選ぶと、今年度の成績が出ます。</div></aside>
     </div>`;
   for (const [id, key] of [["s-pref", "pref"], ["s-owner", "owner"], ["s-result", "result"]]) {
     $(id).addEventListener("change", (e) => { f[key] = e.target.value; applySchoolFilter(); });
@@ -900,6 +908,8 @@ function schoolValue(s, key) {
   if (key === "record") return s.wins - s.losses / 100;
   if (key === "rate") return s.wins + s.losses ? s.wins / (s.wins + s.losses) + (s.wins + s.losses) / 1e6 : -1;
   if (key === "best") return s.best_score;
+  // 評判：高いランクほど大きい数（ランクの並びは高い順）
+  if (key === "reputation") { const i = state.schools.data.reputation_ranks.indexOf(s.reputation); return i < 0 ? -1 : -i; }
   if (["overall", "batting", "pitching", "defense", "running"].includes(key)) return s.abilities ? s.abilities[key] : -1;
   return s[key] ?? "";
 }
@@ -946,7 +956,10 @@ function renderSchoolRows() {
     html += `<div class="grow ${s.school_id === st.selected ? "sel" : ""}" style="top:${i * RH}px" data-id="${esc(s.school_id)}">
       <div>${esc(s.prefecture)}</div><div title="${esc(s.official_name)}">${esc(s.name)}</div><div>${esc(s.ownership)}</div>
       <div class="n">${ab("overall")}</div><div class="n">${ab("batting")}</div><div class="n">${ab("pitching")}</div>
-      <div class="n">${ab("defense")}</div><div class="n">${ab("running")}</div><div class="n">${s.wins}-${s.losses}</div>
+      <div class="n">${ab("defense")}</div><div class="n">${ab("running")}</div>
+      <div class="n">${s.reputation ? `<span class="rank r-${s.reputation}">${s.reputation}</span>` : "−"}</div>
+      <div class="n" title="実際の記録＋ゲーム内の記録">${s.koshien_summer || "−"}</div><div class="n" title="実際の記録＋ゲーム内の記録">${s.koshien_spring || "−"}</div>
+      <div class="n">${s.wins}-${s.losses}</div>
       <div class="n">${winRate(s)}</div>
       <div>${badge(s.best_score, s.best)}</div></div>`;
   }
@@ -958,19 +971,11 @@ function renderSchoolRows() {
   }));
 }
 
-function showSchoolSide(schoolId) {
-  const s = state.schools.data.schools.find((x) => x.school_id === schoolId);
-  if (!s) return;
-  const games = s.wins + s.losses;
-  $("s-side").innerHTML = `<div class="muted">${esc(s.prefecture)}・${esc(s.ownership)}</div><h2>${esc(s.name)}</h2>
-    <div class="muted" style="font-size:12px">${esc(s.official_name)}</div>
-    <div class="stats" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><b>${s.abilities ? rankHtml(s.abilities.overall) : "…"}</b><span>総合</span></div>
-      <div class="stat"><b>${s.wins}-${s.losses}</b><span>今年度の勝敗</span></div>
-      <div class="stat"><b>${games ? winRate(s) : "-"}</b><span>勝率</span></div></div>
-    <div class="muted" style="font-size:12px">今年度の最高成績</div>
-    <p>${s.best ? badge(s.best_score, s.best) : '<span class="muted">今年度の試合はまだありません</span>'}</p>
-    <p><button class="btn" id="s-open">詳しく見る →</button></p>`;
-  $("s-open").addEventListener("click", () => openSchool(schoolId));
+async function showSchoolSide(schoolId) {
+  const d = await call("school_side", schoolId);
+  const side = $("s-side");
+  if (!d || !side || state.schools.selected !== schoolId) return;
+  drawSchoolSide(side, d, { noAbilities: "能力は計算が終わると出ます", noResults: "今年度の試合はまだありません" });
 }
 
 const SCHOOL_TABS = [["overview", "概要"], ["yearly", "年度別成績"], ["koshien", "甲子園"], ["members", "部員"], ["games", "試合一覧"], ["coaches", "歴代監督"]];
@@ -1001,7 +1006,7 @@ async function renderSchoolDetail(content, schoolId) {
   if (st.tab === "overview") body.innerHTML = schoolOverview(d);
   if (st.tab === "yearly") body.innerHTML = schoolYearly(d);
   if (st.tab === "koshien") body.innerHTML = schoolKoshien(d);
-  if (st.tab === "members") { body.innerHTML = schoolMembers(d); bindPlayerLinks(body); }
+  if (st.tab === "members") drawMembers(body, d);
   if (st.tab === "games") await schoolGames(body, d);
 }
 
@@ -1245,11 +1250,59 @@ function schoolKoshien(d) {
   return block("夏の甲子園", "2025年", d.koshien.summer) + block("春の選抜", "2026年", d.koshien.spring);
 }
 
-function schoolMembers(d) {
-  if (!d.members.length) return '<div class="empty">部員は選手で試合をしているときに出ます。</div>';
-  return `<div class="panel"><table class="list"><tr><th>名前</th><th>学年</th><th>出身</th><th>守備位置</th><th>投打</th><th>状態</th></tr>
-    ${d.members.map((m) => `<tr><td>${playerLink(d.school_id, m.player_id, m.name)}</td><td>${m.grade}年</td><td>${esc(m.hometown)}</td><td>${esc(m.position)}</td><td>${HANDS[m.throws] || m.throws}投${HANDS[m.bats] || m.bats}打</td><td>${injuryBadge(m.injury)}</td></tr>`).join("")}
-  </table></div>`;
+// 部員：投手と野手で表を分け、能力（ランクと数値）と今年度の公式戦成績を出す。見出しを押すと並べ替え
+const MEMBER_BASE = [
+  ["name", "名前", (m) => m.name, (m, d) => playerLink(d.school_id, m.player_id, m.name)],
+  ["grade", "学年", (m) => m.grade, (m) => `${m.grade}年`, 1],
+  ["hometown", "出身", (m) => m.hometown, (m) => esc(m.hometown)],
+];
+const memberAbility = (key, label) => [key, label, (m) => m.abilities[key]?.value ?? -1, (m) => abilityCell(m.abilities[key]).replace(/^<td[^>]*>|<\/td>$/g, ""), 1];
+const fmtAvg = (v) => v === null ? "−" : v.toFixed(3).replace(/^0/, "");
+const fmtInnings = (outs) => outs === null ? "−" : `${Math.floor(outs / 3)}${outs % 3 ? ` ${outs % 3}/3` : ""}`;
+const MEMBER_HANDS = ["hands", "投打", (m) => m.throws + m.bats, (m) => `${HANDS[m.throws] || m.throws}投${HANDS[m.bats] || m.bats}打`];
+const MEMBER_STATE = ["injury", "状態", (m) => m.injury ? 1 : 0, (m) => injuryBadge(m.injury)];
+const MEMBER_TABLES = [
+  ["pitchers", "投手", (m) => m.pitcher, [
+    ...MEMBER_BASE, MEMBER_HANDS,
+    memberAbility("velocity_kmh", "球速"), memberAbility("control", "制球"), memberAbility("stamina", "スタミナ"),
+    ["era", "防御率", (m) => m.stats.era ?? 1e9, (m) => m.stats.era === null ? "−" : m.stats.era.toFixed(2), 1, 1],
+    ["outs", "投球回", (m) => m.stats.outs ?? -1, (m) => fmtInnings(m.stats.outs), 1],
+    MEMBER_STATE,
+  ]],
+  ["batters", "野手", (m) => !m.pitcher, [
+    ...MEMBER_BASE, ["position", "守備位置", (m) => m.position, (m) => esc(m.position)], MEMBER_HANDS,
+    memberAbility("contact", "ミート"), memberAbility("power", "長打"), memberAbility("speed", "走力"), memberAbility("fielding", "守備"),
+    ["average", "打率", (m) => m.stats.average ?? -1, (m) => fmtAvg(m.stats.average), 1],
+    ["home_runs", "本塁打", (m) => m.stats.home_runs ?? -1, (m) => m.stats.home_runs ?? "−", 1],
+    MEMBER_STATE,
+  ]],
+];
+
+function drawMembers(body, d) {
+  if (!d.members.length) { body.innerHTML = '<div class="empty">部員は選手で試合をしているときに出ます。</div>'; return; }
+  const sorts = (state.schools.memberSort ||= {});
+  body.innerHTML = MEMBER_TABLES.map(([id, title, pick, cols]) => {
+    const sort = sorts[id];
+    const rows = d.members.filter(pick);
+    if (sort) {
+      const col = cols.find((c) => c[0] === sort.key);
+      rows.sort((a, b) => { const x = col[2](a), y = col[2](b); return (x < y ? -1 : x > y ? 1 : 0) * sort.dir; });
+    }
+    return `<div class="panel"><h3>${title}<small class="muted">　${rows.length}人・成績は今年度の公式戦</small></h3><table class="list members">
+      <tr>${cols.map(([key, label, , , num]) => `<th class="sortable${num ? " n" : ""}${sort && sort.key === key ? " sorted" : ""}" data-table="${id}" data-k="${key}">${label}${sort && sort.key === key ? (sort.dir > 0 ? " ▲" : " ▼") : ""}</th>`).join("")}</tr>
+      ${rows.map((m) => `<tr>${cols.map(([, , , cell, num]) => `<td${num ? ' class="n"' : ""}>${cell(m, d)}</td>`).join("")}</tr>`).join("")}
+    </table></div>`;
+  }).join("");
+  body.querySelectorAll("th.sortable").forEach((th) => th.addEventListener("click", () => {
+    const id = th.dataset.table, key = th.dataset.k;
+    const col = MEMBER_TABLES.find((t) => t[0] === id)[3].find((c) => c[0] === key);
+    const cur = sorts[id];
+    // 数の列は大きい順から（防御率は小さい順から）。もう一度押すと逆
+    const first = col[4] ? (col[5] ? 1 : -1) : 1;
+    sorts[id] = { key, dir: cur && cur.key === key ? -cur.dir : first };
+    drawMembers(body, d);
+  }));
+  bindPlayerLinks(body);
 }
 
 // ---- 選手 ----
@@ -1292,6 +1345,8 @@ async function renderPlayer(content, target) {
   const hands = `${HANDS[p.throws] || p.throws}投${HANDS[p.bats] || p.bats}打`;
   const abilities = p.abilities.length ? `<table class="list">${p.abilities.map((a) => `<tr><td>${esc(a.label)}</td>${abilityCell(a)}</tr>`).join("")}</table>`
     : '<div class="muted">今の能力は在学中の選手だけ出ます。</div>';
+  const aptitudes = p.aptitudes.length ? `<h3 style="margin-top:12px">守備位置の適性</h3><table class="list aptitudes"><tr>${p.aptitudes.map((x) => `<th class="n">${esc(x.label)}</th>`).join("")}</tr>
+    <tr>${p.aptitudes.map((x) => abilityCell(x)).join("")}</tr></table>` : "";
   const pitches = p.pitches.length ? `<h3 style="margin-top:12px">変化球</h3><table class="list"><tr><th>球種</th><th class="n">質</th><th class="n">制球</th><th class="n">割合</th></tr>
     ${p.pitches.map((x) => `<tr><td>${esc(x.label)}</td><td class="n">${x.quality}</td><td class="n">${x.command}</td><td class="n">${x.usage}%</td></tr>`).join("")}</table>` : "";
   const trend = p.trend.length ? `<table class="list"><tr><th>能力</th>${p.trend.map((t) => `<th class="n">${t.grade}年 ${esc(t.label)}<br><small class="muted">${t.school_year}年度</small></th>`).join("")}</tr>
@@ -1315,7 +1370,7 @@ async function renderPlayer(content, target) {
         <div class="stat"><b>${esc(p.growth_type) || "−"}</b><span>成長の型</span></div>
       </div>
       <div class="cols">
-        <div class="panel"><h3>今の能力</h3>${abilities}${pitches}</div>
+        <div class="panel"><h3>今の能力</h3>${abilities}${aptitudes}${pitches}</div>
         <div class="panel"><h3>学年ごとの能力の推移</h3>${trend}</div>
       </div>
       <div class="panel" style="margin-top:14px"><h3>成績（公式戦）</h3>${batting}${pitching}</div>

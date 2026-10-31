@@ -114,6 +114,45 @@ def ability_rows(values: dict, position: str, bands) -> list[dict]:
     return rows
 
 
+# 学校の部員の一覧に出す能力（投手と野手で別の表）
+MEMBER_PITCHER = (("velocity_kmh", "球速"), ("control", "制球"), ("stamina", "スタミナ"))
+MEMBER_BATTER = (("contact", "ミート"), ("power", "長打"), ("speed", "走力"), ("fielding", "守備"))
+
+
+def member_abilities(values: dict | None, position: str, bands) -> dict:
+    """部員の一覧の能力（投手は球速・制球・スタミナ、野手はミート・長打・走力・守備）。"""
+    keys = MEMBER_PITCHER if position == "P" else MEMBER_BATTER
+    return {
+        key: {
+            "value": (values or {}).get(key),
+            "rank": "" if key == "velocity_kmh" else rank((values or {}).get(key), bands),
+        }
+        for key, _ in keys
+    }
+
+
+def member_stats(stats: dict) -> dict:
+    """``season_stats`` の結果 → 部員の一覧の成績（並べ替えできるよう数で持つ）。"""
+    batting, pitching = stats["batting"], stats["pitching"]
+    return {
+        "average": batting["hits"] / batting["at_bats"]
+        if batting and batting["at_bats"] else None,
+        "home_runs": batting["home_runs"] if batting else None,
+        "era": pitching["earned_runs"] * 27 / pitching["outs_recorded"]
+        if pitching and pitching["outs_recorded"] else None,
+        "outs": pitching["outs_recorded"] if pitching else None,
+    }
+
+
+def aptitude_rows(aptitudes: dict, labels: dict, bands) -> list[dict]:
+    """守備位置の適性（守備位置の順に、名前・値・ランク）。"""
+    return [
+        {"key": key, "label": labels.get(key, key), "value": aptitudes[key],
+         "rank": rank(aptitudes[key], bands)}
+        for key in FIELD_POSITIONS if aptitudes.get(key) is not None
+    ]
+
+
 def trend_keys(position: str) -> list[tuple[str, str]]:
     labels = dict(BATTER_LABELS) | dict(PITCHER_LABELS)
     keys = (TREND_PITCHER + TREND_BATTER[:2]) if position == "P" else TREND_BATTER

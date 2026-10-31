@@ -41,9 +41,12 @@ from .koshien_records import (
 )
 from .player_views import (
     GROWTH_LABELS,
+    aptitude_rows,
     injury_row,
     ability_rows,
     ability_values,
+    member_abilities,
+    member_stats,
     rank,
     season_stats,
     snapshot_values,
@@ -55,8 +58,10 @@ from .school_views import (
     SchoolAbilities,
     team_totals,
     best_result,
+    koshien_appearances,
     koshien_summary,
     normalized_rows,
+    reputation_ranks,
     year_results,
 )
 
@@ -571,6 +576,22 @@ class GameScreenData:
             ),
             key=lambda r: r["first_date"],
         )
+        return self._school_side(year, school_id, results)
+
+    def school_side(self, school_id: str) -> dict:
+        """学校一覧の右の欄：出場校一覧の右の欄と同じ形で、今年度の全大会の勝ち上がり。"""
+        if school_id not in self.service.repo.schools:
+            raise ValueError("その学校はありません")
+        year = self._current_year()
+        results = sorted(
+            self._results(year).get(school_id, []), key=lambda r: r["first_date"],
+        )
+        return self._school_side(year, school_id, results)
+
+    def _school_side(self, year: int, school_id: str, results: list[dict]) -> dict:
+        """右の欄（総合ランク・レーダー・チーム打率など・大会ごとの勝ち上がり）。
+
+        チームの成績は ``results`` の大会の試合の個人成績の合計。"""
         ids = {r["competition_id"] for r in results}
         games = [
             m for m in self.school_matches(school_id, year)["matches"]
@@ -580,12 +601,14 @@ class GameScreenData:
             school_id,
             (self._match_record(year, m["competition_id"], m["match_id"]) for m in games),
         )
+        school = self.service.repo.schools.get(school_id, {})
         return {
             "school_id": school_id,
+            "school_year": year,
             "name": self.names(school_id),
-            "prefecture": self.prefectures.get(
-                self.service.repo.schools.get(school_id, {}).get("prefecture_code"), ""
-            ),
+            "official_name": self._official_name(school_id),
+            "prefecture": self.prefectures.get(school.get("prefecture_code"), ""),
+            "ownership": self._ownership(school_id),
             "abilities": self._entrant_abilities(year, [school_id]).get(school_id),
             "stats": totals,
             "results": [
@@ -1206,8 +1229,10 @@ class GameScreenData:
             "senbatsu": senbatsu_rows,
         }
 
-    def _koshien_counts(self, year: int) -> dict:
-        """その年度までのゲーム内の甲子園（夏・春）の出場・優勝の回数。"""
+    def _koshien_counts(self, year: int, current: dict | None = None) -> dict:
+        """その年度までのゲーム内の甲子園（夏・春）の出場・優勝の回数。
+
+        ``current`` はその年度の成績（読んであれば渡す。読み直さない）。"""
         counts = {
             kind: {"appearances": {}, "championships": {}, "years": {}}
             for kind in KOSHIEN_KINDS
@@ -1216,7 +1241,8 @@ class GameScreenData:
         for each in self._years():
             if each > year:
                 continue
-            for school_id, rows in self._results(each).items():
+            results = current if current is not None and each == year else self._results(each)
+            for school_id, rows in results.items():
                 for row in rows:
                     kind = kinds.get(row["type"])
                     if not kind:
@@ -1464,6 +1490,8 @@ class GameScreenData:
             abilities, ready = self.abilities.get(members, year)
             status = "ready" if ready else "computing"
         results = self._results(year)
+        reputation = self._reputation_ranks()
+        koshien = self._koshien_counts(year, current=results)
         rows = []
         for school_id, school in self.service.repo.schools.items():
             mine = results.get(school_id, [])
@@ -1480,8 +1508,36 @@ class GameScreenData:
                 "losses": sum(r["losses"] for r in mine),
                 "best": best["label"] if best else "",
                 "best_score": best["score"] if best else 0,
+                "reputation": reputation.get(school_id, ""),
+                # 甲子園の出場回数：実際の記録＋ゲーム内の記録の合計
+                **{
+                    f"koshien_{kind}": count
+                    for kind, count in koshien_appearances(
+                        self.actual_koshien.get(school_id), koshien, school_id,
+                    ).items()
+                },
             })
-        return {"school_year": year, "abilities_status": status, "schools": rows}
+        return {
+            "school_year": year, "abilities_status": status, "schools": rows,
+            "reputation_ranks": self._reputation_labels(),
+        }
+
+    def _reputation_ranks(self) -> dict[str, str]:
+        """学校ID → 評判のランク（全校をまとめて出す）。"""
+        rep = self.state.reputation if isinstance(self.state, CareerState) else None
+        if rep is not None:
+            return reputation_ranks(rep.values, rep.rank_labels)
+        initial = reputation_for(str(self.config_root.parent))
+        seed = self.session.plan.rng_seed
+        return {sid: initial.rank(sid, seed) for sid in self.service.repo.schools}
+
+    def _reputation_labels(self) -> list[str]:
+        """評判のランクの並び（高い順。並べ替えに使う）。"""
+        rep = self.state.reputation if isinstance(self.state, CareerState) else None
+        labels = rep.rank_labels if rep is not None else reputation_for(
+            str(self.config_root.parent)
+        ).config["rank_labels"]
+        return [label for label, _ in labels]
 
     def school(self, school_id: str) -> dict:
         repo = self.service.repo
@@ -1498,21 +1554,7 @@ class GameScreenData:
             abilities = self.abilities.get(
                 {school_id: members[school_id]}, year,
             )[0].get(school_id)
-            roster = [
-                {
-                    "player_id": player.player_id,
-                    "name": player.display_name,
-                    "hometown": self.prefectures.get(player.hometown_prefecture_code, ""),
-                    "grade": player.academic_year,
-                    "position": POSITION_LABELS.get(player.primary_position, ""),
-                    "bats": player.bats, "throws": player.throws,
-                    "injury": self._injury_now(player),
-                }
-                for player in sorted(
-                    members[school_id],
-                    key=lambda p: (-p.academic_year, p.roster_no),
-                )
-            ]
+            roster = self._member_rows(school_id, members[school_id], year)
         by_year = {}
         for each in self._years():
             results = self._results(each).get(school_id, [])
@@ -1642,9 +1684,7 @@ class GameScreenData:
         rosters = getattr(self.state, "rosters", None) if self.session else None
         if rosters is None:
             raise ValueError("選手は選手で試合をしているときに出ます")
-        bands = json.loads(
-            (self.config_root / "abilities" / "ability_scale_v1.json").read_text(encoding="utf-8")
-        )["display_bands"]
+        bands = self._player_bands()
         pitch_types = rosters.pitch_types()
         current = self._current_year()
         if reference_year is None:
@@ -1729,6 +1769,9 @@ class GameScreenData:
             "injuries": list(reversed(injuries)),
             "abilities": ability_rows(now, position, bands) if now else [],
             "pitches": now["pitches"] if now else [],
+            # 守備位置の適性（各守備位置の値とランク）
+            "aptitudes": aptitude_rows(now["position_aptitude"], POSITION_LABELS, bands)
+            if now else [],
             "trend_keys": [
                 {"key": key, "label": label} for key, label in trend_keys(position)
             ],
@@ -1751,6 +1794,36 @@ class GameScreenData:
                 for year, row in entries
             ],
         }
+
+    def _player_bands(self) -> list[dict]:
+        """選手の能力のランクの境目（config/abilities/ability_scale_v1.json）。"""
+        if not hasattr(self, "_bands"):
+            self._bands = json.loads(
+                (self.config_root / "abilities" / "ability_scale_v1.json").read_text(encoding="utf-8")
+            )["display_bands"]
+        return self._bands
+
+    def _member_rows(self, school_id: str, players, year: int) -> list[dict]:
+        """学校の詳細の部員：能力（投手と野手で別の項目）と今年度の公式戦成績。"""
+        rosters = getattr(self.state, "rosters", None)
+        bands = self._player_bands()
+        details = list(self._school_details(school_id, year))
+        rows = []
+        for player in sorted(players, key=lambda p: (-p.academic_year, p.roster_no)):
+            values = snapshot_values(rosters.ability(player)) if rosters is not None else None
+            rows.append({
+                "player_id": player.player_id,
+                "name": player.display_name,
+                "hometown": self.prefectures.get(player.hometown_prefecture_code, ""),
+                "grade": player.academic_year,
+                "position": POSITION_LABELS.get(player.primary_position, ""),
+                "pitcher": player.primary_position == "P",
+                "bats": player.bats, "throws": player.throws,
+                "injury": self._injury_now(player),
+                "abilities": member_abilities(values, player.primary_position, bands),
+                "stats": member_stats(season_stats(details, player.player_id)),
+            })
+        return rows
 
     def _injury_now(self, player) -> dict | None:
         """今日、怪我で休んでいれば重さと復帰の見込みの日。"""
