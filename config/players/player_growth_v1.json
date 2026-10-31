@@ -1,41 +1,87 @@
 {
   "config_id": "player_growth_v1",
-  "revision": 2,
+  "revision": 3,
   "description_ja": "選手の成長（game_definition.md §3.1）。毎月の初めに前の月の分を伸ばす。1か月の伸び = 3年間の伸び（abilities）× 潜在能力 × その月の重み（months）× 成長の型の学年の重み（types）÷ 型ごとの3年間の重みの合計 × 上限に近いほど小さくなる係数（headroom）。公式戦に出ると少し足す（games）。端数は乱数で切り上げ・切り捨て（平均は変わらない）。",
   "abilities": {
     "description_ja": "潜在能力 1.0 の選手が、入学（1年の4月）から3年の3月までの3年間に伸びる量の目安。上にない能力（守備位置の適性など）は伸びない",
     "default": 14.0,
-    "velocity_kmh": 8.0,
+    "velocity_kmh": 13.0,
     "pitch_quality": 11.0,
     "pitch_command": 11.0
   },
   "months": {
     "description_ja": "月ごとの重み。夏休み（8月）と冬（12〜2月、試合のない期間）を大きめ、夏の大会の7月を小さめ",
-    "4": 1.0, "5": 1.0, "6": 1.0, "7": 0.7, "8": 1.6, "9": 1.0,
-    "10": 0.9, "11": 1.2, "12": 1.6, "1": 1.6, "2": 1.6, "3": 1.0
+    "4": 1.0,
+    "5": 1.0,
+    "6": 1.0,
+    "7": 0.7,
+    "8": 1.6,
+    "9": 1.0,
+    "10": 0.9,
+    "11": 1.2,
+    "12": 1.6,
+    "1": 1.6,
+    "2": 1.6,
+    "3": 1.0
   },
   "types": {
     "description_ja": "成長の型。share は割合、grades は1〜3年の重み（型ごとに3年間の合計をそろえる）",
-    "early": {"label_ja": "早熟", "share": 0.25, "grades": [1.6, 1.0, 0.4]},
-    "normal": {"label_ja": "普通", "share": 0.5, "grades": [1.0, 1.0, 1.0]},
-    "late": {"label_ja": "晩成", "share": 0.25, "grades": [0.5, 1.0, 1.5]}
+    "early": {
+      "label_ja": "早熟",
+      "share": 0.25,
+      "grades": [
+        1.6,
+        1.0,
+        0.4
+      ]
+    },
+    "normal": {
+      "label_ja": "普通",
+      "share": 0.5,
+      "grades": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "late": {
+      "label_ja": "晩成",
+      "share": 0.25,
+      "grades": [
+        0.5,
+        1.0,
+        1.5
+      ]
+    }
   },
   "potential": {
-    "description_ja": "潜在能力（伸びの倍率）。全校共通の分布（平均 mean・広がり stddev）に、まれに大化け（bloom_chance の確率で bloom_add を足す）。評判の高い学校ほど少しだけ大きい（学校成分の z 1あたり school_per_z）。min〜max に収める",
+    "description_ja": "潜在能力（伸びの倍率。球速以外）。全校共通の分布（平均 mean・広がり stddev）に、まれに大化け（bloom_chance の確率で bloom_add を足す）。学校による差は小さい（学校成分の z 1あたり school_per_z）。min〜max に収める",
     "mean": 1.0,
     "stddev": 0.3,
     "bloom_chance": 0.04,
     "bloom_add": 0.8,
-    "school_per_z": 0.05,
+    "school_per_z": 0.02,
     "min": 0.2,
     "max": 2.8
+  },
+  "velocity_potential": {
+    "description_ja": "球速の伸びしろ（球速の伸びの倍率）。潜在能力とは別に引き、選手ごとの差を大きくする（3年間で数km/hしか伸びない選手から、20km/h近く伸びる選手まで）。min〜max に収める",
+    "mean": 1.0,
+    "stddev": 0.5,
+    "min": 0.1,
+    "max": 2.6
+  },
+  "stagnation": {
+    "description_ja": "伸び悩み：学校によらず chance の割合の選手は、潜在能力と球速の伸びしろに factor を掛ける",
+    "chance": 0.12,
+    "factor": 0.35
   },
   "headroom": {
     "description_ja": "上限に近いほど伸びにくい。係数 = (上限 - 今の値) ÷ (上限 - 基準)。基準の値で1、上限で0。min〜max に収める（低い選手はやや伸びやすい）",
     "cap": 100,
     "pivot": 50,
-    "velocity_cap": 160,
-    "velocity_pivot": 135,
+    "velocity_cap": 165,
+    "velocity_pivot": 130,
     "min": 0.1,
     "max": 1.5
   },
@@ -44,8 +90,26 @@
     "batter": 0.12,
     "pitcher": 0.15
   },
+  "bootstrap": {
+    "description_ja": "新規開始時の2・3年生は、1年の4月の能力でつくり、開始の前の月までの成長をこの設定で進める（その後に入学して育った選手と同じ分布にする）。games_per_month は1か月あたりの公式戦の出場数（部員の平均の目安）",
+    "games_per_month": {
+      "4": 1,
+      "5": 1,
+      "6": 0,
+      "7": 2,
+      "8": 0,
+      "9": 1,
+      "10": 1,
+      "11": 0,
+      "12": 0,
+      "1": 0,
+      "2": 0,
+      "3": 0
+    }
+  },
   "rng_namespaces": {
     "player": "player_growth_v1:player:{entry_year}:{school_id}:{roster_no}",
-    "month": "player_growth_v1:month:{month}:{school_id}"
+    "month": "player_growth_v1:month:{month}:{school_id}",
+    "bootstrap": "player_growth_v1:bootstrap:{entry_year}:{school_id}:{roster_no}"
   }
 }

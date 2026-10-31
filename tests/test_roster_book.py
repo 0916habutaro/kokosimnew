@@ -57,7 +57,7 @@ class RosterBookTests(unittest.TestCase):
                 roster_no=player.roster_no)
             expected = book.growth.draw(rng_for(book.career_seed, namespace), program)
             state = book.state(player)
-            self.assertEqual(expected, (state.growth_type, state.potential))
+            self.assertEqual(expected, (state.growth_type, state.potential, state.velocity_potential))
         # 翌年度の新入生もその生成結果から取得し、前の年度の値を保持しない。
         with patch.object(generator.intake_model, 'profile', wraps=generator.intake_model.profile) as profile:
             advanced = book.roster(2027, 'SCH-A')
@@ -150,7 +150,7 @@ class RosterBookTests(unittest.TestCase):
         rows = decode_closed_record(book.closed_record(2026, "SCH-A"))
         self.assertEqual(
             [p.to_dict() for p in roster.players],
-            [{k: v for k, v in row.items() if k not in ("abilities", "growth_type", "potential", "injuries")}
+            [{k: v for k, v in row.items() if k not in ("abilities", "growth_type", "potential", "velocity_potential", "injuries")}
              for row in rows],
         )
         for player, row in zip(roster.players, rows):

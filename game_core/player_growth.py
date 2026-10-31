@@ -60,8 +60,10 @@ class PlayerGrowth:
 
     # ---- 入学のとき ----
 
-    def draw(self, rng: random.Random, program_z: float) -> tuple[int, int]:
-        """(成長の型の番号, 潜在能力×80)。"""
+    def draw(self, rng: random.Random, program_z: float) -> tuple[int, int, int]:
+        """(成長の型の番号, 潜在能力×80, 球速の伸びしろ×80)。
+
+        伸び悩み（stagnation）の選手は、学校によらず一定の割合で、どちらも小さくなる。"""
         roll = rng.random()
         type_index = len(TYPES) - 1
         for index, share in enumerate(self.type_shares):
@@ -75,8 +77,18 @@ class PlayerGrowth:
         )
         if rng.random() < float(p["bloom_chance"]):
             value += float(p["bloom_add"])
+        v = self.config["velocity_potential"]
+        velocity = rng.gauss(float(v["mean"]), float(v["stddev"]))
+        stagnation = self.config["stagnation"]
+        if rng.random() < float(stagnation["chance"]):
+            value *= float(stagnation["factor"])
+            velocity *= float(stagnation["factor"])
         value = min(float(p["max"]), max(float(p["min"]), value))
-        return type_index, int(round(value * POTENTIAL_SCALE))
+        velocity = min(float(v["max"]), max(float(v["min"]), velocity))
+        return (
+            type_index, int(round(value * POTENTIAL_SCALE)),
+            int(round(velocity * POTENTIAL_SCALE)),
+        )
 
     # ---- 毎月 ----
 
@@ -104,9 +116,15 @@ class PlayerGrowth:
         month: int,
         rng: random.Random,
         practice_multiplier: float = 1.0,
+        velocity_potential: int | None = None,
     ) -> None:
-        """1か月分伸ばす。練習分だけ倍率を掛け、試合経験と端数抽選は従来どおり。"""
-        share = self.share.get((type_index, grade, month), 0.0) * potential / POTENTIAL_SCALE
+        """1か月分伸ばす。練習分だけ倍率を掛け、試合経験と端数抽選は従来どおり。
+        球速は潜在能力の代わりに球速の伸びしろ（``velocity_potential``）を使う。"""
+        base_share = self.share.get((type_index, grade, month), 0.0)
+        share = base_share * potential / POTENTIAL_SCALE
+        velocity_share = base_share * (
+            potential if velocity_potential is None else velocity_potential
+        ) / POTENTIAL_SCALE
         per_game = self.config["games"]
         batter_games = games * float(per_game["batter"])
         pitcher_games = games * float(per_game["pitcher"]) if position == "P" else 0.0
@@ -129,7 +147,11 @@ class PlayerGrowth:
             games_gain = pitcher_games if index in self.pitcher_indexes else batter_games
             # 試合の分も能力ごとの伸びの大きさに合わせる（球速は3年間の伸びが小さい）
             games_gain *= self.totals[index] / self.default_total
-            practice_gain = self.totals[index] * share * practice_multiplier
+            if index == self.velocity_index and velocity_potential is not None:
+                # 球速は試合の分も球速の伸びしろに比例する（伸びしろのない投手は伸びない）
+                games_gain *= velocity_potential / POTENTIAL_SCALE
+            index_share = velocity_share if index == self.velocity_index else share
+            practice_gain = self.totals[index] * index_share * practice_multiplier
             self._add(values, index, (practice_gain + games_gain) * head, rng, high)
         if position == "P":
             for offset in range(PITCH_OFFSET, len(values), 4):
@@ -137,3 +159,19 @@ class PlayerGrowth:
                     head = self._headroom(values[offset + field], cap, pivot)
                     practice_gain = total * share * practice_multiplier
                     self._add(values, offset + field, (practice_gain + pitcher_games) * head, rng, int(cap))
+
+    def bootstrap(
+        self, values: bytearray, *, position: str, entry_year: int, first_year: int,
+        type_index: int, potential: int, velocity_potential: int, rng: random.Random,
+    ) -> None:
+        """新規開始時の上級生：入学（1年の4月）から開始の前の月（3月）までの成長を
+        進める。公式戦の出場は1か月あたり ``bootstrap.games_per_month`` とみる。"""
+        games = self.config["bootstrap"]["games_per_month"]
+        for year in range(entry_year, first_year):
+            grade = year - entry_year + 1
+            for month in (4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3):
+                self.grow(
+                    values, position=position, grade=grade, type_index=type_index,
+                    potential=potential, velocity_potential=velocity_potential,
+                    games=int(games[str(month)]), month=month, rng=rng,
+                )

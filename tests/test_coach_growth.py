@@ -171,7 +171,7 @@ class CoachGrowthTests(unittest.TestCase):
             for month in MONTHS:
                 model.grow(v,position='P',grade=3,type_index=1,potential=224,
                            games=10,month=month,rng=random.Random(year*12+month),practice_multiplier=1.1)
-        self.assertLessEqual(v[CONTACT],100);self.assertLessEqual(v[VELOCITY],160)
+        self.assertLessEqual(v[CONTACT],100);self.assertLessEqual(v[VELOCITY],model._velocity_head[0])
         self.assertLessEqual(v[-3],100);self.assertLessEqual(v[-2],100)
         self.assertLess(model._headroom(95,*model._head),model._headroom(50,*model._head))
 

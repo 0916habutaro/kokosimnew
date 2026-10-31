@@ -457,9 +457,9 @@ class Stage13C2MatchSimulatorTests(unittest.TestCase):
         )
 
     def test_match_config_revision_and_status(self):
-        self.assertEqual(7, self.simulator.config.revision)
+        self.assertEqual(8, self.simulator.config.revision)
         self.assertEqual(
-            "tuned_2026_10_30",
+            "tuned_2026_10_31",
             self.simulator.config.payload["status"],
         )
 
