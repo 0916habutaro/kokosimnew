@@ -787,16 +787,20 @@ class HistoricalMatchArchive:
                             "career year plan/seed differs"
                         )
                     year_status = known_year["status"]
-                added = 0
+                # 同じ書込トランザクション内で索引を一度だけ読む。各入力の正規化・
+                # チェックサム照合・封印条件は省かず、新規行だけをまとめて登録する。
+                existing = {
+                    (row[0], row[1]): row[2] for row in conn.execute(
+                        "SELECT competition_id, match_id, record_sha256 "
+                        "FROM historical_matches WHERE year=?", (year,),
+                    )
+                }
+                pending = []
                 same = 0
                 for key, payload, raw, fingerprint in normalized:
-                    old = conn.execute(
-                        """SELECT record_sha256 FROM historical_matches
-                           WHERE year=? AND competition_id=? AND match_id=?""",
-                        key,
-                    ).fetchone()
-                    if old is not None:
-                        if old[0] != fingerprint:
+                    match_key = key[1:]
+                    if match_key in existing:
+                        if existing[match_key] != fingerprint:
                             raise HistoricalMatchConflictError(
                                 f"archived match changed: {key}"
                             )
@@ -806,21 +810,21 @@ class HistoricalMatchArchive:
                         raise HistoricalMatchConflictError(
                             f"sealed year {year} cannot accept new matches"
                         )
-                    conn.execute(
-                        """INSERT INTO historical_matches (
-                            year, competition_id, match_id, match_date,
-                            date_source, team1_id, team2_id, team1_score,
-                            team2_score, score_source, record_sha256, payload_json
-                           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                        (
+                    pending.append((
                             *key, payload["match_date"], payload["date_source"],
                             payload["team1_id"], payload["team2_id"],
                             payload["team1_score"], payload["team2_score"],
                             payload["score_source"], fingerprint, raw,
-                        ),
-                    )
-                    added += 1
-        return {"inserted": added, "already_archived": same}
+                        ))
+                conn.executemany(
+                    """INSERT INTO historical_matches (
+                        year, competition_id, match_id, match_date,
+                        date_source, team1_id, team2_id, team1_score,
+                        team2_score, score_source, record_sha256, payload_json
+                       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    pending,
+                )
+        return {"inserted": len(pending), "already_archived": same}
 
     def get_match(self, year: int, competition_id: str, match_id: str) -> dict | None:
         if not self.db_path.is_file():

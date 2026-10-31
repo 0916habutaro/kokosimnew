@@ -5,6 +5,7 @@ from dataclasses import replace
 from datetime import date
 import pickle
 import unittest
+from unittest.mock import patch
 
 from game_core.roster_book import RosterBook
 from phase2_engine.models import Team
@@ -39,6 +40,29 @@ def _book():
 
 
 class RosterBookTests(unittest.TestCase):
+    def test_intake_school_component_is_reused_only_from_fresh_generated_snapshot(self):
+        from phase2_engine.randomness import rng_for
+
+        book = _book()
+        generator = book.ability_generator
+        with patch.object(generator.intake_model, 'profile', wraps=generator.intake_model.profile) as profile:
+            roster = book.roster(2026, 'SCH-A')
+        self.assertEqual(len(roster.players), profile.call_count)
+        for player in roster.players:
+            program = generator.intake_model.profile(
+                school_id=player.school_id, entry_year=player.entry_year,
+                base_seed=book.career_seed).program_quality_z
+            namespace = book.growth.config['rng_namespaces']['player'].format(
+                entry_year=player.entry_year, school_id=player.school_id,
+                roster_no=player.roster_no)
+            expected = book.growth.draw(rng_for(book.career_seed, namespace), program)
+            state = book.state(player)
+            self.assertEqual(expected, (state.growth_type, state.potential))
+        # 翌年度の新入生もその生成結果から取得し、前の年度の値を保持しない。
+        with patch.object(generator.intake_model, 'profile', wraps=generator.intake_model.profile) as profile:
+            advanced = book.roster(2027, 'SCH-A')
+        self.assertEqual(sum(p.entry_year == 2027 for p in advanced.players), profile.call_count)
+
     @classmethod
     def setUpClass(cls):
         cls.book = _book()

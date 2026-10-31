@@ -91,13 +91,21 @@ class LineupChange:
     dh_action: DHAction | None = None
 
     def to_dict(self) -> dict:
-        out = asdict(self)
-        out["defensive_changes"] = [asdict(change) for change in self.defensive_changes]
-        if self.dh_action is None:
-            out.pop('dh_action')
-        else:
-            out['dh_action']['batting_changes'] = [
-                {'batting_order': s.batting_order, 'player_id': s.player_id} for s in self.dh_action.batting_changes]
+        # あとで作り直す守備変更・DH入力までasdictで先に複製しない。
+        out = {name: getattr(self, name) for name in (
+            'sequence', 'school_id', 'kind', 'batting_order',
+            'outgoing_player_id', 'incoming_player_id')}
+        out['defensive_changes'] = [asdict(change) for change in self.defensive_changes]
+        out['moment'] = asdict(self.moment) if self.moment is not None else None
+        if self.dh_action is not None:
+            out['dh_action'] = {
+                'batting_changes': [
+                    {'batting_order': s.batting_order, 'player_id': s.player_id}
+                    for s in self.dh_action.batting_changes],
+                'player_id': self.dh_action.player_id,
+                'medical_exception': self.dh_action.medical_exception,
+                'umpire_approved': self.dh_action.umpire_approved,
+            }
         if isinstance(self.moment, ChangeMoment) and self.moment.order == 0:
             out['moment'].pop('order')
         return out

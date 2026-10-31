@@ -338,11 +338,19 @@ class RosterBook:
 
     def _new_state(self, player: Player, year: int) -> PlayerState:
         """入学（新規開始の部員を含む）：能力と成長の型・潜在能力をつくる。"""
-        snapshot = self.ability_generator.generate(player, year, self.career_seed)
-        program_z = self.ability_generator.intake_model.profile(
-            school_id=player.school_id, entry_year=player.entry_year,
-            base_seed=self.career_seed,
-        ).program_quality_z
+        from .school_intake import IntakeAdjustedPlayerAbilitySnapshot, SchoolAwarePlayerAbilityGenerator
+
+        generator = self.ability_generator
+        snapshot = generator.generate(player, year, self.career_seed)
+        if (type(generator) is SchoolAwarePlayerAbilityGenerator and generator.source is None
+                and type(snapshot) is IntakeAdjustedPlayerAbilitySnapshot):
+            # 今まさに能力へ適用した学校成分を使う。別の選手・年度へは保持しない。
+            program_z = snapshot.intake_program_quality_z
+        else:
+            program_z = generator.intake_model.profile(
+                school_id=player.school_id, entry_year=player.entry_year,
+                base_seed=self.career_seed,
+            ).program_quality_z
         namespace = self.growth.config["rng_namespaces"]["player"].format(
             entry_year=player.entry_year, school_id=player.school_id,
             roster_no=player.roster_no,

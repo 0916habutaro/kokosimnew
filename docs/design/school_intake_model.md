@@ -103,6 +103,11 @@ School-aware能力snapshotには以下を追加する。
 - intake_quality_z
 - intake_coach_id / intake_coach_reputation / intake_coach_quality_z（生成時の参照情報。保存した名簿の能力は従来どおり選手ごとに保持）
 
+標準生成器で名簿の新規状態を作るとき、成長タイプ・潜在能力の計算には直前の
+snapshotの`intake_program_quality_z`を使い、同じ学校成分を再計算しない。
+別の選手・入学年度へ値を保持するキャッシュは作らず、成長専用の乱数と抽選順は維持する。
+保存済み能力や独自生成器を使う経路は従来の学校成分取得を継続する。
+
 TeamStrengthSnapshotには以下を追加する。
 
 - school_intake_config_id
