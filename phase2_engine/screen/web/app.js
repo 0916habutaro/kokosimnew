@@ -213,18 +213,27 @@ function matchTable(rows, line, widths, wrap = false) {
   return `<table class="list fixed${wrap ? " wrap" : ""}"><colgroup>${widths.map((w) => `<col${w ? ` style="width:${w}px"` : ""}>`).join("")}</colgroup>${rows.map((row) => line(row)).join("")}</table>`;
 }
 const MATCH_LINE_COLS = [150, 0, 64, 0];
-const MATCH_LINE_COLS_DATED = [150, 0, 64, 0, 92];
+const MATCH_LINE_COLS_DATED = [150, 0, 64, 0, 130];
 
 function matchLine(m, dated = true) {
   const done = m.status === "completed";
   return `<tr class="click" data-year="${m.school_year}" data-cid="${esc(m.competition_id)}" data-id="${esc(m.match_id)}">
-    <td class="muted">${esc(m.competition_name)}<br><small>${esc(m.round_name)}</small></td>
+    <td class="muted" title="${esc(`${m.competition_name} ${m.round_name}`)}">${esc(m.competition_name)}<br><small>${esc(m.round_name)}</small></td>
     <td style="text-align:right" class="team ${m.winner_id === m.team1_id ? "w" : ""}">${esc(m.team1_name)}</td>
     <td class="n" style="text-align:center">${done ? `${m.team1_score ?? ""} − ${m.team2_score ?? ""}` : "vs"}</td>
     <td class="team ${m.winner_id === m.team2_id ? "w" : ""}">${esc(m.team2_name)}</td>
     ${done && dated ? `<td class="muted num">${jpDate(m.match_date)}</td>` : ""}</tr>`;
 }
 const matchLineUndated = (m) => matchLine(m, false);
+
+// 直近の大きな結果。夏の地方大会の決勝（代表決定）は1行にまとめ、押すと開く
+function recentResults(rows) {
+  if (!rows.length) return '<div class="muted">最近の大きな結果はありません</div>';
+  const shown = rows.filter((m) => !m.qualifier_final);
+  const finals = rows.filter((m) => m.qualifier_final);
+  return (shown.length ? matchTable(shown, matchLine, MATCH_LINE_COLS_DATED, true) : "")
+    + (finals.length ? `<details class="qualifier-finals"><summary>夏の地方大会の決勝（${finals.length}試合）</summary>${matchTable(finals, matchLine, MATCH_LINE_COLS_DATED, true)}</details>` : "");
+}
 
 async function renderToday(content) {
   const data = await call("today");
@@ -246,9 +255,7 @@ async function renderToday(content) {
           : '<div class="muted">まだ試合はありません</div>'}</div>
       </div>
       <div>
-        <div class="panel"><h3>直近の大きな結果</h3>${data.recent_results.length
-          ? matchTable(data.recent_results, matchLine, MATCH_LINE_COLS_DATED, true)
-          : '<div class="muted">最近の大きな結果はありません</div>'}</div>
+        <div class="panel"><h3>直近の大きな結果</h3>${recentResults(data.recent_results)}</div>
         <div class="panel"><h3>開催中の大会</h3>${competitions ? `<table class="list">${competitions}</table>` : '<div class="muted">開催中の大会はありません</div>'}</div>
       </div>
     </div></div>`;

@@ -918,6 +918,7 @@ class GameScreenData:
         - hold_until_national の大会（夏の地方大会）の決勝（代表決定）は、
           同じ年度の対応する全国大会（夏の甲子園）が終わるまで
         全国大会の結果を先に、それぞれ新しい順に count 試合まで。
+        夏の地方大会の決勝には qualifier_final を付ける（画面で1行にまとめる）。
         """
         rule = self.config["recent_results"]
         big = self.config["big_scene"]
@@ -957,11 +958,21 @@ class GameScreenData:
                 and bool(national_open.get((year, hold[ctype])))
             )
 
+        def is_qualifier_final(row) -> bool:
+            return (
+                self._competition_type(row["competition_id"]) in hold
+                and row.get("round_name", "") in rule["qualifier_round_names"]
+            )
+
         rows = [row for row in self._completed_rows() if shown(row)]
         rows.sort(key=lambda r: (r["match_date"], r["competition_id"], r["match_id"]),
                   reverse=True)
         rows.sort(key=lambda r: not self._is_national(r["competition_id"]))
-        return [self._match_summary(row) for row in rows[: int(rule["count"])]]
+        # 夏の地方大会の決勝（代表決定）は、画面で1行にまとめて押すと開く
+        return [
+            {**self._match_summary(row), "qualifier_final": is_qualifier_final(row)}
+            for row in rows[: int(rule["count"])]
+        ]
 
     def _match_summary(self, row: dict) -> dict:
         cid = row["competition_id"]
