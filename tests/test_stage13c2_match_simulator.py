@@ -162,15 +162,20 @@ class Stage13C2MatchSimulatorTests(unittest.TestCase):
             )
         for school_id, batter_ids in by_team.items():
             self.assertGreater(len(batter_ids), 9)
-            lineup = tuple(
-                entry.player_id
-                for entry in sorted(
-                    self.teams[school_id]
-                    .team_strength.starting_lineup.entries,
-                    key=lambda entry: entry.batting_order,
-                )
+            entries = sorted(
+                self.teams[school_id].team_strength.starting_lineup.entries,
+                key=lambda entry: entry.batting_order,
             )
-            self.assertEqual(lineup, tuple(batter_ids[:9]))
+            pitchers = {
+                stats.player_id for stats in result.pitcher_stats
+                if stats.school_id == school_id
+            }
+            for entry, batter_id in zip(entries, batter_ids[:9]):
+                if entry.defensive_position == "P" and batter_id != entry.player_id:
+                    # 先発投手が最初の打席の前に降板したら、継いだ投手がその打順に入る
+                    self.assertIn(batter_id, pitchers)
+                else:
+                    self.assertEqual(entry.player_id, batter_id)
 
     def test_event_types_are_from_catalog(self):
         result = self.simulator.simulate(self._input())
@@ -457,9 +462,9 @@ class Stage13C2MatchSimulatorTests(unittest.TestCase):
         )
 
     def test_match_config_revision_and_status(self):
-        self.assertEqual(7, self.simulator.config.revision)
+        self.assertEqual(8, self.simulator.config.revision)
         self.assertEqual(
-            "tuned_2026_10_30",
+            "tuned_2026_10_31",
             self.simulator.config.payload["status"],
         )
 

@@ -1,8 +1,8 @@
 {
   "config_id": "school_intake_v1",
-  "revision": 4,
-  "status": "tuned_2026_10_26",
-  "description_ja": "架空選手生成用の入部品質モデル。学校成分（program）は学校の評判（school_reputation_v1。実際の甲子園の出場などから作るゲーム開始時の評判）の順位を、この平均・広がりの z に変えたもの。年度ごとの当たり外れ（cohort）は乱数。学校成分と cohort の重みは 0.75:0.25（分散の割合）で、夏の甲子園の初出場・2年続けて出る学校の数と地方大会の点差に合わせた（game_definition.md §11）。選手の能力に足すだけで、学校の強さは選手から計算する。",
+  "revision": 5,
+  "status": "tuned_2026_10_31",
+  "description_ja": "架空選手生成用の入部品質モデル（game_definition.md §3.1・§10）。学校・年度の成分（入部品質 z）は、学校成分（program。学校の評判 school_reputation_v1 の順位を z に変えたもの）と年度ごとの当たり外れ（cohort。乱数）と監督の評判を足したもの。選手の能力には、この z を全員に一律に足さず、選手ごとの素質（talent_model）を通して効かせる：素質 = z × school_weight ＋ 選手ごとの乱数 ＋ 有望な新入生の上乗せ。能力 = 入学時の平均 ＋ 素質 × 能力ごとの重み × 型の傾き ＋ 型の長所・短所 ＋ 能力ごとの乱数。学校の強さは選手から計算する。",
   "quality_model": {
     "program_component": {
       "source": "reputation",
@@ -20,41 +20,191 @@
       "max": 3.5
     }
   },
-  "ability_adjustment_per_quality_z": {
+  "talent_model": {
+    "description_ja": "選手の素質（z の単位）= 入部品質 z × school_weight ＋ N(0, player_stddev) ＋ 有望な新入生なら N(bonus_mean, bonus_stddev)。有望な新入生の人数は学校・年度ごとに Poisson（平均 = base_mean × exp(per_z × 入部品質 z)、max_mean まで）で引き、その年の新入生のうち選手ごとの乱数（順番）の小さい順に割り当てる。clip に収める",
+    "school_weight": 1.0,
+    "player_stddev": 0.7,
+    "prospects": {
+      "base_mean": 0.3,
+      "per_z": 1.15,
+      "max_mean": 4.0,
+      "bonus_mean": 1.4,
+      "bonus_stddev": 0.4
+    },
+    "clip": {
+      "min": -3.5,
+      "max": 4.5
+    }
+  },
+  "ability_per_talent": {
+    "description_ja": "素質1あたりの能力の差（型の load を掛ける）。入学時の平均と選手ごとの乱数の広がりは player_generation_v1",
     "batter": {
-      "contact": 13.5,
-      "power": 15.0,
-      "plate_discipline": 12.0,
-      "strikeout_resistance": 12.0,
-      "bunt": 6.0,
-      "speed": 7.5,
-      "baserunning": 9.0,
-      "stealing": 9.0,
-      "arm_strength": 9.0,
-      "fielding": 12.0,
-      "throwing": 10.5
+      "contact": 8.0,
+      "power": 8.0,
+      "plate_discipline": 7.0,
+      "strikeout_resistance": 7.0,
+      "bunt": 4.0,
+      "speed": 5.0,
+      "baserunning": 6.0,
+      "stealing": 6.0,
+      "arm_strength": 6.0,
+      "fielding": 7.0,
+      "throwing": 6.0
     },
     "catcher": {
-      "catching": 13.5,
-      "game_calling": 12.0
+      "catching": 8.0,
+      "game_calling": 7.0
     },
     "pitcher": {
-      "velocity_kmh": 6.0,
-      "control": 13.5,
-      "stamina": 10.5,
-      "stuff": 15.0,
-      "strikeout": 13.5,
-      "groundball": 10.5,
-      "composure": 9.0
+      "velocity_kmh": 3.0,
+      "control": 8.0,
+      "stamina": 6.0,
+      "stuff": 9.0,
+      "strikeout": 8.0,
+      "groundball": 6.0,
+      "composure": 5.0
     },
-    "primary_position_aptitude": 6.0,
-    "pitch_quality": 12.0,
-    "pitch_command": 12.0
+    "primary_position_aptitude": 3.0,
+    "pitch_quality": 7.0,
+    "pitch_command": 7.0
+  },
+  "player_types": {
+    "description_ja": "選手の型。share は割合、load は素質の効き方の倍率（ない能力は1）、tilt は能力に足す点（ない能力は0。球速は km/h）。野手の型（batter）は全員、投手の型（pitcher）は投手だけが持つ。pitch_quality・pitch_command は変化球",
+    "batter": {
+      "balanced": {
+        "label_ja": "万能",
+        "share": 0.3,
+        "load": {},
+        "tilt": {}
+      },
+      "contact": {
+        "label_ja": "巧打",
+        "share": 0.18,
+        "load": {
+          "contact": 1.2,
+          "power": 0.6
+        },
+        "tilt": {
+          "contact": 6,
+          "plate_discipline": 4,
+          "strikeout_resistance": 6,
+          "bunt": 6,
+          "power": -8
+        }
+      },
+      "slugger": {
+        "label_ja": "長距離",
+        "share": 0.16,
+        "load": {
+          "power": 1.25,
+          "speed": 0.7
+        },
+        "tilt": {
+          "power": 8,
+          "arm_strength": 3,
+          "contact": -3,
+          "strikeout_resistance": -7,
+          "speed": -5,
+          "bunt": -6,
+          "stealing": -5
+        }
+      },
+      "speed": {
+        "label_ja": "俊足",
+        "share": 0.18,
+        "load": {
+          "speed": 1.2,
+          "power": 0.5
+        },
+        "tilt": {
+          "speed": 10,
+          "baserunning": 7,
+          "stealing": 9,
+          "bunt": 3,
+          "power": -10
+        }
+      },
+      "defense": {
+        "label_ja": "守備",
+        "share": 0.18,
+        "load": {
+          "fielding": 1.3,
+          "contact": 0.7,
+          "power": 0.6
+        },
+        "tilt": {
+          "fielding": 9,
+          "throwing": 6,
+          "arm_strength": 5,
+          "contact": -6,
+          "power": -7
+        }
+      }
+    },
+    "pitcher": {
+      "standard": {
+        "label_ja": "本格派",
+        "share": 0.3,
+        "load": {},
+        "tilt": {}
+      },
+      "power": {
+        "label_ja": "速球派",
+        "share": 0.22,
+        "load": {
+          "velocity_kmh": 1.3,
+          "control": 0.6
+        },
+        "tilt": {
+          "velocity_kmh": 3.5,
+          "strikeout": 6,
+          "stuff": 3,
+          "control": -9,
+          "pitch_command": -6
+        }
+      },
+      "finesse": {
+        "label_ja": "技巧派",
+        "share": 0.24,
+        "load": {
+          "velocity_kmh": 0.6
+        },
+        "tilt": {
+          "velocity_kmh": -3,
+          "stuff": 7,
+          "groundball": 6,
+          "pitch_quality": 6,
+          "strikeout": -2
+        }
+      },
+      "control": {
+        "label_ja": "制球型",
+        "share": 0.24,
+        "load": {
+          "control": 1.3,
+          "velocity_kmh": 0.7
+        },
+        "tilt": {
+          "control": 9,
+          "pitch_command": 7,
+          "composure": 4,
+          "velocity_kmh": -2.5,
+          "strikeout": -4
+        }
+      }
+    }
   },
   "upper_soft_cap": {
-    "description_ja": "入部品質を足した能力の上の方を、上限（cap）に向かって緩やかに頭打ちにする。knee までは変えず、それより上は cap - (cap - knee) × exp(-(値 - knee) ÷ (cap - knee))。単調なので選手・学校の順番は変わらない。打撃・守備・投手などの1〜100の能力と変化球は scalar、球速は velocity_kmh。実際の高校野球の球速（150km/h超えは全国で毎年数十人、最速は150km/h台後半）に合わせる",
-    "scalar": {"knee": 80, "cap": 100},
-    "velocity_kmh": {"knee": 120, "cap": 170, "rate": 1.0}
+    "description_ja": "入学時の能力の上の方を、上限（cap）に向かって緩やかに頭打ちにする。knee までは変えず、それより上は cap - (cap - knee) × exp(-(値 - knee) ÷ (cap - knee))。単調なので選手の順番は変わらない。打撃・守備・投手などの1〜100の能力と変化球は scalar、球速は velocity_kmh",
+    "scalar": {
+      "knee": 72,
+      "cap": 96
+    },
+    "velocity_kmh": {
+      "knee": 138,
+      "cap": 160,
+      "rate": 1.0
+    }
   },
   "rules": {
     "applied_before_team_strength": true,
@@ -64,6 +214,9 @@
   },
   "rng_namespace_policy": {
     "program": "school_intake_v1:program:{school_id}",
-    "cohort": "school_intake_v1:cohort:{school_id}:{entry_year}"
+    "cohort": "school_intake_v1:cohort:{school_id}:{entry_year}",
+    "prospects": "school_intake_v1:prospects:{school_id}:{entry_year}",
+    "player": "school_intake_v1:player:{entry_year}:{school_id}:{roster_no}",
+    "priority": "school_intake_v1:priority:{entry_year}:{school_id}:{roster_no}"
   }
 }

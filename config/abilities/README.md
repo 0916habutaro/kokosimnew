@@ -6,8 +6,8 @@ Stage 13B以降の能力生成・学校能力算出で使用する、機械可�
 
 - `ability_catalog_v1.json`: 能力IDと意味。意味変更は原則v2。
 - `ability_scale_v1.json`: 1〜100尺度・S〜G表示。
-- `player_generation_v1.json`: baseline選手能力生成の分布・namespace。
-- `school_intake_v1.json`: 合成program/cohort入部品質と能力調整幅。
+- `player_generation_v1.json`: 入学時（1年の4月、素質0）の能力の平均と選手ごとの乱数の広がり・namespace。
+- `school_intake_v1.json`: 合成program/cohort入部品質と、選手ごとの素質（有望な新入生の人数）・型・能力ごとの重み。
 - `team_strength_v1.json`: 選手→学校能力の集約重み。
 
 ## version と revision

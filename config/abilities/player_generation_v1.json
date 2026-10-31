@@ -1,81 +1,81 @@
 {
   "config_id": "player_generation_v1",
-  "revision": 1,
-  "status": "design_default_not_tuned",
+  "revision": 2,
+  "status": "tuned_2026_10_31",
   "catalog_id": "ability_catalog_v1",
   "scale_id": "ability_scale_v1",
-  "notes_ja": "分布値は実装開始用の暫定値。Stage 13B-2大量監査で必ず再調整する。",
+  "notes_ja": "mean・stddev は、素質0の選手が入学したとき（1年の4月）の平均と、選手ごとの能力の乱数の広がり。学校の入部品質による素質の差と型の長所・短所は school_intake_v1 で足す。新規開始時の2・3年生も1年の4月の能力でつくり、その学年までの成長を player_growth_v1 で進める（grade_adjustment は学校の補正を使わない基準の生成だけで使う）。",
   "grade_adjustment": {
     "1": -5,
     "2": 0,
     "3": 5
   },
   "scalar_defaults": {
-    "mean": 50,
-    "stddev": 12,
+    "mean": 44,
+    "stddev": 8,
     "min": 1,
     "max": 100
   },
   "batter_abilities": {
     "contact": {
-      "mean": 50,
-      "stddev": 12
+      "mean": 44,
+      "stddev": 8
     },
     "power": {
-      "mean": 50,
-      "stddev": 13
+      "mean": 44,
+      "stddev": 8
     },
     "plate_discipline": {
-      "mean": 50,
-      "stddev": 11
+      "mean": 44,
+      "stddev": 8
     },
     "strikeout_resistance": {
-      "mean": 50,
-      "stddev": 11
+      "mean": 44,
+      "stddev": 8
     },
     "bunt": {
-      "mean": 50,
-      "stddev": 14
+      "mean": 44,
+      "stddev": 8
     },
     "speed": {
-      "mean": 50,
-      "stddev": 13
+      "mean": 44,
+      "stddev": 8
     },
     "baserunning": {
-      "mean": 50,
-      "stddev": 11
+      "mean": 44,
+      "stddev": 8
     },
     "stealing": {
-      "mean": 48,
-      "stddev": 14
+      "mean": 42,
+      "stddev": 8
     },
     "arm_strength": {
-      "mean": 50,
-      "stddev": 13
+      "mean": 44,
+      "stddev": 8
     },
     "fielding": {
-      "mean": 50,
-      "stddev": 12
+      "mean": 44,
+      "stddev": 8
     },
     "throwing": {
-      "mean": 50,
-      "stddev": 11
+      "mean": 44,
+      "stddev": 8
     }
   },
   "catcher_only_abilities": {
     "catching": {
-      "mean": 52,
-      "stddev": 11
+      "mean": 46,
+      "stddev": 8
     },
     "game_calling": {
-      "mean": 50,
-      "stddev": 10
+      "mean": 44,
+      "stddev": 8
     }
   },
   "pitcher_abilities": {
     "velocity_kmh": {
-      "mean": 135,
-      "stddev": 8,
+      "mean": 117,
+      "stddev": 4.5,
       "min": 100,
       "max": 165,
       "grade_adjustment": {
@@ -85,28 +85,28 @@
       }
     },
     "control": {
-      "mean": 49,
-      "stddev": 12
+      "mean": 43,
+      "stddev": 8
     },
     "stamina": {
-      "mean": 51,
-      "stddev": 13
+      "mean": 45,
+      "stddev": 8
     },
     "stuff": {
-      "mean": 50,
-      "stddev": 12
+      "mean": 38,
+      "stddev": 8
     },
     "strikeout": {
-      "mean": 49,
-      "stddev": 12
+      "mean": 37,
+      "stddev": 8
     },
     "groundball": {
-      "mean": 50,
-      "stddev": 11
+      "mean": 38,
+      "stddev": 8
     },
     "composure": {
-      "mean": 50,
-      "stddev": 10
+      "mean": 44,
+      "stddev": 8
     }
   },
   "position_aptitude": {
@@ -141,14 +141,14 @@
     ],
     "per_pitch_fields": {
       "quality": {
-        "mean": 50,
-        "stddev": 12,
+        "mean": 38,
+        "stddev": 8,
         "min": 1,
         "max": 100
       },
       "command": {
-        "mean": 50,
-        "stddev": 12,
+        "mean": 44,
+        "stddev": 8,
         "min": 1,
         "max": 100
       },
