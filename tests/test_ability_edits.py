@@ -2,6 +2,7 @@
 from dataclasses import replace
 from datetime import date
 from pathlib import Path
+import json
 import pickle
 import tempfile
 import unittest
@@ -111,7 +112,8 @@ class AbilityEditTests(unittest.TestCase):
                 self.assertEqual(b.ability(p), untouched.ability(p))
         ranked, _ = self.editor.team(b, players, 'C')
         self.assertTrue(ranked['reached'], ranked)
-        self.assertTrue(58 <= ranked['achieved'] < 67)
+        bands = json.loads((ROOT / 'config' / 'screen' / 'screen_v1.json').read_text(encoding='utf-8'))['ability_ranks']
+        self.assertTrue(bands['C'] <= ranked['achieved'] < bands['B'])
         result, _ = self.editor.team(b, players, 100)
         self.assertFalse(result['reached'])
         self.assertTrue(result['reason'])
