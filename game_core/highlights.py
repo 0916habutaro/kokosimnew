@@ -5,6 +5,7 @@
 - 得点が入った打席：``["S", 回, 表裏, 打者ID, 打撃結果, 得点]``
   （本塁打は打撃結果が ``home_run``）
 - 投手交代：``["P", 回, 表裏, 守備側の学校ID, 代わった投手ID]``
+- 併殺：``["D", 回, 表裏, 併殺打の打者ID]``（守った側は表裏から決まる）
 
 表裏は ``"t"``（表）・``"b"``（裏）。容量を抑えるため短い配列で持つ。
 """
@@ -14,6 +15,7 @@ from typing import Iterable
 
 SCORE = "S"
 PITCHING_CHANGE = "P"
+DOUBLE_PLAY = "D"
 _HALF = {"top": "t", "bottom": "b"}
 
 
@@ -34,6 +36,8 @@ def game_highlights(events: Iterable) -> list[list]:
                 SCORE, event.inning, half,
                 event.batter_id, event.event_type, event.runs_scored,
             ])
+        if event.event_type == "double_play":
+            out.append([DOUBLE_PLAY, event.inning, half, event.batter_id])
     return out
 
 
@@ -50,6 +54,9 @@ def validate_highlights(value) -> None:
         elif kind == PITCHING_CHANGE:
             if len(item) != 5:
                 raise ValueError("invalid pitching change highlight")
+        elif kind == DOUBLE_PLAY:
+            if len(item) != 4:
+                raise ValueError("invalid double play highlight")
         else:
             raise ValueError(f"unknown highlight kind: {kind}")
         if not isinstance(item[1], int) or item[1] < 1 or item[2] not in ("t", "b"):

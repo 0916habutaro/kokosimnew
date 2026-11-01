@@ -29,7 +29,7 @@ PITCH_LABELS = {
 GROWTH_LABELS = {"early": "早熟", "normal": "普通", "late": "晩成"}
 BATTING_KEYS = (
     "plate_appearances", "at_bats", "hits", "doubles", "triples", "home_runs",
-    "rbi", "runs", "walks", "strikeouts", "stolen_bases",
+    "rbi", "runs", "walks", "strikeouts", "stolen_bases", "grounded_into_double_plays",
 )
 PITCHING_KEYS = (
     "outs_recorded", "batters_faced", "hits_allowed", "runs_allowed",

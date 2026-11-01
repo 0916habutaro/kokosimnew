@@ -1,6 +1,6 @@
 {
   "config_id": "match_simulation_v1",
-  "revision": 9,
+  "revision": 10,
   "status": "tuned_2026_11_01",
   "description_ja": "能力ベースの試合モデル（打席結果・走者進塁・投手運用）。能力の効きと球数は従来の調整を維持（game_definition.md §11）。打席の基準重みは新基準バット導入後の夏甲子園（2024〜2026年の本塁打7・10・8本）と全国進行の得点・コールドを比較して調整。本塁打0.0025・単打0.195・二塁打0.060、他はrevision 5の相対重みを使い、合計1に正規化した。抽選時には能力補正後に再び正規化する。 先発の継投判断は完投可能性・スタミナ差・失点・球数制限と全国進行を比較して調整。 能力の効き（ability_effect_scale）は、入部品質を選手ごとの素質に変えて学校の強さの差が縮んだ分を戻すため、失策を除いて1.35倍にした（2026-10-31、地方大会の得点・点差・コールド・完封と夏の甲子園の初出場に合わせた）。 型の調整で投手の能力の平均と打撃の学校差が変わった分、能力の効きをさらに1.06倍にした（2026-11-01）。",
   "score_source": "ability_model_v1",
@@ -65,7 +65,7 @@
     },
     "sacrifice_fly": {
       "enabled": true,
-      "base_probability": 0.55,
+      "base_probability": 0.7,
       "requires_runner_on_third": true,
       "max_outs": 1
     }
@@ -141,6 +141,18 @@
       "sacrifice_fly": [
         1,
         4
+      ],
+      "ground_out": [
+        1,
+        4
+      ],
+      "fly_out": [
+        1,
+        4
+      ],
+      "double_play": [
+        1,
+        4
       ]
     }
   },
@@ -158,5 +170,28 @@
     "plate_appearance": "plate_appearance_v1:{match_id}:{plate_appearance_no}",
     "event": "event_v1:{match_id}:{event_no}",
     "pitches": "pitches_v1:{match_id}:{plate_appearance_no}"
+  },
+  "outs_in_play": {
+    "description_ja": "凡退（field_out）の中身（2026-11-01）。ゴロの割合 = base ＋ (投手のゴロ − 50)×per_groundball_point ＋ (打者の長打 − 50)×per_power_point ＋ (打者のミート − 50)×per_contact_point を min〜max に収める。ゴロで一塁に走者・2死未満なら、併殺の確率 = base − (打者の走力 − 50)×speed_effect_per_point ＋ (守備力 − 50)×defense_effect_per_point。advance は凡退の間に走者が進む確率の基準（baserunning と同じく走者の走塁・走力と守備力で増減）：ゴロで二塁→三塁（押し出しでないとき）、ゴロで三塁走者の生還（押し出しでないとき）、フライで二塁→三塁のタッチアップ。フライで三塁走者が生還するのは犠飛（situational_events.sacrifice_fly）。値は仮の値（実際の高校野球の打球の割合・進塁の割合の集計は見つからなかった）。併殺の回数の目安は game_definition.md §3.6",
+    "ground_share": {
+      "base": 0.5,
+      "per_groundball_point": 0.006,
+      "per_power_point": -0.006,
+      "per_contact_point": 0.002,
+      "min": 0.2,
+      "max": 0.8
+    },
+    "double_play": {
+      "base": 0.35,
+      "speed_effect_per_point": 0.005,
+      "defense_effect_per_point": 0.005,
+      "min": 0.05,
+      "max": 0.7
+    },
+    "advance": {
+      "ground_second_to_third": 0.6,
+      "ground_third_scores": 0.5,
+      "fly_second_to_third": 0.3
+    }
   }
 }

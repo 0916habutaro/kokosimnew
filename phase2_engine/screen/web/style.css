@@ -159,6 +159,7 @@ svg text { font-family: var(--ui); }
 .hl .inn { width: 54px; color: var(--muted); font-family: var(--num); }
 .hl.hr .what { color: var(--accent); font-weight: 700; }
 .hl.pc .what { color: var(--muted); }
+.hl.dp .what { color: var(--muted); }
 .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .stat-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .stat-table th { color: var(--muted); font-weight: 400; text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--line); }
