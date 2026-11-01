@@ -13,7 +13,7 @@ from phase2_engine.models import Team
 from phase2_engine.randomness import rng_for
 
 from .players import (
-    CORE_ROSTER_SIZE, Player, PlayerRosterGenerator, SchoolRoster,
+    CORE_ROSTER_SIZE, Player, PlayerRosterGenerator, SchoolRoster, draw_hands,
     _position_group, draw_identity, validate_school_roster,
 )
 
@@ -108,10 +108,7 @@ def advance_school_roster(
             taken,
         )
         taken.add(identity.display_name)
-        throws_left = 0.20 if pos == "P" else 0.10
-        throws = "L" if rng.random() < throws_left else "R"
-        roll = rng.random()
-        bats = "S" if roll < 0.04 else ("L" if roll < 0.29 else "R")
+        throws, bats = draw_hands(pos, rng)
         newcomers.append(Player(
             player_id=_newcomer_id(
                 career_seed, next_year, team.school_id, slot

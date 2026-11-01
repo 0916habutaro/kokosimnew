@@ -283,6 +283,19 @@ class SchoolAwarePlayerAbilityGenerator:
         )
         return PlayerTalent(round(value, 6), prospect, batter_type, pitcher_type)
 
+    def platoon_trait(self, player: Player, base_seed: int) -> str | None:
+        """一部の選手だけの左右の得意・不得意（野手は対左投手、投手は対左打者）。"""
+        shares = self.params["platoon_traits"]["pitcher" if player.primary_position == "P" else "batter"]
+        roll = rng_for(base_seed, self._namespace(
+            "platoon", school_id=player.school_id, entry_year=player.entry_year,
+            roster_no=player.roster_no,
+        )).random()
+        for trait in ("vs_left_good", "vs_left_bad"):
+            if roll < float(shares[trait]):
+                return trait
+            roll -= float(shares[trait])
+        return None
+
     def _player_rng(self, player: Player, base_seed: int):
         return rng_for(base_seed, self._namespace(
             "player", school_id=player.school_id, entry_year=player.entry_year,
@@ -390,6 +403,7 @@ class SchoolAwarePlayerAbilityGenerator:
                 for pitch in base.pitch_repertoire
             )
 
+        payload["platoon_trait"] = self.platoon_trait(player, profile.generation_seed)
         snapshot = IntakeAdjustedPlayerAbilitySnapshot(
             **payload,
             intake_config_id=profile.intake_config_id,

@@ -150,7 +150,7 @@ class RosterBookTests(unittest.TestCase):
         rows = decode_closed_record(book.closed_record(2026, "SCH-A"))
         self.assertEqual(
             [p.to_dict() for p in roster.players],
-            [{k: v for k, v in row.items() if k not in ("abilities", "growth_type", "potential", "velocity_potential", "injuries")}
+            [{k: v for k, v in row.items() if k not in ("abilities", "growth_type", "potential", "velocity_potential", "platoon_trait", "injuries")}
              for row in rows],
         )
         for player, row in zip(roster.players, rows):

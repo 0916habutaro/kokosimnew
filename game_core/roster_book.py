@@ -39,6 +39,9 @@ SCALARS = BATTER_ABILITIES + CATCHER_ABILITIES + PITCHER_ABILITIES
 PITCH_FIELDS = 4
 
 
+TRAITS = (None, "vs_left_good", "vs_left_bad")
+
+
 def pack_abilities(snapshot: PlayerAbilitySnapshot, pitch_types: list[str]) -> bytes:
     """能力を1項目1バイトに詰める（ない項目は0。値は1〜165）。"""
     values = [getattr(snapshot, name) or 0 for name in SCALARS]
@@ -53,6 +56,7 @@ def pack_abilities(snapshot: PlayerAbilitySnapshot, pitch_types: list[str]) -> b
 
 def unpack_abilities(
     data: bytes, player: Player, *, config_fields: dict, pitch_types: list[str],
+    trait: int = 0,
 ) -> PlayerAbilitySnapshot:
     scalars = {name: (data[i] or None) for i, name in enumerate(SCALARS)}
     offset = len(SCALARS)
@@ -78,6 +82,9 @@ def unpack_abilities(
         **scalars,
         position_aptitude=aptitude,
         pitch_repertoire=pitches,
+        bats=player.bats,
+        throws=player.throws,
+        platoon_trait=TRAITS[trait],
     )
 
 
@@ -142,15 +149,17 @@ class PlayerState:
 
     __slots__ = (
         "values", "growth_type", "potential", "velocity_potential", "games", "season_games",
-        "injuries",
+        "injuries", "trait",
     )
 
     def __init__(
         self, values: bytearray, growth_type: int, potential: int, games: int = 0,
         season_games: int = 0, injuries: list[Injury] | None = None,
-        velocity_potential: int | None = None,
+        velocity_potential: int | None = None, trait: int = 0,
     ):
         self.values = values
+        # 左右の得意・不得意（TRAITS の番号）
+        self.trait = trait
         self.growth_type = growth_type
         self.potential = potential
         # 球速の伸びしろ（×80。player_growth.py）
@@ -178,7 +187,7 @@ def _pack_states(first_year: int, states: dict[tuple[int, int], PlayerState]) ->
     for (entry_year, roster_no), state in sorted(states.items()):
         out.extend((
             entry_year - first_year + 2, roster_no, state.growth_type,
-            state.potential, state.velocity_potential, state.games,
+            state.potential, state.velocity_potential, state.trait, state.games,
             min(255, state.season_games), len(state.injuries), len(state.values),
         ))
         for injury in state.injuries:
@@ -193,9 +202,9 @@ def _unpack_states(first_year: int, data: bytes) -> dict[tuple[int, int], Player
     states = {}
     offset = 0
     while offset < len(data):
-        (entry, roster_no, growth_type, potential, velocity_potential, games,
-         season_games, count, size) = data[offset:offset + 9]
-        offset += 9
+        (entry, roster_no, growth_type, potential, velocity_potential, trait, games,
+         season_games, count, size) = data[offset:offset + 10]
+        offset += 10
         injuries = []
         for _ in range(count):
             injuries.append(Injury(
@@ -206,7 +215,7 @@ def _unpack_states(first_year: int, data: bytes) -> dict[tuple[int, int], Player
             offset += 5
         states[(entry + first_year - 2, roster_no)] = PlayerState(
             bytearray(data[offset:offset + size]), growth_type, potential, games,
-            season_games, injuries, velocity_potential,
+            season_games, injuries, velocity_potential, trait,
         )
         offset += size
     return states
@@ -386,6 +395,7 @@ class RosterBook:
             )
         return PlayerState(
             values, growth_type, potential, velocity_potential=velocity_potential,
+            trait=TRAITS.index(snapshot.platoon_trait),
         )
 
     # ---- 名簿 ----
@@ -513,8 +523,10 @@ class RosterBook:
 
     def base_ability(self, player: Player) -> PlayerAbilitySnapshot:
         """怪我・復帰の補正を掛ける前の能力。編集はこの値に対して行う。"""
-        return unpack_abilities(bytes(self.state(player).values), player,
-                                config_fields=self._config_fields(), pitch_types=self._pitch_types())
+        state = self.state(player)
+        return unpack_abilities(bytes(state.values), player,
+                                config_fields=self._config_fields(), pitch_types=self._pitch_types(),
+                                trait=state.trait)
 
     def project_ability(self, player, snapshot):
         values = bytearray(pack_abilities(snapshot, self._pitch_types()))
@@ -523,7 +535,7 @@ class RosterBook:
         if step:
             self._recovery_drop(values, recent, step)
         return unpack_abilities(bytes(values), player, config_fields=self._config_fields(),
-                                pitch_types=self._pitch_types())
+                                pitch_types=self._pitch_types(), trait=TRAITS.index(snapshot.platoon_trait))
 
     def edit_abilities(self, players, snapshots, *, day, source):
         # 検証とパックを全員分済ませ、途中まで変更されるのを防ぐ。
@@ -538,6 +550,7 @@ class RosterBook:
         with self._lock:
             for player, snapshot, values in zip(players, snapshots, packed):
                 self.state(player).values = values
+                self.state(player).trait = TRAITS.index(snapshot.platoon_trait)
                 self.ability_edits.setdefault(player.player_id, []).append({
                     "date": day, "school_id": player.school_id, "source": source,
                     "abilities": snapshot.to_dict(),
@@ -562,6 +575,7 @@ class RosterBook:
                 cached = unpack_abilities(
                     bytes(values), player,
                     config_fields=self._fields, pitch_types=self._pitch_types(),
+                    trait=state.trait,
                 )
                 self._abilities[key] = cached
             return cached
@@ -834,5 +848,6 @@ def decode_closed_record(blob: bytes) -> list[dict]:
             "velocity_potential": (
                 state.velocity_potential / POTENTIAL_SCALE if state is not None else None
             ),
+            "platoon_trait": TRAITS[state.trait] if state is not None else None,
         })
     return out

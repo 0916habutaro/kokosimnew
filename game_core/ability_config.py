@@ -450,13 +450,21 @@ def validate_school_intake(
     namespaces = payload.get("rng_namespace_policy")
     if not isinstance(namespaces, dict):
         raise ValueError("school intake: rng_namespace_policy required")
-    if set(namespaces) != {"program", "cohort", "prospects", "player", "priority"}:
+    if set(namespaces) != {"program", "cohort", "prospects", "player", "priority", "platoon"}:
         raise ValueError(
             "school intake: rng namespace keys mismatch"
         )
     # 選手ごとの乱数は入学年度・学校・部員番号で分ける（入部人数が変わっても
     # 既にいる選手の能力が変わらない）
-    for key in ("player", "priority"):
+    traits = payload.get("platoon_traits")
+    if not isinstance(traits, dict) or not {"batter", "pitcher"} <= set(traits):
+        raise ValueError("school intake: platoon_traits needs batter and pitcher")
+    for group in ("batter", "pitcher"):
+        shares = traits[group]
+        if set(shares) != {"vs_left_good", "vs_left_bad"} or not all(
+                isinstance(v, (int, float)) and 0 <= v <= 1 for v in shares.values()) or sum(shares.values()) > 1:
+            raise ValueError(f"school intake: invalid platoon_traits.{group}")
+    for key in ("player", "priority", "platoon"):
         if not all(
             part in str(namespaces[key])
             for part in ("{entry_year}", "{school_id}", "{roster_no}")

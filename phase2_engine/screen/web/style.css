@@ -345,3 +345,4 @@ details.coach-references[open] summary { margin-bottom: 8px; }
 small.called { color: var(--accent); font-size: 10.5px; font-family: var(--ui); }
 .board-called { margin-top: 6px; color: var(--accent); font-weight: 700; font-size: 13px; }
 p.decisions { margin: 8px 0 4px; }
+.trait { margin-left: 4px; color: var(--accent); font-size: 11px; }

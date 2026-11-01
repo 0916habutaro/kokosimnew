@@ -42,6 +42,7 @@ from .koshien_records import (
 )
 from .player_views import (
     GROWTH_LABELS,
+    trait_label,
     aptitude_rows,
     injury_row,
     ability_rows,
@@ -1530,6 +1531,9 @@ class GameScreenData:
                           for key in FIELD_POSITIONS],
             "pitches": [pitch.to_dict() for pitch in snapshot.pitch_repertoire],
             "pitch_types": [{"key": key, "label": PITCH_LABELS.get(key, key)} for key in rosters.pitch_types()],
+            "trait": snapshot.platoon_trait,
+            "trait_options": [{"key": key, "label": trait_label(key, player.primary_position) or "なし"}
+                              for key in ("", "vs_left_good", "vs_left_bad")],
             "history": rosters.ability_edits.get(player.player_id, []),
         }
 
@@ -1799,12 +1803,16 @@ class GameScreenData:
             for i in next((row.get("injuries") or [] for _, row in reversed(entries)
                            if row.get("injuries")), [])
         ]
+        trait = next((row.get("platoon_trait") for _, row in reversed(entries)
+                      if row.get("abilities")), None)
         if enrolled:
             state = rosters.state(player)
             from game_core.player_growth import TYPES
 
             growth_type = TYPES[state.growth_type]
-            now = snapshot_values(rosters.ability(player))
+            snapshot = rosters.ability(player)
+            trait = snapshot.platoon_trait
+            now = snapshot_values(snapshot)
             injuries = [
                 injury_row(i.start.isoformat(), i.days, i.severity) for i in state.injuries
             ]
@@ -1833,6 +1841,7 @@ class GameScreenData:
             "entry_year": player.entry_year,
             "position": POSITION_LABELS.get(position, ""),
             "bats": player.bats, "throws": player.throws,
+            "trait": trait_label(trait, position),
             "growth_type": GROWTH_LABELS.get(growth_type or "", ""),
             "injury": self._injury_now(player) if enrolled else None,
             # 怪我の履歴（新しい順）
@@ -1880,7 +1889,8 @@ class GameScreenData:
         details = list(self._school_details(school_id, year))
         rows = []
         for player in sorted(players, key=lambda p: (-p.academic_year, p.roster_no)):
-            values = snapshot_values(rosters.ability(player)) if rosters is not None else None
+            snapshot = rosters.ability(player) if rosters is not None else None
+            values = snapshot_values(snapshot) if snapshot is not None else None
             stats = member_stats(season_stats(details, player.player_id))
             rows.append({
                 "player_id": player.player_id,
@@ -1889,6 +1899,8 @@ class GameScreenData:
                 "grade": player.academic_year,
                 "position": POSITION_LABELS.get(player.primary_position, ""),
                 "bats": player.bats, "throws": player.throws,
+                "trait": trait_label(snapshot.platoon_trait if snapshot is not None else None,
+                                     player.primary_position),
                 "injury": self._injury_now(player),
                 "abilities": member_abilities(values, player.primary_position, bands),
                 "stats": stats,

@@ -1285,7 +1285,7 @@ const MEMBER_BASE = [
 const memberAbility = (key, label) => [key, label, (m) => m.abilities[key]?.value ?? -1, (m) => abilityCell(m.abilities[key]).replace(/^<td[^>]*>|<\/td>$/g, ""), 1];
 const fmtAvg = (v) => v === null ? "−" : v.toFixed(3).replace(/^0/, "");
 const fmtInnings = (outs) => outs === null ? "−" : `${Math.floor(outs / 3)}${outs % 3 ? ` ${outs % 3}/3` : ""}`;
-const MEMBER_HANDS = ["hands", "投打", (m) => m.throws + m.bats, (m) => `${HANDS[m.throws] || m.throws}投${HANDS[m.bats] || m.bats}打`];
+const MEMBER_HANDS = ["hands", "投打", (m) => m.throws + m.bats, (m) => `${HANDS[m.throws] || m.throws}投${HANDS[m.bats] || m.bats}打${m.trait ? `<small class="trait">${esc(m.trait)}</small>` : ""}`];
 const MEMBER_STATE = ["injury", "状態", (m) => m.injury ? 1 : 0, (m) => injuryBadge(m.injury)];
 const MEMBER_TABLES = [
   ["pitchers", "投手", (m) => m.tables.includes("pitchers"), [
@@ -1369,7 +1369,7 @@ function abilityCell(item) {
 async function renderPlayer(content, target) {
   const p = await call("player", target.school, target.id, ...(target.year ? [target.year] : []));
   if (!p) return;
-  const hands = `${HANDS[p.throws] || p.throws}投${HANDS[p.bats] || p.bats}打`;
+  const hands = `${HANDS[p.throws] || p.throws}投${HANDS[p.bats] || p.bats}打${p.trait ? `・${esc(p.trait)}` : ""}`;
   const abilities = p.abilities.length ? `<table class="list">${p.abilities.map((a) => `<tr><td>${esc(a.label)}</td>${abilityCell(a)}</tr>`).join("")}</table>`
     : '<div class="muted">今の能力は在学中の選手だけ出ます。</div>';
   const aptitudes = p.aptitudes.length ? `<h3 style="margin-top:12px">守備位置の適性</h3><table class="list aptitudes"><tr>${p.aptitudes.map((x) => `<th class="n">${esc(x.label)}</th>`).join("")}</tr>
@@ -1422,6 +1422,7 @@ async function editPlayer(p) {
   const pitchRow = (pitch = { pitch_type: "slider", quality: 50, command: 50, usage: 1 }) => `<tr><td><select class="pe-type">${pitchOptions(pitch.pitch_type)}</select></td>${["quality", "command", "usage"].map((k) => `<td><input class="pe-${k}" type="number" required min="1" max="100" step="1" value="${pitch[k]}"></td>`).join("")}<td><button type="button" class="btn small pe-remove">削除</button></td></tr>`;
   const body = `<p>怪我・復帰の補正を掛ける前の能力を編集します。保存後も成長と怪我の経過は続きます。</p>
     <fieldset><legend>能力</legend><div class="ability-edit-grid">${e.fields.map((f) => numeric(f, "pe")).join("")}</div></fieldset>
+    <fieldset><legend>左右の得意・不得意</legend><label>特性<select id="pe-trait">${e.trait_options.map((o) => `<option value="${esc(o.key)}" ${(e.trait || "") === o.key ? "selected" : ""}>${esc(o.label)}</option>`).join("")}</select></label></fieldset>
     <fieldset><legend>守備適性</legend><div class="ability-edit-grid">${e.aptitudes.map((f) => numeric(f, "pa")).join("")}</div></fieldset>
     ${e.pitches.length ? `<fieldset><legend>球種</legend><p>2〜4種類・ストレート必須・重複なし・割合の合計100にしてください。</p>
       <table class="list pitch-edit"><thead><tr><th>球種</th><th>質</th><th>制球</th><th>割合</th><th></th></tr></thead><tbody id="pe-pitches">${e.pitches.map((p) => pitchRow(p)).join("")}</tbody></table>
@@ -1441,6 +1442,7 @@ async function editPlayer(p) {
     submit: async () => {
       const payload = Object.fromEntries(e.fields.map((f) => [f.key, $(`pe-${f.key}`).valueAsNumber]));
       payload.position_aptitude = Object.fromEntries(e.aptitudes.map((f) => [f.key, $(`pa-${f.key}`).valueAsNumber]));
+      payload.platoon_trait = $("pe-trait").value || null;
       if (e.pitches.length) payload.pitch_repertoire = Array.from($("pe-pitches").rows).map((row) => ({
         pitch_type: row.querySelector(".pe-type").value,
         ...Object.fromEntries(["quality", "command", "usage"].map((key) => [key, row.querySelector(`.pe-${key}`).valueAsNumber])),

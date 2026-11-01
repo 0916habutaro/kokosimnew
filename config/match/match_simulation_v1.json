@@ -1,6 +1,6 @@
 {
   "config_id": "match_simulation_v1",
-  "revision": 11,
+  "revision": 12,
   "status": "tuned_2026_11_01",
   "description_ja": "能力ベースの試合モデル（打席結果・走者進塁・投手運用）。能力の効きと球数は従来の調整を維持（game_definition.md §11）。打席の基準重みは新基準バット導入後の夏甲子園（2024〜2026年の本塁打7・10・8本）と全国進行の得点・コールドを比較して調整。本塁打0.0025・単打0.195・二塁打0.060、他はrevision 5の相対重みを使い、合計1に正規化した。抽選時には能力補正後に再び正規化する。 先発の継投判断は完投可能性・スタミナ差・失点・球数制限と全国進行を比較して調整。 能力の効き（ability_effect_scale）は、入部品質を選手ごとの素質に変えて学校の強さの差が縮んだ分を戻すため、失策を除いて1.35倍にした（2026-10-31、地方大会の得点・点差・コールド・完封と夏の甲子園の初出場に合わせた）。 型の調整で投手の能力の平均と打撃の学校差が変わった分、能力の効きをさらに1.06倍にした（2026-11-01）。",
   "score_source": "ability_model_v1",
@@ -235,5 +235,20 @@
       "max": 0.12
     },
     "catcher_catching_default": 40
+  },
+  "platoon": {
+    "description_ja": "左右の差（2026-11-01）。打者の打つ側（両打ちは投手と逆の側）と投手の投げる腕が同じなら same_side_points（打つ側ごと。左対左を大きく）だけ打者の打撃の能力を下げ、逆なら opposite_side_points だけ上げる。能力ごとの効き方は ability_weights。一部の選手だけの特性（school_intake_v1 の platoon_traits）は trait_points：野手の対左投手◎×は左投手と対戦するとき、投手の対左打者◎×は左の打席の打者と対戦するときに効く（投手の◎は打者を下げる）。大きさはプロの左右差を代用した仮の値（game_definition.md §3.6.2）。右対右が打席の約6割を占めるので、同じ側・逆の側の点は全体の平均がほぼ0になるように置いた",
+    "same_side_points": {
+      "R": 1.0,
+      "L": 2.0
+    },
+    "opposite_side_points": 1.8,
+    "trait_points": 4.0,
+    "ability_weights": {
+      "contact": 1.0,
+      "power": 1.4,
+      "plate_discipline": 0.5,
+      "strikeout_resistance": 1.0
+    }
   }
 }
