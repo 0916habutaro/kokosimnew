@@ -140,15 +140,21 @@ class PlayerState:
     その年度の出場数（怪我の起きやすさ）。``injuries`` は怪我の履歴（最後が今か直近）。
     """
 
-    __slots__ = ("values", "growth_type", "potential", "games", "season_games", "injuries")
+    __slots__ = (
+        "values", "growth_type", "potential", "velocity_potential", "games", "season_games",
+        "injuries",
+    )
 
     def __init__(
         self, values: bytearray, growth_type: int, potential: int, games: int = 0,
         season_games: int = 0, injuries: list[Injury] | None = None,
+        velocity_potential: int | None = None,
     ):
         self.values = values
         self.growth_type = growth_type
         self.potential = potential
+        # 球速の伸びしろ（×80。player_growth.py）
+        self.velocity_potential = potential if velocity_potential is None else velocity_potential
         self.games = games
         self.season_games = season_games
         self.injuries = injuries if injuries is not None else []
@@ -172,8 +178,8 @@ def _pack_states(first_year: int, states: dict[tuple[int, int], PlayerState]) ->
     for (entry_year, roster_no), state in sorted(states.items()):
         out.extend((
             entry_year - first_year + 2, roster_no, state.growth_type,
-            state.potential, state.games, min(255, state.season_games),
-            len(state.injuries), len(state.values),
+            state.potential, state.velocity_potential, state.games,
+            min(255, state.season_games), len(state.injuries), len(state.values),
         ))
         for injury in state.injuries:
             out.extend(_day(injury.start).to_bytes(2, "big"))
@@ -187,9 +193,9 @@ def _unpack_states(first_year: int, data: bytes) -> dict[tuple[int, int], Player
     states = {}
     offset = 0
     while offset < len(data):
-        (entry, roster_no, growth_type, potential, games, season_games,
-         count, size) = data[offset:offset + 8]
-        offset += 8
+        (entry, roster_no, growth_type, potential, velocity_potential, games,
+         season_games, count, size) = data[offset:offset + 9]
+        offset += 9
         injuries = []
         for _ in range(count):
             injuries.append(Injury(
@@ -200,7 +206,7 @@ def _unpack_states(first_year: int, data: bytes) -> dict[tuple[int, int], Player
             offset += 5
         states[(entry + first_year - 2, roster_no)] = PlayerState(
             bytearray(data[offset:offset + size]), growth_type, potential, games,
-            season_games, injuries,
+            season_games, injuries, velocity_potential,
         )
         offset += size
     return states
@@ -336,12 +342,20 @@ class RosterBook:
     def _pitch_types(self) -> list[str]:
         return list(self._base().params["pitch_repertoire"]["pitch_types"])
 
-    def _new_state(self, player: Player, year: int) -> PlayerState:
-        """入学（新規開始の部員を含む）：能力と成長の型・潜在能力をつくる。"""
+    def _new_state(self, player: Player, year: int, cohort: Iterable[int] = ()) -> PlayerState:
+        """入学（新規開始の部員を含む）：能力と成長の型・潜在能力をつくる。
+
+        ``cohort`` は同じ学校・入学年度の部員番号（有望な新入生の割り当て）。新規開始の
+        2・3年生も1年の4月の能力でつくり、開始の前の月までの成長を進める。"""
         from .school_intake import IntakeAdjustedPlayerAbilitySnapshot, SchoolAwarePlayerAbilityGenerator
 
         generator = self.ability_generator
-        snapshot = generator.generate(player, year, self.career_seed)
+        if isinstance(generator, SchoolAwarePlayerAbilityGenerator):
+            snapshot = generator.generate(
+                player, year, self.career_seed, cohort=tuple(cohort) or None,
+            )
+        else:
+            snapshot = generator.generate(player, year, self.career_seed)
         if (type(generator) is SchoolAwarePlayerAbilityGenerator and generator.source is None
                 and type(snapshot) is IntakeAdjustedPlayerAbilitySnapshot):
             # 今まさに能力へ適用した学校成分を使う。別の選手・年度へは保持しない。
@@ -355,9 +369,23 @@ class RosterBook:
             entry_year=player.entry_year, school_id=player.school_id,
             roster_no=player.roster_no,
         )
-        growth_type, potential = self.growth.draw(rng_for(self.career_seed, namespace), program_z)
+        growth_type, potential, velocity_potential = self.growth.draw(
+            rng_for(self.career_seed, namespace), program_z,
+        )
+        values = bytearray(pack_abilities(snapshot, self._pitch_types()))
+        if player.entry_year < self.first_year and (
+                type(generator) is SchoolAwarePlayerAbilityGenerator and generator.source is None):
+            self.growth.bootstrap(
+                values, position=player.primary_position, entry_year=player.entry_year,
+                first_year=self.first_year, type_index=growth_type, potential=potential,
+                velocity_potential=velocity_potential,
+                rng=rng_for(self.career_seed, self.growth.config["rng_namespaces"]["bootstrap"].format(
+                    entry_year=player.entry_year, school_id=player.school_id,
+                    roster_no=player.roster_no,
+                )),
+            )
         return PlayerState(
-            bytearray(pack_abilities(snapshot, self._pitch_types())), growth_type, potential,
+            values, growth_type, potential, velocity_potential=velocity_potential,
         )
 
     # ---- 名簿 ----
@@ -401,8 +429,13 @@ class RosterBook:
             )
             roster = transition.roster
             newcomers = transition.newcomers
+        cohorts: dict[int, list[int]] = {}
         for player in newcomers:
-            states[(player.entry_year, player.roster_no)] = self._new_state(player, year)
+            cohorts.setdefault(player.entry_year, []).append(player.roster_no)
+        for player in newcomers:
+            states[(player.entry_year, player.roster_no)] = self._new_state(
+                player, year, cohorts[player.entry_year],
+            )
         self._packed[key] = pack_school(roster, first_year=self.first_year)
         self._rosters[key] = roster
         return roster
@@ -674,7 +707,9 @@ class RosterBook:
                     self.growth.grow(
                         state.values, position=player.primary_position,
                         grade=player.academic_year, type_index=state.growth_type,
-                        potential=round(state.potential * healthy / days), games=state.games,
+                        potential=round(state.potential * healthy / days),
+                        velocity_potential=round(state.velocity_potential * healthy / days),
+                        games=state.games,
                         month=month.month, rng=rng,
                         practice_multiplier=practice_multiplier,
                     )
@@ -796,5 +831,8 @@ def decode_closed_record(blob: bytes) -> list[dict]:
             ] if state is not None else [],
             "growth_type": TYPES[state.growth_type] if state is not None else None,
             "potential": state.potential / POTENTIAL_SCALE if state is not None else None,
+            "velocity_potential": (
+                state.velocity_potential / POTENTIAL_SCALE if state is not None else None
+            ),
         })
     return out

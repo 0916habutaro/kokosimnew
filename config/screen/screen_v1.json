@@ -32,7 +32,7 @@
     "school_overall_weights": "学校一覧の「総合」：学校能力（打撃・投手・守備・走力）をこの重みで合わせる",
     "featured_match": "今日の画面の「注目の試合」：全国大会の試合は大会ごとの上限なしで先に並べ、残りを 大会の点＋回戦の点＋両校の総合の平均×ability_weight の高い順に、合わせて count 試合まで。全国大会以外は1つの大会から max_per_competition 試合まで",
     "recent_results": "今日の画面の「直近の大きな結果」：(1) 大きな場面（big_scene）の条件に合う決勝のうち days 日以内のもの、(2) 全国大会の national_round_names（準々決勝以降）はその大会が終わるまで、(3) hold_until_national の大会（夏の地方大会）の qualifier_round_names（決勝＝代表決定）は同じ年度の対応する全国大会が終わるまで。全国大会を先に、新しい順に count 試合まで",
-    "ability_ranks": "学校能力のランク：値がこの数以上ならそのランク（Sから順に見る）。Fの境目より下はG。数値は内部で持ち、画面はランクで出す",
+    "ability_ranks": "学校能力のランク：値がこの数以上ならそのランク（Sから順に見る）。Fの境目より下はG。数値は内部で持ち、画面はランクで出す。境目は全校の中の割合（S 0.1%・A 2.7%・B 16%・C 41%・D 74%・E 92%・F 99%以上）が前と同じになるよう、入部品質を選手ごとの素質に変えたとき（2026-10-31）に合わせた",
     "national_competition_types": "全国大会（夏の甲子園・選抜・神宮）の大会の種類。今日の画面で全国大会を先に並べるのに使う",
     "previous_day_results": "今日の画面の「前の試合日の結果」：今日より前で最後に試合があった日の結果。show_all_competition_types の大会の show_all_stage_codes（本大会）は全試合、それ以外は注目の試合と同じ点の順に other_count 試合まで",
     "stage_display_names": "予選の段階名の画面での言い方（ステージID → 名前）。「シード決定イベント」を大会の資料（source_id は data/sources/phase2_sources.csv）の呼び方に合わせる。ないステージは competition_stages.csv の名前のまま"
@@ -44,13 +44,13 @@
     "running_strength": 0.1
   },
   "ability_ranks": {
-    "S": 88,
-    "A": 77,
-    "B": 67,
-    "C": 58,
-    "D": 48,
-    "E": 39,
-    "F": 28
+    "S": 78,
+    "A": 70,
+    "B": 62,
+    "C": 56,
+    "D": 49,
+    "E": 42,
+    "F": 33
   },
   "national_competition_types": [
     "national_championship",

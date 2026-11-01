@@ -329,10 +329,10 @@ def validate_school_intake(
             "school intake: combined_clip min must be < max"
         )
 
-    adjustment = payload.get("ability_adjustment_per_quality_z")
+    adjustment = payload.get("ability_per_talent")
     if not isinstance(adjustment, dict):
         raise ValueError(
-            "school intake: ability_adjustment_per_quality_z required"
+            "school intake: ability_per_talent required"
         )
     expected = {
         "batter": {
@@ -397,6 +397,33 @@ def validate_school_intake(
         ) < 0:
             raise ValueError(f"school intake: {key} must be >= 0")
 
+    talent = payload.get("talent_model")
+    if not isinstance(talent, dict):
+        raise ValueError("school intake: talent_model required")
+    for key in ("school_weight", "player_stddev"):
+        if _require_number(talent.get(key), f"school_intake.talent_model.{key}") < 0:
+            raise ValueError(f"school intake: talent_model.{key} must be >= 0")
+    prospects = talent.get("prospects")
+    if not isinstance(prospects, dict):
+        raise ValueError("school intake: talent_model.prospects required")
+    for key in ("base_mean", "per_z", "max_mean", "bonus_mean", "bonus_stddev"):
+        if _require_number(prospects.get(key), f"school_intake.prospects.{key}") < 0:
+            raise ValueError(f"school intake: prospects.{key} must be >= 0")
+    known = set(catalog_ids) | {"pitch_quality", "pitch_command"}
+    types = payload.get("player_types")
+    if not isinstance(types, dict) or set(types) - {"description_ja"} != {"batter", "pitcher"}:
+        raise ValueError("school intake: player_types needs batter and pitcher")
+    for group in ("batter", "pitcher"):
+        shares = 0.0
+        for name, rule in types[group].items():
+            shares += _require_number(rule.get("share"), f"school_intake.{group}.{name}.share")
+            for part in ("load", "tilt"):
+                values = rule.get(part)
+                if not isinstance(values, dict) or not set(values) <= known:
+                    raise ValueError(f"school intake: {group}.{name}.{part} unknown ability")
+        if abs(shares - 1.0) > 1e-9:
+            raise ValueError(f"school intake: {group} type shares must sum to 1.0")
+
     rules = payload.get("rules")
     if not isinstance(rules, dict):
         raise ValueError("school intake: rules required")
@@ -421,10 +448,20 @@ def validate_school_intake(
     namespaces = payload.get("rng_namespace_policy")
     if not isinstance(namespaces, dict):
         raise ValueError("school intake: rng_namespace_policy required")
-    if set(namespaces) != {"program", "cohort"}:
+    if set(namespaces) != {"program", "cohort", "prospects", "player", "priority"}:
         raise ValueError(
             "school intake: rng namespace keys mismatch"
         )
+    # 選手ごとの乱数は入学年度・学校・部員番号で分ける（入部人数が変わっても
+    # 既にいる選手の能力が変わらない）
+    for key in ("player", "priority"):
+        if not all(
+            part in str(namespaces[key])
+            for part in ("{entry_year}", "{school_id}", "{roster_no}")
+        ):
+            raise ValueError(
+                f"school intake: {key} namespace requires entry_year/school_id/roster_no"
+            )
     if "{school_id}" not in str(namespaces["program"]):
         raise ValueError(
             "school intake: program namespace requires school_id"
