@@ -1,6 +1,6 @@
 {
   "config_id": "match_simulation_v1",
-  "revision": 12,
+  "revision": 13,
   "status": "tuned_2026_11_01",
   "description_ja": "能力ベースの試合モデル（打席結果・走者進塁・投手運用）。能力の効きと球数は従来の調整を維持（game_definition.md §11）。打席の基準重みは新基準バット導入後の夏甲子園（2024〜2026年の本塁打7・10・8本）と全国進行の得点・コールドを比較して調整。本塁打0.0025・単打0.195・二塁打0.060、他はrevision 5の相対重みを使い、合計1に正規化した。抽選時には能力補正後に再び正規化する。 先発の継投判断は完投可能性・スタミナ差・失点・球数制限と全国進行を比較して調整。 能力の効き（ability_effect_scale）は、入部品質を選手ごとの素質に変えて学校の強さの差が縮んだ分を戻すため、失策を除いて1.35倍にした（2026-10-31、地方大会の得点・点差・コールド・完封と夏の甲子園の初出場に合わせた）。 型の調整で投手の能力の平均と打撃の学校差が変わった分、能力の効きをさらに1.06倍にした（2026-11-01）。",
   "score_source": "ability_model_v1",
@@ -249,6 +249,41 @@
       "power": 1.4,
       "plate_discipline": 0.5,
       "strikeout_resistance": 1.0
+    }
+  },
+  "pitcher_effects": {
+    "description_ja": "投手の能力ごとの役割（2026-11-01、game_definition.md §3.6.2 の D）。結果ごとに投手の指数（50が基準）を、能力の50との差（球速は (球速 − velocity_center) × points_per_kmh、変化球の質は使う割合の重み付き平均）に weights を掛けて足して作る。球速は空振り（三振）と単打、球威は長打・本塁打・凡退（打球の弱さ）、変化球の質は空振り、奪三振は三振（今どおり）、ゴロは長打・本塁打・凡退（今どおり）。制球は四球・死球に加え、control_pivot より低い分（control_low、負の値）が単打・長打・本塁打を増やす。制球は変化球の制球と混ぜる：制球 ×(1 − command_weight × 変化球の割合) ＋ 変化球の制球の平均 × command_weight × 変化球の割合。球速と三振・被打率の関係の大きさはプロの分析を代用した仮の値。基準の球速は、地方大会の得点が変更前と変わらないよう124km/hにした",
+    "velocity_center": 124,
+    "points_per_kmh": 1.5,
+    "control_pivot": 50,
+    "command_weight": 0.4,
+    "weights": {
+      "whiff": {
+        "velocity": 0.45,
+        "pitch_quality": 0.45,
+        "stuff": 0.1
+      },
+      "single": {
+        "velocity": 0.4,
+        "stuff": 0.3,
+        "pitch_quality": 0.15,
+        "control_low": 0.5
+      },
+      "extra_base_hit": {
+        "stuff": 0.55,
+        "groundball": 0.4,
+        "velocity": 0.1,
+        "control_low": 0.4
+      },
+      "home_run": {
+        "stuff": 0.55,
+        "groundball": 0.45,
+        "control_low": 0.5
+      },
+      "field_out": {
+        "stuff": 0.45,
+        "groundball": 0.25
+      }
     }
   }
 }
