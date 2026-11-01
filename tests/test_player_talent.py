@@ -127,6 +127,31 @@ class PlayerTalentTests(unittest.TestCase):
         self.assertTrue(112 < statistics.mean(velocity) < 125)
         self.assertLess(sum(v >= 145 for v in velocity), 2)
 
+    def test_each_main_ability_has_its_own_specialist_type(self):
+        """主な能力ごとに、それが最も高くなる型がある（Sが一部の能力に偏らない）。"""
+        batters = [
+            self._snapshot(f"FAKE-M{i}", roster_no, 1.5)
+            for i in range(60) for roster_no in range(1, 8)
+        ]
+        pitchers = [
+            self._snapshot(f"FAKE-MP{i}", roster_no, 1.5, position="P")
+            for i in range(60) for roster_no in range(1, 8)
+        ]
+        expected = {
+            "contact": ("batter_type", "contact"), "plate_discipline": ("batter_type", "contact"),
+            "power": ("batter_type", "slugger"), "speed": ("batter_type", "speed"),
+            "fielding": ("batter_type", "defense"), "arm_strength": ("batter_type", "defense"),
+            "stuff": ("pitcher_type", "power"), "strikeout": ("pitcher_type", "power"),
+            "control": ("pitcher_type", "control"), "stamina": ("pitcher_type", "control"),
+        }
+        for ability, (field, best) in expected.items():
+            pool = pitchers if field == "pitcher_type" else batters
+            groups = {}
+            for snapshot in pool:
+                groups.setdefault(getattr(snapshot, field), []).append(getattr(snapshot, ability))
+            means = {name: statistics.mean(values) for name, values in groups.items()}
+            self.assertEqual(best, max(means, key=means.get), (ability, means))
+
 
 if __name__ == "__main__":
     unittest.main()

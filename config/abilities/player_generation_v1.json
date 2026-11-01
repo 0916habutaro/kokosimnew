@@ -1,7 +1,7 @@
 {
   "config_id": "player_generation_v1",
-  "revision": 2,
-  "status": "tuned_2026_10_31",
+  "revision": 3,
+  "status": "tuned_2026_11_01",
   "catalog_id": "ability_catalog_v1",
   "scale_id": "ability_scale_v1",
   "notes_ja": "mean・stddev は、素質0の選手が入学したとき（1年の4月）の平均と、選手ごとの能力の乱数の広がり。学校の入部品質による素質の差と型の長所・短所は school_intake_v1 で足す。新規開始時の2・3年生も1年の4月の能力でつくり、その学年までの成長を player_growth_v1 で進める（grade_adjustment は学校の補正を使わない基準の生成だけで使う）。",
@@ -19,15 +19,15 @@
   "batter_abilities": {
     "contact": {
       "mean": 44,
-      "stddev": 8
+      "stddev": 6.5
     },
     "power": {
       "mean": 44,
-      "stddev": 8
+      "stddev": 6.5
     },
     "plate_discipline": {
       "mean": 44,
-      "stddev": 8
+      "stddev": 6.5
     },
     "strikeout_resistance": {
       "mean": 44,
@@ -39,7 +39,7 @@
     },
     "speed": {
       "mean": 44,
-      "stddev": 8
+      "stddev": 6.5
     },
     "baserunning": {
       "mean": 44,
@@ -51,11 +51,11 @@
     },
     "arm_strength": {
       "mean": 44,
-      "stddev": 8
+      "stddev": 6.5
     },
     "fielding": {
       "mean": 44,
-      "stddev": 8
+      "stddev": 6.5
     },
     "throwing": {
       "mean": 44,
@@ -85,20 +85,20 @@
       }
     },
     "control": {
-      "mean": 43,
-      "stddev": 8
+      "mean": 41.5,
+      "stddev": 6.5
     },
     "stamina": {
-      "mean": 45,
-      "stddev": 8
+      "mean": 41.5,
+      "stddev": 6.5
     },
     "stuff": {
-      "mean": 38,
-      "stddev": 8
+      "mean": 34.5,
+      "stddev": 6.5
     },
     "strikeout": {
-      "mean": 37,
-      "stddev": 8
+      "mean": 31.5,
+      "stddev": 6.5
     },
     "groundball": {
       "mean": 38,
@@ -141,7 +141,7 @@
     ],
     "per_pitch_fields": {
       "quality": {
-        "mean": 38,
+        "mean": 36,
         "stddev": 8,
         "min": 1,
         "max": 100
