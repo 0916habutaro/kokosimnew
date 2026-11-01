@@ -279,10 +279,29 @@ class _ErrorFreeInning:
                             self.bases[target], self.bases[index] = key, None
                 if self.bases[0] is None:
                     self.bases[0] = batter
-        elif event == "sacrifice_fly":
-            if self.bases[2] is not None:
+        elif event in {"sacrifice_fly", "fly_out", "ground_out", "double_play"}:
+            # 凡退の間の進塁・得点は、同じ塁にいる同じ走者の実際の動きだけを写す。
+            # 実際にアウトになった走者は再構成の塁からも除く（いなければ打者のアウト
+            # だけになる。疑わしいときは投手の有利に、9.16(d/f)）。
+            if event == "sacrifice_fly" and self.bases[2] is not None:
+                # 犠飛は再構成の三塁走者を生還させる（従来どおり）
                 self.scored.add(self.bases[2])
                 self.bases[2] = None
+            removed = {key for key in before if key is not None} - set(after) - scored
+            for victim in removed:
+                if victim in self.bases:
+                    self.bases[self.bases.index(victim)] = None
+            for index in (2, 1, 0):
+                key = self.bases[index]
+                if key is None or before[index] != key:
+                    continue
+                if key in scored:
+                    self.scored.add(key)
+                    self.bases[index] = None
+                elif key in after:
+                    target = after.index(key)
+                    if target > index and self.bases[target] is None:
+                        self.bases[target], self.bases[index] = key, None
         elif event == "sacrifice_bunt":
             # The actual engine only bunts without a third-base runner. A runner
             # lagging on virtual third is held; do not invent a squeeze play.
@@ -643,33 +662,70 @@ class MatchSimulator:
         )
         return rng.random() < probability
 
-    def _maybe_sacrifice_fly(
+    def _outs_in_play(self) -> dict:
+        return self.params["outs_in_play"]
+
+    def _ground_share(self, batter: PlayerAbilitySnapshot, pitcher: PlayerAbilitySnapshot) -> float:
+        """凡退のうちゴロの割合（打者のミート・長打と投手のゴロで決まる）。"""
+        rule = self._outs_in_play()["ground_share"]
+        value = (
+            float(rule["base"])
+            + (float(pitcher.groundball or 50) - 50.0) * float(rule["per_groundball_point"])
+            + (float(batter.power) - 50.0) * float(rule["per_power_point"])
+            + (float(batter.contact) - 50.0) * float(rule["per_contact_point"])
+        )
+        return self._clamp_probability(value, float(rule["min"]), float(rule["max"]))
+
+    def _double_play_probability(self, runner_speed: float, defense_strength: float) -> float:
+        """一塁に走者・2死未満のゴロが併殺になる確率（打者の走力・守備力）。"""
+        rule = self._outs_in_play()["double_play"]
+        value = (
+            float(rule["base"])
+            - (runner_speed - 50.0) * float(rule["speed_effect_per_point"])
+            + (defense_strength - 50.0) * float(rule["defense_effect_per_point"])
+        )
+        return self._clamp_probability(value, float(rule["min"]), float(rule["max"]))
+
+    def _classify_out(
         self,
         event_type: str,
         bases: list[str | None],
         outs: int,
         batter: PlayerAbilitySnapshot,
         rng,
+        pitcher: PlayerAbilitySnapshot | None = None,
+        defense_strength: float = 50.0,
     ) -> str:
+        """凡退（field_out）をゴロ・併殺打・フライ・犠飛に分ける。
+
+        ゴロ／フライの割合は打者と投手の能力、併殺は一塁に走者・2死未満のゴロで打者の
+        走力と守備力、犠飛は三塁に走者・2死未満のフライで打者のミート・長打で決める。"""
         if event_type != "field_out":
             return event_type
+        pitcher = pitcher or batter
+        if rng.random() < self._ground_share(batter, pitcher):
+            if (bases[0] is not None and outs < 2
+                    and rng.random() < self._double_play_probability(float(batter.speed), defense_strength)):
+                return "double_play"
+            return "ground_out"
         settings = self.params["situational_events"]["sacrifice_fly"]
-        if not settings["enabled"]:
-            return event_type
-        if outs > int(settings["max_outs"]):
-            return event_type
-        if bases[2] is None:
-            return event_type
+        if (settings["enabled"] and outs <= int(settings["max_outs"]) and bases[2] is not None):
+            contact_factor = 0.75 + float(batter.contact) / 200.0
+            power_factor = 0.85 + float(batter.power) / 300.0
+            probability = min(
+                0.95, float(settings["base_probability"]) * contact_factor * power_factor,
+            )
+            if rng.random() < probability:
+                return "sacrifice_fly"
+        return "fly_out"
 
-        contact_factor = 0.75 + float(batter.contact) / 200.0
-        power_factor = 0.85 + float(batter.power) / 300.0
-        probability = min(
-            0.90,
-            float(settings["base_probability"])
-            * contact_factor
-            * power_factor,
+    def _advance_out(self, key: str, runner: PlayerAbilitySnapshot, defense_strength: float, rng) -> bool:
+        """凡退の間に走者が次の塁へ進むか（進塁打・タッチアップ）。"""
+        return rng.random() < self._advance_probability(
+            base_probability=float(self._outs_in_play()["advance"][key]),
+            runner=runner,
+            defense_strength=defense_strength,
         )
-        return "sacrifice_fly" if rng.random() < probability else event_type
 
     def _advance_probability(
         self,
@@ -720,7 +776,10 @@ class MatchSimulator:
         offense_players: dict[str, PlayerAbilitySnapshot],
         defense_strength: float,
         rng,
+        outs: int = 0,
     ) -> tuple[list[str], int, int]:
+        """``outs`` は打席の前のアウトの数（凡退の間の進塁・得点は3アウト目では起きない）。"""
+        outs_before = outs
         scored: list[str] = []
         outs = 0
         rbi = 0
@@ -870,7 +929,57 @@ class MatchSimulator:
                 scored.append(third)
                 bases[2] = None
                 rbi = 1
+            if (second is not None and outs_before + outs < 3
+                    and self._advance_out("fly_second_to_third", offense_players[second],
+                                          defense_strength, rng)):
+                bases[1], bases[2] = None, second
             return scored, outs, rbi
+
+        if event_type == "fly_out":
+            # 二塁走者のタッチアップ（三塁の走者の生還は犠飛）
+            if (outs_before + 1 < 3 and second is not None and third is None
+                    and self._advance_out("fly_second_to_third", offense_players[second],
+                                          defense_strength, rng)):
+                bases[1], bases[2] = None, second
+            return scored, 1, 0
+
+        if event_type == "ground_out":
+            # 打者はアウト。押し出される走者は進み、三塁・二塁の走者は進塁打で進む
+            if outs_before + 1 >= 3:
+                return scored, 1, 0
+            new = [None, None, None]
+            if third is not None:
+                if (first is not None and second is not None) or self._advance_out(
+                        "ground_third_scores", offense_players[third], defense_strength, rng):
+                    scored.append(third)
+                else:
+                    new[2] = third
+            if second is not None:
+                if first is not None or (new[2] is None and self._advance_out(
+                        "ground_second_to_third", offense_players[second], defense_strength, rng)):
+                    new[2] = second
+                else:
+                    new[1] = second
+            if first is not None:
+                new[1] = first
+            bases[:] = new
+            # 内野ゴロの間の得点は打点
+            return scored, 1, len(scored)
+
+        if event_type == "double_play":
+            # 一塁の走者と打者がアウト。0死からなら他の走者は進み、三塁の走者は生還（打点なし）
+            if first is None:
+                raise ValueError("double play requires a runner on first")
+            if outs_before + 2 >= 3:
+                bases[:] = [None, second, third]
+                return scored, 2, 0
+            new = [None, None, None]
+            if third is not None:
+                scored.append(third)
+            if second is not None:
+                new[2] = second
+            bases[:] = new
+            return scored, 2, 0
 
         if event_type in {"strikeout", "field_out"}:
             return scored, 1, 0
@@ -977,6 +1086,7 @@ class MatchSimulator:
             "sacrifice_bunts": 0,
             "stolen_bases": 0,
             "caught_stealing": 0,
+            "grounded_into_double_plays": 0,
         }
 
     @staticmethod
@@ -1027,6 +1137,8 @@ class MatchSimulator:
             row["sacrifice_flies"] = int(row["sacrifice_flies"]) + 1
         elif event_type == "sacrifice_bunt":
             row["sacrifice_bunts"] = int(row["sacrifice_bunts"]) + 1
+        elif event_type == "double_play":
+            row["grounded_into_double_plays"] = int(row["grounded_into_double_plays"]) + 1
         row["rbi"] = int(row["rbi"]) + rbi
 
     @staticmethod
@@ -1366,12 +1478,14 @@ class MatchSimulator:
                             if reuse_weights:
                                 weight_cache[weight_key] = weights
                         event_type = self._weighted_choice(pa_rng, weights)
-                        event_type = self._maybe_sacrifice_fly(
+                        event_type = self._classify_out(
                             event_type,
                             bases,
                             outs,
                             batter,
                             pa_rng,
+                            pitcher,
+                            defense_values[defense_id],
                         )
 
                     # 球数は抽選した打球結果のまま。サヨナラの記録確定で乱数を引き直さない。
@@ -1383,6 +1497,7 @@ class MatchSimulator:
                         offense_players=player_maps[offense_id],
                         defense_strength=defense_values[defense_id],
                         rng=event_rng,
+                        outs=outs,
                     )
                     if (half == 'bottom' and inning >= regulation
                             and team_runs[team2_id] + len(scored) > team_runs[team1_id]):

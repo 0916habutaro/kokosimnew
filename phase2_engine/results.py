@@ -135,6 +135,7 @@ def _save_match_simulation_results(
             "sacrifice_bunts",
             "stolen_bases",
             "caught_stealing",
+            "grounded_into_double_plays",
             "singles",
         ],
         batter_rows,

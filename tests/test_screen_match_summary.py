@@ -57,6 +57,11 @@ class PitchersOfRecordTests(unittest.TestCase):
         detail = game([S(1, "b", 1), S(5, "t", 2)], [("A", "a1", 27, 1), ("B", "b1", 27, 2)])
         self.assertEqual(("a1", "b1"), self.record(detail))
 
+    def test_double_play_highlights_do_not_change_the_record(self):
+        detail = game([S(1, "b", 1), ["D", 3, "t", "x"], S(5, "t", 2, event="double_play")],
+                      [("A", "a1", 27, 1), ("B", "b1", 27, 2)])
+        self.assertEqual(("a1", "b1"), self.record(detail))
+
     def test_starter_short_of_five_innings_gives_win_to_most_effective_reliever(self):
         detail = game(
             [S(3, "t", 2), P(5, "b", "A", "a2"), P(9, "b", "A", "a3")],

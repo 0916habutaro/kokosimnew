@@ -114,6 +114,8 @@ def pitchers_of_record(detail: dict | None) -> dict | None:
 
     for item in highlights:
         kind, inning, half = item[0], item[1], item[2]
+        if kind not in ("P", "S"):
+            continue
         if kind == "P":
             team, pitcher = item[3], item[4]
             if team not in current:

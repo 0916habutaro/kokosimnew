@@ -31,6 +31,9 @@ EVENT_LABELS = {
     "walk": "四球",
     "hit_by_pitch": "死球",
     "field_out": "凡打",
+    "ground_out": "ゴロ",
+    "fly_out": "フライ",
+    "double_play": "併殺打",
     "fielder_choice": "野選",
     "reached_on_error": "失策",
     "sacrifice_bunt": "犠打",
@@ -571,6 +574,15 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                 "is_home_run": item[4] == "home_run",
                 "runs": item[5],
             })
+        elif kind == "D":
+            school = batting_team[half]
+            defense = team2 if school == team1 else team1
+            highlights.append({
+                "kind": "double_play", "inning": inning,
+                "half": HALF_LABELS[half], "school_id": defense,
+                "school_name": names(defense),
+                "player_name": player_name(school, item[3]),
+            })
         else:
             school = item[3]
             highlights.append({
@@ -607,7 +619,7 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                 "fielded": stat["player_id"] in fielding[team],
                 **{key: stat.get(key, 0) for key in (
                     "at_bats", "hits", "runs", "rbi", "home_runs",
-                    "walks", "strikeouts", "stolen_bases",
+                    "walks", "strikeouts", "stolen_bases", "grounded_into_double_plays",
                 )},
             }
             for stat in detail.get("batter_stats") or ()

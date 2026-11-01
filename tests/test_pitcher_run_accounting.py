@@ -35,7 +35,7 @@ class _ScriptedSimulator(MatchSimulator):
     def _should_sacrifice_bunt(self, *args):
         return False
 
-    def _maybe_sacrifice_fly(self, event_type, *args):
+    def _classify_out(self, event_type, *args):
         return event_type
 
     def _should_change_pitcher(self, *, pitcher, stats, has_next, **kwargs):

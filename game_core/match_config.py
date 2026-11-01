@@ -19,6 +19,9 @@ REQUIRED_EVENT_TYPES = {
     "reached_on_error",
     "sacrifice_bunt",
     "sacrifice_fly",
+    "ground_out",
+    "fly_out",
+    "double_play",
 }
 
 
@@ -211,6 +214,29 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
                 f"match simulation: invalid {key} base_probability"
             )
 
+    outs_in_play = payload.get("outs_in_play")
+    if not isinstance(outs_in_play, dict):
+        raise ValueError("match simulation: outs_in_play required")
+    for section, keys in (
+        ("ground_share", ("base", "min", "max")),
+        ("double_play", ("base", "min", "max")),
+        ("advance", ("ground_second_to_third", "ground_third_scores", "fly_second_to_third")),
+    ):
+        values = outs_in_play.get(section)
+        if not isinstance(values, dict):
+            raise ValueError(f"match simulation: outs_in_play.{section} required")
+        for key in keys:
+            value = values.get(key)
+            if (not isinstance(value, (int, float)) or isinstance(value, bool)
+                    or not 0 <= float(value) <= 1):
+                raise ValueError(f"match simulation: invalid outs_in_play.{section}.{key}")
+    for key in ("per_groundball_point", "per_power_point", "per_contact_point"):
+        if not isinstance(outs_in_play["ground_share"].get(key), (int, float)):
+            raise ValueError(f"match simulation: invalid outs_in_play.ground_share.{key}")
+    for key in ("speed_effect_per_point", "defense_effect_per_point"):
+        if not isinstance(outs_in_play["double_play"].get(key), (int, float)):
+            raise ValueError(f"match simulation: invalid outs_in_play.double_play.{key}")
+
     baserunning = payload.get("baserunning")
     if not isinstance(baserunning, dict):
         raise ValueError("match simulation: baserunning required")
@@ -394,6 +420,7 @@ def validate_game_stats_contract(document: ConfigDocument) -> None:
         "sacrifice_bunts",
         "stolen_bases",
         "caught_stealing",
+        "grounded_into_double_plays",
     }
     expected_pitcher = {
         "outs_recorded",

@@ -102,6 +102,7 @@ class BatterGameStats:
     sacrifice_bunts: int = 0
     stolen_bases: int = 0
     caught_stealing: int = 0
+    grounded_into_double_plays: int = 0
 
     @property
     def singles(self) -> int:
@@ -830,7 +831,8 @@ def validate_match_simulation_result(
                     'rbi': sum(e.rbi for e in actual), 'stolen_bases': 0, 'caught_stealing': 0}
         expected.update({key: sum(e.event_type == event_type for e in actual) for key, event_type in (
             ('walks', 'walk'), ('strikeouts', 'strikeout'), ('hit_by_pitch', 'hit_by_pitch'),
-            ('sacrifice_flies', 'sacrifice_fly'), ('sacrifice_bunts', 'sacrifice_bunt'))})
+            ('sacrifice_flies', 'sacrifice_fly'), ('sacrifice_bunts', 'sacrifice_bunt'),
+            ('grounded_into_double_plays', 'double_play'))})
         differences = {key: (value, getattr(row, key)) for key, value in expected.items()
                        if getattr(row, key) != value}
         if differences:

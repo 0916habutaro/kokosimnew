@@ -1,8 +1,8 @@
 {
   "config_id": "event_catalog_v1",
-  "revision": 1,
+  "revision": 2,
   "status": "design_contract",
-  "description_ja": "Stage 13C-1の最小打席結果カタログ。走塁・暴投・投手交代などの非打席イベントは後続revisionで追加可能。",
+  "description_ja": "Stage 13C-1の最小打席結果カタログ。走塁・暴投・投手交代などの非打席イベントは後続revisionで追加可能。 field_out は打席の結果を引くときの凡退のまとまりで、試合ではゴロ（ground_out）・併殺打（double_play）・フライ（fly_out）・犠飛に分ける（2026-11-01）。",
   "event_types": [
     {
       "event_type": "strikeout",
@@ -99,6 +99,30 @@
       "counts_as_at_bat": false,
       "hit_value": 0,
       "default_outs_on_play": 1
+    },
+    {
+      "event_type": "ground_out",
+      "category": "out",
+      "is_plate_appearance": true,
+      "counts_as_at_bat": true,
+      "hit_value": 0,
+      "default_outs_on_play": 1
+    },
+    {
+      "event_type": "fly_out",
+      "category": "out",
+      "is_plate_appearance": true,
+      "counts_as_at_bat": true,
+      "hit_value": 0,
+      "default_outs_on_play": 1
+    },
+    {
+      "event_type": "double_play",
+      "category": "out",
+      "is_plate_appearance": true,
+      "counts_as_at_bat": true,
+      "hit_value": 0,
+      "default_outs_on_play": 2
     }
   ]
 }
