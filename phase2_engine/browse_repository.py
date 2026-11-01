@@ -225,6 +225,9 @@ CREATE TABLE IF NOT EXISTS batter_game_stats (
     stolen_bases INTEGER NOT NULL,
     caught_stealing INTEGER NOT NULL,
     grounded_into_double_plays INTEGER NOT NULL DEFAULT 0,
+    picked_off INTEGER NOT NULL DEFAULT 0,
+    catcher_steal_attempts INTEGER NOT NULL DEFAULT 0,
+    catcher_caught_stealing INTEGER NOT NULL DEFAULT 0,
     singles INTEGER NOT NULL,
     PRIMARY KEY (year, competition_id, match_id, player_id),
     FOREIGN KEY (year, competition_id, match_id)
@@ -688,9 +691,10 @@ class BrowseRepository:
                             plate_appearances, at_bats, runs, hits, doubles, triples,
                             home_runs, rbi, walks, strikeouts, hit_by_pitch,
                             sacrifice_flies, sacrifice_bunts, stolen_bases,
-                            caught_stealing, grounded_into_double_plays, singles
+                            caught_stealing, grounded_into_double_plays, picked_off,
+                            catcher_steal_attempts, catcher_caught_stealing, singles
                         ) VALUES (
-                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                         )
                         """,
                         (
@@ -715,6 +719,9 @@ class BrowseRepository:
                             int(row["stolen_bases"]),
                             int(row["caught_stealing"]),
                             int(row.get("grounded_into_double_plays", 0)),
+                            int(row.get("picked_off", 0)),
+                            int(row.get("catcher_steal_attempts", 0)),
+                            int(row.get("catcher_caught_stealing", 0)),
                             int(row["singles"]),
                         ),
                     )

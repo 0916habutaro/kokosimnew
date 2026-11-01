@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass, field, fields, replace
 import hashlib
 import json
@@ -103,6 +103,10 @@ class BatterGameStats:
     stolen_bases: int = 0
     caught_stealing: int = 0
     grounded_into_double_plays: int = 0
+    picked_off: int = 0
+    # 捕手として：盗塁を試みられた数と、そのうち刺した数（盗塁阻止）
+    catcher_steal_attempts: int = 0
+    catcher_caught_stealing: int = 0
 
     @property
     def singles(self) -> int:
@@ -815,8 +819,17 @@ def validate_match_simulation_result(
         from .match_simulator import validate_run_accounting
         validate_run_accounting(result)
     # DHの有無によらず、チーム合計だけでなく各選手の実イベントへ照合する。
-    # 盗塁/盗塁死を発生させるイベントは現行モデルに存在しない。
+    # 盗塁・盗塁死・牽制死は打席のあとの走塁として、その打席のイベントに記録する。
     batting_events, pitching_events = defaultdict(list), defaultdict(list)
+    steals, catcher_steals = Counter(), Counter()
+    for event in events:
+        steal = dict(event.metadata).get('steal')
+        if steal is not None:
+            runner_id, _, steal_result, catcher_id = steal.split('|')
+            steals[event.offense_school_id, runner_id, steal_result] += 1
+            if steal_result != 'po':
+                catcher_steals[event.defense_school_id, catcher_id, 'attempts'] += 1
+                catcher_steals[event.defense_school_id, catcher_id, 'cs'] += steal_result == 'cs'
     for event in events:
         batting_events[event.offense_school_id, event.batter_id].append(event)
         pitching_events[event.defense_school_id, event.pitcher_id].append(event)
@@ -828,7 +841,12 @@ def validate_match_simulation_result(
                     'doubles': sum(e.event_type == 'double' for e in actual),
                     'triples': sum(e.event_type == 'triple' for e in actual),
                     'home_runs': sum(e.event_type == 'home_run' for e in actual),
-                    'rbi': sum(e.rbi for e in actual), 'stolen_bases': 0, 'caught_stealing': 0}
+                    'rbi': sum(e.rbi for e in actual),
+                    'stolen_bases': steals[row.school_id, row.player_id, 'sb'],
+                    'caught_stealing': steals[row.school_id, row.player_id, 'cs'],
+                    'picked_off': steals[row.school_id, row.player_id, 'po'],
+                    'catcher_steal_attempts': catcher_steals[row.school_id, row.player_id, 'attempts'],
+                    'catcher_caught_stealing': catcher_steals[row.school_id, row.player_id, 'cs']}
         expected.update({key: sum(e.event_type == event_type for e in actual) for key, event_type in (
             ('walks', 'walk'), ('strikeouts', 'strikeout'), ('hit_by_pitch', 'hit_by_pitch'),
             ('sacrifice_flies', 'sacrifice_fly'), ('sacrifice_bunts', 'sacrifice_bunt'),

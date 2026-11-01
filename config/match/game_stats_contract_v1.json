@@ -1,6 +1,6 @@
 {
   "config_id": "game_stats_contract_v1",
-  "revision": 2,
+  "revision": 3,
   "status": "design_contract",
   "description_ja": "Stage 13C-1 個人成績の最小契約。打率等の派生率は保存せずread model側で計算する。",
   "batter_fields": [
@@ -19,7 +19,10 @@
     "sacrifice_bunts",
     "stolen_bases",
     "caught_stealing",
-    "grounded_into_double_plays"
+    "grounded_into_double_plays",
+    "picked_off",
+    "catcher_steal_attempts",
+    "catcher_caught_stealing"
   ],
   "pitcher_fields": [
     "outs_recorded",

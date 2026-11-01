@@ -1,6 +1,6 @@
 {
   "config_id": "player_generation_v1",
-  "revision": 3,
+  "revision": 4,
   "status": "tuned_2026_11_01",
   "catalog_id": "ability_catalog_v1",
   "scale_id": "ability_scale_v1",
@@ -105,6 +105,10 @@
       "stddev": 8
     },
     "composure": {
+      "mean": 44,
+      "stddev": 8
+    },
+    "quick": {
       "mean": 44,
       "stddev": 8
     }

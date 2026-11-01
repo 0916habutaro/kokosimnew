@@ -37,6 +37,7 @@ PITCHER_ABILITIES = (
     "strikeout",
     "groundball",
     "composure",
+    "quick",
 )
 
 
@@ -92,6 +93,8 @@ class PlayerAbilitySnapshot:
     strikeout: int | None
     groundball: int | None
     composure: int | None
+    # クイック（牽制とクイックをまとめたもの。盗塁の成否・牽制死）
+    quick: int | None
 
     position_aptitude: tuple[tuple[str, int], ...]
     pitch_repertoire: tuple[PitchAbility, ...]

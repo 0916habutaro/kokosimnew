@@ -574,6 +574,17 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                 "is_home_run": item[4] == "home_run",
                 "runs": item[5],
             })
+        elif kind == "B":
+            school = batting_team[half]
+            highlights.append({
+                "kind": "steal", "inning": inning,
+                "half": HALF_LABELS[half], "school_id": school,
+                "school_name": names(school),
+                "player_name": player_name(school, item[3]),
+                "event": {"sb": f"{'二' if item[5] == 2 else '三'}盗", "cs": "盗塁死",
+                          "po": "牽制死"}[item[4]],
+                "success": item[4] == "sb",
+            })
         elif kind == "D":
             school = batting_team[half]
             defense = team2 if school == team1 else team1
@@ -620,6 +631,7 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                 **{key: stat.get(key, 0) for key in (
                     "at_bats", "hits", "runs", "rbi", "home_runs",
                     "walks", "strikeouts", "stolen_bases", "grounded_into_double_plays",
+                    "caught_stealing", "picked_off",
                 )},
             }
             for stat in detail.get("batter_stats") or ()
