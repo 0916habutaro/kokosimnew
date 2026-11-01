@@ -237,6 +237,7 @@ def validate_player_generation(
         "strikeout",
         "groundball",
         "composure",
+        "quick",
     }
     if not required.issubset(referenced):
         raise ValueError(
@@ -357,6 +358,7 @@ def validate_school_intake(
             "strikeout",
             "groundball",
             "composure",
+            "quick",
         },
     }
     catalog_ids = {

@@ -101,6 +101,12 @@ class _RunnerResponsibilityTracker:
         origin = self._active.pop(outgoing)
         self._active[incoming] = replace(origin, player_id=incoming)
 
+    def retire_runner(self, player_id: str) -> None:
+        """盗塁死・牽制死：走者は責任を残さずに塁からいなくなる。"""
+        if player_id not in self._active:
+            raise ValueError('retired runner is not on base')
+        del self._active[player_id]
+
     def seed_tiebreak(
         self, bases: list[str | None], pitcher_id: str,
     ) -> None:
@@ -311,6 +317,18 @@ class _ErrorFreeInning:
         elif event not in {"strikeout", "field_out"}:
             raise ValueError(f"unsupported earned-run event: {event}")
 
+    def baserunning(self, key: _RunnerKey, from_index: int, to_index: int | None) -> None:
+        """打席の間の走塁。盗塁は失策のない進塁として写し、盗塁死・牽制死はアウト。"""
+        if self.outs >= 3:
+            return
+        if to_index is None:
+            self.outs += 1
+            if key in self.bases:
+                self.bases[self.bases.index(key)] = None
+            return
+        if self.bases[from_index] == key and self.bases[to_index] is None:
+            self.bases[to_index], self.bases[from_index] = key, None
+
 
 class _EarnedRunTracker:
     """One team reconstruction plus a separate entry state per pitcher (9.16(i)).
@@ -355,6 +373,13 @@ class _EarnedRunTracker:
             view.record_play(event_type, batter, before, after, scored, outs_on_play)
         self._runs.extend((keys[runner.player_id], runner) for runner in scored_runners)
         self._active = {pid: keys[pid] for pid in bases_after if pid is not None}
+
+    def record_baserunning(self, runner_id: str, from_index: int, to_index: int | None) -> None:
+        key = self._active[runner_id]
+        for view in (self._team, *self._views.values()):
+            view.baserunning(key, from_index, to_index)
+        if to_index is None:
+            del self._active[runner_id]
 
     def earned_runs(self) -> Counter[str]:
         return Counter(
@@ -504,7 +529,7 @@ class MatchSimulator:
         return replace(
             player,
             control=value, stamina=value, stuff=value,
-            strikeout=value, groundball=value, composure=value,
+            strikeout=value, groundball=value, composure=value, quick=value,
         )
 
     def _pitches(self, event_type: str, rng) -> int:
@@ -726,6 +751,79 @@ class MatchSimulator:
             runner=runner,
             defense_strength=defense_strength,
         )
+
+    @staticmethod
+    def _steal_base(bases: list[str | None]) -> int | None:
+        """盗塁を試みうる走者の塁（0：一塁から二盗、1：二塁から三盗）。本盗はしない。"""
+        if bases[0] is not None and bases[1] is None:
+            return 0
+        if bases[1] is not None and bases[2] is None:
+            return 1
+        return None
+
+    def _steal_attempt_probability(
+        self, runner: PlayerAbilitySnapshot, from_index: int, *, outs: int, margin: int, inning: int,
+    ) -> float:
+        rule = self.params["stolen_bases"]["attempt"]
+        base = float(rule["second_base" if from_index == 0 else "third_base"])
+        value = base * math.exp(
+            (float(runner.stealing) - 50.0) * float(rule["per_stealing_point"])
+            + (float(runner.speed) - 50.0) * float(rule["per_speed_point"])
+        )
+        value *= float(rule["outs_multiplier"][outs])
+        if abs(margin) >= int(rule["blowout_margin"]):
+            value *= float(rule["blowout_multiplier"])
+        elif inning >= int(rule["late_inning_from"]) and abs(margin) <= int(rule["close_margin"]):
+            value *= float(rule["late_close_multiplier"])
+        value *= float(rule["coach_tendency_multiplier"])
+        return min(float(rule["max_probability"]), value)
+
+    def _steal_success_probability(
+        self, runner: PlayerAbilitySnapshot, catcher: PlayerAbilitySnapshot,
+        pitcher: PlayerAbilitySnapshot, from_index: int,
+    ) -> float:
+        rule = self.params["stolen_bases"]["success"]
+        catching = catcher.catching
+        if catching is None:
+            catching = int(self.params["stolen_bases"]["catcher_catching_default"])
+        value = (
+            float(rule["second_base" if from_index == 0 else "third_base"])
+            + (float(runner.stealing) - 50.0) * float(rule["per_stealing_point"])
+            + (float(runner.speed) - 50.0) * float(rule["per_speed_point"])
+            - (float(catcher.arm_strength) - 50.0) * float(rule["per_catcher_arm_point"])
+            - (float(catcher.throwing) - 50.0) * float(rule["per_catcher_throwing_point"])
+            - (float(catching) - 50.0) * float(rule["per_catcher_catching_point"])
+            - (float(pitcher.quick or 50) - 50.0) * float(rule["per_pitcher_quick_point"])
+        )
+        return self._clamp_probability(value, float(rule["min"]), float(rule["max"]))
+
+    def _pickoff_probability(self, runner: PlayerAbilitySnapshot, pitcher: PlayerAbilitySnapshot) -> float:
+        rule = self.params["stolen_bases"]["pickoff"]
+        value = float(rule["base"]) * math.exp(
+            (float(pitcher.quick or 50) - 50.0) * float(rule["per_quick_point"])
+            - (float(runner.baserunning) - 50.0) * float(rule["per_baserunning_point"])
+        )
+        return self._clamp_probability(value, float(rule["min"]), float(rule["max"]))
+
+    def _attempt_steal(
+        self, *, bases: list[str | None], outs: int, margin: int, inning: int,
+        offense_players: Mapping[str, PlayerAbilitySnapshot],
+        catcher: PlayerAbilitySnapshot, pitcher: PlayerAbilitySnapshot, rng,
+    ) -> tuple[str, int, str] | None:
+        """打席のあとの盗塁：(走者, 元の塁, 結果) か None。結果は sb（盗塁）・cs（盗塁死）・
+        po（牽制死）。"""
+        from_index = self._steal_base(bases)
+        if from_index is None or outs >= 3:
+            return None
+        runner_id = bases[from_index]
+        runner = offense_players[runner_id]
+        if rng.random() >= self._steal_attempt_probability(
+                runner, from_index, outs=outs, margin=margin, inning=inning):
+            return None
+        if rng.random() < self._pickoff_probability(runner, pitcher):
+            return runner_id, from_index, "po"
+        success = rng.random() < self._steal_success_probability(runner, catcher, pitcher, from_index)
+        return runner_id, from_index, "sb" if success else "cs"
 
     def _advance_probability(
         self,
@@ -1087,6 +1185,9 @@ class MatchSimulator:
             "stolen_bases": 0,
             "caught_stealing": 0,
             "grounded_into_double_plays": 0,
+            "picked_off": 0,
+            "catcher_steal_attempts": 0,
+            "catcher_caught_stealing": 0,
         }
 
     @staticmethod
@@ -1591,6 +1692,47 @@ class MatchSimulator:
                             int(pitcher_stat["hit_batters"]) + 1
                         )
 
+                    # 打席のあとの盗塁（サヨナラ・3アウトのあとはない）
+                    bases_after_play = list(bases)
+                    steal = None
+                    if outs < 3 and not (half == "bottom" and inning >= regulation
+                                         and team_runs[team2_id] > team_runs[team1_id]):
+                        catcher_id = states[defense_id].player_for_position("C")
+                        steal = self._attempt_steal(
+                            bases=bases, outs=outs,
+                            margin=team_runs[offense_id] - team_runs[defense_id], inning=inning,
+                            offense_players=player_maps[offense_id],
+                            catcher=player_maps[defense_id][catcher_id], pitcher=pitcher,
+                            rng=rng_for(
+                                match_input.generation_seed,
+                                self.params["rng_namespace_policy"]["steal"].format(
+                                    match_id=match_input.match_id, plate_appearance_no=pa_no,
+                                ),
+                            ),
+                        )
+                    if steal is not None:
+                        runner_id, from_index, steal_result = steal
+                        runner_row = batter_rows[offense_id][runner_id]
+                        catcher_row = batter_rows[defense_id].get(catcher_id)
+                        bases[from_index] = None
+                        if steal_result == "sb":
+                            bases[from_index + 1] = runner_id
+                            runner_row["stolen_bases"] = int(runner_row["stolen_bases"]) + 1
+                        else:
+                            outs += 1
+                            outs_on_play += 1
+                            pitcher_stat["outs_recorded"] = int(pitcher_stat["outs_recorded"]) + 1
+                            runner_responsibility.retire_runner(runner_id)
+                            key = "caught_stealing" if steal_result == "cs" else "picked_off"
+                            runner_row[key] = int(runner_row[key]) + 1
+                        if steal_result != "po" and catcher_row is not None:
+                            catcher_row["catcher_steal_attempts"] = int(catcher_row["catcher_steal_attempts"]) + 1
+                            if steal_result == "cs":
+                                catcher_row["catcher_caught_stealing"] = int(catcher_row["catcher_caught_stealing"]) + 1
+                        earned_run_tracker.record_baserunning(
+                            runner_id, from_index, from_index + 1 if steal_result == "sb" else None,
+                        )
+
                     events.append(
                         MatchEvent(
                             event_no=event_no,
@@ -1622,6 +1764,9 @@ class MatchSimulator:
                                 *((('pitches', str(pitches_on_play)),) if dh_game else ()),
                                 *((('scored_runners', '|'.join(scored)),) if dh_game else ()),
                                 *((('walkoff_hit', pitch_event_type),) if event_type != pitch_event_type else ()),
+                                *((('bases_after_play', self._bases_text(bases_after_play)),
+                                   ('steal', f"{steal[0]}|{steal[1] + 1}|{steal[2]}|{catcher_id}"))
+                                  if steal is not None else ()),
                             ),
                         )
                     )
@@ -1783,10 +1928,30 @@ def validate_run_accounting(result: MatchSimulationResult) -> None:
         metadata = dict(event.metadata)
         try:
             before = [pid or None for pid in metadata['bases_before'].split('|')]
-            after = [pid or None for pid in metadata['bases_after'].split('|')]
+            final = [pid or None for pid in metadata['bases_after'].split('|')]
+            # 打席のあとの盗塁は、打席の直後の塁（bases_after_play）から再生する
+            after = [pid or None for pid in metadata.get('bases_after_play', metadata['bases_after']).split('|')]
             scored = [pid for pid in metadata['scored_runners'].split('|') if pid]
         except (KeyError, AttributeError) as exc:
             raise ValueError('DH strict validation requires scoring runner identities') from exc
+        steal = metadata.get('steal')
+        steal_out = 0
+        if steal is not None:
+            runner_id, from_base, steal_result, _ = steal.split('|')
+            from_index = int(from_base) - 1
+            steal_out = int(steal_result in ('cs', 'po'))
+            expected = list(after)
+            if steal_result not in ('sb', 'cs', 'po') or expected[from_index] != runner_id:
+                raise ValueError('invalid stolen base evidence')
+            expected[from_index] = None
+            if steal_result == 'sb':
+                if expected[from_index + 1] is not None:
+                    raise ValueError('stolen base target is occupied')
+                expected[from_index + 1] = runner_id
+            if expected != final:
+                raise ValueError('bases after the stolen base differ from the evidence')
+        elif final != after:
+            raise ValueError('bases changed after the play without evidence')
         half = (event.inning, event.half)
         if half != previous_half:
             responsibility = _RunnerResponsibilityTracker()
@@ -1822,7 +1987,13 @@ def validate_run_accounting(result: MatchSimulationResult) -> None:
         reconstruction.record_play(
             bases_before=before, bases_after=after, scored_runners=runners,
             batter_id=event.batter_id, pitcher_id=event.pitcher_id, event_type=hit_before_finish,
-            plate_appearance_no=event.plate_appearance_no, outs_before=outs, outs_on_play=event.outs_on_play)
+            plate_appearance_no=event.plate_appearance_no, outs_before=outs,
+            outs_on_play=event.outs_on_play - steal_out)
+        if steal is not None:
+            if steal_out:
+                responsibility.retire_runner(runner_id)
+            reconstruction.record_baserunning(
+                runner_id, from_index, None if steal_out else from_index + 1)
         outs += event.outs_on_play
         if outs > 3 or str(outs) != metadata.get('outs_after'):
             raise ValueError('event outs differ from inning reconstruction')
@@ -1834,7 +2005,7 @@ def validate_run_accounting(result: MatchSimulationResult) -> None:
                 result.events[next_index].inning, result.events[next_index].half) != half:
             for pid, count in reconstruction.earned_runs().items():
                 earned[event.defense_school_id, pid] += count
-        previous_half, previous_bases = half, after
+        previous_half, previous_bases = half, final
     for row in result.pitcher_stats:
         key = (row.school_id, row.player_id)
         if (row.runs_allowed, row.earned_runs) != (runs[key], earned[key]):

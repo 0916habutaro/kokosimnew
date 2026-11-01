@@ -1,6 +1,6 @@
 {
   "config_id": "ability_catalog_v1",
-  "revision": 1,
+  "revision": 2,
   "status": "design_contract",
   "description_ja": "Stage 13B-1 選手能力の機械可読カタログ。能力の意味を変更する場合はv2へ上げる。",
   "value_types": {
@@ -280,6 +280,19 @@
       ],
       "not_for": [
         "通常時の恒常能力全体"
+      ]
+    },
+    {
+      "ability_id": "quick",
+      "subject": "pitcher",
+      "value_type": "scalar_1_100",
+      "definition_ja": "牽制とクイック（走者を塁に止め、盗塁を許しにくくする）をまとめた能力。",
+      "used_for": [
+        "盗塁の成否",
+        "牽制死"
+      ],
+      "not_for": [
+        "球速・球威"
       ]
     },
     {

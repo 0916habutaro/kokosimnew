@@ -16,7 +16,7 @@ CATCHER_LABELS = (("catching", "捕球"), ("game_calling", "リード"))
 PITCHER_LABELS = (
     ("velocity_kmh", "球速"), ("control", "制球"), ("stamina", "スタミナ"),
     ("stuff", "球威"), ("strikeout", "奪三振"), ("groundball", "ゴロ"),
-    ("composure", "度胸"),
+    ("composure", "度胸"), ("quick", "クイック"),
 )
 # 学年ごとの推移に出す能力（多すぎないように主なものだけ）
 TREND_BATTER = ("contact", "power", "plate_discipline", "speed", "arm_strength", "fielding")
@@ -30,6 +30,7 @@ GROWTH_LABELS = {"early": "早熟", "normal": "普通", "late": "晩成"}
 BATTING_KEYS = (
     "plate_appearances", "at_bats", "hits", "doubles", "triples", "home_runs",
     "rbi", "runs", "walks", "strikeouts", "stolen_bases", "grounded_into_double_plays",
+    "caught_stealing", "picked_off", "catcher_steal_attempts", "catcher_caught_stealing",
 )
 PITCHING_KEYS = (
     "outs_recorded", "batters_faced", "hits_allowed", "runs_allowed",

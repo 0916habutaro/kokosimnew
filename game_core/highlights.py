@@ -6,6 +6,8 @@
   （本塁打は打撃結果が ``home_run``）
 - 投手交代：``["P", 回, 表裏, 守備側の学校ID, 代わった投手ID]``
 - 併殺：``["D", 回, 表裏, 併殺打の打者ID]``（守った側は表裏から決まる）
+- 盗塁：``["B", 回, 表裏, 走者ID, 結果, 進もうとした塁]``（結果は ``sb`` 盗塁・``cs`` 盗塁死・
+  ``po`` 牽制死。塁は 2・3）
 
 表裏は ``"t"``（表）・``"b"``（裏）。容量を抑えるため短い配列で持つ。
 """
@@ -16,6 +18,8 @@ from typing import Iterable
 SCORE = "S"
 PITCHING_CHANGE = "P"
 DOUBLE_PLAY = "D"
+STEAL = "B"
+STEAL_RESULTS = ("sb", "cs", "po")
 _HALF = {"top": "t", "bottom": "b"}
 
 
@@ -38,6 +42,10 @@ def game_highlights(events: Iterable) -> list[list]:
             ])
         if event.event_type == "double_play":
             out.append([DOUBLE_PLAY, event.inning, half, event.batter_id])
+        steal = dict(getattr(event, "metadata", ())).get("steal")
+        if steal is not None:
+            runner_id, from_base, result, _ = steal.split("|")
+            out.append([STEAL, event.inning, half, runner_id, result, int(from_base) + 1])
     return out
 
 
@@ -57,6 +65,9 @@ def validate_highlights(value) -> None:
         elif kind == DOUBLE_PLAY:
             if len(item) != 4:
                 raise ValueError("invalid double play highlight")
+        elif kind == STEAL:
+            if len(item) != 6 or item[4] not in STEAL_RESULTS or item[5] not in (2, 3):
+                raise ValueError("invalid steal highlight")
         else:
             raise ValueError(f"unknown highlight kind: {kind}")
         if not isinstance(item[1], int) or item[1] < 1 or item[2] not in ("t", "b"):

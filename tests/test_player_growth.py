@@ -15,7 +15,7 @@ MONTHS = (4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3)
 
 def _values(level: int, *, pitcher: bool = False) -> bytearray:
     values = [level] * 11 + [0, 0]
-    values += [140, level, level, level, level, level, level] if pitcher else [0] * 7
+    values += [140, level, level, level, level, level, level, level] if pitcher else [0] * 8
     values += [80] * 9
     if pitcher:
         values += [0, level, level, 100]

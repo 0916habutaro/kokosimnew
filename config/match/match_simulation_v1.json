@@ -1,6 +1,6 @@
 {
   "config_id": "match_simulation_v1",
-  "revision": 10,
+  "revision": 11,
   "status": "tuned_2026_11_01",
   "description_ja": "能力ベースの試合モデル（打席結果・走者進塁・投手運用）。能力の効きと球数は従来の調整を維持（game_definition.md §11）。打席の基準重みは新基準バット導入後の夏甲子園（2024〜2026年の本塁打7・10・8本）と全国進行の得点・コールドを比較して調整。本塁打0.0025・単打0.195・二塁打0.060、他はrevision 5の相対重みを使い、合計1に正規化した。抽選時には能力補正後に再び正規化する。 先発の継投判断は完投可能性・スタミナ差・失点・球数制限と全国進行を比較して調整。 能力の効き（ability_effect_scale）は、入部品質を選手ごとの素質に変えて学校の強さの差が縮んだ分を戻すため、失策を除いて1.35倍にした（2026-10-31、地方大会の得点・点差・コールド・完封と夏の甲子園の初出場に合わせた）。 型の調整で投手の能力の平均と打撃の学校差が変わった分、能力の効きをさらに1.06倍にした（2026-11-01）。",
   "score_source": "ability_model_v1",
@@ -169,7 +169,8 @@
     "match": "match_v1:{competition_id}:{reference_year}:{match_id}",
     "plate_appearance": "plate_appearance_v1:{match_id}:{plate_appearance_no}",
     "event": "event_v1:{match_id}:{event_no}",
-    "pitches": "pitches_v1:{match_id}:{plate_appearance_no}"
+    "pitches": "pitches_v1:{match_id}:{plate_appearance_no}",
+    "steal": "steal_v1:{match_id}:{plate_appearance_no}"
   },
   "outs_in_play": {
     "description_ja": "凡退（field_out）の中身（2026-11-01）。ゴロの割合 = base ＋ (投手のゴロ − 50)×per_groundball_point ＋ (打者の長打 − 50)×per_power_point ＋ (打者のミート − 50)×per_contact_point を min〜max に収める。ゴロで一塁に走者・2死未満なら、併殺の確率 = base − (打者の走力 − 50)×speed_effect_per_point ＋ (守備力 − 50)×defense_effect_per_point。advance は凡退の間に走者が進む確率の基準（baserunning と同じく走者の走塁・走力と守備力で増減）：ゴロで二塁→三塁（押し出しでないとき）、ゴロで三塁走者の生還（押し出しでないとき）、フライで二塁→三塁のタッチアップ。フライで三塁走者が生還するのは犠飛（situational_events.sacrifice_fly）。値は仮の値（実際の高校野球の打球の割合・進塁の割合の集計は見つからなかった）。併殺の回数の目安は game_definition.md §3.6",
@@ -193,5 +194,46 @@
       "ground_third_scores": 0.5,
       "fly_second_to_third": 0.3
     }
+  },
+  "stolen_bases": {
+    "description_ja": "盗塁（2026-11-01）。打席が終わったあと（次の打席の前）、一塁の走者（二塁が空いているとき）か二塁の走者（三塁が空いているとき）が二盗・三盗を試みる。本盗はしない。試みる確率 = 基準（second_base／third_base）× exp((盗塁 − 50)×per_stealing_point ＋ (走力 − 50)×per_speed_point) × アウトの数ごとの倍率 × 場面（7回以降で点差 close_margin 以内は late_close_multiplier、点差が blowout_margin 以上は blowout_multiplier）× 監督の傾向（coach_tendency_multiplier。段階Fで監督の采配とつなぐまで中立の1）を max_probability までに収める。試みると、まず牽制死（pickoff）を引き、そうでなければ成否を引く。成功の確率 = 基準 ＋ 走者の盗塁・走力 − 捕手の肩・送球・捕球 − 投手のクイック（それぞれ50との差×1点あたりの値）を min〜max に収める。牽制死の確率 = base × exp((クイック − 50)×per_quick_point − (走塁 − 50)×per_baserunning_point) を min〜max に収める。捕手が本職でない（捕球がない）ときは catcher_catching_default を使う。1試合あたりの盗塁の目安は game_definition.md §3.6.2（夏の甲子園の報道）。成功率・牽制死は仮の値",
+    "attempt": {
+      "second_base": 0.043,
+      "third_base": 0.009,
+      "per_stealing_point": 0.04,
+      "per_speed_point": 0.02,
+      "outs_multiplier": [
+        0.9,
+        1.1,
+        0.7
+      ],
+      "late_inning_from": 7,
+      "close_margin": 2,
+      "late_close_multiplier": 1.2,
+      "blowout_margin": 6,
+      "blowout_multiplier": 0.3,
+      "coach_tendency_multiplier": 1.0,
+      "max_probability": 0.6
+    },
+    "success": {
+      "second_base": 0.72,
+      "third_base": 0.7,
+      "per_stealing_point": 0.006,
+      "per_speed_point": 0.003,
+      "per_catcher_arm_point": 0.004,
+      "per_catcher_throwing_point": 0.002,
+      "per_catcher_catching_point": 0.001,
+      "per_pitcher_quick_point": 0.004,
+      "min": 0.2,
+      "max": 0.95
+    },
+    "pickoff": {
+      "base": 0.03,
+      "per_quick_point": 0.02,
+      "per_baserunning_point": 0.02,
+      "min": 0.005,
+      "max": 0.12
+    },
+    "catcher_catching_default": 40
   }
 }

@@ -237,6 +237,27 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         if not isinstance(outs_in_play["double_play"].get(key), (int, float)):
             raise ValueError(f"match simulation: invalid outs_in_play.double_play.{key}")
 
+    steals = payload.get("stolen_bases")
+    if not isinstance(steals, dict):
+        raise ValueError("match simulation: stolen_bases required")
+    for section, keys in (
+        ("attempt", ("second_base", "third_base", "max_probability")),
+        ("success", ("second_base", "third_base", "min", "max")),
+        ("pickoff", ("base", "min", "max")),
+    ):
+        values = steals.get(section)
+        if not isinstance(values, dict):
+            raise ValueError(f"match simulation: stolen_bases.{section} required")
+        for key in keys:
+            value = values.get(key)
+            if (not isinstance(value, (int, float)) or isinstance(value, bool)
+                    or not 0 <= float(value) <= 1):
+                raise ValueError(f"match simulation: invalid stolen_bases.{section}.{key}")
+    outs_multiplier = steals["attempt"].get("outs_multiplier")
+    if not (isinstance(outs_multiplier, list) and len(outs_multiplier) == 3
+            and all(isinstance(v, (int, float)) and v >= 0 for v in outs_multiplier)):
+        raise ValueError("match simulation: stolen_bases.attempt.outs_multiplier needs 3 values")
+
     baserunning = payload.get("baserunning")
     if not isinstance(baserunning, dict):
         raise ValueError("match simulation: baserunning required")
@@ -318,6 +339,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         "plate_appearance",
         "event",
         "pitches",
+        "steal",
     }:
         raise ValueError(
             "match simulation: RNG namespace keys mismatch"
@@ -327,6 +349,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         "plate_appearance": ("{match_id}", "{plate_appearance_no}"),
         "event": ("{match_id}", "{event_no}"),
         "pitches": ("{match_id}", "{plate_appearance_no}"),
+        "steal": ("{match_id}", "{plate_appearance_no}"),
     }
     for key, placeholders in required_placeholders.items():
         template = str(namespaces[key])
@@ -421,6 +444,9 @@ def validate_game_stats_contract(document: ConfigDocument) -> None:
         "stolen_bases",
         "caught_stealing",
         "grounded_into_double_plays",
+        "picked_off",
+        "catcher_steal_attempts",
+        "catcher_caught_stealing",
     }
     expected_pitcher = {
         "outs_recorded",
