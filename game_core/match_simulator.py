@@ -25,6 +25,7 @@ from .match_contract import (
     validate_match_simulation_result,
     _history_after_validation,
 )
+from . import fatigue as fatigue_model
 from .match_state import ChangeMoment, CompletedPlateAppearanceMoment, TeamMatchState
 from .team_strength import TeamStrengthGenerator
 
@@ -438,15 +439,31 @@ class MatchSimulator:
             return (planned, *(pid for pid in order if pid != planned))
         return order
 
+    def carry_fatigue(
+        self, team: TeamMatchInput, history: Mapping[str, Mapping[int, int]] | None,
+    ) -> dict[str, float]:
+        """試合の始まりの疲れ（連投）：選手 → 疲れの点。``history`` は選手 → (何日前 → 球数)。"""
+        if not history:
+            return {}
+        rule = self.params["fatigue"]
+        return {
+            player.player_id: fatigue_model.carry_fatigue(history[player.player_id], player.stamina, rule)
+            for player in team.player_abilities
+            if history.get(player.player_id)
+        }
+
     def _game_staff(
         self,
         team: TeamMatchInput,
         allowances: Mapping[str, int] | None,
+        carry: Mapping[str, float] | None = None,
     ) -> tuple[tuple[str, ...], int]:
         """この試合で投げる順と、そのうち投手陣の人数。球数制限（``allowances``：
         あと何球投げられるか）があれば、残りの少ない投手は先発にせず、投げられない
         投手は外す。後ろに野手を並べ、球数制限で投手がいなくなったときだけ使う。"""
         staff = self._pitcher_order(team)
+        if carry:
+            staff = self._rest_tired_starter(staff, carry)
         if allowances is None:
             return staff, len(staff)
         usage = self.params["pitching_usage"]
@@ -472,6 +489,16 @@ class MatchSimulator:
             key=lambda player: (-player.arm_strength, player.player_id),
         )
         return tuple(order) + tuple(player.player_id for player in fielders), len(order)
+
+    def _rest_tired_starter(self, staff: tuple[str, ...], carry: Mapping[str, float]) -> tuple[str, ...]:
+        """始まりの疲れが大きいエースは、もっと疲れの少ない投手がいれば休ませる（球数制限とは別）。"""
+        rest = float(self.params["fatigue"]["rest_starter_points"])
+        if not staff or carry.get(staff[0], 0.0) < rest:
+            return staff
+        fresher = next((pid for pid in staff[1:] if carry.get(pid, 0.0) < rest), None)
+        if fresher is None:
+            return staff
+        return (fresher, *[pid for pid in staff if pid != fresher])
 
     def _strength_generator(self) -> TeamStrengthGenerator:
         if self._team_generator is None:
@@ -1198,6 +1225,7 @@ class MatchSimulator:
         starter: bool,
         has_next: bool,
         tactics: CoachTactics = CoachTactics(),
+        fatigue: float = 0.0,
     ) -> bool:
         if not has_next:
             return False
@@ -1210,6 +1238,10 @@ class MatchSimulator:
         if quick_hook:
             quick_hook = max(1, quick_hook - tactics.quick_hook_reduction)
         if stats["runs_allowed"] >= quick_hook:
+            return True
+        # 疲れ（球数・連投）が大きければ代える。監督の継投傾向の倍率を同じく掛ける
+        change = self.params["fatigue"]["change"]
+        if fatigue >= float(change["starter_points" if starter else "reliever_points"]) * tactics.bf_multiplier:
             return True
         return stats["batters_faced"] >= self._pitcher_limit(
             pitcher,
@@ -1263,6 +1295,7 @@ class MatchSimulator:
             "strikeouts": 0,
             "hit_batters": 0,
             "pitches": 0,
+            "exit_fatigue": 0,
         }
 
     def _record_batter_event(
@@ -1312,6 +1345,7 @@ class MatchSimulator:
         state_sink: dict[str, TeamMatchState] | None = None,
         validated_history_sink: dict | None = None,
         lineup_changes: tuple[LineupAdjustment, ...] = (),
+        pitch_history: Mapping[str, Mapping[int, int]] | None = None,
     ) -> MatchSimulationResult:
         """``pitch_allowances``：選手 → この試合であと何球投げられるか（球数制限）。
         届いたら次の打者から投げない。None なら制限なし。
@@ -1354,8 +1388,20 @@ class MatchSimulator:
             school_id: self._players(team)
             for school_id, team in teams.items()
         }
+        carry = {
+            school_id: self.carry_fatigue(team, pitch_history)
+            for school_id, team in teams.items()
+        }
+        fatigue_rule = self.params["fatigue"]
+        tired_cache: dict[tuple[str, int], PlayerAbilitySnapshot] = {}
+
+        def fatigue_points(school_id: str, pitcher_id: str, pitches: int) -> float:
+            stamina = player_maps[school_id][pitcher_id].stamina
+            return carry[school_id].get(pitcher_id, 0.0) + fatigue_model.in_game_fatigue(
+                pitches, stamina, fatigue_rule)
+
         game_staffs = {
-            school_id: self._game_staff(team, pitch_allowances)
+            school_id: self._game_staff(team, pitch_allowances, carry[school_id])
             for school_id, team in teams.items()
         }
         pitcher_orders = {
@@ -1552,6 +1598,7 @@ class MatchSimulator:
                         starter=pitcher_id == state.initial_lineup.player_for_position('P'),
                         has_next=next_index < staff_sizes[defense_id],
                         tactics=policies[defense_id],
+                        fatigue=fatigue_points(defense_id, pitcher_id, int(pitcher_stat["pitches"])),
                     ):
                         current_index = next_index
                         pitcher_index[defense_id] = current_index
@@ -1627,10 +1674,18 @@ class MatchSimulator:
                     ):
                         event_type = "sacrifice_bunt"
                     else:
-                        weight_key = (batter_id, pitcher_id, defense_values[defense_id])
+                        # 疲れの段階ごとに能力が決まるので、段階も使い回しのキーに入れる
+                        stage = fatigue_model.stage_of(
+                            fatigue_points(defense_id, pitcher_id, int(pitcher_stat["pitches"])),
+                            fatigue_rule)
+                        tired_pitcher = tired_cache.get((pitcher_id, stage))
+                        if tired_pitcher is None:
+                            tired_pitcher = fatigue_model.tired(pitcher, stage, fatigue_rule)
+                            tired_cache[(pitcher_id, stage)] = tired_pitcher
+                        weight_key = (batter_id, pitcher_id, defense_values[defense_id], stage)
                         weights = weight_cache.get(weight_key) if reuse_weights else None
                         if weights is None:
-                            weights = weight_model(batter, pitcher, defense_values[defense_id])
+                            weights = weight_model(batter, tired_pitcher, defense_values[defense_id])
                             if reuse_weights:
                                 weight_cache[weight_key] = weights
                         event_type = self._weighted_choice(pa_rng, weights)
@@ -1718,6 +1773,9 @@ class MatchSimulator:
                         ),
                     )
                     pitcher_stat['pitches'] = int(pitcher_stat['pitches']) + pitches_on_play
+                    # 降板時（またはこの試合の最後）の疲れの段階
+                    pitcher_stat['exit_fatigue'] = fatigue_model.stage_of(
+                        fatigue_points(defense_id, pitcher_id, int(pitcher_stat['pitches'])), fatigue_rule)
                     pitcher_stat["outs_recorded"] = (
                         int(pitcher_stat["outs_recorded"])
                         + outs_on_play

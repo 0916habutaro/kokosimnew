@@ -554,7 +554,7 @@ class NationalDHSelectionTests(unittest.TestCase):
                 for ps in members.values():
                     for p in ps:self.assertEqual(before[p.player_id]+(p.player_id in expected),source.state(p).games)
                 exposures=injury.call_args.args[0]
-                self.assertEqual(expected,{p.player_id for p,_,_,_ in exposures})
+                self.assertEqual(expected,{p.player_id for p,*_ in exposures})
                 self.assertEqual(len(expected),len(exposures))
                 for s in detail['pitcher_stats']:
                     if s['pitches']:self.assertEqual(s['pitches'],live.season_state.pitch_log[s['player_id']]['2026-07-01'])

@@ -258,6 +258,27 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
             and all(isinstance(v, (int, float)) and v >= 0 for v in outs_multiplier)):
         raise ValueError("match simulation: stolen_bases.attempt.outs_multiplier needs 3 values")
 
+    fatigue = payload.get("fatigue")
+    if not isinstance(fatigue, dict):
+        raise ValueError("match simulation: fatigue required")
+    for section, keys in (
+        ("in_game", ("base_pitches", "per_stamina", "per_pitch")),
+        ("carry", ("free_pitches", "per_pitch", "recovery_per_day", "recovery_per_stamina",
+                   "min_recovery_per_day")),
+        ("drop", ("velocity_kmh", "stuff", "control", "pitch_quality", "pitch_command")),
+        ("change", ("starter_points", "reliever_points")),
+    ):
+        values = fatigue.get(section)
+        if not isinstance(values, dict) or not all(
+                isinstance(values.get(k), (int, float)) and not isinstance(values.get(k), bool)
+                for k in keys):
+            raise ValueError(f"match simulation: invalid fatigue.{section}")
+    if not (isinstance(fatigue.get("stage_points"), (int, float)) and fatigue["stage_points"] > 0
+            and isinstance(fatigue.get("max_stage"), int) and fatigue["max_stage"] >= 0
+            and isinstance(fatigue.get("rest_starter_points"), (int, float))
+            and isinstance(fatigue.get("labels"), list)):
+        raise ValueError("match simulation: invalid fatigue stages")
+
     effects = payload.get("pitcher_effects")
     if not isinstance(effects, dict):
         raise ValueError("match simulation: pitcher_effects required")
@@ -491,6 +512,7 @@ def validate_game_stats_contract(document: ConfigDocument) -> None:
         "strikeouts",
         "hit_batters",
         "pitches",
+        "exit_fatigue",
     }
     expected_team = {"runs", "hits", "errors"}
 

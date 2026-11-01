@@ -1,6 +1,6 @@
 {
   "config_id": "match_simulation_v1",
-  "revision": 13,
+  "revision": 14,
   "status": "tuned_2026_11_01",
   "description_ja": "能力ベースの試合モデル（打席結果・走者進塁・投手運用）。能力の効きと球数は従来の調整を維持（game_definition.md §11）。打席の基準重みは新基準バット導入後の夏甲子園（2024〜2026年の本塁打7・10・8本）と全国進行の得点・コールドを比較して調整。本塁打0.0025・単打0.195・二塁打0.060、他はrevision 5の相対重みを使い、合計1に正規化した。抽選時には能力補正後に再び正規化する。 先発の継投判断は完投可能性・スタミナ差・失点・球数制限と全国進行を比較して調整。 能力の効き（ability_effect_scale）は、入部品質を選手ごとの素質に変えて学校の強さの差が縮んだ分を戻すため、失策を除いて1.35倍にした（2026-10-31、地方大会の得点・点差・コールド・完封と夏の甲子園の初出場に合わせた）。 型の調整で投手の能力の平均と打撃の学校差が変わった分、能力の効きをさらに1.06倍にした（2026-11-01）。",
   "score_source": "ability_model_v1",
@@ -82,7 +82,7 @@
   },
   "pitching_usage": {
     "starter_bf_base": 32,
-    "starter_stamina_effect": 0.1,
+    "starter_stamina_effect": 0.15,
     "reliever_bf_base": 9.0,
     "reliever_stamina_effect": 0.05,
     "minimum_bf_before_change": 3,
@@ -285,5 +285,48 @@
         "groundball": 0.25
       }
     }
+  },
+  "fatigue": {
+    "description_ja": "投手の疲れ（2026-11-01、game_definition.md §3.6.2 の E。式は game_core/fatigue.py）。疲れは能力の点。試合の中（in_game）：その試合の球数が base_pitches ＋ (スタミナ − 50) × per_stamina を超えた1球ごとに per_pitch 点。試合をまたぐ（carry）：直近の日の球数のうち free_pitches を超えた分 × per_pitch を、1日ごとに exp(−回復の速さ) で減らして足す（回復の速さ = recovery_per_day ＋ (スタミナ − 50) × recovery_per_stamina。min_recovery_per_day より遅くしない）。球数制限の記録（7日分）から求める。疲れは stage_points ごとの段階に切り捨て、段階 × stage_points 点に drop を掛けた分だけ球速（km/h）・球威・制球・変化球の質と制球を下げる。交代：疲れが change の点（先発・救援）× 監督の継投傾向の倍率以上なら代える。先発：始まりの疲れが rest_starter_points 以上のエースは、もっと疲れの少ない投手がいれば休ませる。画面：labels の段階から疲れの言葉を出す（部員の表・選手の画面の印は始まりの疲れ）。値は仮の値",
+    "in_game": {
+      "base_pitches": 90,
+      "per_stamina": 0.8,
+      "per_pitch": 0.2
+    },
+    "carry": {
+      "free_pitches": 20,
+      "per_pitch": 0.08,
+      "recovery_per_day": 0.7,
+      "recovery_per_stamina": 0.01,
+      "min_recovery_per_day": 0.3
+    },
+    "stage_points": 2.0,
+    "max_stage": 10,
+    "drop": {
+      "velocity_kmh": 0.5,
+      "stuff": 2.0,
+      "control": 1.5,
+      "pitch_quality": 1.5,
+      "pitch_command": 1.5
+    },
+    "change": {
+      "starter_points": 6.5,
+      "reliever_points": 4.0
+    },
+    "rest_starter_points": 1.5,
+    "labels": [
+      {
+        "min_stage": 2,
+        "label_ja": "疲れ小"
+      },
+      {
+        "min_stage": 3,
+        "label_ja": "疲れ中"
+      },
+      {
+        "min_stage": 5,
+        "label_ja": "疲れ大"
+      }
+    ]
   }
 }

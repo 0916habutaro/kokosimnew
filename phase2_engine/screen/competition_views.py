@@ -48,6 +48,12 @@ POSITION_LABELS = {
 HALF_LABELS = {"t": "表", "b": "裏", "top": "表", "bottom": "裏"}
 
 
+def _fatigue_label(stage) -> str:
+    from game_core.fatigue import default_rule, label_of
+
+    return label_of(int(stage or 0), default_rule())
+
+
 def _level(competition: dict) -> str:
     level = competition.get("competition_level", "")
     return "local" if level not in ("national", "regional") else level
@@ -650,6 +656,8 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                     "earned_runs", "walks", "strikeouts",
                     "home_runs_allowed", "pitches",
                 )},
+                # 降板時の疲れ（例：疲れ大）。なければ空
+                "fatigue": _fatigue_label(stat.get("exit_fatigue", 0)),
             }
             for stat in detail.get("pitcher_stats") or ()
             if stat.get("school_id") == team

@@ -162,6 +162,7 @@ def _save_match_simulation_results(
             "strikeouts",
             "hit_batters",
             "pitches",
+            "exit_fatigue",
         ],
         pitcher_rows,
     )

@@ -781,7 +781,7 @@ async function renderMatchDetail(content, detail) {
   const batting = (team) => `<div class="match-table-wrap"><table class="stat-table batting-table"><tr><th>打順</th><th>打者</th><th>${hasDh ? "守備・役割" : "守備"}</th><th>打数</th><th>安打</th><th>打点</th><th>本塁打</th><th>四球</th><th>三振</th><th>盗塁</th><th>盗塁死</th><th>牽制死</th><th>併殺打</th></tr>
     ${(m.batting[team] || []).map((b) => `<tr><td>${b.batting_order || "−"}</td><td>${link(team, b)}${b.exited ? '<small class="appearance">交代済</small>' : ""}${b.role_label ? `<small class="appearance">${esc(b.role_label)}</small>` : ""}</td><td class="pos">${esc(b.position)}</td><td>${b.at_bats}</td><td>${b.hits}</td><td>${b.rbi}</td><td>${b.home_runs}</td><td>${b.walks}</td><td>${b.strikeouts}</td><td>${b.stolen_bases || 0}</td><td>${b.caught_stealing || 0}</td><td>${b.picked_off || 0}</td><td>${b.grounded_into_double_plays || 0}</td></tr>`).join("")}</table></div>`;
   const pitching = (team) => `<div class="match-table-wrap"><table class="stat-table"><tr><th>投手</th><th>回</th><th>球数</th><th>打者</th><th>安打</th><th>失点</th><th>自責</th><th>四球</th><th>三振</th></tr>
-    ${(m.pitching[team] || []).map((p) => `<tr><td>${link(team, p)}${p.position ? `<small class="appearance">${esc(p.position)}</small>` : ""}${p.role_label ? `<small class="appearance">${esc(p.role_label)}</small>` : ""}${p.exited ? '<small class="appearance">交代済</small>' : ""}</td><td>${esc(p.innings)}</td><td>${p.pitches || ""}</td><td>${p.batters_faced}</td><td>${p.hits_allowed}</td><td>${p.runs_allowed}</td><td>${p.earned_runs}</td><td>${p.walks}</td><td>${p.strikeouts}</td></tr>`).join("")}</table></div>`;
+    ${(m.pitching[team] || []).map((p) => `<tr><td>${link(team, p)}${p.position ? `<small class="appearance">${esc(p.position)}</small>` : ""}${p.role_label ? `<small class="appearance">${esc(p.role_label)}</small>` : ""}${p.exited ? '<small class="appearance">交代済</small>' : ""}</td><td>${esc(p.innings)}</td><td>${p.pitches || ""}${p.fatigue ? `<small class="fatigue">${esc(p.fatigue)}</small>` : ""}</td><td>${p.batters_faced}</td><td>${p.hits_allowed}</td><td>${p.runs_allowed}</td><td>${p.earned_runs}</td><td>${p.walks}</td><td>${p.strikeouts}</td></tr>`).join("")}</table></div>`;
   const teams = [[m.team1_id, m.team1_name], [m.team2_id, m.team2_name]];
   const lineup = (team) => {
     const record = (m.lineups || {})[team];
@@ -1286,7 +1286,7 @@ const memberAbility = (key, label) => [key, label, (m) => m.abilities[key]?.valu
 const fmtAvg = (v) => v === null ? "−" : v.toFixed(3).replace(/^0/, "");
 const fmtInnings = (outs) => outs === null ? "−" : `${Math.floor(outs / 3)}${outs % 3 ? ` ${outs % 3}/3` : ""}`;
 const MEMBER_HANDS = ["hands", "投打", (m) => m.throws + m.bats, (m) => `${HANDS[m.throws] || m.throws}投${HANDS[m.bats] || m.bats}打${m.trait ? `<small class="trait">${esc(m.trait)}</small>` : ""}`];
-const MEMBER_STATE = ["injury", "状態", (m) => m.injury ? 1 : 0, (m) => injuryBadge(m.injury)];
+const MEMBER_STATE = ["injury", "状態", (m) => (m.injury ? 2 : 0) + (m.fatigue ? 1 : 0), (m) => injuryBadge(m.injury) + fatigueBadge(m.fatigue)];
 const MEMBER_TABLES = [
   ["pitchers", "投手", (m) => m.tables.includes("pitchers"), [
     ...MEMBER_BASE, MEMBER_HANDS,
@@ -1335,6 +1335,10 @@ function drawMembers(body, d) {
 // ---- 選手 ----
 
 // 怪我の印と復帰の見込み
+function fatigueBadge(fatigue) {
+  return fatigue ? ` <span class="badge fatigue">連投の${esc(fatigue)}</span>` : "";
+}
+
 function injuryBadge(injury) {
   if (!injury) return "";
   return `<span class="badge injury">怪我（${esc(injury.label)}）</span> <span class="muted">${fmtDate(injury.return_date)}ごろ復帰</span>`;
@@ -1390,7 +1394,7 @@ async function renderPlayer(content, target) {
     ${pit.map((s) => { const x = s.pitching; return `<tr><td>${s.school_year}年度（${s.grade}年）</td><td class="n">${x.games}</td><td class="n">${esc(x.innings)}</td><td class="n">${x.pitches}</td><td class="n">${x.hits_allowed}</td><td class="n">${x.runs_allowed}</td><td class="n">${x.earned_runs}</td><td class="n">${x.walks}</td><td class="n">${x.strikeouts}</td><td class="n">${x.era}</td></tr>`; }).join("")}</table>` : "";
   content.innerHTML = `<div class="head"><button class="btn small" id="p-back">← ${target.fromMatch ? "試合へ戻る" : esc(p.school_name)}</button>
       <h2>${esc(p.name)}</h2><span class="muted">${esc(p.school_name)}　${p.status === "在学" ? `${p.grade}年` : esc(p.status)}・${esc(p.position)}・${hands}</span>
-      ${injuryBadge(p.injury)}${p.edit ? '<div class="spacer"></div><button class="btn small" id="p-edit">能力を編集…</button>' : ""}</div>
+      ${injuryBadge(p.injury)}${fatigueBadge(p.fatigue)}${p.edit ? '<div class="spacer"></div><button class="btn small" id="p-edit">能力を編集…</button>' : ""}</div>
     <div class="scroll">
       <div class="stats" style="grid-template-columns:repeat(4,1fr)">
         <div class="stat"><b>${esc(p.hometown)}</b><span>出身</span></div>

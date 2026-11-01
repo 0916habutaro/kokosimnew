@@ -1844,6 +1844,7 @@ class GameScreenData:
             "trait": trait_label(trait, position),
             "growth_type": GROWTH_LABELS.get(growth_type or "", ""),
             "injury": self._injury_now(player) if enrolled else None,
+            "fatigue": self._fatigue_now(player, snapshot) if enrolled else "",
             # 怪我の履歴（新しい順）
             "injuries": list(reversed(injuries)),
             "abilities": ability_rows(now, position, bands) if now else [],
@@ -1902,11 +1903,27 @@ class GameScreenData:
                 "trait": trait_label(snapshot.platoon_trait if snapshot is not None else None,
                                      player.primary_position),
                 "injury": self._injury_now(player),
+                "fatigue": self._fatigue_now(player, snapshot),
                 "abilities": member_abilities(values, player.primary_position, bands),
                 "stats": stats,
                 "tables": member_tables(player.primary_position, stats),
             })
         return rows
+
+    def _fatigue_now(self, player, snapshot) -> str:
+        """連投の疲れが残っている投手の印（今日の始まりの疲れ。game_core/fatigue.py）。"""
+        if snapshot is None or snapshot.stamina is None or self.session is None:
+            return ""
+        log = getattr(self.state, "pitch_log", None) or {}
+        days = log.get(player.player_id)
+        if not days:
+            return ""
+        from game_core import fatigue
+
+        rule = fatigue.default_rule()
+        carry = fatigue.carry_fatigue(
+            fatigue.history_from_log(days, self.state.current_date), snapshot.stamina, rule)
+        return fatigue.label_of(fatigue.stage_of(carry, rule), rule)
 
     def _injury_now(self, player) -> dict | None:
         """今日、怪我で休んでいれば重さと復帰の見込みの日。"""

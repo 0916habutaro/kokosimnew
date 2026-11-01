@@ -373,6 +373,7 @@ class AbilityMatchResolver:
         }
         day = self._match_day()
         pitched = {s.player_id: s.pitches for s in result.pitcher_stats if s.batters_faced > 0}
+        exit_fatigue = {s.player_id: s.exit_fatigue for s in result.pitcher_stats if s.batters_faced > 0}
         log = getattr(self.season_state, "pitch_log", None) or {}
         appearances = []
         fielding_only_appearances = []
@@ -383,7 +384,7 @@ class AbilityMatchResolver:
             source.record_games(school_id, appeared)
             for player in appeared:
                 if player.player_id not in batting_or_pitching:
-                    fielding_only_appearances.append((player, 0, 0, 0))
+                    fielding_only_appearances.append((player, 0, 0, 0, 0))
                     continue
                 pitches = pitched.get(player.player_id, 0)
                 load7 = consecutive = 0
@@ -393,7 +394,8 @@ class AbilityMatchResolver:
                     load7 = sum(n for on, n in days.items() if first <= on <= day.isoformat())
                     while (day - timedelta(days=consecutive + 1)).isoformat() in days:
                         consecutive += 1
-                appearances.append((player, pitches, load7, consecutive))
+                appearances.append((player, pitches, load7, consecutive,
+                                    exit_fatigue.get(player.player_id, 0)))
         if day is not None and hasattr(source, "after_game"):
             # 両校の従来対象を先に抽選し、その後で守備のみの選手を抽選する。
             # 試合ごとに独立した乱数なので、追加分は従来対象の怪我結果を変えない。
@@ -445,6 +447,23 @@ class AbilityMatchResolver:
         if not rule:
             return None
         return int(rule["pitches"]), int(rule["days"])
+
+    def _pitch_history(self, teams, day) -> dict[str, dict[int, int]] | None:
+        """選手 → (何日前 → その日の球数)。連投の疲れに使う。球数制限の記録から求める。"""
+        log = getattr(getattr(self, "season_state", None), "pitch_log", None)
+        if day is None or not log:
+            return None
+        from .fatigue import history_from_log
+
+        out = {}
+        for team in teams:
+            for player in team.player_abilities:
+                days = log.get(player.player_id)
+                if days:
+                    history = history_from_log(days, day)
+                    if history:
+                        out[player.player_id] = history
+        return out or None
 
     def _pitch_allowances(self, teams, day) -> dict[str, int] | None:
         """選手 → この試合であと何球投げられるか（その日を含む直近の日数で上限まで）。"""
@@ -547,7 +566,8 @@ class AbilityMatchResolver:
         total = sum(p.batting_share for p in estimates)
         return tuple(replace(p, batting_share=p.batting_share/total) for p in estimates)
 
-    def _select_dh_input(self, team, allowances, tactics, *, competition_id='', opponent=None):
+    def _select_dh_input(self, team, allowances, tactics, *, competition_id='', opponent=None,
+                         pitch_history=None):
         """キャッシュされた当日選手集合から、この試合だけの申告を作る。"""
         if not self.dh_enabled:
             return team
@@ -562,7 +582,8 @@ class AbilityMatchResolver:
             if any(p.player_id in available and source.condition(p, day)[0] for p in members):
                 # 健康な9人も揃わない既存の救済経路では、追加のDHを起用しない。
                 return team
-        order, professional_count = self.simulator._game_staff(team, allowances)
+        order, professional_count = self.simulator._game_staff(
+            team, allowances, self.simulator.carry_fatigue(team, pitch_history))
         if not order:
             return team  # 球数制限による試合不可は既存シミュレーターが扱う。
         actual = order[0]
@@ -646,11 +667,14 @@ class AbilityMatchResolver:
         day = self._match_day()
         tactics = {sid: self._coach_tactics(sid, day) for sid in (team1, team2)}
         allowances = self._pitch_allowances((team1_input, team2_input), day)
+        history = self._pitch_history((team1_input, team2_input), day)
         original_team1, original_team2 = team1_input, team2_input
         team1_input = self._select_dh_input(original_team1, allowances, tactics[team1],
-                                          competition_id=competition_id, opponent=original_team2)
+                                          competition_id=competition_id, opponent=original_team2,
+                                          pitch_history=history)
         team2_input = self._select_dh_input(original_team2, allowances, tactics[team2],
-                                          competition_id=competition_id, opponent=original_team1)
+                                          competition_id=competition_id, opponent=original_team1,
+                                          pitch_history=history)
         match_input = MatchSimulationInput(
             match_id=match_id,
             competition_id=competition_id,
@@ -667,6 +691,7 @@ class AbilityMatchResolver:
             match_input,
             rules=self.rules_for(competition_id, match_id),
             pitch_allowances=allowances,
+            **({'pitch_history': history} if history else {}),
             **({'validated_history_sink': verified} if declared_dh else {}),
             **({"tactics": tactics} if any(t != CoachTactics() for t in tactics.values()) else {}),
         )
