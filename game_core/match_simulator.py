@@ -557,6 +557,34 @@ class MatchSimulator:
             for pitch in pitcher.pitch_repertoire
         )
 
+    def _effective_control(self, pitcher: PlayerAbilitySnapshot) -> float:
+        """制球に変化球の制球を、変化球を使う割合の重みで混ぜたもの。"""
+        control = float(pitcher.control or 50)
+        breaking = [p for p in pitcher.pitch_repertoire if p.pitch_type != "four_seam"]
+        share = sum(p.usage for p in breaking) / 100.0
+        if not breaking or share <= 0:
+            return control
+        command = sum(p.command * p.usage for p in breaking) / sum(p.usage for p in breaking)
+        weight = float(self.params["pitcher_effects"]["command_weight"]) * share
+        return control * (1.0 - weight) + float(command) * weight
+
+    def _pitcher_indexes(self, pitcher: PlayerAbilitySnapshot) -> dict[str, float]:
+        """結果ごとの投手の指数（50が基準。大きいほど投手に有利）。"""
+        rule = self.params["pitcher_effects"]
+        velocity = pitcher.velocity_kmh
+        components = {
+            "velocity": (0.0 if velocity is None else
+                         (float(velocity) - float(rule["velocity_center"])) * float(rule["points_per_kmh"])),
+            "stuff": float(pitcher.stuff or 50) - 50.0,
+            "pitch_quality": self._pitch_quality(pitcher) - 50.0,
+            "groundball": float(pitcher.groundball or 50) - 50.0,
+            "control_low": min(0.0, self._effective_control(pitcher) - float(rule["control_pivot"])),
+        }
+        return {
+            outcome: 50.0 + sum(float(w) * components[key] for key, w in weights.items())
+            for outcome, weights in rule["weights"].items()
+        }
+
     @staticmethod
     def batting_side(batter: PlayerAbilitySnapshot, pitcher: PlayerAbilitySnapshot) -> str:
         """打者の立つ打席。両打ちはいつも投手と逆の側（有利な側）。"""
@@ -604,18 +632,14 @@ class MatchSimulator:
         floor = float(model["probability_floor"])
         defense_center = float(model["defense_center"])
 
-        p_stuff = (
-            0.65 * float(pitcher.stuff or 50)
-            + 0.35 * self._pitch_quality(pitcher)
-        )
-        p_control = float(pitcher.control or 50)
+        index = self._pitcher_indexes(pitcher)
+        p_control = self._effective_control(pitcher)
         p_strikeout = float(pitcher.strikeout or 50)
-        p_groundball = float(pitcher.groundball or 50)
 
         so_exp = (
             (p_strikeout - float(batter.strikeout_resistance))
             * float(scale["strikeout"])
-            + (p_stuff - float(batter.contact))
+            + (index["whiff"] - float(batter.contact))
             * float(scale["strikeout"])
             * 0.45
         )
@@ -623,7 +647,7 @@ class MatchSimulator:
             float(batter.plate_discipline) - p_control
         ) * float(scale["walk"])
         single_exp = (
-            float(batter.contact) - p_stuff
+            float(batter.contact) - index["single"]
         ) * float(scale["single"]) + (
             defense_center - defense_strength
         ) * float(scale["single"]) * 0.45
@@ -632,14 +656,11 @@ class MatchSimulator:
             float(batter.contact) * 0.45
             + float(batter.power) * 0.55
         )
-        extra_pitcher = p_stuff * 0.60 + p_groundball * 0.40
         xbh_exp = (
-            extra_batter - extra_pitcher
+            extra_batter - index["extra_base_hit"]
         ) * float(scale["extra_base_hit"])
         hr_exp = (
-            float(batter.power)
-            - p_stuff * 0.55
-            - p_groundball * 0.45
+            float(batter.power) - index["home_run"]
         ) * float(scale["home_run"])
         error_exp = (
             50.0 - defense_strength
@@ -647,10 +668,9 @@ class MatchSimulator:
             float(batter.speed) - 50.0
         ) * float(scale["error"]) * 0.25
         out_exp = (
-            p_stuff * 0.45
-            + p_groundball * 0.25
-            + defense_strength * 0.30
-            - float(batter.contact)
+            (index["field_out"] - 50.0)
+            + (defense_strength - 50.0) * 0.30
+            - (float(batter.contact) - 50.0)
         ) * float(scale["field_out"])
 
         weights = {

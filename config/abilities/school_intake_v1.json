@@ -149,7 +149,7 @@
     },
     "pitcher": {
       "standard": {
-        "label_ja": "本格派",
+        "label_ja": "完投型",
         "share": 0.3,
         "load": {
           "stamina": 1.2

@@ -258,6 +258,24 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
             and all(isinstance(v, (int, float)) and v >= 0 for v in outs_multiplier)):
         raise ValueError("match simulation: stolen_bases.attempt.outs_multiplier needs 3 values")
 
+    effects = payload.get("pitcher_effects")
+    if not isinstance(effects, dict):
+        raise ValueError("match simulation: pitcher_effects required")
+    for key in ("velocity_center", "points_per_kmh", "control_pivot", "command_weight"):
+        if not isinstance(effects.get(key), (int, float)) or isinstance(effects.get(key), bool):
+            raise ValueError(f"match simulation: invalid pitcher_effects.{key}")
+    if not 0 <= float(effects["command_weight"]) <= 1:
+        raise ValueError("match simulation: pitcher_effects.command_weight must be 0..1")
+    components = {"velocity", "stuff", "pitch_quality", "groundball", "control_low"}
+    weights = effects.get("weights")
+    if not isinstance(weights, dict) or set(weights) != {
+            "whiff", "single", "extra_base_hit", "home_run", "field_out"}:
+        raise ValueError("match simulation: pitcher_effects.weights keys mismatch")
+    for outcome, values in weights.items():
+        if not isinstance(values, dict) or not set(values) <= components or not all(
+                isinstance(v, (int, float)) and v >= 0 for v in values.values()):
+            raise ValueError(f"match simulation: invalid pitcher_effects.weights.{outcome}")
+
     platoon = payload.get("platoon")
     if not isinstance(platoon, dict):
         raise ValueError("match simulation: platoon required")
