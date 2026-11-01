@@ -557,12 +557,47 @@ class MatchSimulator:
             for pitch in pitcher.pitch_repertoire
         )
 
+    @staticmethod
+    def batting_side(batter: PlayerAbilitySnapshot, pitcher: PlayerAbilitySnapshot) -> str:
+        """打者の立つ打席。両打ちはいつも投手と逆の側（有利な側）。"""
+        if batter.bats == "S":
+            return "L" if pitcher.throws == "R" else "R"
+        return batter.bats
+
+    def _platoon_points(self, batter: PlayerAbilitySnapshot, pitcher: PlayerAbilitySnapshot) -> float:
+        """打者の打撃の能力に足す左右の差（＋は打者に有利）。"""
+        rule = self.params["platoon"]
+        side = self.batting_side(batter, pitcher)
+        points = (-float(rule["same_side_points"][side]) if side == pitcher.throws
+                  else float(rule["opposite_side_points"]))
+        trait = float(rule["trait_points"])
+        # 野手の特性は対左投手、投手の特性は対左打者
+        if batter.primary_position != "P" and pitcher.throws == "L" and batter.platoon_trait:
+            points += trait if batter.platoon_trait == "vs_left_good" else -trait
+        if pitcher.primary_position == "P" and side == "L" and pitcher.platoon_trait:
+            points += -trait if pitcher.platoon_trait == "vs_left_good" else trait
+        return points
+
+    def _platoon_batter(
+        self, batter: PlayerAbilitySnapshot, pitcher: PlayerAbilitySnapshot,
+    ) -> PlayerAbilitySnapshot:
+        points = self._platoon_points(batter, pitcher)
+        if not points:
+            return batter
+        weights = self.params["platoon"]["ability_weights"]
+        return replace(batter, **{
+            # 打席の結果の計算だけに使う写し（端数を丸めない）
+            key: min(100.0, max(1.0, getattr(batter, key) + points * float(weight)))
+            for key, weight in weights.items()
+        })
+
     def _event_weights(
         self,
         batter: PlayerAbilitySnapshot,
         pitcher: PlayerAbilitySnapshot,
         defense_strength: float,
     ) -> dict[str, float]:
+        batter = self._platoon_batter(batter, pitcher)
         model = self.params["plate_appearance_model"]
         base = model["base_probabilities"]
         scale = model["ability_effect_scale"]

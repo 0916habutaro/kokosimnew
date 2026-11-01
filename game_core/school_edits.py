@@ -6,7 +6,7 @@ import json
 import math
 from pathlib import Path
 
-from .abilities import PitchAbility, validate_ability_snapshot
+from .abilities import PLATOON_TRAITS, PitchAbility, validate_ability_snapshot
 from .roster_book import SCALARS
 from .team_strength import TeamStrengthGenerator
 
@@ -27,7 +27,8 @@ class AbilityEditor:
         self.teams = TeamStrengthGenerator(root / 'abilities')
 
     def player(self, snapshot, changes, pitch_types):
-        if not isinstance(changes, dict) or set(changes) - set(SCALARS) - {'position_aptitude', 'pitch_repertoire'}:
+        if not isinstance(changes, dict) or set(changes) - set(SCALARS) - {
+                'position_aptitude', 'pitch_repertoire', 'platoon_trait'}:
             raise ValueError('編集できない能力項目があります')
         out = {}
         for name, value in changes.items():
@@ -36,6 +37,11 @@ class AbilityEditor:
                     raise ValueError(f'この選手には{name}の能力がありません')
                 low, high = (100, 165) if name == 'velocity_kmh' else (1, 100)
                 out[name] = number(value, low, high, name, integer=True)
+            elif name == 'platoon_trait':
+                # 左右の得意・不得意の付け外し（None で外す）
+                if value not in (None, *PLATOON_TRAITS):
+                    raise ValueError('左右の得意・不得意の指定が不正です')
+                out[name] = value
             elif name == 'position_aptitude':
                 current = dict(snapshot.position_aptitude)
                 if not isinstance(value, dict) or set(value) - set(current):

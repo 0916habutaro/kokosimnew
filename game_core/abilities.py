@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import math
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Iterable, Iterator
 
@@ -39,6 +39,9 @@ PITCHER_ABILITIES = (
     "composure",
     "quick",
 )
+
+
+PLATOON_TRAITS = ("vs_left_good", "vs_left_bad")
 
 
 @dataclass(frozen=True)
@@ -98,6 +101,11 @@ class PlayerAbilitySnapshot:
 
     position_aptitude: tuple[tuple[str, int], ...]
     pitch_repertoire: tuple[PitchAbility, ...]
+    # 投打の左右（Player と同じ。打は R・L・S（両打ち））と、一部の選手だけの左右の
+    # 得意・不得意（野手は対左投手、投手は対左打者。PLATOON_TRAITS）
+    bats: str = field(default="R", kw_only=True)
+    throws: str = field(default="R", kw_only=True)
+    platoon_trait: str | None = field(default=None, kw_only=True)
 
     def to_dict(self) -> dict:
         out = asdict(self)
@@ -423,6 +431,8 @@ class PlayerAbilityGenerator:
             **batter,
             **catcher,
             **pitcher,
+            bats=player.bats,
+            throws=player.throws,
             position_aptitude=self._position_aptitudes(
                 player,
                 reference_year,
@@ -468,6 +478,10 @@ class PlayerAbilityGenerator:
 
 
 def validate_ability_snapshot(snapshot: PlayerAbilitySnapshot) -> None:
+    if snapshot.bats not in ("R", "L", "S") or snapshot.throws not in ("R", "L"):
+        raise ValueError(f"{snapshot.player_id}: invalid bats/throws")
+    if snapshot.platoon_trait is not None and snapshot.platoon_trait not in PLATOON_TRAITS:
+        raise ValueError(f"{snapshot.player_id}: invalid platoon trait")
     for ability_id in BATTER_ABILITIES:
         value = snapshot.ability(ability_id)
         if value is None or not 1 <= value <= 100:

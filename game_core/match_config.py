@@ -258,6 +258,20 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
             and all(isinstance(v, (int, float)) and v >= 0 for v in outs_multiplier)):
         raise ValueError("match simulation: stolen_bases.attempt.outs_multiplier needs 3 values")
 
+    platoon = payload.get("platoon")
+    if not isinstance(platoon, dict):
+        raise ValueError("match simulation: platoon required")
+    same = platoon.get("same_side_points")
+    if not isinstance(same, dict) or set(same) != {"R", "L"}:
+        raise ValueError("match simulation: platoon.same_side_points needs R and L")
+    for value in (*same.values(), platoon.get("opposite_side_points"), platoon.get("trait_points")):
+        if not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0:
+            raise ValueError("match simulation: platoon points must be >= 0")
+    weights = platoon.get("ability_weights")
+    if not isinstance(weights, dict) or not set(weights) <= {
+            "contact", "power", "plate_discipline", "strikeout_resistance"}:
+        raise ValueError("match simulation: invalid platoon.ability_weights")
+
     baserunning = payload.get("baserunning")
     if not isinstance(baserunning, dict):
         raise ValueError("match simulation: baserunning required")

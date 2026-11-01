@@ -27,6 +27,14 @@ PITCH_LABELS = {
     "sinker": "シンカー", "cutter": "カットボール",
 }
 GROWTH_LABELS = {"early": "早熟", "normal": "普通", "late": "晩成"}
+
+
+def trait_label(trait: str | None, position: str) -> str:
+    """左右の得意・不得意（野手は対左投手、投手は対左打者）。なければ空。"""
+    if not trait:
+        return ""
+    target = "対左打者" if position == "P" else "対左投手"
+    return target + ("◎" if trait == "vs_left_good" else "×")
 BATTING_KEYS = (
     "plate_appearances", "at_bats", "hits", "doubles", "triples", "home_runs",
     "rbi", "runs", "walks", "strikeouts", "stolen_bases", "grounded_into_double_plays",

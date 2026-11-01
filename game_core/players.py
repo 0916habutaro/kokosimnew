@@ -106,6 +106,31 @@ def player_names(
     return name_generator()(team, base_seed, rng, taken)
 
 
+_HANDEDNESS = None
+
+
+def draw_hands(position: str, rng: random.Random) -> tuple[str, str]:
+    """(投げる腕, 打つ側)。値は ``config/players/handedness_v1.json``。"""
+    global _HANDEDNESS
+    if _HANDEDNESS is None:
+        import json
+
+        _HANDEDNESS = json.loads(
+            (Path(__file__).resolve().parents[1] / "config" / "players" / "handedness_v1.json")
+            .read_text(encoding="utf-8")
+        )
+    throws = "L" if rng.random() < float(_HANDEDNESS["throws_left"][position]) else "R"
+    shares = _HANDEDNESS["bats"][throws]
+    roll = rng.random()
+    if roll < float(shares["S"]):
+        bats = "S"
+    elif roll < float(shares["S"]) + float(shares["L"]):
+        bats = "L"
+    else:
+        bats = "R"
+    return throws, bats
+
+
 def draw_identity(
     provider: NameProvider,
     team: Team,
@@ -220,14 +245,7 @@ class PlayerRosterGenerator:
             )
             taken.add(identity.display_name)
 
-            throws_left_probability = 0.20 if position == "P" else 0.10
-            throws = (
-                "L"
-                if player_rng.random() < throws_left_probability
-                else "R"
-            )
-            bat_roll = player_rng.random()
-            bats = "S" if bat_roll < 0.04 else ("L" if bat_roll < 0.29 else "R")
+            throws, bats = draw_hands(position, player_rng)
 
             players.append(
                 Player(
