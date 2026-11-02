@@ -18,7 +18,7 @@ from .season import SeasonExecution
 
 
 # 左右別の成績と代打の成績の列（段階F2）
-BATTER_EXTRA_COLUMNS = ('vs_rhp_at_bats', 'vs_rhp_hits', 'vs_rhp_home_runs', 'vs_rhp_walks', 'vs_rhp_strikeouts', 'vs_lhp_at_bats', 'vs_lhp_hits', 'vs_lhp_home_runs', 'vs_lhp_walks', 'vs_lhp_strikeouts', 'pinch_hit_at_bats', 'pinch_hit_hits')
+BATTER_EXTRA_COLUMNS = ('vs_rhp_at_bats', 'vs_rhp_hits', 'vs_rhp_home_runs', 'vs_rhp_walks', 'vs_rhp_strikeouts', 'vs_lhp_at_bats', 'vs_lhp_hits', 'vs_lhp_home_runs', 'vs_lhp_walks', 'vs_lhp_strikeouts', 'pinch_hit_at_bats', 'pinch_hit_hits', 'passed_balls')
 
 SCHEMA_VERSION = 4
 
@@ -243,6 +243,7 @@ CREATE TABLE IF NOT EXISTS batter_game_stats (
     vs_lhp_strikeouts INTEGER NOT NULL DEFAULT 0,
     pinch_hit_at_bats INTEGER NOT NULL DEFAULT 0,
     pinch_hit_hits INTEGER NOT NULL DEFAULT 0,
+    passed_balls INTEGER NOT NULL DEFAULT 0,
     singles INTEGER NOT NULL,
     PRIMARY KEY (year, competition_id, match_id, player_id),
     FOREIGN KEY (year, competition_id, match_id)
@@ -708,10 +709,10 @@ class BrowseRepository:
                             sacrifice_flies, sacrifice_bunts, stolen_bases,
                             caught_stealing, grounded_into_double_plays, picked_off,
                             catcher_steal_attempts, catcher_caught_stealing,
-                            vs_rhp_at_bats, vs_rhp_hits, vs_rhp_home_runs, vs_rhp_walks, vs_rhp_strikeouts, vs_lhp_at_bats, vs_lhp_hits, vs_lhp_home_runs, vs_lhp_walks, vs_lhp_strikeouts, pinch_hit_at_bats, pinch_hit_hits, singles
+                            vs_rhp_at_bats, vs_rhp_hits, vs_rhp_home_runs, vs_rhp_walks, vs_rhp_strikeouts, vs_lhp_at_bats, vs_lhp_hits, vs_lhp_home_runs, vs_lhp_walks, vs_lhp_strikeouts, pinch_hit_at_bats, pinch_hit_hits, passed_balls, singles
                         ) VALUES (
                             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                         )
                         """,
                         (

@@ -1,6 +1,6 @@
 {
   "config_id": "match_simulation_v1",
-  "revision": 16,
+  "revision": 17,
   "status": "tuned_2026_11_01",
   "description_ja": "能力ベースの試合モデル（打席結果・走者進塁・投手運用）。能力の効きと球数は従来の調整を維持（game_definition.md §11）。打席の基準重みは新基準バット導入後の夏甲子園（2024〜2026年の本塁打7・10・8本）と全国進行の得点・コールドを比較して調整。本塁打0.0025・単打0.195・二塁打0.060、他はrevision 5の相対重みを使い、合計1に正規化した。抽選時には能力補正後に再び正規化する。 先発の継投判断は完投可能性・スタミナ差・失点・球数制限と全国進行を比較して調整。 能力の効き（ability_effect_scale）は、入部品質を選手ごとの素質に変えて学校の強さの差が縮んだ分を戻すため、失策を除いて1.35倍にした（2026-10-31、地方大会の得点・点差・コールド・完封と夏の甲子園の初出場に合わせた）。 型の調整で投手の能力の平均と打撃の学校差が変わった分、能力の効きをさらに1.06倍にした（2026-11-01）。",
   "score_source": "ability_model_v1",
@@ -85,7 +85,7 @@
     "emergency_pitcher_ability": 20
   },
   "pitch_count": {
-    "description_ja": "1打席の球数。[最少, 上乗せの最大]。上乗せは0〜最大から等しい確率で選ぶ。設計の初期値（実際の打席ごとの球数には合わせていない）",
+    "description_ja": "1打席の球数。[最少, 上乗せの最大]。上乗せは0〜最大から等しい確率で選び、さらに投手の奪三振・制球と打者の選球で決まる確率で1球ずつ足す（tendency。最大 tendency.max_extra 球）。三振・四球が多い投手（奪三振が高い・制球が低い）ほど球数が増える。目安は1打席3.7〜4.0球（game_definition.md §3.6.2 H1）",
     "by_event": {
       "strikeout": [
         3,
@@ -159,6 +159,14 @@
         1,
         4
       ]
+    },
+    "tendency": {
+      "base": 0.25,
+      "per_strikeout_point": 0.006,
+      "per_control_point": 0.006,
+      "per_discipline_point": 0.004,
+      "max_probability": 0.6,
+      "max_extra": 2
     }
   },
   "rules": {
@@ -177,7 +185,8 @@
     "pitches": "pitches_v1:{match_id}:{plate_appearance_no}",
     "steal": "steal_v1:{match_id}:{plate_appearance_no}",
     "relief": "relief_v1:{match_id}:{plate_appearance_no}",
-    "tactic": "tactic_v1:{match_id}:{plate_appearance_no}"
+    "tactic": "tactic_v1:{match_id}:{plate_appearance_no}",
+    "wild_pitch": "wild_pitch_v1:{match_id}:{plate_appearance_no}"
   },
   "outs_in_play": {
     "description_ja": "凡退（field_out）の中身（2026-11-01）。ゴロの割合 = base ＋ (投手のゴロ − 50)×per_groundball_point ＋ (打者の長打 − 50)×per_power_point ＋ (打者のミート − 50)×per_contact_point を min〜max に収める。ゴロで一塁に走者・2死未満なら、併殺の確率 = base − (打者の走力 − 50)×speed_effect_per_point ＋ (守備力 − 50)×defense_effect_per_point。advance は凡退の間に走者が進む確率の基準（baserunning と同じく走者の走塁・走力と守備力で増減）：ゴロで二塁→三塁（押し出しでないとき）、ゴロで三塁走者の生還（押し出しでないとき）、フライで二塁→三塁のタッチアップ。フライで三塁走者が生還するのは犠飛（situational_events.sacrifice_fly）。値は仮の値（実際の高校野球の打球の割合・進塁の割合の集計は見つからなかった）。併殺の回数の目安は game_definition.md §3.6",
@@ -241,7 +250,29 @@
       "max": 0.12
     },
     "catcher_catching_default": 40,
-    "hit_and_run_strikeout_success_bonus": 0.05
+    "hit_and_run_strikeout_success_bonus": 0.05,
+    "double_steal": {
+      "description_ja": "一・二塁（三塁は空き）の重盗。二塁走者の三盗の試みる確率に attempt_multiplier を掛けて試み、牽制は引かない。成否は二塁走者の三盗の成功の確率 ＋ success_bonus。二塁走者が成功なら二人とも盗塁、失敗なら二塁走者は盗塁死、一塁走者は二塁へ進む（盗塁は付かない）。エンドランの空振り三振でも同じ（試みは必ず）",
+      "attempt_multiplier": 0.6,
+      "success_bonus": 0.05
+    },
+    "home_steal": {
+      "description_ja": "本盗（三塁走者、0〜1死）。試みる確率 = base × exp((盗塁 − 50)×per_stealing_point ＋ (走力 − 50)×per_speed_point) × 監督の機動力の倍率を max_probability までに収める。成功の確率 = 基準 ＋ 走者の盗塁・走力 − 捕手の肩・捕球 − 投手のクイック（50との差×1点あたりの値）を min〜max に収める。成功は得点、失敗は本塁でアウト",
+      "base": 0.0012,
+      "per_stealing_point": 0.05,
+      "per_speed_point": 0.03,
+      "max_probability": 0.05,
+      "success": {
+        "base": 0.35,
+        "per_stealing_point": 0.006,
+        "per_speed_point": 0.004,
+        "per_catcher_arm_point": 0.003,
+        "per_catcher_catching_point": 0.003,
+        "per_pitcher_quick_point": 0.004,
+        "min": 0.1,
+        "max": 0.7
+      }
+    }
   },
   "platoon": {
     "description_ja": "左右の差（2026-11-01）。打者の打つ側（両打ちは投手と逆の側）と投手の投げる腕が同じなら same_side_points（打つ側ごと。左対左を大きく）だけ打者の打撃の能力を下げ、逆なら opposite_side_points だけ上げる。能力ごとの効き方は ability_weights。一部の選手だけの特性（school_intake_v1 の platoon_traits）は trait_points：野手の対左投手◎×は左投手と対戦するとき、投手の対左打者◎×は左の打席の打者と対戦するときに効く（投手の◎は打者を下げる）。大きさはプロの左右差を代用した仮の値（game_definition.md §3.6.2）。右対右が打席の約6割を占めるので、同じ側・逆の側の点は全体の平均がほぼ0になるように置いた",
@@ -416,7 +447,7 @@
       }
     },
     "hit_and_run": {
-      "description_ja": "エンドラン。一塁に走者・二塁は空き（一塁だけか一・三塁。一・二塁は両方の走者が走る重盗になるので扱わない）、max_outs まで、点差が max_margin より大きいと far_margin_multiplier。打者のミート・三振しにくさ、一塁走者の走力で試みやすさが変わる。打席の結果の重みの三振・四球に掛け、ゴロの併殺は double_play_multiplier に減り（残りは走者が進むゴロ）、単打で一塁走者が三塁へ・二塁打で一塁走者が生還する確率に bonus を足す。空振りの三振は走者が盗塁（成功に stolen_bases.hit_and_run_strikeout_success_bonus を足す。牽制はない）、フライ・ライナーは fly_runner_doubled_off で一塁走者も戻れず併殺",
+      "description_ja": "エンドラン。一塁に走者で満塁でない（一塁・一三塁・一二塁。一・二塁は両方の走者が走り、空振り三振は重盗 stolen_bases.double_steal として走者ごとに記録する）、max_outs まで、点差が max_margin より大きいと far_margin_multiplier。打者のミート・三振しにくさ、一塁走者の走力で試みやすさが変わる。打席の結果の重みの三振・四球に掛け、ゴロの併殺は double_play_multiplier に減り（残りは走者が進むゴロ）、単打で一塁走者が三塁へ・二塁打で一塁走者が生還する確率に bonus を足す。空振りの三振は走者が盗塁（成功に stolen_bases.hit_and_run_strikeout_success_bonus を足す。牽制はない）、フライ・ライナーは fly_runner_doubled_off で一塁走者も戻れず併殺",
       "base": 0.035,
       "max_outs": 1,
       "max_margin": 3,
@@ -478,5 +509,29 @@
       "max_quality_gap": 6.0,
       "min_batters_faced": 3
     }
+  },
+  "wild_pitches": {
+    "description_ja": "暴投・捕逸（H1、2026-11-02）。打席が終わったあと、走者がいれば引く。暴投 = wild_pitch.base × exp((50 − 制球)×per_control_point ＋ (変化球の割合 − 0.4)×per_breaking_usage)、捕逸 = passed_ball.base × exp((50 − 捕手の捕球)×per_catching_point)。どちらも走者が全員1つ進む（三塁走者は生還）。暴投の得点は自責点、捕逸の得点は自責点にしない（失策と同じく自責点の再構成では進めない）。起きた打席では盗塁は試みない。値は仮の値",
+    "wild_pitch": {
+      "base": 0.012,
+      "per_control_point": 0.035,
+      "per_breaking_usage": 1.0,
+      "max": 0.08
+    },
+    "passed_ball": {
+      "base": 0.0035,
+      "per_catching_point": 0.04,
+      "max": 0.04
+    },
+    "catcher_catching_default": 40
+  },
+  "pressure": {
+    "description_ja": "度胸（G、2026-11-02）。ピンチ（二塁か三塁に走者）か、late_inning_from 回以降で点差 close_margin 以内の打席では、投手の度胸が pivot より低い1点ごとに制球を control_per_point、球威と変化球の質を stuff_per_point 下げる（max_points まで）。pivot 以上なら下げない。打者には足さない。値は仮の値",
+    "late_inning_from": 7,
+    "close_margin": 2,
+    "pivot": 60,
+    "control_per_point": 0.15,
+    "stuff_per_point": 0.15,
+    "max_points": 8.0
   }
 }

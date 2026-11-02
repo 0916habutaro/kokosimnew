@@ -264,6 +264,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
 
     _validate_strategy(payload.get("strategy"))
     _validate_substitutions(payload.get("substitutions"))
+    _validate_h1(payload)
 
     fatigue = payload.get("fatigue")
     if not isinstance(fatigue, dict):
@@ -408,6 +409,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         "steal",
         "relief",
         "tactic",
+        "wild_pitch",
     }:
         raise ValueError(
             "match simulation: RNG namespace keys mismatch"
@@ -420,6 +422,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         "steal": ("{match_id}", "{plate_appearance_no}"),
         "relief": ("{match_id}", "{plate_appearance_no}"),
         "tactic": ("{match_id}", "{plate_appearance_no}"),
+        "wild_pitch": ("{match_id}", "{plate_appearance_no}"),
     }
     for key, placeholders in required_placeholders.items():
         template = str(namespaces[key])
@@ -488,6 +491,33 @@ def _validate_strategy(strategy) -> None:
         if not (isinstance(weights, dict) and set(weights) == kinds
                 and all(_number(v) and v >= 0 for v in weights.values()) and sum(weights.values()) > 0):
             raise ValueError(f"match simulation: invalid strategy.{section}.failure_weights")
+
+
+def _validate_h1(payload) -> None:
+    """度胸（G）・暴投と捕逸・重盗と本盗・球数の傾向（H1）の値。"""
+    pressure = payload.get("pressure")
+    if not (isinstance(pressure, dict) and all(_number(pressure.get(k)) and float(pressure[k]) >= 0 for k in (
+            "late_inning_from", "close_margin", "pivot", "control_per_point", "stuff_per_point", "max_points"))):
+        raise ValueError("match simulation: invalid pressure")
+    wild = payload.get("wild_pitches")
+    if not (isinstance(wild, dict) and _number(wild.get("catcher_catching_default"))
+            and all(isinstance(wild.get(k), dict) and _probability(wild[k].get("base"))
+                    and _probability(wild[k].get("max")) for k in ("wild_pitch", "passed_ball"))):
+        raise ValueError("match simulation: invalid wild_pitches")
+    steals = payload["stolen_bases"]
+    double, home = steals.get("double_steal"), steals.get("home_steal")
+    if not (isinstance(double, dict) and _number(double.get("attempt_multiplier"))
+            and _number(double.get("success_bonus"))):
+        raise ValueError("match simulation: invalid stolen_bases.double_steal")
+    if not (isinstance(home, dict) and _probability(home.get("base")) and _probability(home.get("max_probability"))
+            and isinstance(home.get("success"), dict)
+            and all(_probability(home["success"].get(k)) for k in ("base", "min", "max"))):
+        raise ValueError("match simulation: invalid stolen_bases.home_steal")
+    tendency = payload["pitch_count"].get("tendency")
+    if not (isinstance(tendency, dict) and _probability(tendency.get("base"))
+            and _probability(tendency.get("max_probability"))
+            and isinstance(tendency.get("max_extra"), int) and tendency["max_extra"] >= 0):
+        raise ValueError("match simulation: invalid pitch_count.tendency")
 
 
 def _validate_substitutions(subs) -> None:
@@ -602,6 +632,7 @@ def validate_game_stats_contract(document: ConfigDocument) -> None:
         "picked_off",
         "catcher_steal_attempts",
         "catcher_caught_stealing",
+        "passed_balls",
         *(f"vs_{hand}_{key}" for hand in ("rhp", "lhp")
           for key in ("at_bats", "hits", "home_runs", "walks", "strikeouts")),
         "pinch_hit_at_bats",
@@ -619,6 +650,7 @@ def validate_game_stats_contract(document: ConfigDocument) -> None:
         "hit_batters",
         "pitches",
         "exit_fatigue",
+        "wild_pitches",
         *(f"vs_{hand}_{key}" for hand in ("rhb", "lhb")
           for key in ("at_bats", "hits", "home_runs", "walks", "strikeouts")),
     }

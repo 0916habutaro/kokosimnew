@@ -549,6 +549,7 @@ class DHSimulationTests(unittest.TestCase):
                 for key in sim.params['pitch_count']['by_event']:
                     sim.params['pitch_count']['by_event'][key] = [1, 0]
                 sim.params['pitch_count']['by_event']['triple'] = [7, 0]
+                sim.params['pitch_count']['tendency']['max_extra'] = 0
                 result = sim.simulate(inp, regulation_innings=1)
                 self.assertEqual('single', result.events[-1].event_type)
                 self.assertEqual(10, sum(p.pitches for p in result.pitcher_stats

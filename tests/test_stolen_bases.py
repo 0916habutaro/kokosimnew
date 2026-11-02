@@ -22,7 +22,7 @@ def _with_steals(base, results):
             from_index = self._steal_base(bases)
             if from_index is None or outs >= 3 or not self.steal_results:
                 return None
-            return bases[from_index], from_index, self.steal_results.pop(0)
+            return [(bases[from_index], from_index, self.steal_results.pop(0))]
 
     return Forced
 

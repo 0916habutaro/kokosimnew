@@ -615,9 +615,22 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                 "half": HALF_LABELS[half], "school_id": school,
                 "school_name": names(school),
                 "player_name": player_name(school, item[3]),
-                "event": {"sb": f"{'二' if item[5] == 2 else '三'}盗", "cs": "盗塁死",
+                "event": {"sb": {2: "二盗", 3: "三盗", 4: "本盗"}[item[5]],
+                          "cs": "本盗失敗" if item[5] == 4 else "盗塁死",
                           "po": "牽制死"}[item[4]],
                 "success": item[4] == "sb",
+            })
+        elif kind == "W":
+            # 暴投・捕逸（守った側の投手か捕手）
+            school = batting_team[half]
+            defense = team2 if school == team1 else team1
+            highlights.append({
+                "kind": "wild_pitch", "inning": inning,
+                "half": HALF_LABELS[half], "school_id": defense,
+                "school_name": names(defense),
+                "player_name": player_name(defense, item[4]),
+                "event": ("暴投" if item[3] == "wp" else "捕逸") + (f"（{item[5]}点）" if item[5] else ""),
+                "runs": item[5],
             })
         elif kind == "T":
             school = batting_team[half]
@@ -690,7 +703,7 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                 **{key: stat.get(key, 0) for key in (
                     "at_bats", "hits", "runs", "rbi", "home_runs",
                     "walks", "strikeouts", "stolen_bases", "grounded_into_double_plays",
-                    "caught_stealing", "picked_off", "sacrifice_bunts",
+                    "caught_stealing", "picked_off", "sacrifice_bunts", "passed_balls",
                 )},
             }
             for stat in detail.get("batter_stats") or ()
@@ -707,7 +720,7 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                 **{key: stat.get(key, 0) for key in (
                     "batters_faced", "hits_allowed", "runs_allowed",
                     "earned_runs", "walks", "strikeouts",
-                    "home_runs_allowed", "pitches",
+                    "home_runs_allowed", "pitches", "wild_pitches",
                 )},
                 # 降板時の疲れ（例：疲れ大）。なければ空
                 "fatigue": _fatigue_label(stat.get("exit_fatigue", 0)),

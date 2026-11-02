@@ -292,9 +292,13 @@ class _ErrorFreeInning:
                             self.bases[target], self.bases[index] = key, None
                 if self.bases[0] is None:
                     self.bases[0] = batter
+        elif event == "passed_ball":
+            # 捕逸は捕手の失策と同じく、失策のない再構成では走者を進めない
+            return
         elif event in {"sacrifice_fly", "fly_out", "ground_out", "double_play", "sacrifice_bunt",
-                       "bunt_pop_out", "bunt_double_play", "line_drive_double_play"}:
-            # 凡退・犠打（スクイズを含む）の間の進塁・得点は、同じ塁にいる同じ走者の実際の動きだけを写す。
+                       "bunt_pop_out", "bunt_double_play", "line_drive_double_play",
+                       "wild_pitch", "stolen_base"}:
+            # 凡退・犠打（スクイズを含む）・暴投・本盗の間の進塁・得点は、同じ塁にいる同じ走者の実際の動きだけを写す。
             # 実際にアウトになった走者は再構成の塁からも除く（いなければ打者のアウト
             # だけになる。疑わしいときは投手の有利に、9.16(d/f)）。
             if event == "sacrifice_fly" and self.bases[2] is not None:
@@ -633,9 +637,84 @@ class MatchSimulator:
             strikeout=value, groundball=value, composure=value, quick=value,
         )
 
-    def _pitches(self, event_type: str, rng) -> int:
-        minimum, extra = self.params["pitch_count"]["by_event"][event_type]
-        return int(minimum) + rng.randint(0, int(extra))
+    def _pitches(self, event_type: str, rng, pitcher: PlayerAbilitySnapshot | None = None,
+                 batter: PlayerAbilitySnapshot | None = None) -> int:
+        """1打席の球数。結果ごとの範囲に、投手の奪三振・制球と打者の選球で決まる球を足す（H1）。"""
+        rule = self.params["pitch_count"]
+        minimum, extra = rule["by_event"][event_type]
+        count = int(minimum) + rng.randint(0, int(extra))
+        if pitcher is not None:
+            t = rule["tendency"]
+            chance = self._clamp_probability(
+                float(t["base"])
+                + (float(pitcher.strikeout or 50) - 50.0) * float(t["per_strikeout_point"])
+                + (50.0 - self._effective_control(pitcher)) * float(t["per_control_point"])
+                + ((float(batter.plate_discipline) - 50.0) * float(t["per_discipline_point"])
+                   if batter is not None else 0.0),
+                0.0, float(t["max_probability"]))
+            count += sum(rng.random() < chance for _ in range(int(t["max_extra"])))
+        return count
+
+    # ---- 度胸（G） ----
+    def _under_pressure(self, bases: list[str | None], inning: int, margin: int) -> bool:
+        """ピンチ（二塁か三塁に走者）か、終盤の接戦。"""
+        rule = self.params["pressure"]
+        return (bases[1] is not None or bases[2] is not None
+                or (inning >= int(rule["late_inning_from"]) and abs(margin) <= int(rule["close_margin"])))
+
+    def _pressure_points(self, pitcher: PlayerAbilitySnapshot) -> float:
+        rule = self.params["pressure"]
+        composure = float(pitcher.composure if pitcher.composure is not None else 50)
+        return min(float(rule["max_points"]), max(0.0, float(rule["pivot"]) - composure))
+
+    def _pressured(self, pitcher: PlayerAbilitySnapshot) -> PlayerAbilitySnapshot:
+        """度胸が低い投手がピンチ・終盤の接戦で投げるときの能力（制球・球威・変化球の質が少し落ちる）。"""
+        rule = self.params["pressure"]
+        points = self._pressure_points(pitcher)
+        if points <= 0:
+            return pitcher
+        control = points * float(rule["control_per_point"])
+        stuff = points * float(rule["stuff_per_point"])
+
+        def lower(value, amount):
+            return None if value is None else max(1.0, float(value) - amount)
+
+        return replace(
+            pitcher, control=lower(pitcher.control, control), stuff=lower(pitcher.stuff, stuff),
+            pitch_repertoire=tuple(replace(p, quality=lower(p.quality, stuff), command=lower(p.command, control))
+                                   for p in pitcher.pitch_repertoire),
+        )
+
+    # ---- 暴投・捕逸（H1） ----
+    def _wild_pitch_probabilities(
+        self, pitcher: PlayerAbilitySnapshot, catcher: PlayerAbilitySnapshot,
+    ) -> tuple[float, float]:
+        """走者がいる打席のあとの (暴投の確率, 捕逸の確率)。"""
+        rule = self.params["wild_pitches"]
+        breaking = sum(p.usage for p in pitcher.pitch_repertoire if p.pitch_type != "four_seam") / 100.0
+        wp_rule, pb_rule = rule["wild_pitch"], rule["passed_ball"]
+        wild = min(float(wp_rule["max"]), float(wp_rule["base"]) * math.exp(
+            (50.0 - self._effective_control(pitcher)) * float(wp_rule["per_control_point"])
+            + (breaking - 0.4) * float(wp_rule["per_breaking_usage"])))
+        catching = catcher.catching if catcher.catching is not None else int(rule["catcher_catching_default"])
+        passed = min(float(pb_rule["max"]), float(pb_rule["base"]) * math.exp(
+            (50.0 - float(catching)) * float(pb_rule["per_catching_point"])))
+        return wild, passed
+
+    def _wild_pitch_or_passed_ball(
+        self, *, bases: list[str | None], pitcher: PlayerAbilitySnapshot,
+        catcher: PlayerAbilitySnapshot, rng,
+    ) -> str | None:
+        """走者がいるときの暴投（wp）・捕逸（pb）か None。"""
+        if not any(bases):
+            return None
+        wild, passed = self._wild_pitch_probabilities(pitcher, catcher)
+        roll = rng.random()
+        if roll < wild:
+            return "wp"
+        if roll < wild + passed:
+            return "pb"
+        return None
 
     @staticmethod
     def _clamp_probability(
@@ -872,11 +951,12 @@ class MatchSimulator:
         self, batter: PlayerAbilitySnapshot, runner: PlayerAbilitySnapshot | None,
         bases: list[str | None], outs: int, margin: int, mobility: float = 1.0,
     ) -> float:
-        """エンドランを試みる確率（一塁に走者・二塁は空き・max_outs まで）。
+        """エンドランを試みる確率（一塁に走者・満塁でない・max_outs まで）。
 
-        一・二塁では両方の走者が走る（重盗）ことになるが、盗塁の記録は1人の走者だけなので扱わない。"""
+        一・二塁では両方の走者が走る。空振り三振なら重盗として盗塁・盗塁死を走者ごとに記録する。"""
         rule = self._strategy()["hit_and_run"]
-        if runner is None or bases[0] is None or bases[1] is not None or outs > int(rule["max_outs"]):
+        if (runner is None or bases[0] is None or (bases[1] is not None and bases[2] is not None)
+                or outs > int(rule["max_outs"])):
             return 0.0
         value = float(rule["base"]) * math.exp(
             (float(batter.contact) - 50.0) * float(rule["contact_log_per_point"])
@@ -1204,6 +1284,21 @@ class MatchSimulator:
                 return "sacrifice_fly"
         return "fly_out"
 
+    @staticmethod
+    def _record_baserunning_play(event_type, before, after, scored, responsibility, earned, pitcher_id,
+                                 plate_appearance_no, outs):
+        """打席のあとの走塁（暴投・捕逸・本盗）で走者が進む・生還するのを責任と自責点の記録に写す。
+
+        打者はいない（batter_id は空）。生還した走者の責任（責任投手）を返す。"""
+        runners = responsibility.record_play(
+            bases_before=before, bases_after=after, scored_runner_ids=scored, batter_id="",
+            pitcher_id=pitcher_id, event_type=event_type, plate_appearance_no=plate_appearance_no)
+        earned.record_play(
+            bases_before=before, bases_after=after, scored_runners=runners, batter_id="",
+            pitcher_id=pitcher_id, event_type=event_type, plate_appearance_no=plate_appearance_no,
+            outs_before=outs, outs_on_play=0)
+        return runners
+
     def _advance_out(self, key: str, runner: PlayerAbilitySnapshot, defense_strength: float, rng) -> bool:
         """凡退の間に走者が次の塁へ進むか（進塁打・タッチアップ）。"""
         return rng.random() < self._advance_probability(
@@ -1267,33 +1362,83 @@ class MatchSimulator:
         )
         return self._clamp_probability(value, float(rule["min"]), float(rule["max"]))
 
+    def _home_steal_probabilities(
+        self, runner: PlayerAbilitySnapshot, catcher: PlayerAbilitySnapshot,
+        pitcher: PlayerAbilitySnapshot, mobility: float = 1.0,
+    ) -> tuple[float, float]:
+        """本盗の (試みる確率, 成功の確率)。"""
+        rule = self.params["stolen_bases"]["home_steal"]
+        attempt = min(float(rule["max_probability"]), float(rule["base"]) * math.exp(
+            (float(runner.stealing) - 50.0) * float(rule["per_stealing_point"])
+            + (float(runner.speed) - 50.0) * float(rule["per_speed_point"])) * mobility)
+        s = rule["success"]
+        catching = catcher.catching
+        if catching is None:
+            catching = int(self.params["stolen_bases"]["catcher_catching_default"])
+        success = self._clamp_probability(
+            float(s["base"])
+            + (float(runner.stealing) - 50.0) * float(s["per_stealing_point"])
+            + (float(runner.speed) - 50.0) * float(s["per_speed_point"])
+            - (float(catcher.arm_strength) - 50.0) * float(s["per_catcher_arm_point"])
+            - (float(catching) - 50.0) * float(s["per_catcher_catching_point"])
+            - (float(pitcher.quick or 50) - 50.0) * float(s["per_pitcher_quick_point"]),
+            float(s["min"]), float(s["max"]))
+        return attempt, success
+
     def _attempt_steal(
         self, *, bases: list[str | None], outs: int, margin: int, inning: int,
         offense_players: Mapping[str, PlayerAbilitySnapshot],
         catcher: PlayerAbilitySnapshot, pitcher: PlayerAbilitySnapshot, rng,
         mobility: float = 1.0, forced: bool = False,
-    ) -> tuple[str, int, str] | None:
-        """打席のあとの盗塁：(走者, 元の塁, 結果) か None。結果は sb（盗塁）・cs（盗塁死）・
-        po（牽制死）。``forced`` はエンドランの空振り（走者はもう走っているので必ず試み、牽制はない）。"""
+    ) -> list[tuple[str, int, str]] | None:
+        """打席のあとの盗塁：走者ごとの (走者, 元の塁, 結果) の並び（先の走者から）か None。
+
+        結果は sb（盗塁）・cs（盗塁死）・po（牽制死）・adv（重盗で二塁走者が刺される間に一塁走者が
+        進む。盗塁は付かない）。元の塁は 0〜2（2 は本盗）。``forced`` はエンドランの空振り
+        （走者はもう走っているので必ず試み、牽制はない）。"""
+        if outs >= 3:
+            return None
+        rule = self.params["stolen_bases"]
+        bonus = float(rule["hit_and_run_strikeout_success_bonus"]) if forced else 0.0
+        if bases[0] is not None and bases[1] is not None and bases[2] is None:
+            # 一・二塁の重盗（二塁走者の三盗の成否で決まる）
+            lead, trail = bases[1], bases[0]
+            runner = offense_players[lead]
+            double = rule["double_steal"]
+            if not forced and rng.random() >= float(double["attempt_multiplier"]) * self._steal_attempt_probability(
+                    runner, 1, outs=outs, margin=margin, inning=inning, mobility=mobility):
+                return None
+            success = self._clamp_probability(
+                self._steal_success_probability(runner, catcher, pitcher, 1)
+                + float(double["success_bonus"]) + bonus,
+                float(rule["success"]["min"]), float(rule["success"]["max"]))
+            if rng.random() < success:
+                return [(lead, 1, "sb"), (trail, 0, "sb")]
+            # 3アウト目なら一塁走者は進まない
+            return [(lead, 1, "cs")] + ([(trail, 0, "adv")] if outs < 2 else [])
+        if bases[2] is not None and outs < 2 and not forced:
+            # 本盗（まれ）
+            runner = offense_players[bases[2]]
+            attempt, success = self._home_steal_probabilities(runner, catcher, pitcher, mobility)
+            if rng.random() < attempt:
+                return [(bases[2], 2, "sb" if rng.random() < success else "cs")]
         from_index = self._steal_base(bases)
-        if from_index is None or outs >= 3:
+        if from_index is None:
             return None
         runner_id = bases[from_index]
         runner = offense_players[runner_id]
         if forced:
-            bonus = float(self.params["stolen_bases"]["hit_and_run_strikeout_success_bonus"])
-            rule = self.params["stolen_bases"]["success"]
             probability = self._clamp_probability(
                 self._steal_success_probability(runner, catcher, pitcher, from_index) + bonus,
-                float(rule["min"]), float(rule["max"]))
-            return runner_id, from_index, "sb" if rng.random() < probability else "cs"
+                float(rule["success"]["min"]), float(rule["success"]["max"]))
+            return [(runner_id, from_index, "sb" if rng.random() < probability else "cs")]
         if rng.random() >= self._steal_attempt_probability(
                 runner, from_index, outs=outs, margin=margin, inning=inning, mobility=mobility):
             return None
         if rng.random() < self._pickoff_probability(runner, pitcher):
-            return runner_id, from_index, "po"
+            return [(runner_id, from_index, "po")]
         success = rng.random() < self._steal_success_probability(runner, catcher, pitcher, from_index)
-        return runner_id, from_index, "sb" if success else "cs"
+        return [(runner_id, from_index, "sb" if success else "cs")]
 
     def _advance_probability(
         self,
@@ -1670,6 +1815,7 @@ class MatchSimulator:
             "picked_off": 0,
             "catcher_steal_attempts": 0,
             "catcher_caught_stealing": 0,
+            "passed_balls": 0,
             **{key: 0 for key in BATTER_SPLIT_FIELDS},
             "pinch_hit_at_bats": 0,
             "pinch_hit_hits": 0,
@@ -1694,6 +1840,7 @@ class MatchSimulator:
             "hit_batters": 0,
             "pitches": 0,
             "exit_fatigue": 0,
+            "wild_pitches": 0,
             **{key: 0 for key in PITCHER_SPLIT_FIELDS},
         }
 
@@ -1814,7 +1961,7 @@ class MatchSimulator:
             for school_id, team in teams.items()
         }
         fatigue_rule = self.params["fatigue"]
-        tired_cache: dict[tuple[str, int], PlayerAbilitySnapshot] = {}
+        tired_cache: dict[tuple[str, int, bool], PlayerAbilitySnapshot] = {}
 
         def fatigue_points(school_id: str, pitcher_id: str, pitches: int) -> float:
             stamina = player_maps[school_id][pitcher_id].stamina
@@ -2258,18 +2405,23 @@ class MatchSimulator:
                             # ファウルで追い込まれ、打席が続く（打って出る）
                             weight_mode = "two_strike"
                     bunt_play = tactic_outcome not in (None, "foul")
+                    # 疲れの段階と度胸（ピンチ・終盤の接戦で能力が落ちるか）ごとに能力が決まるので、
+                    # どちらも使い回しのキーに入れる
+                    stage = fatigue_model.stage_of(
+                        fatigue_points(defense_id, pitcher_id, int(pitcher_stat["pitches"])),
+                        fatigue_rule)
+                    pressed = (self._under_pressure(bases, inning, score_margin)
+                               and self._pressure_points(pitcher) > 0)
+                    tired_pitcher = tired_cache.get((pitcher_id, stage, pressed))
+                    if tired_pitcher is None:
+                        tired_pitcher = fatigue_model.tired(pitcher, stage, fatigue_rule)
+                        if pressed:
+                            tired_pitcher = self._pressured(tired_pitcher)
+                        tired_cache[(pitcher_id, stage, pressed)] = tired_pitcher
                     if bunt_play:
                         event_type = "bunt"
                     else:
-                        # 疲れの段階ごとに能力が決まるので、段階も使い回しのキーに入れる
-                        stage = fatigue_model.stage_of(
-                            fatigue_points(defense_id, pitcher_id, int(pitcher_stat["pitches"])),
-                            fatigue_rule)
-                        tired_pitcher = tired_cache.get((pitcher_id, stage))
-                        if tired_pitcher is None:
-                            tired_pitcher = fatigue_model.tired(pitcher, stage, fatigue_rule)
-                            tired_cache[(pitcher_id, stage)] = tired_pitcher
-                        weight_key = (batter_id, pitcher_id, defense_values[defense_id], stage)
+                        weight_key = (batter_id, pitcher_id, defense_values[defense_id], stage, pressed)
                         weights = weight_cache.get(weight_key) if reuse_weights else None
                         if weights is None:
                             weights = weight_model(batter, tired_pitcher, defense_values[defense_id])
@@ -2392,6 +2544,7 @@ class MatchSimulator:
                                 plate_appearance_no=pa_no,
                             ),
                         ),
+                        None if bunt_play else tired_pitcher, batter,
                     )
                     if tactic_outcome == "foul":
                         pitches_on_play += int(self._strategy()["two_strike"]["extra_pitches"])
@@ -2428,49 +2581,97 @@ class MatchSimulator:
                             int(pitcher_stat["hit_batters"]) + 1
                         )
 
-                    # 打席のあとの盗塁（サヨナラ・3アウトのあとはない）
+                    # 打席のあとの暴投・捕逸と盗塁（サヨナラ・3アウトのあとはない）
                     bases_after_play = list(bases)
-                    steal = None
+                    steal = advance = None
                     if outs < 3 and not (half == "bottom" and inning >= regulation
                                          and team_runs[team2_id] > team_runs[team1_id]):
                         catcher_id = states[defense_id].player_for_position("C")
-                        steal = self._attempt_steal(
-                            bases=bases, outs=outs,
-                            margin=team_runs[offense_id] - team_runs[defense_id], inning=inning,
-                            offense_players=player_maps[offense_id],
-                            catcher=player_maps[defense_id][catcher_id], pitcher=pitcher,
-                            mobility=policies[offense_id].mobility,
-                            # エンドランの空振り三振：走者はもう走っている
-                            forced=tactic == "hit_and_run" and event_type == "strikeout",
-                            rng=rng_for(
-                                match_input.generation_seed,
-                                self.params["rng_namespace_policy"]["steal"].format(
-                                    match_id=match_input.match_id, plate_appearance_no=pa_no,
+                        catcher = player_maps[defense_id][catcher_id]
+                        # エンドランの空振り三振：走者はもう走っている
+                        forced = tactic == "hit_and_run" and event_type == "strikeout"
+                        if not forced:
+                            advance = self._wild_pitch_or_passed_ball(
+                                bases=bases, pitcher=tired_pitcher, catcher=catcher,
+                                rng=rng_for(
+                                    match_input.generation_seed,
+                                    self.params["rng_namespace_policy"]["wild_pitch"].format(
+                                        match_id=match_input.match_id, plate_appearance_no=pa_no,
+                                    ),
                                 ),
-                            ),
-                        )
-                    if steal is not None:
-                        runner_id, from_index, steal_result = steal
+                            )
+                        if advance is None:
+                            steal = self._attempt_steal(
+                                bases=bases, outs=outs,
+                                margin=team_runs[offense_id] - team_runs[defense_id], inning=inning,
+                                offense_players=player_maps[offense_id],
+                                catcher=catcher, pitcher=pitcher,
+                                mobility=policies[offense_id].mobility, forced=forced,
+                                rng=rng_for(
+                                    match_input.generation_seed,
+                                    self.params["rng_namespace_policy"]["steal"].format(
+                                        match_id=match_input.match_id, plate_appearance_no=pa_no,
+                                    ),
+                                ),
+                            )
+                    baserunning_scored: list[str] = []
+                    baserunning_runners: list[_RunnerResponsibility] = []
+                    if advance is not None:
+                        # 走者が全員1つ進み、三塁走者は生還する
+                        if bases[2] is not None:
+                            baserunning_scored.append(bases[2])
+                        bases[:] = [None, bases[0], bases[1]]
+                        if advance == "wp":
+                            pitcher_stat["wild_pitches"] = int(pitcher_stat["wild_pitches"]) + 1
+                        else:
+                            catcher_row = batter_rows[defense_id].get(catcher_id)
+                            if catcher_row is not None:
+                                catcher_row["passed_balls"] = int(catcher_row["passed_balls"]) + 1
+                        baserunning_runners.extend(self._record_baserunning_play(
+                            "wild_pitch" if advance == "wp" else "passed_ball",
+                            bases_after_play, bases, baserunning_scored,
+                            runner_responsibility, earned_run_tracker, pitcher_id, pa_no, outs))
+                    for runner_id, from_index, steal_result in steal or ():
                         runner_row = batter_rows[offense_id][runner_id]
                         catcher_row = batter_rows[defense_id].get(catcher_id)
-                        bases[from_index] = None
-                        if steal_result == "sb":
+                        if steal_result in ("sb", "adv") and from_index == 2:
+                            # 本盗の成功：得点
+                            before_home = list(bases)
+                            bases[2] = None
+                            baserunning_scored.append(runner_id)
+                            baserunning_runners.extend(self._record_baserunning_play(
+                                "stolen_base", before_home, bases, [runner_id],
+                                runner_responsibility, earned_run_tracker, pitcher_id, pa_no, outs))
+                        elif steal_result in ("sb", "adv"):
+                            bases[from_index] = None
                             bases[from_index + 1] = runner_id
-                            runner_row["stolen_bases"] = int(runner_row["stolen_bases"]) + 1
+                            earned_run_tracker.record_baserunning(runner_id, from_index, from_index + 1)
                         else:
+                            bases[from_index] = None
                             outs += 1
                             outs_on_play += 1
                             pitcher_stat["outs_recorded"] = int(pitcher_stat["outs_recorded"]) + 1
                             runner_responsibility.retire_runner(runner_id)
+                            earned_run_tracker.record_baserunning(runner_id, from_index, None)
+                        if steal_result == "sb":
+                            runner_row["stolen_bases"] = int(runner_row["stolen_bases"]) + 1
+                        elif steal_result in ("cs", "po"):
                             key = "caught_stealing" if steal_result == "cs" else "picked_off"
                             runner_row[key] = int(runner_row[key]) + 1
-                        if steal_result != "po" and catcher_row is not None:
+                        if steal_result in ("sb", "cs") and catcher_row is not None:
                             catcher_row["catcher_steal_attempts"] = int(catcher_row["catcher_steal_attempts"]) + 1
                             if steal_result == "cs":
                                 catcher_row["catcher_caught_stealing"] = int(catcher_row["catcher_caught_stealing"]) + 1
-                        earned_run_tracker.record_baserunning(
-                            runner_id, from_index, from_index + 1 if steal_result == "sb" else None,
-                        )
+                    if baserunning_scored:
+                        scored = [*scored, *baserunning_scored]
+                        for runner_id in baserunning_scored:
+                            runner_row = batter_rows[offense_id][runner_id]
+                            runner_row["runs"] = int(runner_row["runs"]) + 1
+                        team_runs[offense_id] += len(baserunning_scored)
+                        outing_runs[pitcher_id] += len(baserunning_scored)
+                        for runner in baserunning_runners:
+                            responsible = pitcher_rows[defense_id][runner.responsible_pitcher_id]
+                            responsible["runs_allowed"] = int(responsible["runs_allowed"]) + 1
 
                     events.append(
                         MatchEvent(
@@ -2504,9 +2705,12 @@ class MatchSimulator:
                                 *((('scored_runners', '|'.join(scored)),) if dh_game else ()),
                                 *((('walkoff_hit', pitch_event_type),) if event_type != pitch_event_type else ()),
                                 *((('tactic', f"{tactic}:{tactic_outcome}"),) if tactic else ()),
-                                *((('bases_after_play', self._bases_text(bases_after_play)),
-                                   ('steal', f"{steal[0]}|{steal[1] + 1}|{steal[2]}|{catcher_id}"))
-                                  if steal is not None else ()),
+                                *((('bases_after_play', self._bases_text(bases_after_play)),)
+                                  if steal or advance else ()),
+                                *((('steal', ';'.join(f"{r}|{f + 1}|{x}|{catcher_id}" for r, f, x in steal)),)
+                                  if steal else ()),
+                                *((('advance', f"{advance}|{pitcher_id if advance == 'wp' else catcher_id}"),)
+                                  if advance else ()),
                             ),
                         )
                     )
@@ -2658,6 +2862,48 @@ _APPLY_EVENT_MODEL = MatchSimulator._apply_event
 _RNG_FACTORY = rng_for
 
 
+def _baserunning_moves(metadata, after, final) -> list[tuple]:
+    """打席のあとの走塁の記録（advance・steal）を、打席の直後の塁（after）から再生する。
+
+    返すのは順に ('play', 走者, 種類, 前の塁, 後の塁, 生還した走者)（暴投・捕逸・本盗の成功）、
+    ('score', 走者)、('advance', 走者, 元の塁)、('out', 走者, 元の塁)。塁が final に一致しないと誤り。"""
+    bases = list(after)
+    moves: list[tuple] = []
+    advance = metadata.get('advance')
+    steal = metadata.get('steal')
+    if advance is not None:
+        kind, _ = advance.split('|')
+        if kind not in ('wp', 'pb') or steal is not None or not any(bases):
+            raise ValueError('invalid wild pitch / passed ball evidence')
+        before = list(bases)
+        scored = [bases[2]] if bases[2] is not None else []
+        bases = [None, bases[0], bases[1]]
+        moves.append(('play', '', 'wild_pitch' if kind == 'wp' else 'passed_ball', before, list(bases), scored))
+        moves.extend(('score', runner) for runner in scored)
+    for entry in (steal.split(';') if steal else ()):
+        runner_id, from_base, result, _ = entry.split('|')
+        from_index = int(from_base) - 1
+        if result not in ('sb', 'cs', 'po', 'adv') or not 0 <= from_index <= 2 or bases[from_index] != runner_id:
+            raise ValueError('invalid stolen base evidence')
+        if result in ('sb', 'adv') and from_index == 2:
+            before = list(bases)
+            bases[2] = None
+            moves.append(('play', '', 'stolen_base', before, list(bases), [runner_id]))
+            moves.append(('score', runner_id))
+            continue
+        bases[from_index] = None
+        if result in ('sb', 'adv'):
+            if bases[from_index + 1] is not None:
+                raise ValueError('stolen base target is occupied')
+            bases[from_index + 1] = runner_id
+            moves.append(('advance', runner_id, from_index))
+        else:
+            moves.append(('out', runner_id, from_index))
+    if bases != final:
+        raise ValueError('bases after the play differ from the baserunning evidence')
+    return moves
+
+
 def validate_run_accounting(result: MatchSimulationResult) -> None:
     """破棄前のDHイベントで既存の責任投手・自責点処理を再生する。"""
     runs, earned, batter_runs = Counter(), Counter(), Counter()
@@ -2674,24 +2920,13 @@ def validate_run_accounting(result: MatchSimulationResult) -> None:
             scored = [pid for pid in metadata['scored_runners'].split('|') if pid]
         except (KeyError, AttributeError) as exc:
             raise ValueError('DH strict validation requires scoring runner identities') from exc
-        steal = metadata.get('steal')
-        steal_out = 0
-        if steal is not None:
-            runner_id, from_base, steal_result, _ = steal.split('|')
-            from_index = int(from_base) - 1
-            steal_out = int(steal_result in ('cs', 'po'))
-            expected = list(after)
-            if steal_result not in ('sb', 'cs', 'po') or expected[from_index] != runner_id:
-                raise ValueError('invalid stolen base evidence')
-            expected[from_index] = None
-            if steal_result == 'sb':
-                if expected[from_index + 1] is not None:
-                    raise ValueError('stolen base target is occupied')
-                expected[from_index + 1] = runner_id
-            if expected != final:
-                raise ValueError('bases after the stolen base differ from the evidence')
-        elif final != after:
-            raise ValueError('bases changed after the play without evidence')
+        # 打席のあとの走塁（暴投・捕逸・盗塁）を、打席の直後の塁から順に確かめる
+        moves = _baserunning_moves(metadata, after, final)
+        baserunning_scored = [runner for kind, runner, *_ in moves if kind == 'score']
+        steal_out = sum(kind == 'out' for kind, *_ in moves)
+        if baserunning_scored != scored[len(scored) - len(baserunning_scored):]:
+            raise ValueError('baserunning runs differ from scoring runners')
+        play_scored = scored[:len(scored) - len(baserunning_scored)]
         half = (event.inning, event.half)
         if half != previous_half:
             responsibility = _RunnerResponsibilityTracker()
@@ -2720,20 +2955,28 @@ def validate_run_accounting(result: MatchSimulationResult) -> None:
                 raise ValueError('walkoff hit credit differs from winning runner advance')
         for pid in scored:
             batter_runs[event.offense_school_id, pid] += 1
-        runners = responsibility.record_play(
-            bases_before=before, bases_after=after, scored_runner_ids=scored,
+        runners = list(responsibility.record_play(
+            bases_before=before, bases_after=after, scored_runner_ids=play_scored,
             batter_id=event.batter_id, pitcher_id=event.pitcher_id,
-            event_type=event.event_type, plate_appearance_no=event.plate_appearance_no)
+            event_type=event.event_type, plate_appearance_no=event.plate_appearance_no))
         reconstruction.record_play(
             bases_before=before, bases_after=after, scored_runners=runners,
             batter_id=event.batter_id, pitcher_id=event.pitcher_id, event_type=hit_before_finish,
             plate_appearance_no=event.plate_appearance_no, outs_before=outs,
             outs_on_play=event.outs_on_play - steal_out)
-        if steal is not None:
-            if steal_out:
+        outs_after_play = outs + event.outs_on_play - steal_out
+        for kind, runner_id, *rest in moves:
+            if kind == 'play':
+                event_type, move_before, move_after, move_scored = rest
+                runners.extend(MatchSimulator._record_baserunning_play(
+                    event_type, move_before, move_after, move_scored, responsibility, reconstruction,
+                    event.pitcher_id, event.plate_appearance_no, outs_after_play))
+            elif kind == 'out':
                 responsibility.retire_runner(runner_id)
-            reconstruction.record_baserunning(
-                runner_id, from_index, None if steal_out else from_index + 1)
+                reconstruction.record_baserunning(runner_id, rest[0], None)
+                outs_after_play += 1
+            elif kind == 'advance':
+                reconstruction.record_baserunning(runner_id, rest[0], rest[0] + 1)
         outs += event.outs_on_play
         if outs > 3 or str(outs) != metadata.get('outs_after'):
             raise ValueError('event outs differ from inning reconstruction')
