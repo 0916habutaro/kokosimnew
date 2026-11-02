@@ -64,7 +64,9 @@ class CoachScreenTests(unittest.TestCase):
         self.assertEqual(('COACH-A',50,1976,'現役'),(d['coach_id'],d['age'],d['birth_year'],d['status']))
         self.assertEqual({'school_id':'A','name':'架空校A'},d['current_school'])
         self.assertEqual((2016,11),(d['appointment_year'],d['tenure_years']))
-        self.assertEqual([50,40,60,30],[r['value'] for r in d['abilities']])
+        # 評判・育成力・継投・起用と、作戦の傾向（小技・機動力。架空の監督は中立の50）
+        self.assertEqual([50,40,60,30,50,50],[r['value'] for r in d['abilities']])
+        self.assertEqual(['小技','機動力'],[r['label'] for r in d['abilities'][4:]])
         self.assertTrue(all(r['description'] for r in d['abilities']))
         self.assertTrue(d['periods'][0]['configured_past'])
         self.assertEqual('開始時',d['periods'][0]['name_basis'])
