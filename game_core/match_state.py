@@ -827,6 +827,11 @@ def _validate_dh_event_history(records, team_ids, reference_year, known_ids, eve
                 for slot in change.dh_action.batting_changes:
                     outgoing = state.player_at_order(slot.batting_order)
                     expected_bases = [slot.player_id if pid == outgoing else pid for pid in expected_bases]
+            elif (expected_bases is not None and change.school_id == offense
+                    and change.kind == 'substitution' and change.outgoing_player_id is not None):
+                # 片方だけDHの試合の、DHのない側の代走（段階F2）
+                expected_bases = [change.incoming_player_id if pid == change.outgoing_player_id else pid
+                                  for pid in expected_bases]
             apply_lineup_change(state, change)
             if old_pitcher != state.current_pitcher_id:
                 if (old_pitcher == state.initial_lineup.player_for_position('P')

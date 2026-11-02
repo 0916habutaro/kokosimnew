@@ -159,6 +159,20 @@ class FullGameTests(unittest.TestCase):
                         self.assertLessEqual(row.pinch_hit_at_bats, row.at_bats)
         self.assertEqual({"pinch_hitter", "pinch_runner", "defensive_replacement"}, reasons)
 
+    def test_pinch_runner_of_the_team_without_dh_in_a_game_where_only_the_opponent_uses_dh(self):
+        # 片方だけDHの試合は両チームの交代をDHの照合で確かめる。DHのない側の代走も走者の入れ替えになる
+        teams = (self.fixture.by_mode["none"][0], self.fixture.by_mode["normal"][1])
+        reasons = set()
+        for number in range(6):
+            inp = replace(self.fixture.match("normal", teams=teams), match_id=f"FAKE-SUBS-MIX-{number}",
+                          generation_seed=20261600 + number)
+            result = _Aggressive().simulate(inp, pitch_allowances={})
+            validate_match_simulation_result(result, inp)
+            validate_run_accounting(result)
+            reasons |= {(p.starting_designated_hitter_id is None, c.reason)
+                        for p in result.team_participation for c in p.changes if c.reason}
+        self.assertIn((True, "pinch_runner"), reasons)
+
     def test_substitutions_happen_when_pitch_limits_add_fielders_to_the_pitching_order(self):
         # 本番は球数制限の残りを渡すので、投げる順の後ろに野手が並ぶ。控えから野手を外さない
         inp = replace(self.fixture.match("none"), match_id="FAKE-SUBS-LIMIT", generation_seed=20261500)
