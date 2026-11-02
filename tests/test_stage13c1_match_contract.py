@@ -152,6 +152,7 @@ class Stage13C1MatchContractTests(unittest.TestCase):
                 hits=1,
                 home_runs=1,
                 rbi=1,
+                vs_rhp_at_bats=1, vs_rhp_hits=1, vs_rhp_home_runs=1,
             ),
             BatterGameStats(
                 player_id=self.team2_batter,
@@ -159,6 +160,7 @@ class Stage13C1MatchContractTests(unittest.TestCase):
                 plate_appearances=1,
                 at_bats=1,
                 strikeouts=1,
+                vs_rhp_at_bats=1, vs_rhp_strikeouts=1,
             ),
         )
         pitchers = (
@@ -168,6 +170,7 @@ class Stage13C1MatchContractTests(unittest.TestCase):
                 outs_recorded=1,
                 batters_faced=1,
                 strikeouts=1,
+                vs_rhb_at_bats=1, vs_rhb_strikeouts=1,
             ),
             PitcherGameStats(
                 player_id=self.team2_pitcher,
@@ -178,6 +181,7 @@ class Stage13C1MatchContractTests(unittest.TestCase):
                 earned_runs=1,
                 hits_allowed=1,
                 home_runs_allowed=1,
+                vs_rhb_at_bats=1, vs_rhb_hits=1, vs_rhb_home_runs=1,
             ),
         )
         return MatchSimulationResult(
@@ -326,8 +330,12 @@ class Stage13C1MatchContractTests(unittest.TestCase):
             plate_appearances=2,
             at_bats=1,
             walks=1,
+            vs_rhp_at_bats=1, vs_lhp_walks=1,
         )
         validate_batter_game_stats(valid)
+        # 左右別の合計が全体と合わなければ受け付けない（段階F2）
+        with self.assertRaises(ValueError):
+            validate_batter_game_stats(replace(valid, vs_lhp_walks=0))
         invalid = replace(valid, plate_appearances=3)
         with self.assertRaises(ValueError):
             validate_batter_game_stats(invalid)
@@ -356,8 +364,11 @@ class Stage13C1MatchContractTests(unittest.TestCase):
             hits_allowed=1,
             walks=1,
             strikeouts=1,
+            vs_rhb_hits=1, vs_lhb_walks=1, vs_lhb_strikeouts=1,
         )
         validate_pitcher_game_stats(valid)
+        with self.assertRaises(ValueError):
+            validate_pitcher_game_stats(replace(valid, vs_lhb_strikeouts=0))
         with self.assertRaises(ValueError):
             validate_pitcher_game_stats(
                 replace(valid, earned_runs=2)

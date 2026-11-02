@@ -41,6 +41,12 @@ class GameRules:
     mercy: tuple[tuple[int, int], ...] = ()
 
 
+# 左右別の成績の欄（段階F2）
+_SPLIT_KEYS = ("at_bats", "hits", "home_runs", "walks", "strikeouts")
+BATTER_SPLIT_FIELDS = tuple(f"vs_{hand}_{key}" for hand in ("rhp", "lhp") for key in _SPLIT_KEYS)
+PITCHER_SPLIT_FIELDS = tuple(f"vs_{hand}_{key}" for hand in ("rhb", "lhb") for key in _SPLIT_KEYS)
+
+
 @dataclass(frozen=True)
 class LineupAdjustment:
     """直接試合計算での明示的な交代指示。AIや全国自動進行からは生成しない。"""
@@ -567,8 +573,13 @@ class MatchSimulator:
             self._team_generator = TeamStrengthGenerator()
         return self._team_generator
 
-    def _initial_state(self, team: TeamMatchInput, actual_pitcher_id: str) -> TeamMatchState:
-        """開始前にP配置を確定する。外れた先発予定選手は未出場の控えに戻す。"""
+    def _initial_state(self, team: TeamMatchInput, actual_pitcher_id: str, *,
+                       opponent_pitcher: PlayerAbilitySnapshot | None = None,
+                       staff: tuple[str, ...] = (),
+                       tactics: CoachTactics = CoachTactics()) -> TeamMatchState:
+        """開始前にP配置を確定する。外れた先発予定選手は未出場の控えに戻す。
+
+        ``opponent_pitcher`` を渡すと、相手の先発投手の腕を見て先発メンバーを少し変える（段階F2）。"""
         lineup = team.team_strength.starting_lineup
         planned_pitcher = lineup.player_for_position("P")
         if actual_pitcher_id != planned_pitcher and lineup.designated_hitter_id is not None:
@@ -595,6 +606,7 @@ class MatchSimulator:
                     for entry in lineup.entries
                 )
             lineup = replace(lineup, entries=entries)
+        lineup = self._platoon_lineup(lineup, team, opponent_pitcher, staff, tactics)
         available = frozenset(p.player_id for p in team.player_abilities)
         return TeamMatchState(
             lineup, team.registered_player_ids if team.registered_player_ids is not None else available,
@@ -963,6 +975,163 @@ class MatchSimulator:
         out["strikeout"] = out.get("strikeout", 0.0) * float(rule["strikeout_multiplier"])
         out["walk"] = out.get("walk", 0.0) * float(rule["walk_multiplier"])
         return out
+
+    # ---- 選手の交代（段階F2。値は match_simulation_v1.json の substitutions） ----
+    def _substitutions(self) -> dict:
+        return self.params["substitutions"]
+
+    def _hitting_value(self, batter: PlayerAbilitySnapshot, pitcher: PlayerAbilitySnapshot) -> float:
+        """この投手に対する打撃の値（左右の差を入れた打撃の総合）。"""
+        return self._strength_generator()._batting_composite(self._platoon_batter(batter, pitcher))
+
+    def _defense_value(self, player: PlayerAbilitySnapshot, position: str) -> float:
+        return self._strength_generator()._defense_composite(player, position)
+
+    @staticmethod
+    def _bench(state: TeamMatchState, players: Mapping[str, PlayerAbilitySnapshot],
+               staff: tuple[str, ...]) -> list[PlayerAbilitySnapshot]:
+        """代打・代走・守備固めに使える控え（投手陣を除く。退いた選手は入らない）。"""
+        keep = set(staff)
+        return [players[pid] for pid in sorted(state.bench_player_ids) if pid in players and pid not in keep]
+
+    def _choose_pinch_hitter(
+        self, *, batter: PlayerAbilitySnapshot, pitcher: PlayerAbilitySnapshot,
+        bench: list[PlayerAbilitySnapshot], inning: int, margin: int, pitcher_slot: bool,
+        tactics: CoachTactics,
+    ) -> str | None:
+        """代打に出す控え（なければ None）。終盤の接戦・負けている場面で、明らかに打てる控えがいるとき。"""
+        rule = self._substitutions()["pinch_hitter"]
+        if (inning < int(self._substitutions()["late_inning_from"]) or not bench
+                or not -int(rule["max_deficit"]) <= margin <= int(rule["max_lead"])):
+            return None
+        need = float(rule["pitcher_slot_min_gain" if pitcher_slot else "min_gain"]) / tactics.substitutions
+        best = max(bench, key=lambda p: (self._hitting_value(p, pitcher), p.player_id))
+        if self._hitting_value(best, pitcher) - self._hitting_value(batter, pitcher) >= need:
+            return best.player_id
+        return None
+
+    def _choose_pinch_runner(
+        self, *, bases: list[str | None], players: Mapping[str, PlayerAbilitySnapshot],
+        bench: list[PlayerAbilitySnapshot], inning: int, margin: int, protected: set[str],
+        tactics: CoachTactics,
+    ) -> tuple[str, str] | None:
+        """代走：(退く走者, 入る控え) かNone。終盤の接戦で、足の遅い走者（先の塁から）に足の速い控え。"""
+        rule = self._substitutions()["pinch_runner"]
+        if (inning < int(rule["inning_from"]) or not bench
+                or not -int(rule["max_deficit"]) <= margin <= int(rule["max_lead"])):
+            return None
+        fastest = max(bench, key=lambda p: (p.speed, p.player_id))
+        need = float(rule["min_speed_gain"]) / tactics.substitutions
+        for runner_id in (bases[2], bases[1], bases[0]):
+            if runner_id is None or runner_id in protected:
+                continue
+            runner = players[runner_id]
+            if runner.speed <= int(rule["max_runner_speed"]) and fastest.speed - runner.speed >= need:
+                return runner_id, fastest.player_id
+        return None
+
+    def _choose_defensive_replacements(
+        self, *, state: TeamMatchState, players: Mapping[str, PlayerAbilitySnapshot],
+        bench: list[PlayerAbilitySnapshot], inning: int, lead: int, entered: set[str],
+        tactics: CoachTactics,
+    ) -> list[tuple[str, str]]:
+        """守りの初めの守備固め：(退く野手, 入る控え) の並び。代打・代走で入った野手はリードに関係なく見る。"""
+        rule = self._substitutions()["defensive_replacement"]
+        late = inning >= int(self._substitutions()["late_inning_from"])
+        leading = late and int(rule["min_lead"]) <= lead <= int(rule["max_lead"])
+        out, used = [], set()
+        candidates = []
+        for assignment in state.defensive_alignment:
+            if assignment.defensive_position == "P":
+                continue
+            pid = assignment.player_id
+            if not (leading or (late and pid in entered)):
+                continue
+            need = float(rule["entered_min_gain" if pid in entered else "min_gain"]) / tactics.substitutions
+            current = self._defense_value(players[pid], assignment.defensive_position)
+            options = [p for p in bench if p.player_id not in used]
+            if not options:
+                break
+            best = max(options, key=lambda p: (self._defense_value(p, assignment.defensive_position), p.player_id))
+            gain = self._defense_value(best, assignment.defensive_position) - current
+            if gain >= need:
+                candidates.append((gain, pid, best.player_id))
+                used.add(best.player_id)
+        for _, outgoing, incoming in sorted(candidates, reverse=True)[:int(rule["max_per_half"])]:
+            out.append((outgoing, incoming))
+        return out
+
+    def _platoon_lineup(self, lineup, team: TeamMatchInput, opponent: PlayerAbilitySnapshot | None,
+                        staff: tuple[str, ...], tactics: CoachTactics):
+        """相手の先発投手の腕を見て、先発メンバーを少しだけ変える（1人まで入れ替え、隣どうしの打順の入れ替え）。"""
+        if opponent is None:
+            return lineup
+        rule = self._substitutions()["platoon_lineup"]
+        players = self._players(team)
+        starters = {entry.player_id for entry in lineup.entries} | {a.player_id for a in lineup.defense}
+        bench = [p for p in team.player_abilities if p.player_id not in starters and p.player_id not in set(staff)]
+        entries = list(lineup.entries)
+        defense = list(lineup.defense)
+        swaps = 0
+        need = float(rule["selection_min_gain"]) / tactics.substitutions
+        while swaps < int(rule["max_selection_swaps"]) and bench:
+            best = None
+            for index, entry in enumerate(entries):
+                if entry.defensive_position in ("P", "C", "DH"):
+                    continue
+                starter = players[entry.player_id]
+                base_hit = self._hitting_value(starter, opponent)
+                base_def = self._defense_value(starter, entry.defensive_position)
+                for candidate in bench:
+                    gain = self._hitting_value(candidate, opponent) - base_hit
+                    loss = base_def - self._defense_value(candidate, entry.defensive_position)
+                    if gain >= need and loss <= float(rule["max_defense_loss"]):
+                        key = (gain, candidate.player_id)
+                        if best is None or key > best[0]:
+                            best = (key, index, candidate)
+            if best is None:
+                break
+            _, index, candidate = best
+            outgoing = entries[index]
+            score = round(self._strength_generator()._selection_score(candidate, outgoing.defensive_position), 4)
+            entries[index] = replace(outgoing, player_id=candidate.player_id, selection_score=score)
+            defense = [replace(a, player_id=candidate.player_id) if a.player_id == outgoing.player_id else a
+                       for a in defense]
+            bench = [p for p in bench if p.player_id != candidate.player_id]
+            swaps += 1
+        order = sorted(entries, key=lambda e: e.batting_order)
+        swaps = 0
+        index = 0
+        while index < len(order) - 1 and swaps < int(rule["max_order_swaps"]):
+            here, after = order[index], order[index + 1]
+            if (self._hitting_value(players[after.player_id], opponent)
+                    - self._hitting_value(players[here.player_id], opponent) >= float(rule["order_min_gain"])):
+                order[index] = replace(after, batting_order=here.batting_order)
+                order[index + 1] = replace(here, batting_order=after.batting_order)
+                swaps += 1
+                index += 2
+            else:
+                index += 1
+        changed = replace(lineup, entries=tuple(order), defense=tuple(defense))
+        return lineup if changed == lineup else changed
+
+    def _platoon_reliever(
+        self, *, candidates: list[str], players: Mapping[str, PlayerAbilitySnapshot],
+        upcoming: list[PlayerAbilitySnapshot], inning: int, margin: int, tactics: CoachTactics,
+    ) -> str | None:
+        """終盤の接戦で次の打者が同じ側に続くなら、その側に強い腕の救援（候補の中で能力の差が小さいもの）。"""
+        rule = self._substitutions()["platoon_relief"]
+        if inning < int(rule["inning_from"]) or abs(margin) > int(rule["close_margin"]) or not candidates:
+            return None
+        sides = [b.bats for b in upcoming[:int(rule["lookahead"])] if b.bats in ("L", "R")]
+        side = next((s for s in ("L", "R") if sides.count(s) >= int(rule["min_same_side"])), None)
+        if side is None:
+            return None
+        quality = self._strength_generator()._pitcher_quality
+        first = quality(players[candidates[0]])
+        gap = float(rule["max_quality_gap"]) / tactics.substitutions
+        return next((pid for pid in candidates
+                     if players[pid].throws == side and first - quality(players[pid]) <= gap), None)
 
     def _outs_in_play(self) -> dict:
         return self.params["outs_in_play"]
@@ -1487,6 +1656,9 @@ class MatchSimulator:
             "picked_off": 0,
             "catcher_steal_attempts": 0,
             "catcher_caught_stealing": 0,
+            **{key: 0 for key in BATTER_SPLIT_FIELDS},
+            "pinch_hit_at_bats": 0,
+            "pinch_hit_hits": 0,
         }
 
     @staticmethod
@@ -1508,6 +1680,7 @@ class MatchSimulator:
             "hit_batters": 0,
             "pitches": 0,
             "exit_fatigue": 0,
+            **{key: 0 for key in PITCHER_SPLIT_FIELDS},
         }
 
     def _record_batter_event(
@@ -1541,6 +1714,26 @@ class MatchSimulator:
         elif event_type == "double_play":
             row["grounded_into_double_plays"] = int(row["grounded_into_double_plays"]) + 1
         row["rbi"] = int(row["rbi"]) + rbi
+
+    def _record_split(self, batter_row, pitcher_row, event_type: str, throws: str | None,
+                      side: str) -> None:
+        """左右別の数（打者は相手投手の腕、投手は打者の打席の側ごと）。"""
+        batter_prefix = "vs_lhp_" if throws == "L" else "vs_rhp_"
+        pitcher_prefix = "vs_lhb_" if side == "L" else "vs_rhb_"
+        keys = []
+        if bool(self.event_catalog[event_type]["counts_as_at_bat"]):
+            keys.append("at_bats")
+        if event_type in {"single", "double", "triple", "home_run"}:
+            keys.append("hits")
+        if event_type == "home_run":
+            keys.append("home_runs")
+        if event_type in {"walk", "hit_by_pitch"}:
+            keys.append("walks")
+        if event_type == "strikeout":
+            keys.append("strikeouts")
+        for key in keys:
+            batter_row[batter_prefix + key] = int(batter_row[batter_prefix + key]) + 1
+            pitcher_row[pitcher_prefix + key] = int(pitcher_row[pitcher_prefix + key]) + 1
 
     @staticmethod
     def _bases_text(bases: list[str | None]) -> str:
@@ -1630,8 +1823,13 @@ class MatchSimulator:
         for school_id, order in pitcher_orders.items():
             if not order:
                 raise ValueError(f"{school_id}: no available pitcher within pitch limits")
+        opponents = {team1_id: team2_id, team2_id: team1_id}
         states = {
-            school_id: self._initial_state(team, pitcher_orders[school_id][0])
+            school_id: self._initial_state(
+                team, pitcher_orders[school_id][0],
+                # 相手の先発投手の腕を見て先発メンバーを少し変える（段階F2）
+                opponent_pitcher=player_maps[opponents[school_id]][pitcher_orders[opponents[school_id]][0]],
+                staff=pitcher_orders[school_id], tactics=policies[school_id])
             for school_id, team in teams.items()
         }
         defense_values = {
@@ -1672,6 +1870,12 @@ class MatchSimulator:
 
         events: list[MatchEvent] = []
         inning_scores: list[InningScore] = []
+        # 代打で入り、まだ打席に立っていない選手（段階F2）
+        pinch_hitters = {team1_id: set(), team2_id: set()}
+        # 代打・代走で入った選手（守りでは守備固め・投手の交代の対象）と、交代の数
+        entered_off_bench = {team1_id: set(), team2_id: set()}
+        substitution_counts = {team1_id: Counter(), team2_id: Counter()}
+        defense_checked: set[tuple[int, str]] = set()
         pa_no = 0
         event_no = 0
         last_inning = 1
@@ -1713,6 +1917,43 @@ class MatchSimulator:
                 if (old_pitcher == state.initial_lineup.player_for_position('P')
                         and states[opponent_id].dh_batting_required):
                     states[opponent_id].record_opposing_starter_replaced(moment=before_moment())
+
+        def available_relievers(school_id):
+            """まだ投げていない、交代で出せる投手（投手陣の順。疲れで休ませるエースは除く）。"""
+            state = states[school_id]
+            out = []
+            for pid in pitcher_orders[school_id][:staff_sizes[school_id]]:
+                if (pid == state.current_pitcher_id or pid in state.exited_player_ids
+                        or pid == rested_aces[school_id]
+                        or (pid in pitcher_rows[school_id]
+                            and int(pitcher_rows[school_id][pid]['batters_faced']) > 0)
+                        or (pid == state.initial_lineup.designated_hitter_id
+                            and 'pitcher' in state.retired_two_way_roles)
+                        or (pitch_allowances is not None and pitch_allowances.get(pid, math.inf) <= 0)):
+                    continue
+                out.append(pid)
+            return out
+
+        def bench_substitute(school_id, outgoing, incoming, reason):
+            """采配の交代（代打・代走・守備固め）。規則に合わなければ何もしない（False）。"""
+            state = states[school_id]
+            try:
+                state.substitute(outgoing, incoming, moment=before_moment())
+            except ValueError:
+                return False
+            state.label_last_change(reason)
+            # 代打・代走で投手の位置に入っても、その守りの初めに投手を代える（投手の成績は作らない）
+            refresh_after_change(school_id, state.current_pitcher_id)
+            substitution_counts[school_id][reason] += 1
+            entered_off_bench[school_id].discard(outgoing)
+            if reason != "defensive_replacement":
+                entered_off_bench[school_id].add(incoming)
+            return True
+
+        def upcoming_batters(school_id, count):
+            state = states[school_id]
+            return [player_maps[school_id][state.player_at_order((lineup_index[school_id] + k) % 9 + 1)]
+                    for k in range(count)]
 
         for inning in range(1, hard_max + 1):
             last_inning = inning
@@ -1779,10 +2020,23 @@ class MatchSimulator:
                         if adjustment.school_id == defense_id:
                             fielding_pending = True
                     staff = pitcher_orders[defense_id]
+                    if (inning, half) not in defense_checked:
+                        # 守りの初めの守備固め（段階F2）
+                        defense_checked.add((inning, half))
+                        for outgoing, incoming in self._choose_defensive_replacements(
+                                state=states[defense_id], players=player_maps[defense_id],
+                                bench=self._bench(states[defense_id], player_maps[defense_id], staff),
+                                inning=inning, lead=team_runs[defense_id] - team_runs[offense_id],
+                                entered=entered_off_bench[defense_id], tactics=policies[defense_id]):
+                            if bench_substitute(defense_id, outgoing, incoming, "defensive_replacement"):
+                                fielding_pending = True
                     current_index = pitcher_index[defense_id]
                     state = states[defense_id]
                     pitcher_id = state.current_pitcher_id
-                    if pitcher_id not in pitcher_rows[defense_id]:
+                    # 代打・代走で投手の位置に入った選手は投げない（救援がいれば必ず代える）
+                    bench_pitcher = (pitcher_id in entered_off_bench[defense_id]
+                                     and bool(available_relievers(defense_id)))
+                    if pitcher_id not in pitcher_rows[defense_id] and not bench_pitcher:
                         pitcher_rows[defense_id][pitcher_id] = (
                             self._empty_pitcher_stats(
                                 pitcher_id,
@@ -1790,7 +2044,8 @@ class MatchSimulator:
                             )
                         )
                     pitcher = self._as_pitcher(player_maps[defense_id][pitcher_id])
-                    pitcher_stat = pitcher_rows[defense_id][pitcher_id]
+                    pitcher_stat = (pitcher_rows[defense_id][pitcher_id] if not bench_pitcher
+                                    else self._empty_pitcher_stats(pitcher_id, defense_id))
 
                     limit_reached = (
                         pitch_allowances is not None
@@ -1809,7 +2064,20 @@ class MatchSimulator:
                         next_index += 1
                     if limit_reached and next_index >= len(staff):
                         raise ValueError(f"{defense_id}: no available relief pitcher within pitch limits")
-                    if limit_reached or self._should_change_pitcher(
+                    # 継投の左右（段階F2）：次の打者が同じ側に続くなら、その側に強い腕の救援
+                    platoon_rule = self._substitutions()["platoon_relief"]
+                    platoon_pick = None
+                    if next_index < staff_sizes[defense_id]:
+                        platoon_pick = self._platoon_reliever(
+                            candidates=available_relievers(defense_id)[:3], players=player_maps[defense_id],
+                            upcoming=upcoming_batters(offense_id, int(platoon_rule["lookahead"])),
+                            inning=inning, margin=team_runs[defense_id] - team_runs[offense_id],
+                            tactics=policies[defense_id])
+                    platoon_trigger = (
+                        platoon_pick is not None and not bench_pitcher
+                        and player_maps[defense_id][platoon_pick].throws != pitcher.throws
+                        and int(pitcher_stat["batters_faced"]) >= int(platoon_rule["min_batters_faced"]))
+                    if bench_pitcher or platoon_trigger or limit_reached or self._should_change_pitcher(
                         pitcher=pitcher,
                         stats={**pitcher_stat, "runs_allowed": outing_runs[pitcher_id]},
                         starter=pitcher_id == state.initial_lineup.player_for_position('P'),
@@ -1847,6 +2115,9 @@ class MatchSimulator:
                                 ),
                             ):
                                 next_index = staff.index(ace)
+                                platoon_pick = None
+                        if platoon_pick is not None:
+                            next_index = staff.index(platoon_pick)
                         current_index = next_index
                         pitcher_index[defense_id] = current_index
                         incoming = staff[current_index]
@@ -1872,6 +2143,39 @@ class MatchSimulator:
                     if fielding_pending:
                         state.record_fielding_appearance()
                         fielding_pending = False
+                    # 攻める側の代走・代打（段階F2）
+                    offense_state = states[offense_id]
+                    offense_staff = pitcher_orders[offense_id]
+                    margin_now = team_runs[offense_id] - team_runs[defense_id]
+                    rule_pr = self._substitutions()["pinch_runner"]
+                    if (not tiebreak_pending and any(bases)
+                            and substitution_counts[offense_id]["pinch_runner"] < int(rule_pr["max_per_game"])):
+                        runner_change = self._choose_pinch_runner(
+                            bases=bases, players=player_maps[offense_id],
+                            bench=self._bench(offense_state, player_maps[offense_id], offense_staff),
+                            inning=inning, margin=margin_now,
+                            protected={offense_state.current_pitcher_id, *offense_staff},
+                            tactics=policies[offense_id])
+                        if runner_change is not None:
+                            outgoing, incoming = runner_change
+                            if bench_substitute(offense_id, outgoing, incoming, "pinch_runner"):
+                                runner_responsibility.substitute_runner(outgoing, incoming)
+                                earned_run_tracker.substitute_runner(outgoing, incoming)
+                                bases[bases.index(outgoing)] = incoming
+                    rule_ph = self._substitutions()["pinch_hitter"]
+                    if substitution_counts[offense_id]["pinch_hitter"] < int(rule_ph["max_per_game"]):
+                        scheduled = offense_state.player_at_order(lineup_index[offense_id] % 9 + 1)
+                        pitcher_slot = (offense_state.designated_hitter_id is None
+                                        and scheduled == offense_state.current_pitcher_id)
+                        if (scheduled not in bases
+                                and (not pitcher_slot or available_relievers(offense_id))):
+                            hitter = self._choose_pinch_hitter(
+                                batter=player_maps[offense_id][scheduled], pitcher=pitcher,
+                                bench=self._bench(offense_state, player_maps[offense_id], offense_staff),
+                                inning=inning, margin=margin_now, pitcher_slot=pitcher_slot,
+                                tactics=policies[offense_id])
+                            if hitter is not None and bench_substitute(offense_id, scheduled, hitter, "pinch_hitter"):
+                                pinch_hitters[offense_id].add(hitter)
                     if tiebreak_pending:
                         # 打席前の明示交代も反映した打順から配置する。
                         lead = lineup_index[offense_id]
@@ -2029,6 +2333,15 @@ class MatchSimulator:
                         event_type,
                         rbi,
                     )
+                    # 左右別の成績と、代打で入った打席の成績（段階F2）
+                    self._record_split(batter_row, pitcher_stat, event_type,
+                                       pitcher.throws, self.batting_side(batter, pitcher))
+                    if batter_id in pinch_hitters[offense_id]:
+                        pinch_hitters[offense_id].discard(batter_id)
+                        if bool(self.event_catalog[event_type]["counts_as_at_bat"]):
+                            batter_row["pinch_hit_at_bats"] = int(batter_row["pinch_hit_at_bats"]) + 1
+                        if event_type in {"single", "double", "triple", "home_run"}:
+                            batter_row["pinch_hit_hits"] = int(batter_row["pinch_hit_hits"]) + 1
                     for runner_id in scored:
                         runner_row = batter_rows[offense_id].get(runner_id)
                         if runner_row is None:

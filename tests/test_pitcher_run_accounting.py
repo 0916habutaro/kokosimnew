@@ -36,6 +36,22 @@ class _ScriptedSimulator(MatchSimulator):
         # 作戦（送りバント・スクイズ・エンドラン）は使わない
         return None
 
+    # 采配の交代（代打・代走・守備固め・左右の起用）も使わない（交代は明示の指示だけ）
+    def _choose_pinch_hitter(self, **kwargs):
+        return None
+
+    def _choose_pinch_runner(self, **kwargs):
+        return None
+
+    def _choose_defensive_replacements(self, **kwargs):
+        return []
+
+    def _platoon_reliever(self, **kwargs):
+        return None
+
+    def _platoon_lineup(self, lineup, *args):
+        return lineup
+
     def _classify_out(self, event_type, *args):
         return event_type
 

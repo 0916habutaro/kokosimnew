@@ -78,6 +78,9 @@ class DHAction:
                    value['player_id'], value['medical_exception'], value['umpire_approved'])
 
 
+SUBSTITUTION_REASONS = ("pinch_hitter", "pinch_runner", "defensive_replacement")
+
+
 @dataclass(frozen=True, slots=True)
 class LineupChange:
     sequence: int
@@ -89,6 +92,8 @@ class LineupChange:
     defensive_changes: tuple[DefensiveChange, ...]
     moment: ChangeMoment | CompletedPlateAppearanceMoment | None = None
     dh_action: DHAction | None = None
+    # 采配の交代の理由（段階F2）：pinch_hitter 代打・pinch_runner 代走・defensive_replacement 守備固め
+    reason: str | None = None
 
     def to_dict(self) -> dict:
         # あとで作り直す守備変更・DH入力までasdictで先に複製しない。
@@ -108,6 +113,8 @@ class LineupChange:
             }
         if isinstance(self.moment, ChangeMoment) and self.moment.order == 0:
             out['moment'].pop('order')
+        if self.reason is not None:
+            out['reason'] = self.reason
         return out
 
 
@@ -154,6 +161,7 @@ class TeamMatchParticipation:
                     defensive_changes=tuple(DefensiveChange(**c) for c in item["defensive_changes"]),
                     moment=_read_moment(item['moment']),
                     dh_action=DHAction.from_dict(item['dh_action']) if item.get('dh_action') is not None else None,
+                    reason=item.get('reason'),
                 ) for item in value["changes"]),
                 tuple(value["fielding_player_ids"]),
                 value.get('starting_designated_hitter_id'),
@@ -446,6 +454,14 @@ class TeamMatchState:
                           medical_exception=medical_exception, umpire_approved=umpire_approved)
         return self._commit(candidate, 'dh_transition', moment=moment, dh_action=action)
 
+    def label_last_change(self, reason: str) -> LineupChange:
+        """直前の交代に采配の理由（代打・代走・守備固め）を付ける。状態そのものは変えない。"""
+        if reason not in SUBSTITUTION_REASONS or not self.history:
+            raise ValueError('invalid substitution reason')
+        last = replace(self.history[-1], reason=reason)
+        self._data = replace(self._data, history=(*self.history[:-1], last))
+        return last
+
     def _initial_two_way_id(self) -> str | None:
         dh = self.initial_lineup.designated_hitter_id
         return dh if dh is not None and dh == self.initial_lineup.player_for_position('P') else None
@@ -688,6 +704,8 @@ def apply_lineup_change(state: TeamMatchState, change: LineupChange, *, require_
                                            defensive_changes=positions, moment=change.moment)
         else:
             raise ValueError("invalid lineup change kind")
+        if change.reason is not None and applied is not None:
+            applied = state.label_last_change(change.reason)
         if applied != change:
             raise ValueError("lineup change differs from the applied operation")
     except (ValueError, KeyError, TypeError):

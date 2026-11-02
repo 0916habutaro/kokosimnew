@@ -17,6 +17,9 @@
   （低い〜40・中・61〜高い）ごとの1チーム1試合あたりの数も出す
 - 場面ごとの作戦の試み（無死一塁・無死二塁・無死一二塁・一死一塁で、送りバント・エンドランを
   試みた打席の割合。全試合と夏の甲子園）。試合の計算の作戦の判断（``_choose_tactic``）を数える
+- 交代（段階F2）：代打・代走・守備固めの1試合あたりの数（交代の記録の理由から）、代打の打率、
+  監督の交代の積極性（低い〜40・中・61〜高い）ごとの1チーム1試合あたりの交代の数
+- 左右別の打率（打者の左右は名簿から）：同じ側どうし・逆の側、右対右・左対左・両打ち
 """
 from __future__ import annotations
 
@@ -81,11 +84,15 @@ class BalanceTally:
         self.rosters = {}                        # 年度 → 名簿の集計
         self.tactics = defaultdict(Counter)      # 年度 → 作戦の数（全試合）
         self.tactics_koshien = defaultdict(Counter)  # 年度 → 作戦の数（夏の甲子園）
+        self.substitutions = defaultdict(Counter)   # 年度 → 交代の数・代打の成績
+        self.substitutions_by_band = defaultdict(lambda: defaultdict(lambda: [0, 0]))  # 年度 → 帯 → [チーム試合, 交代]
+        self.splits = defaultdict(lambda: defaultdict(lambda: [0, 0]))  # 年度 → 組み合わせ → [打数, 安打]
         # 年度 → (小技／機動力, 傾向の帯) → [チーム試合, 犠打の試み, スクイズ, エンドラン, 盗塁の試み]
         self.by_tendency = defaultdict(lambda: defaultdict(lambda: [0, 0, 0, 0, 0]))
 
-    def add_match(self, competition_id: str, detail: dict, coach_of=None) -> None:
-        """``coach_of(学校ID)`` はその試合の監督（小技・機動力の傾向を見る。なければ None）。"""
+    def add_match(self, competition_id: str, detail: dict, coach_of=None, bats_of=None) -> None:
+        """``coach_of(学校ID)`` はその試合の監督（小技・機動力・交代の傾向を見る。なければ None）。
+        ``bats_of(学校ID, 選手ID)`` は打者の打つ側（R・L・S。左右別の打率に使う）。"""
         year = int(detail["reference_year"])
         kind = self.kind_of(competition_id)
         self.games[(year, kind)].append(
@@ -116,6 +123,59 @@ class BalanceTally:
             self.pitchers[year][(p["school_id"], p["player_id"])].update(
                 {k: int(p.get(k, 0)) for k in ("outs_recorded", "earned_runs")})
         self._add_tactics(year, detail, batters, coach_of, kind == KOSHIEN)
+        self._add_substitutions(year, detail, batters, coach_of)
+        if bats_of is not None:
+            self._add_splits(year, batters, bats_of)
+
+    def _add_substitutions(self, year, detail, batters, coach_of) -> None:
+        tally = self.substitutions[year]
+        tally["games"] += 1
+        for b in batters:
+            tally["pinch_hit_at_bats"] += int(b.get("pinch_hit_at_bats", 0))
+            tally["pinch_hit_hits"] += int(b.get("pinch_hit_hits", 0))
+        for part in detail.get("team_participation") or []:
+            reasons = Counter(c.get("reason") for c in part.get("changes") or () if c.get("reason"))
+            tally.update(reasons)
+            coach = coach_of(part["school_id"]) if coach_of else None
+            band = tendency_band(getattr(coach, "substitutions", None)) if coach is not None else None
+            if band is not None:
+                cell = self.substitutions_by_band[year][band]
+                cell[0] += 1
+                cell[1] += sum(reasons.values())
+
+    def _add_splits(self, year, batters, bats_of) -> None:
+        cells = self.splits[year]
+        for b in batters:
+            bats = bats_of(b["school_id"], b["player_id"])
+            if bats is None:
+                continue
+            for hand in ("R", "L"):
+                at_bats = int(b.get(f"vs_{hand.lower()}hp_at_bats", 0))
+                hits = int(b.get(f"vs_{hand.lower()}hp_hits", 0))
+                if not at_bats:
+                    continue
+                kind = "switch" if bats == "S" else ("same" if bats == hand else "opposite")
+                for key in (kind, f"{bats}v{hand}"):
+                    cells[key][0] += at_bats
+                    cells[key][1] += hits
+
+    def _substitution_summary(self, year) -> dict:
+        t = self.substitutions.get(year)
+        if not t or not t["games"]:
+            return {}
+        games = t["games"]
+        return {
+            "games": games,
+            "pinch_hitters": round(t["pinch_hitter"] / games, 3),
+            "pinch_runners": round(t["pinch_runner"] / games, 3),
+            "defensive_replacements": round(t["defensive_replacement"] / games, 3),
+            "pinch_hit_average": (round(t["pinch_hit_hits"] / t["pinch_hit_at_bats"], 3)
+                                  if t["pinch_hit_at_bats"] else None),
+            "pinch_hit_at_bats": t["pinch_hit_at_bats"],
+            "by_tendency": {band: {"team_games": cell[0], "substitutions": round(cell[1] / cell[0], 3)}
+                            for band, cell in sorted(self.substitutions_by_band.get(year, {}).items())
+                            if cell[0]},
+        }
 
     def _add_tactics(self, year, detail, batters, coach_of, koshien=False) -> None:
         offense = {"t": detail["team1_school_id"], "b": detail["team2_school_id"]}
@@ -274,6 +334,13 @@ class BalanceTally:
                 koshien_tactics = self._tactics_summary(year, self.tactics_koshien)
                 if koshien_tactics:
                     row["tactics_koshien"] = koshien_tactics
+            subs = self._substitution_summary(year)
+            if subs:
+                row["substitutions"] = subs
+            splits = self.splits.get(year)
+            if splits:
+                row["splits"] = {key: {"at_bats": ab, "average": round(h / ab, 3)}
+                                 for key, (ab, h) in sorted(splits.items()) if ab}
             row["leaders"] = self._leaders(year)
             if year in self.rosters:
                 row["rosters"] = self.rosters[year]
@@ -371,16 +438,41 @@ class SituationCounter:
         return dict(out)
 
 
+class HandLookup:
+    """選手ID → 打つ側（名簿から。学校・年度ごとに1回だけ引く）。"""
+
+    def __init__(self):
+        self.bats: dict[str, str] = {}
+        self.loaded: set[tuple[int, str]] = set()
+
+    def lookup(self, book, year: int, school_id: str, player_id: str) -> str | None:
+        if player_id not in self.bats:
+            for each in (year, year - 1):
+                if (each, school_id) in self.loaded:
+                    continue
+                self.loaded.add((each, school_id))
+                try:
+                    players = book.roster(each, school_id).players
+                except (KeyError, ValueError):
+                    continue
+                self.bats.update({p.player_id: p.bats for p in players})
+                if player_id in self.bats:
+                    break
+        return self.bats.get(player_id)
+
+
 def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) -> dict:
     from .live_game_service import LiveGameService
     from .live_season_save import PLAYER_RESOLVER_CONTRACT
     from .repository import DataRepository
+    from .school_year import school_year_of
 
     repo = DataRepository(ROOT / "data")
     tally = BalanceTally(competition_kinds(repo), summer_history(),
                          _load_json(ROOT / "config" / "stats" / "player_rankings_v1.json"),
                          min_team_games)
     situations = SituationCounter(tally.kind_of)
+    hands = HandLookup()
     with tempfile.TemporaryDirectory() as saves, situations.watching():
         service = LiveGameService(repo, ROOT / "data", save_root=saves,
                                   resolver_contract=PLAYER_RESOLVER_CONTRACT,
@@ -397,10 +489,13 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
             def coach_of(school_id, on=played_on):
                 return coaches.for_school(school_id, on=on) if coaches is not None else None
 
+            def bats_of(school_id, player_id, on=played_on):
+                return hands.lookup(state.rosters, school_year_of(on), school_id, player_id)
+
             for season in state.seasons.values():
                 pending = season.pending_match_details
                 for key in list(pending):
-                    tally.add_match(key.split(":", 1)[0], pending.pop(key), coach_of)
+                    tally.add_match(key.split(":", 1)[0], pending.pop(key), coach_of, bats_of)
             if (today.month, today.day) == (7, 1):
                 tally.add_rosters(today.year, roster_rows(state.rosters, today.year))
                 last_snapshot = today.year
@@ -471,6 +566,18 @@ def format_report(seed_label: str, report: dict) -> str:
                 lines.append(f"  場面ごとの作戦（{label}・試みた打席の割合）: " + " / ".join(
                     f"{name} {v['plate_appearances']}打席 バント{v['bunt']:.1%}・エンドラン{v['hit_and_run']:.1%}"
                     for name, v in rows.items()))
+        su = row.get("substitutions")
+        if su:
+            average = "−" if su["pinch_hit_average"] is None else f"{su['pinch_hit_average']:.3f}"
+            lines.append(f"  交代（1試合あたり）: 代打 {su['pinch_hitters']} / 代走 {su['pinch_runners']} / "
+                         f"守備固め {su['defensive_replacements']} / 代打の打率 {average}（{su['pinch_hit_at_bats']}打数）")
+            if su.get("by_tendency"):
+                lines.append("  監督 交代の積極性（1チーム1試合あたりの交代）: " + " / ".join(
+                    f"{band} {cell['substitutions']}（{cell['team_games']}）" for band, cell in su["by_tendency"].items()))
+        sp = row.get("splits")
+        if sp:
+            lines.append("  左右別の打率: " + " / ".join(
+                f"{key} {v['average']:.3f}（{v['at_bats']}）" for key, v in sp.items()))
         leaders = row.get("leaders") or {}
         if leaders.get("batting_average"):
             lines.append("  打率: " + ", ".join(f"{r[0]:.3f}({r[3]}打数)" for r in leaders["batting_average"]))

@@ -245,7 +245,12 @@ class StarterUsageTests(unittest.TestCase):
 
     def test_good_starters_finish_nine_innings_with_relief_available(self):
         choices = iter(['home_run'] + ['field_out'] * 100)
-        with patch.object(self.sim, '_weighted_choice', side_effect=lambda *_: next(choices)):
+        # 先発投手の使い方だけを見る（采配の交代は止める）
+        with patch.object(self.sim, '_weighted_choice', side_effect=lambda *_: next(choices)), \
+                patch.object(self.sim, '_choose_pinch_hitter', return_value=None), \
+                patch.object(self.sim, '_choose_pinch_runner', return_value=None), \
+                patch.object(self.sim, '_choose_defensive_replacements', return_value=[]), \
+                patch.object(self.sim, '_platoon_reliever', return_value=None):
             teams = []
             for team in self.teams:
                 players = tuple(replace(p, stamina=80) if p.primary_position == 'P' else p

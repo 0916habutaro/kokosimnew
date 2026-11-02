@@ -1,6 +1,6 @@
 {
   "config_id": "game_stats_contract_v1",
-  "revision": 4,
+  "revision": 5,
   "status": "design_contract",
   "description_ja": "Stage 13C-1 個人成績の最小契約。打率等の派生率は保存せずread model側で計算する。",
   "batter_fields": [
@@ -22,7 +22,19 @@
     "grounded_into_double_plays",
     "picked_off",
     "catcher_steal_attempts",
-    "catcher_caught_stealing"
+    "catcher_caught_stealing",
+    "vs_rhp_at_bats",
+    "vs_rhp_hits",
+    "vs_rhp_home_runs",
+    "vs_rhp_walks",
+    "vs_rhp_strikeouts",
+    "vs_lhp_at_bats",
+    "vs_lhp_hits",
+    "vs_lhp_home_runs",
+    "vs_lhp_walks",
+    "vs_lhp_strikeouts",
+    "pinch_hit_at_bats",
+    "pinch_hit_hits"
   ],
   "pitcher_fields": [
     "outs_recorded",
@@ -35,7 +47,17 @@
     "strikeouts",
     "hit_batters",
     "pitches",
-    "exit_fatigue"
+    "exit_fatigue",
+    "vs_rhb_at_bats",
+    "vs_rhb_hits",
+    "vs_rhb_home_runs",
+    "vs_rhb_walks",
+    "vs_rhb_strikeouts",
+    "vs_lhb_at_bats",
+    "vs_lhb_hits",
+    "vs_lhb_home_runs",
+    "vs_lhb_walks",
+    "vs_lhb_strikeouts"
   ],
   "team_fields": [
     "runs",
@@ -50,6 +72,7 @@
     "team_runs_equal_batter_runs": true,
     "team_hits_equal_batter_hits": true,
     "opponent_runs_equal_pitcher_runs_allowed": true,
-    "team_plate_appearances_equal_opponent_batters_faced": true
+    "team_plate_appearances_equal_opponent_batters_faced": true,
+    "left_right_splits_sum_to_totals": true
   }
 }

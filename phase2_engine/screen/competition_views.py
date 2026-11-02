@@ -43,6 +43,8 @@ EVENT_LABELS = {
     "bunt_double_play": "バント併殺",
     "line_drive_double_play": "併殺（走者戻れず）",
 }
+# 采配の交代の理由（段階F2。game_core/match_state.py の LineupChange.reason）
+REASON_LABELS = {"pinch_hitter": "代打", "pinch_runner": "代走", "defensive_replacement": "守備固め"}
 # 作戦の要点（game_core/highlights.py の T）
 TACTIC_LABELS = {
     ("bunt", "foul"): "送りバント失敗（追い込まれて打つ）",
@@ -402,13 +404,17 @@ def _dh_match_lineups(detail, teams, names, player_name, year):
             dh_lost = old_dh is not None and state.designated_hitter_id is None
             p_changed = old_p != state.current_pitcher_id
             labels = (['DH解除'] if dh_lost else []) + (['投手交代'] if p_changed else [])
+            if change.reason in REASON_LABELS:
+                # 采配の交代（代打・代走・守備固め）は理由で表示する（段階F2）
+                labels = [REASON_LABELS[change.reason], *labels]
             if not labels:
                 labels = ['DH交代' if old_dh != state.designated_hitter_id else '選手交代' if batting else '守備変更']
             changes.append(dict(
                 sequence=change.sequence, school_id=team, school_name=names(team),
                 inning=change.moment.inning, half=HALF_LABELS[change.moment.half],
                 next_plate_appearance_no=change.moment.next_plate_appearance_no, order=change.moment.order,
-                kind=change.kind, label='・'.join(labels), outgoing=None, incoming=None, batting_order=None,
+                kind=change.kind, label='・'.join(labels), reason=change.reason,
+                outgoing=None, incoming=None, batting_order=None,
                 moves=[{**person(team, pid), 'before': POSITION_LABELS[before_roles[pid]],
                         'after': POSITION_LABELS[after_roles[pid]]} for pid in sorted(before_roles.keys() & after_roles.keys())
                        if before_roles[pid] != after_roles[pid]],
@@ -515,8 +521,10 @@ def _match_lineups(detail, teams, names, player_name, year):
                     "inning": change.moment.inning, "half": HALF_LABELS[change.moment.half],
                     "next_plate_appearance_no": change.moment.next_plate_appearance_no,
                     "kind": change.kind,
-                    "label": {"pitcher_change": "投手交代", "position_change": "守備変更",
-                              "substitution": "選手交代"}[change.kind],
+                    "label": REASON_LABELS.get(change.reason) or {
+                        "pitcher_change": "投手交代", "position_change": "守備変更",
+                        "substitution": "選手交代"}[change.kind],
+                    "reason": change.reason,
                     "outgoing": person(team, change.outgoing_player_id),
                     "incoming": person(team, change.incoming_player_id),
                     "batting_order": change.batting_order, "moves": moves,
@@ -640,6 +648,19 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                 "school_name": names(school),
                 "player_name": player_name(school, item[4]),
             })
+    # 采配の交代（代打・代走・守備固め）は交代履歴から要点に足す（段階F2。保存する要点は増やさない）
+    for change in changes:
+        if not change.get("reason"):
+            continue
+        pair = (change["outgoing"], change["incoming"]) if change.get("incoming") else next(
+            ((b["outgoing"], b["incoming"]) for b in change.get("batting_changes") or ()), (None, None))
+        highlights.append({
+            "kind": "substitution", "inning": change["inning"], "half": change["half"],
+            "school_id": change["school_id"], "school_name": change["school_name"],
+            "player_name": (f"{pair[0]['name']} → {pair[1]['name']}" if pair[0] and pair[1] else ""),
+            "event": REASON_LABELS[change["reason"]], "success": True,
+        })
+    highlights.sort(key=lambda h: (h["inning"], 0 if h["half"] == HALF_LABELS["t"] else 1))
     out["highlights"] = highlights
     # 勝利投手・敗戦投手（決められないときは None）と本塁打
     record = pitchers_of_record(detail)

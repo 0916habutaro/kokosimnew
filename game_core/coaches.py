@@ -29,6 +29,8 @@ class Coach:
     # 作戦の傾向（段階F1）。大きいほど小技（犠打・スクイズ）／機動力（盗塁・エンドラン）が多い
     small_ball: int = 50
     mobility: int = 50
+    # 交代の積極性（段階F2）。大きいほど代打・代走・守備固め・左右を見た起用が多い
+    substitutions: int = 50
 
     def view(self, today: date) -> dict:
         year = school_year_of(today)
@@ -68,6 +70,8 @@ class CoachTactics:
     # 作戦を試みる確率の倍率（段階F1）。小技は犠打・スクイズ、機動力は盗塁・エンドラン
     small_ball: float = 1.0
     mobility: float = 1.0
+    # 交代（代打・代走・守備固め・左右の起用）の積極性の倍率（段階F2）。基準の差をこれで割る
+    substitutions: float = 1.0
 
 
 def _draw_coach(team, year, rng, coach_id, names, config, *, initial):
@@ -87,7 +91,8 @@ def _draw_coach(team, year, rng, coach_id, names, config, *, initial):
                   ability("reputation"), ability("development"),
                   ability("pitching_change"), ability("player_selection"))
     # 作戦の傾向は既存の抽選のあとに引く（ほかの能力・氏名は変わらない）
-    return replace(coach, small_ball=ability("small_ball"), mobility=ability("mobility"))
+    coach = replace(coach, small_ball=ability("small_ball"), mobility=ability("mobility"))
+    return replace(coach, substitutions=ability("substitutions"))
 
 
 def _band_probability(bands, value):
@@ -152,7 +157,8 @@ class CoachBook:
         strategy = tactics["strategy"]
         if (strategy["neutral_ability"] != 50
                 or any(not math.isfinite(strategy[k]) or strategy[k] < 0 for k in (
-                    "small_ball_log_per_point", "mobility_log_per_point", "max_abs_log"))):
+                    "small_ball_log_per_point", "mobility_log_per_point",
+                    "substitutions_log_per_point", "max_abs_log"))):
             raise ValueError("invalid coach strategy configuration")
         self._rebuild_indexes()
 
@@ -217,17 +223,18 @@ class CoachBook:
                 or any(self.active_by_school.get(c.school_id) != c.coach_id for c in active)):
             raise ValueError("coach assignments must cover every school exactly once")
 
-    def strategy_multipliers(self, coach: Coach) -> tuple[float, float]:
-        """作戦（小技・機動力）の倍率。exp((傾向 − 50) × 係数) を上限で収める。"""
+    def strategy_multipliers(self, coach: Coach) -> tuple[float, float, float]:
+        """作戦（小技・機動力）と交代の積極性の倍率。exp((傾向 − 50) × 係数) を上限で収める。"""
         s = self.tactics_config["strategy"]
-        if not (1 <= coach.small_ball <= 100 and 1 <= coach.mobility <= 100):
+        if not all(1 <= value <= 100 for value in (coach.small_ball, coach.mobility, coach.substitutions)):
             raise ValueError("coach strategy tendencies must be between 1 and 100")
 
         def factor(value, slope):
             log = (value - s["neutral_ability"]) * s[slope]
             return round(math.exp(max(-s["max_abs_log"], min(s["max_abs_log"], log))), 6)
         return (factor(coach.small_ball, "small_ball_log_per_point"),
-                factor(coach.mobility, "mobility_log_per_point"))
+                factor(coach.mobility, "mobility_log_per_point"),
+                factor(coach.substitutions, "substitutions_log_per_point"))
 
     def tactics_for(self, school_id: str, on: date) -> CoachTactics:
         """大会年度ではなく試合当日の所属を使う。参照だけで乱数は消費しない。
@@ -239,9 +246,9 @@ class CoachBook:
         coach = self.for_school(school_id, on=on)
         if coach is None:
             return CoachTactics()
-        small_ball, mobility = self.strategy_multipliers(coach)
+        small_ball, mobility, substitutions = self.strategy_multipliers(coach)
         if on < date.fromisoformat(config["first_match_date"]):
-            return CoachTactics(small_ball=small_ball, mobility=mobility)
+            return CoachTactics(small_ball=small_ball, mobility=mobility, substitutions=substitutions)
         if not (1 <= coach.pitching_change <= 100 and 1 <= coach.player_selection <= 100):
             raise ValueError("coach tactics abilities must be between 1 and 100")
         def delta(ability, slope, cap):
@@ -254,7 +261,7 @@ class CoachBook:
                         "max_abs_quick_hook_reduction")),
             round(delta(coach.player_selection, "selection_bias_per_point",
                         "max_abs_selection_bias"), 6),
-            small_ball, mobility,
+            small_ball, mobility, substitutions,
         )
 
     def practice_for(self, school_id: str, month: date) -> tuple[str | None, int | None, float]:
@@ -422,7 +429,8 @@ class CoachBook:
         config = load_config(root / "config/coaches/coach_generation_v1.json",
                              expected_config_id="coach_generation_v1").payload
         for field in ("age", "tenure", "reputation", "development",
-                      "pitching_change", "player_selection", "small_ball", "mobility"):
+                      "pitching_change", "player_selection", "small_ball", "mobility",
+                      "substitutions"):
             spec = config[field]
             if not all(isinstance(v, (int, float)) and math.isfinite(v) for v in spec.values()):
                 raise ValueError(f"coach {field}: finite numbers required")
