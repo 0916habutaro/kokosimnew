@@ -286,8 +286,9 @@ class _ErrorFreeInning:
                             self.bases[target], self.bases[index] = key, None
                 if self.bases[0] is None:
                     self.bases[0] = batter
-        elif event in {"sacrifice_fly", "fly_out", "ground_out", "double_play"}:
-            # 凡退の間の進塁・得点は、同じ塁にいる同じ走者の実際の動きだけを写す。
+        elif event in {"sacrifice_fly", "fly_out", "ground_out", "double_play", "sacrifice_bunt",
+                       "bunt_pop_out", "bunt_double_play", "line_drive_double_play"}:
+            # 凡退・犠打（スクイズを含む）の間の進塁・得点は、同じ塁にいる同じ走者の実際の動きだけを写す。
             # 実際にアウトになった走者は再構成の塁からも除く（いなければ打者のアウト
             # だけになる。疑わしいときは投手の有利に、9.16(d/f)）。
             if event == "sacrifice_fly" and self.bases[2] is not None:
@@ -309,12 +310,6 @@ class _ErrorFreeInning:
                     target = after.index(key)
                     if target > index and self.bases[target] is None:
                         self.bases[target], self.bases[index] = key, None
-        elif event == "sacrifice_bunt":
-            # The actual engine only bunts without a third-base runner. A runner
-            # lagging on virtual third is held; do not invent a squeeze play.
-            for index in (1, 0):
-                if self.bases[index] is not None and self.bases[index + 1] is None:
-                    self.bases[index + 1], self.bases[index] = self.bases[index], None
         elif event not in {"strikeout", "field_out"}:
             raise ValueError(f"unsupported earned-run event: {event}")
 
@@ -807,34 +802,165 @@ class MatchSimulator:
                 return event_type
         return next(reversed(weights))
 
-    def _should_sacrifice_bunt(
-        self,
-        batter: PlayerAbilitySnapshot,
-        bases: list[str | None],
-        outs: int,
-        score_margin: int,
-        rng,
-    ) -> bool:
-        settings = self.params["situational_events"]["sacrifice_bunt"]
-        if not settings["enabled"]:
-            return False
-        if outs > int(settings["max_outs"]):
-            return False
-        if abs(score_margin) > int(settings["allowed_score_margin"]):
-            return False
-        if bases[2] is not None:
-            return False
-        if bases[0] is None and bases[1] is None:
-            return False
-        if batter.bunt < int(settings["minimum_bunt_ability"]):
-            return False
+    # ---- 作戦（段階F1。値は match_simulation_v1.json の strategy） ----
+    def _strategy(self) -> dict:
+        return self.params["strategy"]
 
-        ability_factor = 0.5 + float(batter.bunt) / 100.0
-        probability = min(
-            0.20,
-            float(settings["base_probability"]) * ability_factor,
+    @staticmethod
+    def _hitting(batter: PlayerAbilitySnapshot) -> float:
+        """打者の打撃（ミートと長打の平均）。高いほどバント・スクイズをさせない。"""
+        return (float(batter.contact) + float(batter.power)) / 2.0
+
+    @staticmethod
+    def _runner_shape(bases: list[str | None]) -> str | None:
+        if bases[0] is not None and bases[1] is not None:
+            return "first_second"
+        if bases[0] is not None:
+            return "first"
+        if bases[1] is not None:
+            return "second"
+        return None
+
+    def _bunt_attempt_probability(
+        self, batter: PlayerAbilitySnapshot, bases: list[str | None], outs: int,
+        margin: int, inning: int, small_ball: float = 1.0,
+    ) -> float:
+        """送りバントを試みる確率（三塁が空き・一塁か二塁に走者・0〜1死）。"""
+        rule = self._strategy()["sacrifice_bunt"]
+        shape = self._runner_shape(bases)
+        if outs > 1 or bases[2] is not None or shape is None:
+            return 0.0
+        value = float(rule["base"][str(outs)][shape])
+        if abs(margin) <= int(rule["close_margin"]):
+            if inning >= int(rule["late_inning_from"]):
+                value *= float(rule["late_close_multiplier"])
+        else:
+            value *= float(rule["ahead_far_multiplier" if margin > 0 else "behind_far_multiplier"])
+        value *= math.exp(
+            -(self._hitting(batter) - 50.0) * float(rule["batter_hitting_log_per_point"])
+            + (float(batter.bunt) - 50.0) * float(rule["bunt_log_per_point"])
         )
-        return rng.random() < probability
+        return min(float(rule["max_probability"]), value * small_ball)
+
+    def _squeeze_attempt_probability(
+        self, batter: PlayerAbilitySnapshot, bases: list[str | None], outs: int,
+        margin: int, inning: int, small_ball: float = 1.0,
+    ) -> float:
+        """スクイズを試みる確率（三塁に走者・0〜1死・点差が max_margin 以内）。"""
+        rule = self._strategy()["squeeze"]
+        if outs > 1 or bases[2] is None or abs(margin) > int(rule["max_margin"]):
+            return 0.0
+        value = float(rule["base"][outs])
+        if abs(margin) <= int(rule["close_margin"]) and inning >= int(rule["late_inning_from"]):
+            value *= float(rule["late_close_multiplier"])
+        value *= math.exp(-(self._hitting(batter) - 50.0) * float(rule["batter_hitting_log_per_point"]))
+        return min(float(rule["max_probability"]), value * small_ball)
+
+    def _hit_and_run_probability(
+        self, batter: PlayerAbilitySnapshot, runner: PlayerAbilitySnapshot | None,
+        bases: list[str | None], outs: int, margin: int, mobility: float = 1.0,
+    ) -> float:
+        """エンドランを試みる確率（一塁に走者・満塁でない・max_outs まで）。"""
+        rule = self._strategy()["hit_and_run"]
+        if runner is None or bases[0] is None or all(bases) or outs > int(rule["max_outs"]):
+            return 0.0
+        value = float(rule["base"]) * math.exp(
+            (float(batter.contact) - 50.0) * float(rule["contact_log_per_point"])
+            + (float(batter.strikeout_resistance) - 50.0) * float(rule["strikeout_resistance_log_per_point"])
+            + (float(runner.speed) - 50.0) * float(rule["runner_speed_log_per_point"])
+        )
+        if abs(margin) > int(rule["max_margin"]):
+            value *= float(rule["far_margin_multiplier"])
+        return min(float(rule["max_probability"]), value * mobility)
+
+    def _choose_tactic(
+        self, *, batter: PlayerAbilitySnapshot, bases: list[str | None], outs: int, margin: int,
+        inning: int, offense_players: Mapping[str, PlayerAbilitySnapshot],
+        tactics: CoachTactics, rng,
+    ) -> str | None:
+        """打席の前の作戦：スクイズ → 送りバント → エンドランの順に1つだけ（なければ None）。
+
+        どの場面でも3回引くので、乱数の使い方は場面によらない。"""
+        squeeze = self._squeeze_attempt_probability(batter, bases, outs, margin, inning, tactics.small_ball)
+        bunt = self._bunt_attempt_probability(batter, bases, outs, margin, inning, tactics.small_ball)
+        runner = offense_players.get(bases[0]) if bases[0] is not None else None
+        hit_and_run = self._hit_and_run_probability(batter, runner, bases, outs, margin, tactics.mobility)
+        draws = (rng.random(), rng.random(), rng.random())
+        if draws[0] < squeeze:
+            return "squeeze"
+        if draws[1] < bunt:
+            return "bunt"
+        if draws[2] < hit_and_run:
+            return "hit_and_run"
+        return None
+
+    def _bunt_outcome(
+        self, tactic: str, *, batter: PlayerAbilitySnapshot, bases: list[str | None],
+        offense_players: Mapping[str, PlayerAbilitySnapshot], defense_strength: float, rng,
+    ) -> str:
+        """バント・スクイズの成否：``ok``（成功）か失敗の種類 ``foul``・``pop``・``fc``・``dp``。
+
+        成功の確率はバントの能力（スクイズは三塁走者の走力、送りバントは打者の走力と守備力も）。"""
+        rule = self._strategy()["squeeze" if tactic == "squeeze" else "sacrifice_bunt"]
+        success = rule["success"]
+        value = float(success["base"]) + (float(batter.bunt) - 50.0) * float(success["per_bunt_point"])
+        if tactic == "squeeze":
+            value += (float(offense_players[bases[2]].speed) - 50.0) * float(success["per_runner_speed_point"])
+        else:
+            value += ((float(batter.speed) - 50.0) * float(success["per_speed_point"])
+                      - (defense_strength - 50.0) * float(success["per_defense_point"]))
+        if rng.random() < self._clamp_probability(value, float(success["min"]), float(success["max"])):
+            return "ok"
+        weights = {key: float(value) for key, value in rule["failure_weights"].items()}
+        if tactic == "bunt" and bases[0] is None:
+            # 一塁に走者がいなければ併殺にならない（先の走者のアウトだけ）
+            weights["fc"] += weights.pop("dp")
+        return self._weighted_choice(rng, weights)
+
+    @staticmethod
+    def _apply_bunt(
+        tactic: str, outcome: str, batter_id: str, bases: list[str | None],
+    ) -> tuple[str, list[str], int, int]:
+        """バント・スクイズ（ファウルで追い込まれた場合を除く）を塁に写す。
+
+        返り値は (イベントの種類, 生還した走者, この打席のアウトの数, 打点)。"""
+        first, second, third = bases
+        if tactic == "squeeze":
+            if outcome == "ok":
+                # 三塁走者が生還し、打者はアウト。ほかの走者は1つ進む（犠打・打点1）
+                bases[:] = [None, first, second]
+                return "sacrifice_bunt", [third], 1, 1
+            if outcome == "fc":
+                # 三塁走者が本塁でアウト。打者は一塁へ、ほかの走者は1つ進む
+                bases[:] = [batter_id, first, second]
+                return "fielder_choice", [], 1, 0
+            if outcome == "pop":
+                return "bunt_pop_out", [], 1, 0
+            # 小フライで三塁走者も戻れず併殺
+            bases[2] = None
+            return "bunt_double_play", [], 2, 0
+        if outcome == "ok":
+            bases[:] = [None, first, second]
+            return "sacrifice_bunt", [], 1, 0
+        if outcome == "pop":
+            return "bunt_pop_out", [], 1, 0
+        # 先の走者（二塁の走者がいれば三塁で、いなければ二塁で）がアウト
+        trailing = first if second is not None else None
+        if outcome == "fc":
+            bases[:] = [batter_id, trailing, None]
+            return "fielder_choice", [], 1, 0
+        if first is None:
+            raise ValueError("bunt double play requires a runner on first")
+        bases[:] = [None, trailing, None]
+        return "bunt_double_play", [], 2, 0
+
+    def _tactic_weights(self, weights: dict[str, float], mode: str) -> dict[str, float]:
+        """作戦の打席の重み：追い込まれた打席（two_strike）かエンドラン（hit_and_run）。"""
+        rule = self._strategy()[mode]
+        out = dict(weights)
+        out["strikeout"] = out.get("strikeout", 0.0) * float(rule["strikeout_multiplier"])
+        out["walk"] = out.get("walk", 0.0) * float(rule["walk_multiplier"])
+        return out
 
     def _outs_in_play(self) -> dict:
         return self.params["outs_in_play"]
@@ -912,6 +1038,7 @@ class MatchSimulator:
 
     def _steal_attempt_probability(
         self, runner: PlayerAbilitySnapshot, from_index: int, *, outs: int, margin: int, inning: int,
+        mobility: float = 1.0,
     ) -> float:
         rule = self.params["stolen_bases"]["attempt"]
         base = float(rule["second_base" if from_index == 0 else "third_base"])
@@ -924,7 +1051,8 @@ class MatchSimulator:
             value *= float(rule["blowout_multiplier"])
         elif inning >= int(rule["late_inning_from"]) and abs(margin) <= int(rule["close_margin"]):
             value *= float(rule["late_close_multiplier"])
-        value *= float(rule["coach_tendency_multiplier"])
+        # 監督の機動力の倍率（coach_tactics_v1 の strategy）
+        value *= mobility
         return min(float(rule["max_probability"]), value)
 
     def _steal_success_probability(
@@ -958,16 +1086,24 @@ class MatchSimulator:
         self, *, bases: list[str | None], outs: int, margin: int, inning: int,
         offense_players: Mapping[str, PlayerAbilitySnapshot],
         catcher: PlayerAbilitySnapshot, pitcher: PlayerAbilitySnapshot, rng,
+        mobility: float = 1.0, forced: bool = False,
     ) -> tuple[str, int, str] | None:
         """打席のあとの盗塁：(走者, 元の塁, 結果) か None。結果は sb（盗塁）・cs（盗塁死）・
-        po（牽制死）。"""
+        po（牽制死）。``forced`` はエンドランの空振り（走者はもう走っているので必ず試み、牽制はない）。"""
         from_index = self._steal_base(bases)
         if from_index is None or outs >= 3:
             return None
         runner_id = bases[from_index]
         runner = offense_players[runner_id]
+        if forced:
+            bonus = float(self.params["stolen_bases"]["hit_and_run_strikeout_success_bonus"])
+            rule = self.params["stolen_bases"]["success"]
+            probability = self._clamp_probability(
+                self._steal_success_probability(runner, catcher, pitcher, from_index) + bonus,
+                float(rule["min"]), float(rule["max"]))
+            return runner_id, from_index, "sb" if rng.random() < probability else "cs"
         if rng.random() >= self._steal_attempt_probability(
-                runner, from_index, outs=outs, margin=margin, inning=inning):
+                runner, from_index, outs=outs, margin=margin, inning=inning, mobility=mobility):
             return None
         if rng.random() < self._pickoff_probability(runner, pitcher):
             return runner_id, from_index, "po"
@@ -1024,8 +1160,11 @@ class MatchSimulator:
         defense_strength: float,
         rng,
         outs: int = 0,
+        running_start: bool = False,
     ) -> tuple[list[str], int, int]:
-        """``outs`` は打席の前のアウトの数（凡退の間の進塁・得点は3アウト目では起きない）。"""
+        """``outs`` は打席の前のアウトの数（凡退の間の進塁・得点は3アウト目では起きない）。
+        ``running_start`` はエンドラン（一塁走者が先にスタートしている）。"""
+        hit_and_run = self._strategy()["hit_and_run"] if running_start else None
         outs_before = outs
         scored: list[str] = []
         outs = 0
@@ -1064,7 +1203,7 @@ class MatchSimulator:
                         self.params["baserunning"][
                             "single_runner_from_first_to_third_base"
                         ]
-                    ),
+                    ) + (float(hit_and_run["single_first_to_third_bonus"]) if hit_and_run else 0.0),
                     runner=runner,
                     defense_strength=defense_strength,
                 )
@@ -1089,7 +1228,7 @@ class MatchSimulator:
                         self.params["baserunning"][
                             "double_runner_from_first_score_base"
                         ]
-                    ),
+                    ) + (float(hit_and_run["double_first_scores_bonus"]) if hit_and_run else 0.0),
                     runner=runner,
                     defense_strength=defense_strength,
                 )
@@ -1158,17 +1297,21 @@ class MatchSimulator:
             return scored, outs, 0
 
         if event_type == "sacrifice_bunt":
-            outs = 1
-            bases[:] = [
-                None,
-                batter_id if False else first,
-                second,
-            ]
-            # batter is out; existing runners advance one base.
+            # 打者はアウトで走者は1つずつ進む（スクイズは _apply_bunt）
+            if third is not None:
+                raise ValueError("sacrifice bunt with a runner on third is a squeeze")
+            bases[:] = [None, first, second]
+            return scored, 1, 0
+
+        if event_type == "bunt_pop_out":
+            return scored, 1, 0
+
+        if event_type == "line_drive_double_play":
+            # エンドランのライナー・フライ：一塁走者も戻れずアウト。ほかの走者は戻る
+            if first is None:
+                raise ValueError("line drive double play requires a runner on first")
             bases[0] = None
-            bases[1] = first
-            bases[2] = second
-            return scored, outs, 0
+            return scored, 2, 0
 
         if event_type == "sacrifice_fly":
             outs = 1
@@ -1767,14 +1910,32 @@ class MatchSimulator:
                     score_margin = (
                         team_runs[offense_id] - team_runs[defense_id]
                     )
-                    if self._should_sacrifice_bunt(
-                        batter,
-                        bases,
-                        outs,
-                        score_margin,
-                        pa_rng,
-                    ):
-                        event_type = "sacrifice_bunt"
+                    # 作戦（段階F1）：攻める側の監督がスクイズ・送りバント・エンドランを決める
+                    tactic_rng = rng_for(
+                        match_input.generation_seed,
+                        self.params["rng_namespace_policy"]["tactic"].format(
+                            match_id=match_input.match_id, plate_appearance_no=pa_no,
+                        ),
+                    )
+                    tactic = self._choose_tactic(
+                        batter=batter, bases=bases, outs=outs, margin=score_margin,
+                        inning=inning, offense_players=player_maps[offense_id],
+                        tactics=policies[offense_id], rng=tactic_rng,
+                    )
+                    tactic_outcome = None
+                    weight_mode = "hit_and_run" if tactic == "hit_and_run" else None
+                    if tactic in ("squeeze", "bunt"):
+                        tactic_outcome = self._bunt_outcome(
+                            tactic, batter=batter, bases=bases,
+                            offense_players=player_maps[offense_id],
+                            defense_strength=defense_values[defense_id], rng=tactic_rng,
+                        )
+                        if tactic_outcome == "foul":
+                            # ファウルで追い込まれ、打席が続く（打って出る）
+                            weight_mode = "two_strike"
+                    bunt_play = tactic_outcome not in (None, "foul")
+                    if bunt_play:
+                        event_type = "bunt"
                     else:
                         # 疲れの段階ごとに能力が決まるので、段階も使い回しのキーに入れる
                         stage = fatigue_model.stage_of(
@@ -1790,6 +1951,15 @@ class MatchSimulator:
                             weights = weight_model(batter, tired_pitcher, defense_values[defense_id])
                             if reuse_weights:
                                 weight_cache[weight_key] = weights
+                        if weight_mode is not None:
+                            # 作戦の打席の重みも、元の重みと作戦の種類ごとに使い回す
+                            mode_key = (weight_key, weight_mode)
+                            moded = weight_cache.get(mode_key) if reuse_weights else None
+                            if moded is None:
+                                moded = self._tactic_weights(weights, weight_mode)
+                                if reuse_weights:
+                                    weight_cache[mode_key] = moded
+                            weights = moded
                         event_type = self._weighted_choice(pa_rng, weights)
                         event_type = self._classify_out(
                             event_type,
@@ -1800,18 +1970,34 @@ class MatchSimulator:
                             pitcher,
                             defense_values[defense_id],
                         )
+                        if tactic == "hit_and_run":
+                            rule = self._strategy()["hit_and_run"]
+                            # 走者が先に走るので、ゴロの併殺は減り、フライ・ライナーでは戻れない
+                            if (event_type == "double_play"
+                                    and tactic_rng.random() >= float(rule["double_play_multiplier"])):
+                                event_type = "ground_out"
+                            elif (event_type == "fly_out" and bases[0] is not None
+                                    and tactic_rng.random() < float(rule["fly_runner_doubled_off"])):
+                                event_type = "line_drive_double_play"
 
+                    if bunt_play:
+                        event_type, scored, outs_on_play, rbi = self._apply_bunt(
+                            tactic, tactic_outcome, batter_id, bases)
+                    else:
+                        scored, outs_on_play, rbi = self._apply_event(
+                            event_type=event_type,
+                            batter_id=batter_id,
+                            bases=bases,
+                            offense_players=player_maps[offense_id],
+                            defense_strength=defense_values[defense_id],
+                            rng=event_rng,
+                            outs=outs,
+                            **({"running_start": True} if tactic == "hit_and_run" else {}),
+                        )
+                    if tactic == "hit_and_run":
+                        tactic_outcome = event_type
                     # 球数は抽選した打球結果のまま。サヨナラの記録確定で乱数を引き直さない。
                     pitch_event_type = event_type
-                    scored, outs_on_play, rbi = self._apply_event(
-                        event_type=event_type,
-                        batter_id=batter_id,
-                        bases=bases,
-                        offense_players=player_maps[offense_id],
-                        defense_strength=defense_values[defense_id],
-                        rng=event_rng,
-                        outs=outs,
-                    )
                     if (half == 'bottom' and inning >= regulation
                             and team_runs[team2_id] + len(scored) > team_runs[team1_id]):
                         event_type, scored, rbi = self._finish_walkoff(
@@ -1874,6 +2060,8 @@ class MatchSimulator:
                             ),
                         ),
                     )
+                    if tactic_outcome == "foul":
+                        pitches_on_play += int(self._strategy()["two_strike"]["extra_pitches"])
                     pitcher_stat['pitches'] = int(pitcher_stat['pitches']) + pitches_on_play
                     # 降板時（またはこの試合の最後）の疲れの段階
                     pitcher_stat['exit_fatigue'] = fatigue_model.stage_of(
@@ -1918,6 +2106,9 @@ class MatchSimulator:
                             margin=team_runs[offense_id] - team_runs[defense_id], inning=inning,
                             offense_players=player_maps[offense_id],
                             catcher=player_maps[defense_id][catcher_id], pitcher=pitcher,
+                            mobility=policies[offense_id].mobility,
+                            # エンドランの空振り三振：走者はもう走っている
+                            forced=tactic == "hit_and_run" and event_type == "strikeout",
                             rng=rng_for(
                                 match_input.generation_seed,
                                 self.params["rng_namespace_policy"]["steal"].format(
@@ -1979,6 +2170,7 @@ class MatchSimulator:
                                 *((('pitches', str(pitches_on_play)),) if dh_game else ()),
                                 *((('scored_runners', '|'.join(scored)),) if dh_game else ()),
                                 *((('walkoff_hit', pitch_event_type),) if event_type != pitch_event_type else ()),
+                                *((('tactic', f"{tactic}:{tactic_outcome}"),) if tactic else ()),
                                 *((('bases_after_play', self._bases_text(bases_after_play)),
                                    ('steal', f"{steal[0]}|{steal[1] + 1}|{steal[2]}|{catcher_id}"))
                                   if steal is not None else ()),

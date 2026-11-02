@@ -12,13 +12,16 @@
 - 個人成績の上位（打率・本塁打・防御率。規定は ``config/stats/player_rankings_v1.json``。
   少ない試合の選手で埋まらないよう、チームの試合数が ``--min-team-games`` 以上の選手だけ）
 - 3年の投手の球速の分布、能力ごとのSの人数（7月1日の名簿。7月1日がなければ最後の日）
+- 作戦（犠打・スクイズ・エンドラン）の1試合あたりの数と犠打の成功率。試合の要点の作戦の記録
+  （``game_core/highlights.py`` の ``T``）と打者の犠打から数え、監督の小技・機動力の傾向
+  （低い〜40・中・61〜高い）ごとの1チーム1試合あたりの数も出す
 """
 from __future__ import annotations
 
 import argparse
 from collections import Counter, defaultdict
 import csv
-from datetime import date
+from datetime import date, timedelta
 import json
 import math
 from pathlib import Path
@@ -33,6 +36,13 @@ KOSHIEN = "national_championship"
 VELOCITY_BANDS = ((0, "〜129"), (130, "130〜134"), (135, "135〜139"),
                   (140, "140〜144"), (145, "145〜149"), (150, "150〜"))
 TOP = 5
+TENDENCY_BANDS = ((0, "低"), (41, "中"), (61, "高"))
+
+
+def tendency_band(value) -> str | None:
+    if value is None:
+        return None
+    return next(label for low, label in reversed(TENDENCY_BANDS) if value >= low)
 
 
 def _load_json(path: Path) -> dict:
@@ -66,8 +76,12 @@ class BalanceTally:
         self.pitchers = defaultdict(lambda: defaultdict(Counter))
         self.team_games = defaultdict(Counter)   # 年度 → 学校 → 試合数
         self.rosters = {}                        # 年度 → 名簿の集計
+        self.tactics = defaultdict(Counter)      # 年度 → 作戦の数
+        # 年度 → (小技／機動力, 傾向の帯) → [チーム試合, 犠打の試み, スクイズ, エンドラン, 盗塁の試み]
+        self.by_tendency = defaultdict(lambda: defaultdict(lambda: [0, 0, 0, 0, 0]))
 
-    def add_match(self, competition_id: str, detail: dict) -> None:
+    def add_match(self, competition_id: str, detail: dict, coach_of=None) -> None:
+        """``coach_of(学校ID)`` はその試合の監督（小技・機動力の傾向を見る。なければ None）。"""
         year = int(detail["reference_year"])
         kind = self.kind_of(competition_id)
         self.games[(year, kind)].append(
@@ -97,6 +111,73 @@ class BalanceTally:
         for p in pitchers:
             self.pitchers[year][(p["school_id"], p["player_id"])].update(
                 {k: int(p.get(k, 0)) for k in ("outs_recorded", "earned_runs")})
+        self._add_tactics(year, detail, batters, coach_of)
+
+    def _add_tactics(self, year, detail, batters, coach_of) -> None:
+        offense = {"t": detail["team1_school_id"], "b": detail["team2_school_id"]}
+        per_team = defaultdict(Counter)
+        for b in batters:
+            per_team[b["school_id"]]["sacrifice_bunts"] += int(b.get("sacrifice_bunts", 0))
+            per_team[b["school_id"]]["steal_attempts"] += (
+                int(b.get("stolen_bases", 0)) + int(b.get("caught_stealing", 0)))
+        for item in detail.get("highlights") or []:
+            if item[0] != "T":
+                continue
+            _, _, half, _, tactic, outcome = item
+            per_team[offense[half]][f"{tactic}:{outcome}"] += 1
+            per_team[offense[half]][tactic] += 1
+        tally = self.tactics[year]
+        tally["games"] += 1
+        for school in offense.values():
+            row = per_team[school]
+            tally.update(row)
+            coach = coach_of(school) if coach_of else None
+            if coach is None:
+                continue
+            squeezes = row["squeeze"]
+            bunts = row["sacrifice_bunts"] - row["squeeze:ok"] + row["bunt"]
+            for field, index_values in (("small_ball", (1, 2)), ("mobility", (3, 4))):
+                band = tendency_band(getattr(coach, field, None))
+                if band is None:
+                    continue
+                cell = self.by_tendency[year][(field, band)]
+                cell[0] += 1
+                if field == "small_ball":
+                    cell[1] += bunts
+                    cell[2] += squeezes
+                else:
+                    cell[3] += row["hit_and_run"]
+                    cell[4] += row["steal_attempts"]
+
+    def _tactics_summary(self, year) -> dict:
+        t = self.tactics.get(year)
+        if not t or not t["games"]:
+            return {}
+        games = t["games"]
+        bunt_ok = t["sacrifice_bunts"] - t["squeeze:ok"]
+        bunt_tries = bunt_ok + t["bunt"]
+        out = {
+            "games": games,
+            "sacrifice_bunts": round(t["sacrifice_bunts"] / games, 2),
+            "bunt_attempts": round(bunt_tries / games, 2),
+            "bunt_success": round(bunt_ok / bunt_tries, 3) if bunt_tries else None,
+            "bunt_failures": {k.split(":")[1]: t[k] for k in sorted(t) if k.startswith("bunt:")},
+            "squeezes": round(t["squeeze"] / games, 3),
+            "squeeze_success": round(t["squeeze:ok"] / t["squeeze"], 3) if t["squeeze"] else None,
+            "hit_and_runs": round(t["hit_and_run"] / games, 3),
+            "steal_attempts": round(t["steal_attempts"] / games, 2),
+        }
+        bands = self.by_tendency.get(year, {})
+        out["by_tendency"] = {
+            f"{field}:{band}": {
+                "team_games": cell[0],
+                **({"bunt_attempts": round(cell[1] / cell[0], 3), "squeezes": round(cell[2] / cell[0], 3)}
+                   if field == "small_ball" else
+                   {"hit_and_runs": round(cell[3] / cell[0], 3), "steal_attempts": round(cell[4] / cell[0], 3)}),
+            }
+            for (field, band), cell in sorted(bands.items()) if cell[0]
+        }
+        return out
 
     def add_rosters(self, year: int, players) -> None:
         """``players`` は (学年, 投手か, {能力: 値}) の並び。"""
@@ -179,6 +260,9 @@ class BalanceTally:
             if run and run[0]:
                 row["per_game"] = {"games": run[0], "stolen_bases": round(run[1] / run[0], 2),
                                    "double_plays": round(run[2] / run[0], 2)}
+            tactics = self._tactics_summary(year)
+            if tactics:
+                row["tactics"] = tactics
             row["leaders"] = self._leaders(year)
             if year in self.rosters:
                 row["rosters"] = self.rosters[year]
@@ -239,11 +323,17 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
         last_snapshot = None
         while True:
             # 試合の記録は保存の前に状態に置かれる。集めたら手放す（このコマンドは保存しない）
+            today = state.current_date
+            played_on = max(today - timedelta(days=1), date(state.rosters.first_year, 4, 1))
+            coaches = getattr(state, "coaches", None)
+
+            def coach_of(school_id, on=played_on):
+                return coaches.for_school(school_id, on=on) if coaches is not None else None
+
             for season in state.seasons.values():
                 pending = season.pending_match_details
                 for key in list(pending):
-                    tally.add_match(key.split(":", 1)[0], pending.pop(key))
-            today = state.current_date
+                    tally.add_match(key.split(":", 1)[0], pending.pop(key), coach_of)
             if (today.month, today.day) == (7, 1):
                 tally.add_rosters(today.year, roster_rows(state.rosters, today.year))
                 last_snapshot = today.year
@@ -291,6 +381,17 @@ def format_report(seed_label: str, report: dict) -> str:
         pg = row.get("per_game")
         if pg:
             lines.append(f"  1試合あたり（{pg['games']}試合）: 盗塁 {pg['stolen_bases']} / 併殺 {pg['double_plays']}")
+        ta = row.get("tactics")
+        if ta:
+            rate = lambda v: "−" if v is None else f"{v:.1%}"
+            lines.append(f"  作戦（1試合あたり）: 犠打 {ta['sacrifice_bunts']}（試み {ta['bunt_attempts']}・成功 "
+                         f"{rate(ta['bunt_success'])}）/ スクイズ {ta['squeezes']}（成功 {rate(ta['squeeze_success'])}）"
+                         f" / エンドラン {ta['hit_and_runs']} / 盗塁の試み {ta['steal_attempts']}")
+            if ta.get("bunt_failures"):
+                lines.append("  犠打の失敗: " + " ".join(f"{k}:{v}" for k, v in ta["bunt_failures"].items()))
+            for key, cell in (ta.get("by_tendency") or {}).items():
+                lines.append(f"  監督 {key}（{cell['team_games']}チーム試合）: " + " ".join(
+                    f"{k} {v}" for k, v in cell.items() if k != "team_games"))
         leaders = row.get("leaders") or {}
         if leaders.get("batting_average"):
             lines.append("  打率: " + ", ".join(f"{r[0]:.3f}({r[3]}打数)" for r in leaders["batting_average"]))

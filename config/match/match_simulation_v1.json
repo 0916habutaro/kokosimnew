@@ -1,6 +1,6 @@
 {
   "config_id": "match_simulation_v1",
-  "revision": 14,
+  "revision": 15,
   "status": "tuned_2026_11_01",
   "description_ja": "能力ベースの試合モデル（打席結果・走者進塁・投手運用）。能力の効きと球数は従来の調整を維持（game_definition.md §11）。打席の基準重みは新基準バット導入後の夏甲子園（2024〜2026年の本塁打7・10・8本）と全国進行の得点・コールドを比較して調整。本塁打0.0025・単打0.195・二塁打0.060、他はrevision 5の相対重みを使い、合計1に正規化した。抽選時には能力補正後に再び正規化する。 先発の継投判断は完投可能性・スタミナ差・失点・球数制限と全国進行を比較して調整。 能力の効き（ability_effect_scale）は、入部品質を選手ごとの素質に変えて学校の強さの差が縮んだ分を戻すため、失策を除いて1.35倍にした（2026-10-31、地方大会の得点・点差・コールド・完封と夏の甲子園の初出場に合わせた）。 型の調整で投手の能力の平均と打撃の学校差が変わった分、能力の効きをさらに1.06倍にした（2026-11-01）。",
   "score_source": "ability_model_v1",
@@ -56,13 +56,6 @@
     "defense_center": 50.0
   },
   "situational_events": {
-    "sacrifice_bunt": {
-      "enabled": true,
-      "base_probability": 0.035,
-      "minimum_bunt_ability": 45,
-      "max_outs": 1,
-      "allowed_score_margin": 2
-    },
     "sacrifice_fly": {
       "enabled": true,
       "base_probability": 0.7,
@@ -153,6 +146,18 @@
       "double_play": [
         1,
         4
+      ],
+      "bunt_pop_out": [
+        1,
+        3
+      ],
+      "bunt_double_play": [
+        1,
+        3
+      ],
+      "line_drive_double_play": [
+        1,
+        4
       ]
     }
   },
@@ -171,7 +176,8 @@
     "event": "event_v1:{match_id}:{event_no}",
     "pitches": "pitches_v1:{match_id}:{plate_appearance_no}",
     "steal": "steal_v1:{match_id}:{plate_appearance_no}",
-    "relief": "relief_v1:{match_id}:{plate_appearance_no}"
+    "relief": "relief_v1:{match_id}:{plate_appearance_no}",
+    "tactic": "tactic_v1:{match_id}:{plate_appearance_no}"
   },
   "outs_in_play": {
     "description_ja": "凡退（field_out）の中身（2026-11-01）。ゴロの割合 = base ＋ (投手のゴロ − 50)×per_groundball_point ＋ (打者の長打 − 50)×per_power_point ＋ (打者のミート − 50)×per_contact_point を min〜max に収める。ゴロで一塁に走者・2死未満なら、併殺の確率 = base − (打者の走力 − 50)×speed_effect_per_point ＋ (守備力 − 50)×defense_effect_per_point。advance は凡退の間に走者が進む確率の基準（baserunning と同じく走者の走塁・走力と守備力で増減）：ゴロで二塁→三塁（押し出しでないとき）、ゴロで三塁走者の生還（押し出しでないとき）、フライで二塁→三塁のタッチアップ。フライで三塁走者が生還するのは犠飛（situational_events.sacrifice_fly）。値は仮の値（実際の高校野球の打球の割合・進塁の割合の集計は見つからなかった）。併殺の回数の目安は game_definition.md §3.6",
@@ -197,7 +203,7 @@
     }
   },
   "stolen_bases": {
-    "description_ja": "盗塁（2026-11-01）。打席が終わったあと（次の打席の前）、一塁の走者（二塁が空いているとき）か二塁の走者（三塁が空いているとき）が二盗・三盗を試みる。本盗はしない。試みる確率 = 基準（second_base／third_base）× exp((盗塁 − 50)×per_stealing_point ＋ (走力 − 50)×per_speed_point) × アウトの数ごとの倍率 × 場面（7回以降で点差 close_margin 以内は late_close_multiplier、点差が blowout_margin 以上は blowout_multiplier）× 監督の傾向（coach_tendency_multiplier。段階Fで監督の采配とつなぐまで中立の1）を max_probability までに収める。試みると、まず牽制死（pickoff）を引き、そうでなければ成否を引く。成功の確率 = 基準 ＋ 走者の盗塁・走力 − 捕手の肩・送球・捕球 − 投手のクイック（それぞれ50との差×1点あたりの値）を min〜max に収める。牽制死の確率 = base × exp((クイック − 50)×per_quick_point − (走塁 − 50)×per_baserunning_point) を min〜max に収める。捕手が本職でない（捕球がない）ときは catcher_catching_default を使う。1試合あたりの盗塁の目安は game_definition.md §3.6.2（夏の甲子園の報道）。成功率・牽制死は仮の値",
+    "description_ja": "盗塁（2026-11-01）。打席が終わったあと（次の打席の前）、一塁の走者（二塁が空いているとき）か二塁の走者（三塁が空いているとき）が二盗・三盗を試みる。本盗はしない。試みる確率 = 基準（second_base／third_base）× exp((盗塁 − 50)×per_stealing_point ＋ (走力 − 50)×per_speed_point) × アウトの数ごとの倍率 × 場面（7回以降で点差 close_margin 以内は late_close_multiplier、点差が blowout_margin 以上は blowout_multiplier）× 監督の機動力の倍率（coach_tactics_v1 の strategy。段階F1）を max_probability までに収める。試みると、まず牽制死（pickoff）を引き、そうでなければ成否を引く。成功の確率 = 基準 ＋ 走者の盗塁・走力 − 捕手の肩・送球・捕球 − 投手のクイック（それぞれ50との差×1点あたりの値）を min〜max に収める。牽制死の確率 = base × exp((クイック − 50)×per_quick_point − (走塁 − 50)×per_baserunning_point) を min〜max に収める。捕手が本職でない（捕球がない）ときは catcher_catching_default を使う。1試合あたりの盗塁の目安は game_definition.md §3.6.2（夏の甲子園の報道）。成功率・牽制死は仮の値",
     "attempt": {
       "second_base": 0.043,
       "third_base": 0.009,
@@ -213,7 +219,6 @@
       "late_close_multiplier": 1.2,
       "blowout_margin": 6,
       "blowout_multiplier": 0.3,
-      "coach_tendency_multiplier": 1.0,
       "max_probability": 0.6
     },
     "success": {
@@ -235,7 +240,8 @@
       "min": 0.005,
       "max": 0.12
     },
-    "catcher_catching_default": 40
+    "catcher_catching_default": 40,
+    "hit_and_run_strikeout_success_bonus": 0.05
   },
   "platoon": {
     "description_ja": "左右の差（2026-11-01）。打者の打つ側（両打ちは投手と逆の側）と投手の投げる腕が同じなら same_side_points（打つ側ごと。左対左を大きく）だけ打者の打撃の能力を下げ、逆なら opposite_side_points だけ上げる。能力ごとの効き方は ability_weights。一部の選手だけの特性（school_intake_v1 の platoon_traits）は trait_points：野手の対左投手◎×は左投手と対戦するとき、投手の対左打者◎×は左の打席の打者と対戦するときに効く（投手の◎は打者を下げる）。大きさはプロの左右差を代用した仮の値（game_definition.md §3.6.2）。右対右が打席の約6割を占めるので、同じ側・逆の側の点は全体の平均がほぼ0になるように置いた",
@@ -337,6 +343,94 @@
       "quality_gap_points": 4.0,
       "base_probability": 0.6,
       "max_probability": 0.9
+    }
+  },
+  "strategy": {
+    "description_ja": "作戦（段階F1、2026-11-02）。打席の前に、攻める側の監督がスクイズ → 送りバント → エンドランの順に試みるかを決める（どれか1つ）。試みる確率 = 基準 × 場面の倍率 × exp(打者などの能力の項) × 監督の倍率（coach_tactics_v1 の strategy。小技は犠打・スクイズ、機動力はエンドラン・盗塁）を max_probability までに収める。打者の打撃（ミートと長打の平均）が高いほどバント・スクイズは減る。成否の確率 = 基準 ＋ 能力の50との差×1点あたりの値を min〜max に収め、失敗の種類は failure_weights の重みで引く。値はゲーム用の仮の値（夏の甲子園の犠打は1試合約3.8〜4.0回。出典は game_definition.md §3.6.2 F1）",
+    "sacrifice_bunt": {
+      "description_ja": "送りバント。一塁・二塁（三塁は空き）に走者、0〜1死。base は アウトの数 → 走者の形（first：一塁だけ、second：二塁だけ、first_second：一・二塁）。点差が close_margin 以内なら1倍、リードが大きいと ahead_far_multiplier、ビハインドが大きいと behind_far_multiplier、late_inning_from 回以降で close_margin 以内は late_close_multiplier。失敗：foul はファウルで追い込まれて打席が続く（two_strike の重みで打つ）、pop は小フライのアウト、fc は先の走者がアウト（野選）、dp は併殺（一塁に走者がいるときだけ。いなければ fc）",
+      "base": {
+        "0": {
+          "first": 0.3,
+          "second": 0.14,
+          "first_second": 0.28
+        },
+        "1": {
+          "first": 0.04,
+          "second": 0.03,
+          "first_second": 0.05
+        }
+      },
+      "close_margin": 2,
+      "ahead_far_multiplier": 0.5,
+      "behind_far_multiplier": 0.25,
+      "late_inning_from": 7,
+      "late_close_multiplier": 1.3,
+      "batter_hitting_log_per_point": 0.04,
+      "bunt_log_per_point": 0.01,
+      "max_probability": 0.85,
+      "success": {
+        "base": 0.74,
+        "per_bunt_point": 0.006,
+        "per_speed_point": 0.001,
+        "per_defense_point": 0.002,
+        "min": 0.35,
+        "max": 0.95
+      },
+      "failure_weights": {
+        "foul": 0.45,
+        "pop": 0.22,
+        "fc": 0.25,
+        "dp": 0.08
+      }
+    },
+    "two_strike": {
+      "description_ja": "バントがファウルで追い込まれたあとの打席：打席の結果の重みの三振・四球に掛ける。球数は extra_pitches だけ足す",
+      "strikeout_multiplier": 1.7,
+      "walk_multiplier": 0.6,
+      "extra_pitches": 2
+    },
+    "squeeze": {
+      "description_ja": "スクイズ。三塁に走者、0〜1死、点差が max_margin 以内。base はアウトの数ごと。成功は三塁走者が生還して打者はアウト（犠打・打点1、ほかの走者は1つ進む）。失敗：fc は三塁走者が本塁でアウト（打者は一塁へ）、pop は小フライのアウト、dp は小フライで三塁走者も戻れず併殺",
+      "base": [
+        0.02,
+        0.06
+      ],
+      "max_margin": 3,
+      "close_margin": 2,
+      "late_inning_from": 7,
+      "late_close_multiplier": 2.0,
+      "batter_hitting_log_per_point": 0.03,
+      "max_probability": 0.5,
+      "success": {
+        "base": 0.68,
+        "per_bunt_point": 0.008,
+        "per_runner_speed_point": 0.004,
+        "min": 0.3,
+        "max": 0.92
+      },
+      "failure_weights": {
+        "fc": 0.55,
+        "pop": 0.25,
+        "dp": 0.2
+      }
+    },
+    "hit_and_run": {
+      "description_ja": "エンドラン。一塁に走者（二塁・三塁は問わない。満塁はしない）、max_outs まで、点差が max_margin より大きいと far_margin_multiplier。打者のミート・三振しにくさ、一塁走者の走力で試みやすさが変わる。打席の結果の重みの三振・四球に掛け、ゴロの併殺は double_play_multiplier に減り（残りは走者が進むゴロ）、単打で一塁走者が三塁へ・二塁打で一塁走者が生還する確率に bonus を足す。空振りの三振は走者が盗塁（成功に stolen_bases.hit_and_run_strikeout_success_bonus を足す。牽制はない）、フライ・ライナーは fly_runner_doubled_off で一塁走者も戻れず併殺",
+      "base": 0.04,
+      "max_outs": 1,
+      "max_margin": 3,
+      "far_margin_multiplier": 0.3,
+      "contact_log_per_point": 0.03,
+      "strikeout_resistance_log_per_point": 0.03,
+      "runner_speed_log_per_point": 0.02,
+      "max_probability": 0.4,
+      "strikeout_multiplier": 0.7,
+      "walk_multiplier": 0.5,
+      "double_play_multiplier": 0.15,
+      "single_first_to_third_bonus": 0.3,
+      "double_first_scores_bonus": 0.25,
+      "fly_runner_doubled_off": 0.3
     }
   }
 }

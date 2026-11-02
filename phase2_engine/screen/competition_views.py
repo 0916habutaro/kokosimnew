@@ -39,7 +39,27 @@ EVENT_LABELS = {
     "sacrifice_bunt": "犠打",
     "sacrifice_fly": "犠飛",
     "strikeout": "三振",
+    "bunt_pop_out": "バント小飛球",
+    "bunt_double_play": "バント併殺",
+    "line_drive_double_play": "併殺（走者戻れず）",
 }
+# 作戦の要点（game_core/highlights.py の T）
+TACTIC_LABELS = {
+    ("bunt", "foul"): "送りバント失敗（追い込まれて打つ）",
+    ("bunt", "pop"): "送りバント失敗（小フライ）",
+    ("bunt", "fc"): "送りバント失敗（先の走者がアウト）",
+    ("bunt", "dp"): "送りバント失敗（併殺）",
+    ("squeeze", "ok"): "スクイズ成功",
+    ("squeeze", "pop"): "スクイズ失敗（小フライ）",
+    ("squeeze", "fc"): "スクイズ失敗（本塁でアウト）",
+    ("squeeze", "dp"): "スクイズ失敗（小フライで併殺）",
+}
+
+
+def tactic_label(tactic: str, result: str) -> str:
+    if tactic == "hit_and_run":
+        return f"エンドラン（{EVENT_LABELS.get(result, result)}）"
+    return TACTIC_LABELS.get((tactic, result), f"{tactic}:{result}")
 POSITION_LABELS = {
     'DH': 'DH', 'P_DH': '投・DH',
     "P": "投", "C": "捕", "1B": "一", "2B": "二", "3B": "三",
@@ -591,6 +611,18 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                           "po": "牽制死"}[item[4]],
                 "success": item[4] == "sb",
             })
+        elif kind == "T":
+            school = batting_team[half]
+            highlights.append({
+                "kind": "tactic", "inning": inning,
+                "half": HALF_LABELS[half], "school_id": school,
+                "school_name": names(school),
+                "player_name": player_name(school, item[3]),
+                "event": tactic_label(item[4], item[5]),
+                "success": (item[4], item[5]) == ("squeeze", "ok") or (
+                    item[4] == "hit_and_run" and item[5] in ("single", "double", "triple", "home_run",
+                                                              "walk", "hit_by_pitch", "ground_out")),
+            })
         elif kind == "D":
             school = batting_team[half]
             defense = team2 if school == team1 else team1
@@ -637,7 +669,7 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                 **{key: stat.get(key, 0) for key in (
                     "at_bats", "hits", "runs", "rbi", "home_runs",
                     "walks", "strikeouts", "stolen_bases", "grounded_into_double_plays",
-                    "caught_stealing", "picked_off",
+                    "caught_stealing", "picked_off", "sacrifice_bunts",
                 )},
             }
             for stat in detail.get("batter_stats") or ()

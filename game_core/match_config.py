@@ -23,6 +23,9 @@ REQUIRED_EVENT_TYPES = {
     "ground_out",
     "fly_out",
     "double_play",
+    "bunt_pop_out",
+    "bunt_double_play",
+    "line_drive_double_play",
 }
 
 
@@ -192,7 +195,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
     situational = payload.get("situational_events")
     if not isinstance(situational, dict):
         raise ValueError("match simulation: situational_events required")
-    if set(situational) != {"sacrifice_bunt", "sacrifice_fly"}:
+    if set(situational) != {"sacrifice_fly"}:
         raise ValueError(
             "match simulation: situational event keys mismatch"
         )
@@ -258,6 +261,8 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
     if not (isinstance(outs_multiplier, list) and len(outs_multiplier) == 3
             and all(isinstance(v, (int, float)) and v >= 0 for v in outs_multiplier)):
         raise ValueError("match simulation: stolen_bases.attempt.outs_multiplier needs 3 values")
+
+    _validate_strategy(payload.get("strategy"))
 
     fatigue = payload.get("fatigue")
     if not isinstance(fatigue, dict):
@@ -401,6 +406,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         "pitches",
         "steal",
         "relief",
+        "tactic",
     }:
         raise ValueError(
             "match simulation: RNG namespace keys mismatch"
@@ -412,6 +418,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         "pitches": ("{match_id}", "{plate_appearance_no}"),
         "steal": ("{match_id}", "{plate_appearance_no}"),
         "relief": ("{match_id}", "{plate_appearance_no}"),
+        "tactic": ("{match_id}", "{plate_appearance_no}"),
     }
     for key, placeholders in required_placeholders.items():
         template = str(namespaces[key])
@@ -423,6 +430,63 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
             raise ValueError(
                 f"match simulation: {key} namespace placeholders mismatch"
             )
+
+
+def _number(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _probability(value) -> bool:
+    return _number(value) and 0 <= float(value) <= 1
+
+
+def _validate_strategy(strategy) -> None:
+    """作戦（段階F1）の値。確率は0〜1、倍率・係数は数、失敗の重みは正。"""
+    if not isinstance(strategy, dict):
+        raise ValueError("match simulation: strategy required")
+    shapes = {
+        "sacrifice_bunt": (("max_probability",), ("close_margin", "ahead_far_multiplier",
+                           "behind_far_multiplier", "late_inning_from", "late_close_multiplier",
+                           "batter_hitting_log_per_point", "bunt_log_per_point")),
+        "squeeze": (("max_probability",), ("max_margin", "close_margin", "late_inning_from",
+                    "late_close_multiplier", "batter_hitting_log_per_point")),
+        "hit_and_run": (("base", "max_probability", "far_margin_multiplier", "double_play_multiplier",
+                        "single_first_to_third_bonus", "double_first_scores_bonus",
+                        "fly_runner_doubled_off"),
+                        ("max_outs", "max_margin", "contact_log_per_point",
+                         "strikeout_resistance_log_per_point", "runner_speed_log_per_point",
+                         "strikeout_multiplier", "walk_multiplier")),
+        "two_strike": ((), ("strikeout_multiplier", "walk_multiplier", "extra_pitches")),
+    }
+    for section, (probabilities, numbers) in shapes.items():
+        values = strategy.get(section)
+        if not isinstance(values, dict):
+            raise ValueError(f"match simulation: strategy.{section} required")
+        if not all(_probability(values.get(k)) for k in probabilities):
+            raise ValueError(f"match simulation: invalid strategy.{section} probability")
+        if not all(_number(values.get(k)) and float(values[k]) >= 0 for k in numbers):
+            raise ValueError(f"match simulation: invalid strategy.{section} value")
+    bunt = strategy["sacrifice_bunt"]
+    if set(bunt.get("base", {})) != {"0", "1"} or not all(
+            set(row) == {"first", "second", "first_second"} and all(_probability(v) for v in row.values())
+            for row in bunt["base"].values()):
+        raise ValueError("match simulation: invalid strategy.sacrifice_bunt.base")
+    squeeze = strategy["squeeze"]
+    if not (isinstance(squeeze.get("base"), list) and len(squeeze["base"]) == 2
+            and all(_probability(v) for v in squeeze["base"])):
+        raise ValueError("match simulation: invalid strategy.squeeze.base")
+    for section, kinds, extra in (("sacrifice_bunt", {"foul", "pop", "fc", "dp"},
+                                   ("per_bunt_point", "per_speed_point", "per_defense_point")),
+                                  ("squeeze", {"fc", "pop", "dp"},
+                                   ("per_bunt_point", "per_runner_speed_point"))):
+        success = strategy[section].get("success")
+        if not (isinstance(success, dict) and all(_probability(success.get(k)) for k in ("base", "min", "max"))
+                and success["min"] <= success["max"] and all(_number(success.get(k)) for k in extra)):
+            raise ValueError(f"match simulation: invalid strategy.{section}.success")
+        weights = strategy[section].get("failure_weights")
+        if not (isinstance(weights, dict) and set(weights) == kinds
+                and all(_number(v) and v >= 0 for v in weights.values()) and sum(weights.values()) > 0):
+            raise ValueError(f"match simulation: invalid strategy.{section}.failure_weights")
 
 
 def validate_event_catalog(document: ConfigDocument) -> None:

@@ -32,8 +32,9 @@ class _ScriptedSimulator(MatchSimulator):
         self.calls[pitcher.school_id] += 1
         return {script[index] if index < len(script) else "field_out": 1.0}
 
-    def _should_sacrifice_bunt(self, *args):
-        return False
+    def _choose_tactic(self, **kwargs):
+        # 作戦（送りバント・スクイズ・エンドラン）は使わない
+        return None
 
     def _classify_out(self, event_type, *args):
         return event_type
