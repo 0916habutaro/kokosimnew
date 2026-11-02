@@ -15,11 +15,14 @@
 - 作戦（犠打・スクイズ・エンドラン）の1試合あたりの数と犠打の成功率。試合の要点の作戦の記録
   （``game_core/highlights.py`` の ``T``）と打者の犠打から数え、監督の小技・機動力の傾向
   （低い〜40・中・61〜高い）ごとの1チーム1試合あたりの数も出す
+- 場面ごとの作戦の試み（無死一塁・無死二塁・無死一二塁・一死一塁で、送りバント・エンドランを
+  試みた打席の割合。全試合と夏の甲子園）。試合の計算の作戦の判断（``_choose_tactic``）を数える
 """
 from __future__ import annotations
 
 import argparse
 from collections import Counter, defaultdict
+from contextlib import contextmanager
 import csv
 from datetime import date, timedelta
 import json
@@ -313,6 +316,61 @@ def roster_rows(book, year: int):
                    {name: values[i] for i, name in enumerate(SCALARS)})
 
 
+SITUATIONS = {
+    (0, "first"): "無死一塁", (0, "second"): "無死二塁", (0, "first_second"): "無死一二塁",
+    (1, "first"): "一死一塁",
+}
+
+
+class SituationCounter:
+    """作戦の判断を場面ごとに数える（このコマンドの中だけで試合の計算を包む）。"""
+
+    def __init__(self, kind_of):
+        self.kind_of = kind_of
+        self.year = None
+        self.kind = None
+        self.counts = defaultdict(Counter)   # (年度, 全試合／夏の甲子園, 場面) → 打席・作戦
+
+    @contextmanager
+    def watching(self):
+        from game_core.match_simulator import MatchSimulator
+
+        simulate, choose = MatchSimulator.simulate, MatchSimulator._choose_tactic
+        counter = self
+
+        def watched_simulate(sim, match_input, *args, **kwargs):
+            counter.year = match_input.reference_year
+            counter.kind = counter.kind_of(match_input.competition_id)
+            return simulate(sim, match_input, *args, **kwargs)
+
+        def watched_choose(sim, *, bases, outs, **kwargs):
+            tactic = choose(sim, bases=bases, outs=outs, **kwargs)
+            name = SITUATIONS.get((outs, MatchSimulator._runner_shape(bases))) if bases[2] is None else None
+            if name is not None:
+                for scope in ("all", "koshien") if counter.kind == KOSHIEN else ("all",):
+                    row = counter.counts[(counter.year, scope, name)]
+                    row["plate_appearances"] += 1
+                    row[tactic or "none"] += 1
+            return tactic
+
+        MatchSimulator.simulate, MatchSimulator._choose_tactic = watched_simulate, watched_choose
+        try:
+            yield self
+        finally:
+            MatchSimulator.simulate, MatchSimulator._choose_tactic = simulate, choose
+
+    def summary(self) -> dict:
+        out = defaultdict(dict)
+        for (year, scope, name), row in sorted(self.counts.items()):
+            n = row["plate_appearances"]
+            out[year].setdefault(scope, {})[name] = {
+                "plate_appearances": n,
+                "bunt": round(row["bunt"] / n, 3),
+                "hit_and_run": round(row["hit_and_run"] / n, 3),
+            }
+        return dict(out)
+
+
 def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) -> dict:
     from .live_game_service import LiveGameService
     from .live_season_save import PLAYER_RESOLVER_CONTRACT
@@ -322,7 +380,8 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
     tally = BalanceTally(competition_kinds(repo), summer_history(),
                          _load_json(ROOT / "config" / "stats" / "player_rankings_v1.json"),
                          min_team_games)
-    with tempfile.TemporaryDirectory() as saves:
+    situations = SituationCounter(tally.kind_of)
+    with tempfile.TemporaryDirectory() as saves, situations.watching():
         service = LiveGameService(repo, ROOT / "data", save_root=saves,
                                   resolver_contract=PLAYER_RESOLVER_CONTRACT,
                                   autosave_after_action=False)
@@ -355,7 +414,11 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
         year = school_year_of(state.current_date)
         if last_snapshot is None or last_snapshot < year:
             tally.add_rosters(year, roster_rows(state.rosters, year))
-    return tally.summary()
+    report = tally.summary()
+    for year, scopes in situations.summary().items():
+        if year in report:
+            report[year]["situations"] = scopes
+    return report
 
 
 def average(reports: list[dict]) -> dict:
@@ -402,6 +465,12 @@ def format_report(seed_label: str, report: dict) -> str:
             for key, cell in (ta.get("by_tendency") or {}).items():
                 lines.append(f"  監督 {key}（{cell['team_games']}チーム試合）: " + " ".join(
                     f"{k} {v}" for k, v in cell.items() if k != "team_games"))
+        for scope, label in (("all", "全試合"), ("koshien", "夏の甲子園")):
+            rows = (row.get("situations") or {}).get(scope)
+            if rows:
+                lines.append(f"  場面ごとの作戦（{label}・試みた打席の割合）: " + " / ".join(
+                    f"{name} {v['plate_appearances']}打席 バント{v['bunt']:.1%}・エンドラン{v['hit_and_run']:.1%}"
+                    for name, v in rows.items()))
         leaders = row.get("leaders") or {}
         if leaders.get("batting_average"):
             lines.append("  打率: " + ", ".join(f"{r[0]:.3f}({r[3]}打数)" for r in leaders["batting_average"]))

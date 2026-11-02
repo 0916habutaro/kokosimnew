@@ -11,6 +11,7 @@ from game_core.highlights import game_highlights, validate_highlights
 from game_core.match_contract import validate_match_simulation_result
 from game_core.match_simulator import MatchSimulator, validate_run_accounting
 import test_live_match_state as live
+import test_pitcher_run_accounting as accounting
 from test_stage13b3_team_strength import make_roster_abilities
 
 class AttemptTests(unittest.TestCase):
@@ -257,3 +258,81 @@ class CoachStrategyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HitAndRunStrikeoutTests(unittest.TestCase):
+    """エンドランの空振り三振：走っている一塁走者が盗塁・盗塁死になる（塁・アウト・成績）。"""
+
+    @classmethod
+    def setUpClass(cls):
+        accounting.PitcherRunAccountingTests.setUpClass()
+        cls.fixture = accounting.PitcherRunAccountingTests()
+
+    def play(self, script, success):
+        class Scripted(accounting._ScriptedSimulator):
+            def _choose_tactic(self, *, batter, bases, outs, margin, inning, offense_players, tactics, rng):
+                runner = offense_players.get(bases[0]) if bases[0] else None
+                ok = self._hit_and_run_probability(batter, runner, bases, outs, margin) > 0
+                return "hit_and_run" if ok else None
+
+            def _steal_attempt_probability(self, *args, **kwargs):
+                return 0.0  # ふつうの盗塁はさせない
+
+            def _steal_success_probability(self, *args, **kwargs):
+                return 1.0 if success else 0.0
+
+        fx = self.fixture
+        # 確かめる打席のあとに本塁打を足して試合を決める
+        sim = Scripted({fx.teams[1].school_id: (*script, "home_run"), fx.teams[0].school_id: ()})
+        result = sim.simulate(fx.match())
+        fx.check_totals(result)
+        event = result.events[len(script) - 1]
+        metadata = dict(event.metadata)
+        rows = {(b.school_id, b.player_id): b for b in result.batter_stats}
+        return event, metadata, rows
+
+    def runner_row(self, rows, event, metadata):
+        runner = metadata["steal"].split("|")[0]
+        return runner, rows[(event.offense_school_id, runner)]
+
+    def test_runner_on_first_steals_or_is_caught_with_zero_or_one_out(self):
+        for prefix, outs_before in (((), 0), (("strikeout",), 1)):
+            for success in (True, False):
+                with self.subTest(outs=outs_before, success=success):
+                    script = (*prefix, "single", "strikeout")
+                    event, metadata, rows = self.play(script, success)
+                    self.assertEqual(("strikeout", "hit_and_run:strikeout"), (event.event_type, metadata["tactic"]))
+                    first = metadata["bases_before"].split("|")[0]
+                    runner, row = self.runner_row(rows, event, metadata)
+                    self.assertEqual(first, runner)
+                    self.assertEqual("|1|", f"|{metadata['steal'].split('|')[1]}|")
+                    if success:
+                        self.assertEqual(f"|{runner}|", metadata["bases_after"])
+                        self.assertEqual((1, 0), (row.stolen_bases, row.caught_stealing))
+                        self.assertEqual(str(outs_before + 1), metadata["outs_after"])
+                    else:
+                        self.assertEqual("||", metadata["bases_after"])
+                        self.assertEqual((0, 1), (row.stolen_bases, row.caught_stealing))
+                        self.assertEqual(str(outs_before + 2), metadata["outs_after"])
+                        self.assertEqual(2, event.outs_on_play)
+
+    def test_first_and_third_only_the_runner_on_first_runs(self):
+        for success in (True, False):
+            with self.subTest(success=success):
+                event, metadata, rows = self.play(("triple", "walk", "strikeout"), success)
+                third = metadata["bases_before"].split("|")[2]
+                runner, row = self.runner_row(rows, event, metadata)
+                self.assertEqual(metadata["bases_before"].split("|")[0], runner)
+                expected = f"|{runner}|{third}" if success else f"||{third}"
+                self.assertEqual(expected, metadata["bases_after"])
+
+    def test_no_hit_and_run_with_runners_on_first_and_second(self):
+        # 一・二塁では両方の走者が走る（重盗）。扱っていないのでエンドランにしない
+        sim = MatchSimulator()
+        batter = make_roster_abilities(school_id="FAKE-HR")[3]
+        self.assertEqual(0, sim._hit_and_run_probability(batter, batter, ["R1", "R2", None], 0, 0))
+        event, metadata, rows = self.play(("walk", "walk", "strikeout"), True)
+        self.assertNotIn("tactic", metadata)
+        self.assertNotIn("steal", metadata)
+        self.assertEqual(metadata["bases_before"], metadata["bases_after"])
+        self.assertEqual("1", metadata["outs_after"])

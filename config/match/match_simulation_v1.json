@@ -416,7 +416,7 @@
       }
     },
     "hit_and_run": {
-      "description_ja": "エンドラン。一塁に走者（二塁・三塁は問わない。満塁はしない）、max_outs まで、点差が max_margin より大きいと far_margin_multiplier。打者のミート・三振しにくさ、一塁走者の走力で試みやすさが変わる。打席の結果の重みの三振・四球に掛け、ゴロの併殺は double_play_multiplier に減り（残りは走者が進むゴロ）、単打で一塁走者が三塁へ・二塁打で一塁走者が生還する確率に bonus を足す。空振りの三振は走者が盗塁（成功に stolen_bases.hit_and_run_strikeout_success_bonus を足す。牽制はない）、フライ・ライナーは fly_runner_doubled_off で一塁走者も戻れず併殺",
+      "description_ja": "エンドラン。一塁に走者・二塁は空き（一塁だけか一・三塁。一・二塁は両方の走者が走る重盗になるので扱わない）、max_outs まで、点差が max_margin より大きいと far_margin_multiplier。打者のミート・三振しにくさ、一塁走者の走力で試みやすさが変わる。打席の結果の重みの三振・四球に掛け、ゴロの併殺は double_play_multiplier に減り（残りは走者が進むゴロ）、単打で一塁走者が三塁へ・二塁打で一塁走者が生還する確率に bonus を足す。空振りの三振は走者が盗塁（成功に stolen_bases.hit_and_run_strikeout_success_bonus を足す。牽制はない）、フライ・ライナーは fly_runner_doubled_off で一塁走者も戻れず併殺",
       "base": 0.035,
       "max_outs": 1,
       "max_margin": 3,

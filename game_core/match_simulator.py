@@ -860,9 +860,11 @@ class MatchSimulator:
         self, batter: PlayerAbilitySnapshot, runner: PlayerAbilitySnapshot | None,
         bases: list[str | None], outs: int, margin: int, mobility: float = 1.0,
     ) -> float:
-        """エンドランを試みる確率（一塁に走者・満塁でない・max_outs まで）。"""
+        """エンドランを試みる確率（一塁に走者・二塁は空き・max_outs まで）。
+
+        一・二塁では両方の走者が走る（重盗）ことになるが、盗塁の記録は1人の走者だけなので扱わない。"""
         rule = self._strategy()["hit_and_run"]
-        if runner is None or bases[0] is None or all(bases) or outs > int(rule["max_outs"]):
+        if runner is None or bases[0] is None or bases[1] is not None or outs > int(rule["max_outs"]):
             return 0.0
         value = float(rule["base"]) * math.exp(
             (float(batter.contact) - 50.0) * float(rule["contact_log_per_point"])
