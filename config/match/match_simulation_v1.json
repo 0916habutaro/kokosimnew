@@ -435,29 +435,29 @@
   },
   "substitutions": {
     "description_ja": "選手の交代（段階F2、2026-11-02）。能力の差（打撃は左右の差を入れた打撃の値、守備は守備位置ごとの守備の値、走力はそのまま）が基準以上なら交代する。基準は監督の交代の積極性の倍率（coach_tactics_v1 の strategy）で割る。乱数は使わない。控えは投手陣を除くベンチ入りの選手で、一度退いた選手は出ない。ゲーム用の仮の値",
-    "late_inning_from": 7,
+    "late_inning_from": 6,
     "pinch_hitter": {
       "description_ja": "代打：late_inning_from 回以降、攻める側の点差が −max_deficit〜+max_lead のとき、控えの打撃の値が打者より min_gain 以上高ければ出す。DHのない試合の投手の打順は pitcher_slot_min_gain（救援できる投手が残っているときだけ）。1試合に max_per_game 人まで",
-      "max_deficit": 4,
-      "max_lead": 0,
-      "min_gain": 8.0,
-      "pitcher_slot_min_gain": 2.0,
+      "max_deficit": 5,
+      "max_lead": 1,
+      "min_gain": 3.0,
+      "pitcher_slot_min_gain": 0.0,
       "max_per_game": 3
     },
     "pinch_runner": {
       "description_ja": "代走：inning_from 回以降、攻める側の点差が −max_deficit〜+max_lead（同点・勝ち越しの走者）のとき、塁にいる走者（先の塁から）の走力が max_runner_speed 以下で、控えの走力が min_speed_gain 以上高ければ出す。投手には出さない。1試合に max_per_game 人まで",
-      "inning_from": 8,
-      "max_deficit": 2,
-      "max_lead": 0,
-      "max_runner_speed": 45,
-      "min_speed_gain": 15.0,
+      "inning_from": 7,
+      "max_deficit": 3,
+      "max_lead": 1,
+      "max_runner_speed": 50,
+      "min_speed_gain": 10.0,
       "max_per_game": 2
     },
     "defensive_replacement": {
       "description_ja": "守備固め：late_inning_from 回以降の守りの初めに、リードが min_lead〜max_lead なら、守備の値が控えより min_gain 以上低い野手を代える。代打・代走で入って守備についた選手は、リードに関係なく entered_min_gain で代える。1回の守りで max_per_half 人まで",
       "min_lead": 1,
-      "max_lead": 4,
-      "min_gain": 10.0,
+      "max_lead": 6,
+      "min_gain": 6.0,
       "entered_min_gain": 2.0,
       "max_per_half": 2
     },

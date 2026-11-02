@@ -37,7 +37,7 @@ class DecisionTests(unittest.TestCase):
         self.assertIsNone(pick(inning=5, margin=-2, **args))      # 序盤
         self.assertIsNone(pick(inning=8, margin=3, **args))       # リードしている
         self.assertIsNone(pick(inning=8, margin=-6, **args))      # 大差で負けている
-        close = self.batter("CLOSE", contact=35, power=35)
+        close = self.batter("CLOSE", contact=32, power=32)  # 差は約1.3（基準の差3より小さく、投手の打順の0より大きい）
         self.assertIsNone(pick(inning=8, margin=0, batter=weak, pitcher=self.pitcher, bench=[close],
                                pitcher_slot=False, tactics=NEUTRAL))
         # 投手の打順は小さな差でも、積極的な監督は小さな差でも出す
@@ -209,6 +209,25 @@ class FullGameTests(unittest.TestCase):
                 real = MatchSimulator()
                 real.params = cached.params
                 self.assertEqual(real.simulate(inp).to_dict(), Uncached().simulate(inp).to_dict())
+
+
+class PlayerScreenTests(unittest.TestCase):
+    def test_season_stats_show_left_right_and_pinch_hit_averages(self):
+        from phase2_engine.screen.player_views import season_stats
+
+        details = [
+            {"batter_stats": [{"player_id": "FAKE-B", "at_bats": 4, "hits": 2, "vs_rhp_at_bats": 3,
+                               "vs_rhp_hits": 2, "vs_lhp_at_bats": 1, "pinch_hit_at_bats": 1,
+                               "pinch_hit_hits": 1}],
+             "pitcher_stats": [{"player_id": "FAKE-P", "outs_recorded": 3, "vs_rhb_at_bats": 2,
+                                "vs_rhb_hits": 1, "vs_lhb_at_bats": 2}]},
+            {"batter_stats": [{"player_id": "FAKE-B", "at_bats": 2, "hits": 0, "vs_lhp_at_bats": 2}]},
+        ]
+        batting = season_stats(details, "FAKE-B")["batting"]
+        self.assertEqual((".667", ".000", "1.000"), (batting["vs_rhp_average"], batting["vs_lhp_average"],
+                                                     batting["pinch_hit_average"]))
+        pitching = season_stats(details, "FAKE-P")["pitching"]
+        self.assertEqual((".500", ".000"), (pitching["vs_rhb_average"], pitching["vs_lhb_average"]))
 
 
 if __name__ == "__main__":
