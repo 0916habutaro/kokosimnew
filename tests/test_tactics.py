@@ -256,9 +256,6 @@ class CoachStrategyTests(unittest.TestCase):
         self.assertLess(sim._steal_attempt_probability(runner, 0, outs=0, margin=0, inning=3, mobility=0.5), base)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class HitAndRunStrikeoutTests(unittest.TestCase):
     """エンドランの空振り三振：走っている一塁走者が盗塁・盗塁死になる（塁・アウト・成績）。"""
@@ -336,3 +333,7 @@ class HitAndRunStrikeoutTests(unittest.TestCase):
         self.assertNotIn("steal", metadata)
         self.assertEqual(metadata["bases_before"], metadata["bases_after"])
         self.assertEqual("1", metadata["outs_after"])
+
+
+if __name__ == "__main__":
+    unittest.main()

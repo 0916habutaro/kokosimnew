@@ -98,9 +98,6 @@ class BalanceTallyTests(unittest.TestCase):
         self.assertNotIn("leaders", merged[2026])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class SituationCounterTests(unittest.TestCase):
     def test_counts_tactics_by_situation_and_restores_the_simulator(self):
@@ -121,3 +118,7 @@ class SituationCounterTests(unittest.TestCase):
         self.assertGreater(first["plate_appearances"], 0)
         self.assertTrue(0 <= first["bunt"] <= 1 and 0 <= first["hit_and_run"] <= 1)
         self.assertEqual(summary["all"], summary["koshien"])
+
+
+if __name__ == "__main__":
+    unittest.main()
