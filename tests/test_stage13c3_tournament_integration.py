@@ -159,18 +159,18 @@ class Stage13C3TournamentIntegrationTests(unittest.TestCase):
                     for row in detail["batter_stats"]
                 ]
                 self.assertEqual(len(batter_keys), len(set(batter_keys)))
-                # この大会は開始前の先発変更なし。先発9人に加え、継投で
-                # 出場した選手も、打席が回らなかった場合を含めて記録する。
-                starter_keys = {
-                    (school_id, player_id)
-                    for school_id in (detail["team1_school_id"], detail["team2_school_id"])
-                    for player_id in self.resolver.team_input(
-                        school_id=school_id,
-                        reference_year=self.year,
-                        generation_seed=self.seed,
-                        competition_id=self.competition_id,
-                    ).team_strength.starting_lineup.starter_ids
-                }
+                # 実際の先発（相手の先発投手の左右で少し変える。段階F2）と、継投・
+                # 代打・代走・守備固めで出場した選手も、打席が回らなかった場合を含めて記録する。
+                starter_keys = set()
+                for record in detail["team_participation"]:
+                    school_id = record["school_id"]
+                    starter_keys.update((school_id, slot["player_id"]) for slot in record["starting_lineup"])
+                    starter_keys.update((school_id, a["player_id"]) for a in record.get("starting_defense", ()))
+                    for change in record["changes"]:
+                        if change.get("incoming_player_id"):
+                            starter_keys.add((school_id, change["incoming_player_id"]))
+                        for slot in (change.get("dh_action") or {}).get("batting_changes", ()):
+                            starter_keys.add((school_id, slot["player_id"]))
                 pitcher_keys = {
                     (row["school_id"], row["player_id"])
                     for row in detail["pitcher_stats"]

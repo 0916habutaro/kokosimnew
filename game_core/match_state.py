@@ -927,15 +927,20 @@ def validate_recorded_match_participation(records, *, team_ids, reference_year,
     for record in records:
         batters = {s.player_id for s in record.starting_lineup}
         pitchers = {record.starting_pitcher_id}
+        # 投手の打順に出た代打（代走）は形の上でPに入るが、その守りの初めに代わって投げない。
+        # 救援がいなくて実際に投げたときだけ投手の成績がある（段階F2）
+        bench_at_p = set()
         for change in record.changes:
             if change.dh_action is not None:
                 batters.update(s.player_id for s in change.dh_action.batting_changes)
             elif change.incoming_player_id is not None:
                 batters.add(change.incoming_player_id)
-            pitchers.update(c.after_player_id for c in change.defensive_changes if c.defensive_position == 'P')
+            assigned = {c.after_player_id for c in change.defensive_changes if c.defensive_position == 'P'}
+            (bench_at_p if change.reason in ('pinch_hitter', 'pinch_runner') else pitchers).update(assigned)
         if {pid for sid, pid in batter_appearances if sid == record.school_id} != batters:
             raise ValueError('recorded batting roles differ from batter rows')
-        if {pid for sid, pid in pitcher_appearances if sid == record.school_id} != pitchers:
+        actual = {pid for sid, pid in pitcher_appearances if sid == record.school_id}
+        if not pitchers <= actual <= pitchers | bench_at_p:
             raise ValueError('recorded pitchers differ from pitcher rows')
 
 

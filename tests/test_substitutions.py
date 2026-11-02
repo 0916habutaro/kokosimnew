@@ -122,6 +122,13 @@ class _Aggressive(MatchSimulator):
                                              entered_min_gain=-100.0, max_per_half=1)
 
 
+class _PitcherSlotOnly(_Aggressive):
+    """投手の打順にだけ代打を出す（代打が投手の位置に入る形を確かめる）。"""
+
+    def _choose_pinch_hitter(self, *, pitcher_slot, **kwargs):
+        return super()._choose_pinch_hitter(pitcher_slot=pitcher_slot, **kwargs) if pitcher_slot else None
+
+
 class FullGameTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -172,6 +179,33 @@ class FullGameTests(unittest.TestCase):
             reasons |= {(p.starting_designated_hitter_id is None, c.reason)
                         for p in result.team_participation for c in p.changes if c.reason}
         self.assertIn((True, "pinch_runner"), reasons)
+
+    def test_games_with_substitutions_can_be_saved_to_the_history(self):
+        # 保存（履歴）でも交代履歴を照合する。投手の打順に出た代打は投手の成績なしでよい
+        from game_core.highlights import game_highlights
+        from phase2_engine.historical_match_archive import _history_payload
+
+        mixed = (self.fixture.by_mode["none"][0], self.fixture.by_mode["normal"][1])
+        for mode, teams in (("none", None), ("normal", mixed)):
+            with self.subTest(mode=mode):
+                inp = replace(self.fixture.match(mode, teams=teams), match_id="FAKE-SUBS-SAVE",
+                              generation_seed=20261700)
+                sink = {}
+                result = _PitcherSlotOnly().simulate(inp, pitch_allowances={}, validated_history_sink=sink)
+                self.assertTrue(any(
+                    c.reason == "pinch_hitter" and any(d.defensive_position == "P" for d in c.defensive_changes)
+                    for p in result.team_participation for c in p.changes))
+                detail = sink.get("history") or replace(result, events=()).to_dict()
+                detail = {**detail, "team_generation_seed": inp.team_generation_seed,
+                          "highlights": game_highlights(result.events)}
+                payload = _history_payload(inp.reference_year, dict(
+                    status="completed", competition_id=inp.competition_id, match_id=inp.match_id,
+                    team1_id=result.team1_school_id, team2_id=result.team2_school_id,
+                    team1_score=result.team1_score, team2_score=result.team2_score,
+                    winner_id=result.winner_id, loser_id=result.loser_id,
+                    score_source="ability_model_v1", ability_detail=detail))
+                reasons = {c.get("reason") for p in payload["team_participation"] for c in p["changes"]}
+                self.assertIn("pinch_hitter", reasons)
 
     def test_substitutions_happen_when_pitch_limits_add_fielders_to_the_pitching_order(self):
         # 本番は球数制限の残りを渡すので、投げる順の後ろに野手が並ぶ。控えから野手を外さない
