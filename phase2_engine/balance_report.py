@@ -76,7 +76,8 @@ class BalanceTally:
         self.pitchers = defaultdict(lambda: defaultdict(Counter))
         self.team_games = defaultdict(Counter)   # 年度 → 学校 → 試合数
         self.rosters = {}                        # 年度 → 名簿の集計
-        self.tactics = defaultdict(Counter)      # 年度 → 作戦の数
+        self.tactics = defaultdict(Counter)      # 年度 → 作戦の数（全試合）
+        self.tactics_koshien = defaultdict(Counter)  # 年度 → 作戦の数（夏の甲子園）
         # 年度 → (小技／機動力, 傾向の帯) → [チーム試合, 犠打の試み, スクイズ, エンドラン, 盗塁の試み]
         self.by_tendency = defaultdict(lambda: defaultdict(lambda: [0, 0, 0, 0, 0]))
 
@@ -111,9 +112,9 @@ class BalanceTally:
         for p in pitchers:
             self.pitchers[year][(p["school_id"], p["player_id"])].update(
                 {k: int(p.get(k, 0)) for k in ("outs_recorded", "earned_runs")})
-        self._add_tactics(year, detail, batters, coach_of)
+        self._add_tactics(year, detail, batters, coach_of, kind == KOSHIEN)
 
-    def _add_tactics(self, year, detail, batters, coach_of) -> None:
+    def _add_tactics(self, year, detail, batters, coach_of, koshien=False) -> None:
         offense = {"t": detail["team1_school_id"], "b": detail["team2_school_id"]}
         per_team = defaultdict(Counter)
         for b in batters:
@@ -126,11 +127,13 @@ class BalanceTally:
             _, _, half, _, tactic, outcome = item
             per_team[offense[half]][f"{tactic}:{outcome}"] += 1
             per_team[offense[half]][tactic] += 1
-        tally = self.tactics[year]
-        tally["games"] += 1
+        tallies = [self.tactics[year]] + ([self.tactics_koshien[year]] if koshien else [])
+        for tally in tallies:
+            tally["games"] += 1
         for school in offense.values():
             row = per_team[school]
-            tally.update(row)
+            for tally in tallies:
+                tally.update(row)
             coach = coach_of(school) if coach_of else None
             if coach is None:
                 continue
@@ -149,8 +152,8 @@ class BalanceTally:
                     cell[3] += row["hit_and_run"]
                     cell[4] += row["steal_attempts"]
 
-    def _tactics_summary(self, year) -> dict:
-        t = self.tactics.get(year)
+    def _tactics_summary(self, year, source=None) -> dict:
+        t = (source if source is not None else self.tactics).get(year)
         if not t or not t["games"]:
             return {}
         games = t["games"]
@@ -167,6 +170,8 @@ class BalanceTally:
             "hit_and_runs": round(t["hit_and_run"] / games, 3),
             "steal_attempts": round(t["steal_attempts"] / games, 2),
         }
+        if source is not None:
+            return out
         bands = self.by_tendency.get(year, {})
         out["by_tendency"] = {
             f"{field}:{band}": {
@@ -263,6 +268,9 @@ class BalanceTally:
             tactics = self._tactics_summary(year)
             if tactics:
                 row["tactics"] = tactics
+                koshien_tactics = self._tactics_summary(year, self.tactics_koshien)
+                if koshien_tactics:
+                    row["tactics_koshien"] = koshien_tactics
             row["leaders"] = self._leaders(year)
             if year in self.rosters:
                 row["rosters"] = self.rosters[year]
@@ -382,11 +390,13 @@ def format_report(seed_label: str, report: dict) -> str:
         if pg:
             lines.append(f"  1試合あたり（{pg['games']}試合）: 盗塁 {pg['stolen_bases']} / 併殺 {pg['double_plays']}")
         ta = row.get("tactics")
+        rate = lambda v: "−" if v is None else f"{v:.1%}"
+        for label, tk in (("全試合", ta), ("夏の甲子園", row.get("tactics_koshien"))):
+            if tk:
+                lines.append(f"  作戦（{label}・1試合あたり）: 犠打 {tk['sacrifice_bunts']}（試み {tk['bunt_attempts']}・成功 "
+                             f"{rate(tk['bunt_success'])}）/ スクイズ {tk['squeezes']}（成功 {rate(tk['squeeze_success'])}）"
+                             f" / エンドラン {tk['hit_and_runs']} / 盗塁の試み {tk['steal_attempts']}")
         if ta:
-            rate = lambda v: "−" if v is None else f"{v:.1%}"
-            lines.append(f"  作戦（1試合あたり）: 犠打 {ta['sacrifice_bunts']}（試み {ta['bunt_attempts']}・成功 "
-                         f"{rate(ta['bunt_success'])}）/ スクイズ {ta['squeezes']}（成功 {rate(ta['squeeze_success'])}）"
-                         f" / エンドラン {ta['hit_and_runs']} / 盗塁の試み {ta['steal_attempts']}")
             if ta.get("bunt_failures"):
                 lines.append("  犠打の失敗: " + " ".join(f"{k}:{v}" for k, v in ta["bunt_failures"].items()))
             for key, cell in (ta.get("by_tendency") or {}).items():

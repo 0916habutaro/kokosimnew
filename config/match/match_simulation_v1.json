@@ -351,14 +351,14 @@
       "description_ja": "送りバント。一塁・二塁（三塁は空き）に走者、0〜1死。base は アウトの数 → 走者の形（first：一塁だけ、second：二塁だけ、first_second：一・二塁）。点差が close_margin 以内なら1倍、リードが大きいと ahead_far_multiplier、ビハインドが大きいと behind_far_multiplier、late_inning_from 回以降で close_margin 以内は late_close_multiplier。失敗：foul はファウルで追い込まれて打席が続く（two_strike の重みで打つ）、pop は小フライのアウト、fc は先の走者がアウト（野選）、dp は併殺（一塁に走者がいるときだけ。いなければ fc）",
       "base": {
         "0": {
-          "first": 0.3,
-          "second": 0.14,
-          "first_second": 0.28
+          "first": 0.55,
+          "second": 0.3,
+          "first_second": 0.5
         },
         "1": {
-          "first": 0.04,
-          "second": 0.03,
-          "first_second": 0.05
+          "first": 0.08,
+          "second": 0.06,
+          "first_second": 0.1
         }
       },
       "close_margin": 2,
@@ -366,7 +366,7 @@
       "behind_far_multiplier": 0.25,
       "late_inning_from": 7,
       "late_close_multiplier": 1.3,
-      "batter_hitting_log_per_point": 0.04,
+      "batter_hitting_log_per_point": 0.02,
       "bunt_log_per_point": 0.01,
       "max_probability": 0.85,
       "success": {
