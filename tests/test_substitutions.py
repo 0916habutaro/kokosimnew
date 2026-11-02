@@ -159,6 +159,17 @@ class FullGameTests(unittest.TestCase):
                         self.assertLessEqual(row.pinch_hit_at_bats, row.at_bats)
         self.assertEqual({"pinch_hitter", "pinch_runner", "defensive_replacement"}, reasons)
 
+    def test_substitutions_happen_when_pitch_limits_add_fielders_to_the_pitching_order(self):
+        # 本番は球数制限の残りを渡すので、投げる順の後ろに野手が並ぶ。控えから野手を外さない
+        inp = replace(self.fixture.match("none"), match_id="FAKE-SUBS-LIMIT", generation_seed=20261500)
+        sim = _Aggressive()
+        order, size = sim._game_staff(inp.team1, {}, {})
+        self.assertGreater(len(order), size)
+        result = sim.simulate(inp, pitch_allowances={})
+        validate_match_simulation_result(result, inp)
+        reasons = {c.reason for p in result.team_participation for c in p.changes if c.reason}
+        self.assertIn("pinch_hitter", reasons)
+
     def test_pinch_hitter_for_the_pitcher_brings_in_a_new_pitcher_without_pitching_himself(self):
         inp = replace(self.fixture.match("none"), match_id="FAKE-SUBS-P", generation_seed=20261400)
         result = _Aggressive().simulate(inp)

@@ -1829,7 +1829,7 @@ class MatchSimulator:
                 team, pitcher_orders[school_id][0],
                 # 相手の先発投手の腕を見て先発メンバーを少し変える（段階F2）
                 opponent_pitcher=player_maps[opponents[school_id]][pitcher_orders[opponents[school_id]][0]],
-                staff=pitcher_orders[school_id], tactics=policies[school_id])
+                staff=pitcher_orders[school_id][:staff_sizes[school_id]], tactics=policies[school_id])
             for school_id, team in teams.items()
         }
         defense_values = {
@@ -2025,7 +2025,8 @@ class MatchSimulator:
                         defense_checked.add((inning, half))
                         for outgoing, incoming in self._choose_defensive_replacements(
                                 state=states[defense_id], players=player_maps[defense_id],
-                                bench=self._bench(states[defense_id], player_maps[defense_id], staff),
+                                bench=self._bench(states[defense_id], player_maps[defense_id],
+                                                  staff[:staff_sizes[defense_id]]),
                                 inning=inning, lead=team_runs[defense_id] - team_runs[offense_id],
                                 entered=entered_off_bench[defense_id], tactics=policies[defense_id]):
                             if bench_substitute(defense_id, outgoing, incoming, "defensive_replacement"):
@@ -2145,7 +2146,8 @@ class MatchSimulator:
                         fielding_pending = False
                     # 攻める側の代走・代打（段階F2）
                     offense_state = states[offense_id]
-                    offense_staff = pitcher_orders[offense_id]
+                    # 投手陣（並びの後ろの、投手がいなくなったときに投げる野手は含めない）
+                    offense_staff = pitcher_orders[offense_id][:staff_sizes[offense_id]]
                     margin_now = team_runs[offense_id] - team_runs[defense_id]
                     rule_pr = self._substitutions()["pinch_runner"]
                     if (not tiebreak_pending and any(bases)
