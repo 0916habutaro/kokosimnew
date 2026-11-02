@@ -981,11 +981,25 @@ class MatchSimulator:
         return self.params["substitutions"]
 
     def _hitting_value(self, batter: PlayerAbilitySnapshot, pitcher: PlayerAbilitySnapshot) -> float:
-        """この投手に対する打撃の値（左右の差を入れた打撃の総合）。"""
-        return self._strength_generator()._batting_composite(self._platoon_batter(batter, pitcher))
+        """この投手に対する打撃の値（左右の差を入れた打撃の総合）。1試合の中では覚えておく。"""
+        cache = self.__dict__.setdefault("_value_cache", {})
+        key = ("hit", id(batter), id(pitcher))
+        hit = cache.get(key)
+        # 写しも一緒に持つので、試合の途中で捨てられた写しの番号が別の選手に使われても取り違えない
+        if hit is None or hit[0] is not batter or hit[1] is not pitcher:
+            hit = (batter, pitcher,
+                   self._strength_generator()._batting_composite(self._platoon_batter(batter, pitcher)))
+            cache[key] = hit
+        return hit[2]
 
     def _defense_value(self, player: PlayerAbilitySnapshot, position: str) -> float:
-        return self._strength_generator()._defense_composite(player, position)
+        cache = self.__dict__.setdefault("_value_cache", {})
+        key = ("def", id(player), position)
+        held = cache.get(key)
+        if held is None or held[0] is not player:
+            held = (player, self._strength_generator()._defense_composite(player, position))
+            cache[key] = held
+        return held[1]
 
     @staticmethod
     def _bench(state: TeamMatchState, players: Mapping[str, PlayerAbilitySnapshot],
@@ -1759,6 +1773,8 @@ class MatchSimulator:
         validated_history_sinkは厳密検証した入力・結果そのものとA詳細を一時的に返す。
         この計算経路から永続保存は行わない。"""
         validate_match_simulation_input(match_input)
+        # 交代の判断に使う能力の値は1試合の中だけ覚えておく（選手の写しのidで引くので試合ごとに捨てる）
+        self._value_cache = {}
         rules = rules or GameRules()
         regulation = (
             int(regulation_innings)
