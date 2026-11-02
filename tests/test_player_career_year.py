@@ -98,9 +98,9 @@ class PlayerCareerYearTests(unittest.TestCase):
         cls.service.save_game(cls.march)
         cls.session = cls.service.load_game("year")
         # 入部品質は両側で有効のまま、5月1日から計算する育成力だけを比較。
-        # 育成力は5月分の成長（6月1日に計算）から効き、それまでの試合・成長は両側で同じなので、
-        # 5月31日の保存から分けて1日だけ進める（5/31の試合のあと5月分を成長させる）。
-        cls.service.advance_to(cls.session, "2027-05-31", autosave=False)
+        # 育成力は4月分の成長（5月1日に計算）から効き、それまでの試合・成長は両側で同じなので、
+        # 4月30日の保存から分け、4月・5月分の成長（6月1日）まで進める。
+        cls.service.advance_to(cls.session, "2027-04-30", autosave=False)
         cls.service.save_game(cls.session)
         growth_tmp = tempfile.TemporaryDirectory()
         cls.addClassCleanup(growth_tmp.cleanup)
