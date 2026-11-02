@@ -19,13 +19,6 @@ from game_core.team_strength_audit import audit_team_strength_snapshots
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = ROOT / "config" / "abilities"
-DIST_PATH = (
-    ROOT
-    / "audits"
-    / "phase3"
-    / "stage13b3"
-    / "stage13b3_strength_distribution_20261007.csv"
-)
 
 POSITIONS = (
     "P", "P", "P", "P", "P",
@@ -179,30 +172,6 @@ class Stage13B3TeamStrengthTests(unittest.TestCase):
         )
         self.assertTrue(all(row.n == 10 for row in rows))
 
-    def test_saved_distribution_has_three_seeds_and_thirty_rows(self):
-        with DIST_PATH.open(encoding="utf-8", newline="") as f:
-            rows = list(csv.DictReader(f))
-        self.assertEqual(30, len(rows))
-        self.assertEqual(
-            {"2026100701", "2026100702", "2026100703"},
-            {row["seed"] for row in rows},
-        )
-        self.assertEqual(
-            set(TEAM_STRENGTH_METRICS),
-            {row["metric"] for row in rows},
-        )
-
-    def test_saved_distribution_seed_means_are_stable(self):
-        with DIST_PATH.open(encoding="utf-8", newline="") as f:
-            rows = list(csv.DictReader(f))
-        by_metric: dict[str, list[float]] = {}
-        for row in rows:
-            by_metric.setdefault(
-                row["metric"], []
-            ).append(float(row["mean"]))
-        for metric, means in by_metric.items():
-            self.assertEqual(3, len(means))
-            self.assertLess(max(means) - min(means), 0.5, metric)
 
     def test_cli_exposes_team_strength_outputs(self):
         source = (

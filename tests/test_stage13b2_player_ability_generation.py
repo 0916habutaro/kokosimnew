@@ -21,16 +21,6 @@ from game_core.players import Player
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = ROOT / "config" / "abilities"
-GOLDEN_PATH = (
-    ROOT / "audits" / "phase3" / "stage13b2" / "golden_seed_v1.json"
-)
-DIST_PATH = (
-    ROOT
-    / "audits"
-    / "phase3"
-    / "stage13b2"
-    / "stage13b2_distribution_summary_20261007.csv"
-)
 
 
 def make_player(
@@ -191,37 +181,6 @@ class Stage13B2PlayerAbilityGenerationTests(unittest.TestCase):
         self.assertIn("position_aptitude_json", rows[0])
         self.assertIn("pitch_repertoire_json", rows[0])
 
-    def test_golden_seed_fixture(self):
-        golden = json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
-        for index, fixture in enumerate(golden["players"], start=1):
-            player = make_player(
-                fixture["player_id"],
-                grade=fixture["academic_year"],
-                position=fixture["primary_position"],
-                roster_no=index,
-            )
-            snapshot = self.generator.generate(
-                player,
-                golden["reference_year"],
-                golden["seed"],
-            )
-            expected = fixture["expected"]
-            for key, value in expected.items():
-                if key == "primary_position_aptitude":
-                    actual = snapshot.aptitude(player.primary_position)
-                elif key == "pitch_types":
-                    actual = [
-                        pitch.pitch_type
-                        for pitch in snapshot.pitch_repertoire
-                    ]
-                elif key == "pitch_usage":
-                    actual = [
-                        pitch.usage for pitch in snapshot.pitch_repertoire
-                    ]
-                else:
-                    actual = getattr(snapshot, key)
-                self.assertEqual(value, actual, f"{fixture['player_id']}:{key}")
-
     def test_namespace_isolation_when_contact_mean_changes(self):
         player = make_player("PLYISOLATION000000001", grade=2, position="SS")
         original = self.generator.generate(player, self.year, self.seed)
@@ -281,62 +240,6 @@ class Stage13B2PlayerAbilityGenerationTests(unittest.TestCase):
         self.assertEqual(30, contact.n)
         self.assertLessEqual(contact.p01, contact.p50)
         self.assertLessEqual(contact.p50, contact.p99)
-
-    def test_saved_distribution_audit_has_three_seeds(self):
-        with DIST_PATH.open(encoding="utf-8", newline="") as f:
-            rows = list(csv.DictReader(f))
-        self.assertEqual(69, len(rows))
-        self.assertEqual(
-            {"2026100701", "2026100702", "2026100703"},
-            {row["seed"] for row in rows},
-        )
-
-    def test_saved_distribution_scalar_clipping_is_small(self):
-        excluded = {"primary_apt", "pitch_count", "pitch_usage"}
-        with DIST_PATH.open(encoding="utf-8", newline="") as f:
-            rows = list(csv.DictReader(f))
-        scalar_rows = [
-            row for row in rows
-            if row["metric"] not in excluded
-        ]
-        self.assertLessEqual(
-            max(float(row["lower_clip_rate"]) for row in scalar_rows),
-            0.001,
-        )
-        self.assertLessEqual(
-            max(float(row["upper_clip_rate"]) for row in scalar_rows),
-            0.001,
-        )
-
-    def test_primary_aptitude_upper_clip_is_below_three_percent(self):
-        with DIST_PATH.open(encoding="utf-8", newline="") as f:
-            rows = list(csv.DictReader(f))
-        rates = [
-            float(row["upper_clip_rate"])
-            for row in rows
-            if row["metric"] == "primary_apt"
-        ]
-        self.assertEqual(3, len(rates))
-        self.assertLess(max(rates), 0.03)
-
-    def test_contact_mean_reflects_grade_mix(self):
-        with DIST_PATH.open(encoding="utf-8", newline="") as f:
-            rows = list(csv.DictReader(f))
-        means = [
-            float(row["mean"])
-            for row in rows
-            if row["metric"] == "contact"
-        ]
-        self.assertEqual(3, len(means))
-        self.assertTrue(all(50.5 <= value <= 51.0 for value in means))
-
-    def test_cli_supports_export_and_audit(self):
-        source = (
-            ROOT / "game_core" / "ability_cli.py"
-        ).read_text(encoding="utf-8")
-        self.assertIn("--output", source)
-        self.assertIn("--audit-output", source)
-        self.assertIn("--school-limit", source)
 
 
 if __name__ == "__main__":

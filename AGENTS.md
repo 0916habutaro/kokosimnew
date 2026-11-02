@@ -20,11 +20,12 @@
 
 ## やらないこと
 
-- 専用のCIワークフローを追加しない。CIは `python-tests.yml`（全テスト）と `windows-game-acceptance.yml`（Windowsでの本番確認）の2本だけ。Windowsで確認したい本番テストは後者のリストに追加する
+- 専用のCIワークフローを追加しない。CIは `python-tests.yml`（全テスト）と `windows-game-acceptance.yml`（Windowsでの本番確認）の2本だけ。Windowsで確認したい本番テストは後者のリストに追加する（入れる基準は「テスト」の節）
 - `data/` のファイル一覧やファイル内容を固定するテスト、特定コミットからの差分を禁止するテスト、旧版のファイルをハッシュで固定するテストを作らない
 - 工程ごとの設計書・報告書・監査CSVを作らない。設計書（`docs/design/`）とADR（`docs/adr/`）は、方針や仕組みが変わるときだけ作る・更新する
 - 地域・工程専用のモジュール（例：`xxx_stage13e3g25.py`）を作らない。全国共通の仕組みとして作る
 - `archive/` に新しいものを置かない。不要になったコードは削除する（履歴はgitに残る）
+- 工程ごとの集計スクリプトをこれ以上作らない。試合・選手のバランスは `python -m phase2_engine.balance_report` で確かめる（足りない指標はこれに足す。結果のファイルはリポジトリに置かない）
 
 ## 構成
 
@@ -47,10 +48,11 @@
 ```bash
 # 変更に関係するテストだけ先に実行する（例）
 python -m unittest discover -s tests -t tests -p "test_stage13e3e1_full_season_save_load.py" -v
-# 全件（約1時間以上かかる。CIでも実行される）
-KOKOSIM_SKIP_STAGE43G10_E2E=1 python -m unittest discover -s tests -t tests
+# 全件（テストのファイルごとに4プロセスで流す。CIと同じ）
+python tests/ci_unittest_timings.py --workers 4 --json-output out/unittest-timings.json
 ```
 
+- `windows-game-acceptance.yml` の一覧に入れるのは、OSで動きが変わるもの（保存・読込・スロット・履歴・ファイルパス・文字コード・画面の起動）を確かめるテストだけ。機能のロジック（監督・疲れ・能力など）は Linux の全件に任せる
 - 新しい機能には、その機能を確かめるテストを付ける。テストは小さく速く保つ
 - 実在の学校名や結果をテストの架空データに使わない
 

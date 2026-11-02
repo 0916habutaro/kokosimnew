@@ -1,4 +1,4 @@
-"""Fast, synthetic regression tests for Stage119-CI-1; no real season run."""
+"""docs だけの変更を飛ばす仕組みと、CIの配線（架空のコミットで確かめる。試合は進めない）。"""
 from pathlib import Path
 import subprocess
 import unittest
@@ -100,13 +100,14 @@ class CiChangeScopeTests(unittest.TestCase):
                 self.assertIn("steps.scope.outputs.docs_only == 'true'", content)
                 self.assertIn("pull_request", content)
                 self.assertIn("main", content)
-        self.assertIn("python tests/stage43g119_ci_metrics.py",
-                      workflows[WORKFLOWS[0]])
-        self.assertIn("test_stage43g10_full_kanto17_e2e.py",
+        self.assertIn("python tests/ci_unittest_timings.py",
                       workflows[WORKFLOWS[0]])
         self.assertIn("test_stage13e3e1_full_season_save_load.py",
                       workflows[WORKFLOWS[1]])
         self.assertIn("windows-latest", workflows[WORKFLOWS[1]])
+        # EXE はマージ後（push）と手動実行のときだけ作る
+        self.assertIn("build_exe.bat", workflows[WORKFLOWS[1]])
+        self.assertIn("github.event_name != 'pull_request'", workflows[WORKFLOWS[1]])
 
     def test_only_kept_workflows_exist(self):
         # 段階0でCIを2本に整理した。増やす場合はこのテストと方針を見直す

@@ -1,12 +1,17 @@
 """正式な画面：セーブの管理（game_definition.md §9）。"""
 from __future__ import annotations
 
+import contextlib
+import io
 from pathlib import Path
+import sys
 import tempfile
+import types
 import unittest
+from unittest.mock import patch
 
 from phase2_engine import DataRepository, LiveGameService
-from phase2_engine.screen.app import ScreenApi
+from phase2_engine.screen.app import ScreenApi, main as screen_main
 from phase2_engine.screen.data import GameScreenData
 from phase2_engine.screen.save_views import next_slot_id, slot_rows, source_label
 
@@ -89,6 +94,25 @@ class SaveScreenTests(unittest.TestCase):
             self.assertEqual("mine", created["current_slot"])
             self.assertEqual(42, api._data.session.plan.rng_seed)
             self.assertNotIn("error", api.today())
+
+
+
+class StartupCheckTests(unittest.TestCase):
+    """EXE を作ったあとに使う ``--check``：画面を出さずに起動の手前まで確かめて終わる。"""
+
+    def test_check_reads_saves_and_never_opens_a_window(self):
+        def no_window(*args, **kwargs):
+            raise AssertionError("--check でウィンドウを開いた")
+
+        fake = types.SimpleNamespace(create_window=no_window, start=no_window)
+        out = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.dict(sys.modules, {"webview": fake}), \
+                contextlib.redirect_stdout(out), \
+                patch("os.chdir"):
+            screen_main(["--check", "--save-root", tmp])
+        self.assertIn("起動の確認", out.getvalue())
+        self.assertIn("'slots': 0", out.getvalue())
 
 
 if __name__ == "__main__":

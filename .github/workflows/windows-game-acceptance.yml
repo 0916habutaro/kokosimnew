@@ -1,7 +1,9 @@
 name: Windows personal game acceptance
 
-# Windows専用ゲームの本体（保存・読込・スロット・履歴・正式な画面のデータ）をWindows上で確認する。
-# Linuxでの同じテストは python-tests.yml の全件実行に含まれるため、ここではWindowsのみ実行する。
+# Windows専用ゲームのうち、OSで動きが変わるもの（保存・読込・スロット・履歴・ファイルパス・
+# 文字コード・画面の起動）だけをWindows上で確かめる。機能のロジックのテストは
+# python-tests.yml の全件実行（Linux）に任せる。一覧に入れる基準は AGENTS.md の「テスト」。
+# main へのマージ後（push）と手動実行のときは、EXE を作って起動の確認もする。
 
 on:
   pull_request:
@@ -21,8 +23,6 @@ jobs:
     name: Windows Python 3.12 product save load and Tk browse
     runs-on: windows-latest
     timeout-minutes: 45
-    env:
-      PYTHONUTF8: '1'
     defaults:
       run:
         shell: pwsh
@@ -49,8 +49,10 @@ jobs:
         run: |
           python -m pip install -r requirements.txt
           python -c "import webview; print('pywebview', webview.__version__ if hasattr(webview, '__version__') else 'ok')"
-      - name: Product save load slots history and screen tests on Windows
+      - name: Save load slots history files and screen startup tests on Windows
         if: steps.scope.outputs.docs_only != 'true'
+        env:
+          PYTHONUTF8: '1'
         run: |
           $patterns = @(
             'test_stage13e3e1_full_season_save_load.py',
@@ -60,38 +62,12 @@ jobs:
             'test_stage43c2_incremental_checkpoint.py',
             'test_stage43d_career_year_boundary.py',
             'test_stage43e_career_rosters.py',
-            'test_player_season.py',
-            'test_new_game_experience.py',
-            'test_pitcher_run_accounting.py',
-            'test_match_state.py',
-            'test_live_match_state.py',
-            'test_match_participation_history.py',
-            'test_fielding_experience.py',
-            'test_player_career_year.py',
-            'test_roster_book.py',
-            'test_annual_reputation.py',
-            'test_coaches.py',
-            'test_coach_personnel.py',
-            'test_coach_intake.py',
-            'test_coach_growth.py',
-            'test_coach_reputation.py',
-            'test_coach_tactics.py',
-            'test_screen_coaches.py',
-            'test_competition_records.py',
-            'test_career_overlap.py',
-            'test_screen_data.py',
-            'test_screen_competitions.py',
-            'test_screen_match_lineups.py',
-            'test_screen_schools.py',
-            'test_screen_records.py',
-            'test_screen_best8.py',
-            'test_screen_entrants.py',
-            'test_screen_closed_year.py',
+            'test_stage43g92_legacy_concurrency.py',
+            'test_archive_compact.py',
             'test_screen_saves.py',
-            'test_school_edits.py',
-            'test_ability_edits.py',
-            'test_ability_edit_screen.py',
-            'test_pitcher_fatigue.py'
+            'test_screen_closed_year.py',
+            'test_koshien_records.py',
+            'test_data_integrity.py'
           )
           $ErrorActionPreference = 'Continue'
           foreach ($p in $patterns) {
@@ -105,4 +81,24 @@ jobs:
               Write-Output "::error title=$p failed::$msg"
               exit $code
             }
+          }
+      - name: Build the EXE (PyInstaller) and check that it starts
+        # PRでは作らない（時間がかかるため）。main へのマージ後と手動実行のときだけ
+        if: steps.scope.outputs.docs_only != 'true' && github.event_name != 'pull_request'
+        run: |
+          # build_exe.bat は最後に pause するので、入力を空にして待たずに終わらせる
+          cmd /c "build_exe.bat < NUL"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exe = 'dist\kokosimnew\kokosimnew.exe'
+          if (-not (Test-Path $exe)) { Write-Output "::error title=EXE::$exe がありません"; exit 1 }
+          # 画面を出さない起動の確認。コンソールのない EXE なので結果はセーブの隣のログに出る
+          $saves = Join-Path $env:RUNNER_TEMP 'exe-check-saves'
+          $proc = Start-Process -FilePath $exe -ArgumentList @('--check', '--save-root', $saves) -PassThru
+          $null = $proc.Handle  # 終了コードを読めるようにする
+          if (-not $proc.WaitForExit(120000)) { $proc.Kill(); Write-Output "::error title=EXE::2分で終わりません"; exit 1 }
+          $log = Join-Path $saves 'kokosimnew.log'
+          if (Test-Path $log) { Get-Content $log -Encoding utf8 }
+          if ($proc.ExitCode -ne 0) { Write-Output "::error title=EXE::起動の確認が失敗しました（$($proc.ExitCode)）"; exit 1 }
+          if (-not (Select-String -Path $log -Pattern '起動の確認' -Quiet -Encoding utf8)) {
+            Write-Output "::error title=EXE::起動の確認の記録がありません"; exit 1
           }

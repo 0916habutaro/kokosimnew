@@ -17,57 +17,7 @@ jobs:
   unittest:
     name: Python 3.12 unittest
     runs-on: ubuntu-latest
-    # Stage114's complete suite measured 4489.878 seconds: all tests passed,
-    # but the 75-minute job was cancelled during completion. Stage115 adds
-    # a saved31/2027 evidence fixture and independent refusal cases. Retain
-    # every test/skip and allow the existing checks plus new audit to finish.
-    # Stage116 measured 4659.444 seconds (2416 tests). Stage117 adds a real
-    # eight-team seven-game bracket fixture with four hard-exit resumes; its
-    # measured cost is recorded in the Stage117 report. No test is removed.
-    timeout-minutes: 120
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-
-      - name: Classify CI workload (fail closed)
-        id: scope
-        env:
-          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-        run: python tests/ci_change_scope.py
-
-      - name: Verify documentation-only routing
-        if: steps.scope.outputs.docs_only == 'true'
-        run: python -m unittest discover -s tests -p 'test_ci_change_scope.py' -v
-
-      - name: Run full unittest suite and capture timings
-        if: steps.scope.outputs.docs_only != 'true'
-        env:
-          KOKOSIM_SKIP_STAGE43G10_E2E: "1"
-        run: |
-          mkdir -p audit-results
-          python tests/stage43g119_ci_metrics.py --json-output audit-results/unittest-timings.json
-
-      - name: Upload per-test timings
-        if: always() && steps.scope.outputs.docs_only != 'true'
-        uses: actions/upload-artifact@v6
-        with:
-          name: stage119a-full-unittest-timings
-          path: audit-results/unittest-timings.json
-          if-no-files-found: warn
-          retention-days: 14
-
-  kanto17_e2e:
-    name: Kanto 8-prefecture 17-school E2E
-    runs-on: ubuntu-latest
+    # テストのファイルごとに4つのプロセスで流す（tests/ci_unittest_timings.py）
     timeout-minutes: 30
 
     steps:
@@ -92,6 +42,36 @@ jobs:
         if: steps.scope.outputs.docs_only == 'true'
         run: python -m unittest discover -s tests -p 'test_ci_change_scope.py' -v
 
-      - name: Run complete Kanto qualifier-to-regional simulation
+      - name: Restore previous per-test timings
         if: steps.scope.outputs.docs_only != 'true'
-        run: python -m unittest discover -s tests -p 'test_stage43g10_full_kanto17_e2e.py' -v
+        uses: actions/cache/restore@v4
+        with:
+          path: previous-timings
+          key: unittest-timings-${{ github.run_id }}
+          restore-keys: unittest-timings-
+
+      - name: Run full unittest suite in parallel and capture timings
+        if: steps.scope.outputs.docs_only != 'true'
+        run: |
+          mkdir -p audit-results previous-timings
+          python tests/ci_unittest_timings.py --workers 4 --previous previous-timings/unittest-timings.json --json-output audit-results/unittest-timings.json
+
+      - name: Keep per-test timings for the next run's order
+        if: always() && steps.scope.outputs.docs_only != 'true' && hashFiles('audit-results/unittest-timings.json') != ''
+        run: cp audit-results/unittest-timings.json previous-timings/unittest-timings.json
+
+      - name: Save per-test timings
+        if: always() && steps.scope.outputs.docs_only != 'true' && hashFiles('audit-results/unittest-timings.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: previous-timings
+          key: unittest-timings-${{ github.run_id }}
+
+      - name: Upload per-test timings
+        if: always() && steps.scope.outputs.docs_only != 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: full-unittest-timings
+          path: audit-results/unittest-timings.json
+          if-no-files-found: warn
+          retention-days: 14

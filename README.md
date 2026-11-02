@@ -90,11 +90,17 @@ python -m phase2_engine.live_game_cli --data-dir data --save-root out\saves stat
 ```powershell
 # 1ファイルだけ
 python -m unittest discover -s tests -t tests -p "test_stage13e3e1_full_season_save_load.py" -v
-# 全件（約1時間以上）
-$env:KOKOSIM_SKIP_STAGE43G10_E2E = "1"; python -m unittest discover -s tests -t tests
+# 全件（テストのファイルごとに4プロセスで流す。CIと同じ）
+python tests/ci_unittest_timings.py --workers 4 --json-output out/unittest-timings.json
 ```
 
-CIは `python-tests.yml`（全テスト、Linux）と `windows-game-acceptance.yml`（ゲーム本体の保存・読込・閲覧画面、Windows）の2本。
+CIは `python-tests.yml`（全テスト、Linux）と `windows-game-acceptance.yml`（保存・読込・履歴・画面の起動などOSで動きが変わるもの、Windows。main へのマージ後は EXE も作って起動を確かめる）の2本。
+
+バランスの確認（CIには入れない。試合の中身を変えるPRと調整で使う）：
+
+```powershell
+python -m phase2_engine.balance_report --seeds 20261022,20261026 --until 2027-08-31
+```
 
 ## これまでの経緯
 
