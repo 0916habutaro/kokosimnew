@@ -81,6 +81,13 @@ class BalanceTallyTests(unittest.TestCase):
         self.assertEqual(1, rosters["velocity_bands"]["〜129"])
         self.assertEqual({"contact": 1, "control": 2}, rosters["s_count"])
 
+    def test_leaders_skip_players_whose_team_played_too_few_games(self):
+        tally = BalanceTally(lambda cid: KINDS[cid[:3]], {}, RANKINGS, min_team_games=2)
+        tally.add_match("LOC1", match(2026, "LOC1", "FAKE-A", "FAKE-B", 2, 1, 9))
+        tally.add_match("LOC1", match(2026, "LOC1", "FAKE-A", "FAKE-C", 2, 1, 9))
+        leaders = tally.summary()[2026]["leaders"]
+        self.assertEqual({"FAKE-A"}, {r[2] for rows in leaders.values() for r in rows})
+
     def test_average_keeps_shared_numbers_and_drops_leaders(self):
         a, b = self.tally(), self.tally()
         a.add_match("LOC1", match(2026, "LOC1", "FAKE-A", "FAKE-B", 4, 0, 9))

@@ -9,7 +9,8 @@
 - §11：地方大会の1チーム1試合の得点・コールドの割合・完封の割合、
   夏の甲子園の初出場の学校の数（割合）・2年続けて出る学校の数
 - 先発の平均球数・完投の割合、盗塁・併殺の1試合あたりの数（両チームの合計）
-- 個人成績の上位（打率・本塁打・防御率。規定は ``config/stats/player_rankings_v1.json``）
+- 個人成績の上位（打率・本塁打・防御率。規定は ``config/stats/player_rankings_v1.json``。
+  少ない試合の選手で埋まらないよう、チームの試合数が ``--min-team-games`` 以上の選手だけ）
 - 3年の投手の球速の分布、能力ごとのSの人数（7月1日の名簿。7月1日がなければ最後の日）
 """
 from __future__ import annotations
@@ -51,8 +52,10 @@ def summer_history(path: Path = ROOT / "historical_data" / "koshien_entrants.csv
 class BalanceTally:
     """1つのシードの試合と名簿を集める（年度ごと）。"""
 
-    def __init__(self, kind_of, history: dict[str, set[int]], rankings: dict):
+    def __init__(self, kind_of, history: dict[str, set[int]], rankings: dict,
+                 min_team_games: int = 1):
         self.kind_of = kind_of
+        self.min_team_games = min_team_games
         self.history = history
         self.rankings = rankings
         self.games = defaultdict(list)          # (年度, 大会の種類) → (得点1, 得点2, 最終回)
@@ -124,15 +127,18 @@ class BalanceTally:
         bq = self.rankings["batter_qualification"]
         pq = self.rankings["pitcher_qualification"]
         avg, hr, era = [], [], []
+        enough = max(self.min_team_games, int(bq["minimum_team_games"]))
         for (school, pid), row in self.batters[year].items():
-            hr.append((row["home_runs"], pid, school))
             g = games[school]
-            if g >= int(bq["minimum_team_games"]) and row["plate_appearances"] >= math.ceil(
+            if g < self.min_team_games:
+                continue
+            hr.append((row["home_runs"], pid, school))
+            if g >= enough and row["plate_appearances"] >= math.ceil(
                     g * float(bq["plate_appearances_per_team_game"])) and row["at_bats"]:
                 avg.append((round(row["hits"] / row["at_bats"], 3), pid, school, row["at_bats"]))
         for (school, pid), row in self.pitchers[year].items():
             g = games[school]
-            if g >= int(pq["minimum_team_games"]) and row["outs_recorded"] >= math.ceil(
+            if g >= max(self.min_team_games, int(pq["minimum_team_games"])) and row["outs_recorded"] >= math.ceil(
                     g * float(pq["outs_recorded_per_team_game"])) and row["outs_recorded"]:
                 era.append((round(row["earned_runs"] * 27 / row["outs_recorded"], 2), pid, school,
                             row["outs_recorded"]))
@@ -215,14 +221,15 @@ def roster_rows(book, year: int):
                    {name: values[i] for i, name in enumerate(SCALARS)})
 
 
-def run_seed(seed: int, until: date, *, progress=None) -> dict:
+def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) -> dict:
     from .live_game_service import LiveGameService
     from .live_season_save import PLAYER_RESOLVER_CONTRACT
     from .repository import DataRepository
 
     repo = DataRepository(ROOT / "data")
     tally = BalanceTally(competition_kinds(repo), summer_history(),
-                         _load_json(ROOT / "config" / "stats" / "player_rankings_v1.json"))
+                         _load_json(ROOT / "config" / "stats" / "player_rankings_v1.json"),
+                         min_team_games)
     with tempfile.TemporaryDirectory() as saves:
         service = LiveGameService(repo, ROOT / "data", save_root=saves,
                                   resolver_contract=PLAYER_RESOLVER_CONTRACT,
@@ -305,6 +312,8 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="新しく始めて進め、バランスの指標を出す")
     parser.add_argument("--seeds", required=True, help="カンマ区切りの乱数の種")
     parser.add_argument("--until", required=True, help="進める日（YYYY-MM-DD）")
+    parser.add_argument("--min-team-games", type=int, default=8,
+                        help="個人成績の上位に入れる選手のチームの最少試合数（年度ごと）")
     parser.add_argument("--json", type=Path, help="結果をJSONで書く先（リポジトリの外に置く）")
     args = parser.parse_args(argv)
     seeds = [int(s) for s in args.seeds.split(",") if s.strip()]
@@ -316,7 +325,7 @@ def main(argv=None) -> int:
 
     reports = {}
     for seed in seeds:
-        reports[seed] = run_seed(seed, until, progress=progress)
+        reports[seed] = run_seed(seed, until, min_team_games=args.min_team_games, progress=progress)
         print(format_report(f"seed {seed}", reports[seed]), flush=True)
     if len(seeds) > 1:
         print(format_report("平均", average(list(reports.values()))))
