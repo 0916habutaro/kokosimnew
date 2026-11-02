@@ -490,15 +490,64 @@ class MatchSimulator:
         )
         return tuple(order) + tuple(player.player_id for player in fielders), len(order)
 
-    def _rest_tired_starter(self, staff: tuple[str, ...], carry: Mapping[str, float]) -> tuple[str, ...]:
-        """始まりの疲れが大きいエースは、もっと疲れの少ない投手がいれば休ませる（球数制限とは別）。"""
+    def fatigue_pitch_budget(
+        self, pitcher: PlayerAbilitySnapshot, carry_points: float, *, starter: bool,
+        tactics: CoachTactics = CoachTactics(),
+    ) -> float:
+        """疲れで代わるまでの球数の目安（始まりの疲れと、試合の中の疲れの増え方から）。"""
+        rule = self.params["fatigue"]
+        game = rule["in_game"]
+        limit = float(rule["change"]["starter_points" if starter else "reliever_points"]) * tactics.bf_multiplier
+        per_pitch = float(game["per_pitch"])
+        if per_pitch <= 0:
+            return math.inf
+        threshold = float(game["base_pitches"]) + (float(pitcher.stamina or 50) - 50.0) * float(game["per_stamina"])
+        return max(0.0, threshold + max(0.0, limit - carry_points) / per_pitch)
+
+    def _rested_ace(self, staff: tuple[str, ...], carry: Mapping[str, float] | None) -> str | None:
+        """始まりの疲れが大きく、もっと疲れの少ない投手がいるので先発を外すエース（なければ None）。"""
+        if not carry or not staff:
+            return None
         rest = float(self.params["fatigue"]["rest_starter_points"])
-        if not staff or carry.get(staff[0], 0.0) < rest:
+        if carry.get(staff[0], 0.0) < rest:
+            return None
+        if not any(carry.get(pid, 0.0) < rest for pid in staff[1:]):
+            return None
+        return staff[0]
+
+    def _rest_tired_starter(self, staff: tuple[str, ...], carry: Mapping[str, float]) -> tuple[str, ...]:
+        """疲れたエースは先発を外し、救援の順番の最後に回す（基本は休養。球数制限とは別）。"""
+        ace = self._rested_ace(staff, carry)
+        if ace is None:
             return staff
-        fresher = next((pid for pid in staff[1:] if carry.get(pid, 0.0) < rest), None)
-        if fresher is None:
-            return staff
-        return (fresher, *[pid for pid in staff if pid != fresher])
+        rest = float(self.params["fatigue"]["rest_starter_points"])
+        fresher = next(pid for pid in staff[1:] if carry.get(pid, 0.0) < rest)
+        return (fresher, *[pid for pid in staff if pid not in (fresher, ace)], ace)
+
+    def _call_rested_ace(
+        self, *, ace: PlayerAbilitySnapshot, ace_carry: float, candidate: PlayerAbilitySnapshot | None,
+        candidate_stage: int, ace_stage: int, inning: int, lead: int,
+        tactics: CoachTactics, rng,
+    ) -> bool:
+        """休ませているエースを、この交代で救援に出すか（終盤・接戦・エースが明らかに良いとき）。"""
+        rule = self.params["fatigue"]["rested_ace_relief"]
+        if inning < int(rule["late_inning_from"]) or abs(lead) > int(rule["close_margin"]):
+            return False
+        if ace_carry >= float(rule["max_carry_points"]):
+            return False
+        fatigue_rule = self.params["fatigue"]
+
+        def quality(pitcher, stage):
+            worn = fatigue_model.tired(pitcher, stage, fatigue_rule)
+            return (float(worn.stuff or 50) + float(worn.control or 50) + float(worn.strikeout or 50)) / 3.0
+
+        if candidate is not None and (
+                quality(ace, ace_stage) - quality(candidate, candidate_stage)
+                < float(rule["quality_gap_points"])):
+            return False
+        probability = min(float(rule["max_probability"]),
+                          float(rule["base_probability"]) / max(0.1, tactics.bf_multiplier))
+        return rng.random() < probability
 
     def _strength_generator(self) -> TeamStrengthGenerator:
         if self._team_generator is None:
@@ -1404,6 +1453,11 @@ class MatchSimulator:
             school_id: self._game_staff(team, pitch_allowances, carry[school_id])
             for school_id, team in teams.items()
         }
+        # 疲れで先発を外したエース（救援の順番の最後。終盤・接戦では救援に出すことがある）
+        rested_aces = {
+            school_id: self._rested_ace(self._pitcher_order(team), carry[school_id])
+            for school_id, team in teams.items()
+        }
         pitcher_orders = {
             school_id: order for school_id, (order, _) in game_staffs.items()
         }
@@ -1600,6 +1654,36 @@ class MatchSimulator:
                         tactics=policies[defense_id],
                         fatigue=fatigue_points(defense_id, pitcher_id, int(pitcher_stat["pitches"])),
                     ):
+                        ace = rested_aces[defense_id]
+                        if (ace is not None and ace != pitcher_id and ace in staff
+                                and staff.index(ace) > next_index
+                                and staff.index(ace) < staff_sizes[defense_id]
+                                and ace not in state.exited_player_ids
+                                and not (ace in pitcher_rows[defense_id]
+                                         and int(pitcher_rows[defense_id][ace]["batters_faced"]) > 0)
+                                and (pitch_allowances is None or pitch_allowances.get(ace, math.inf)
+                                     >= int(self.params["pitching_usage"]["reliever_minimum_pitches"]))):
+                            candidate_id = staff[next_index] if next_index < staff_sizes[defense_id] else None
+                            if self._call_rested_ace(
+                                ace=player_maps[defense_id][ace],
+                                ace_carry=carry[defense_id].get(ace, 0.0),
+                                candidate=(player_maps[defense_id][candidate_id]
+                                           if candidate_id is not None else None),
+                                candidate_stage=fatigue_model.stage_of(
+                                    carry[defense_id].get(candidate_id, 0.0), fatigue_rule),
+                                ace_stage=fatigue_model.stage_of(
+                                    carry[defense_id].get(ace, 0.0), fatigue_rule),
+                                inning=inning,
+                                lead=team_runs[defense_id] - team_runs[offense_id],
+                                tactics=policies[defense_id],
+                                rng=rng_for(
+                                    match_input.generation_seed,
+                                    self.params["rng_namespace_policy"]["relief"].format(
+                                        match_id=match_input.match_id, plate_appearance_no=pa_no + 1,
+                                    ),
+                                ),
+                            ):
+                                next_index = staff.index(ace)
                         current_index = next_index
                         pitcher_index[defense_id] = current_index
                         incoming = staff[current_index]

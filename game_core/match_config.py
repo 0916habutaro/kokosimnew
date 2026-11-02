@@ -278,6 +278,12 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
             and isinstance(fatigue.get("rest_starter_points"), (int, float))
             and isinstance(fatigue.get("labels"), list)):
         raise ValueError("match simulation: invalid fatigue stages")
+    relief = fatigue.get("rested_ace_relief")
+    if not isinstance(relief, dict) or not all(
+            isinstance(relief.get(k), (int, float)) and not isinstance(relief.get(k), bool)
+            for k in ("late_inning_from", "close_margin", "max_carry_points", "quality_gap_points",
+                      "base_probability", "max_probability")):
+        raise ValueError("match simulation: invalid fatigue.rested_ace_relief")
 
     effects = payload.get("pitcher_effects")
     if not isinstance(effects, dict):
@@ -393,6 +399,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         "event",
         "pitches",
         "steal",
+        "relief",
     }:
         raise ValueError(
             "match simulation: RNG namespace keys mismatch"
@@ -403,6 +410,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         "event": ("{match_id}", "{event_no}"),
         "pitches": ("{match_id}", "{plate_appearance_no}"),
         "steal": ("{match_id}", "{plate_appearance_no}"),
+        "relief": ("{match_id}", "{plate_appearance_no}"),
     }
     for key, placeholders in required_placeholders.items():
         template = str(namespaces[key])

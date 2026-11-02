@@ -170,7 +170,8 @@
     "plate_appearance": "plate_appearance_v1:{match_id}:{plate_appearance_no}",
     "event": "event_v1:{match_id}:{event_no}",
     "pitches": "pitches_v1:{match_id}:{plate_appearance_no}",
-    "steal": "steal_v1:{match_id}:{plate_appearance_no}"
+    "steal": "steal_v1:{match_id}:{plate_appearance_no}",
+    "relief": "relief_v1:{match_id}:{plate_appearance_no}"
   },
   "outs_in_play": {
     "description_ja": "凡退（field_out）の中身（2026-11-01）。ゴロの割合 = base ＋ (投手のゴロ − 50)×per_groundball_point ＋ (打者の長打 − 50)×per_power_point ＋ (打者のミート − 50)×per_contact_point を min〜max に収める。ゴロで一塁に走者・2死未満なら、併殺の確率 = base − (打者の走力 − 50)×speed_effect_per_point ＋ (守備力 − 50)×defense_effect_per_point。advance は凡退の間に走者が進む確率の基準（baserunning と同じく走者の走塁・走力と守備力で増減）：ゴロで二塁→三塁（押し出しでないとき）、ゴロで三塁走者の生還（押し出しでないとき）、フライで二塁→三塁のタッチアップ。フライで三塁走者が生還するのは犠飛（situational_events.sacrifice_fly）。値は仮の値（実際の高校野球の打球の割合・進塁の割合の集計は見つからなかった）。併殺の回数の目安は game_definition.md §3.6",
@@ -287,7 +288,7 @@
     }
   },
   "fatigue": {
-    "description_ja": "投手の疲れ（2026-11-01、game_definition.md §3.6.2 の E。式は game_core/fatigue.py）。疲れは能力の点。試合の中（in_game）：その試合の球数が base_pitches ＋ (スタミナ − 50) × per_stamina を超えた1球ごとに per_pitch 点。試合をまたぐ（carry）：直近の日の球数のうち free_pitches を超えた分 × per_pitch を、1日ごとに exp(−回復の速さ) で減らして足す（回復の速さ = recovery_per_day ＋ (スタミナ − 50) × recovery_per_stamina。min_recovery_per_day より遅くしない）。球数制限の記録（7日分）から求める。疲れは stage_points ごとの段階に切り捨て、段階 × stage_points 点に drop を掛けた分だけ球速（km/h）・球威・制球・変化球の質と制球を下げる。交代：疲れが change の点（先発・救援）× 監督の継投傾向の倍率以上なら代える。先発：始まりの疲れが rest_starter_points 以上のエースは、もっと疲れの少ない投手がいれば休ませる。画面：labels の段階から疲れの言葉を出す（部員の表・選手の画面の印は始まりの疲れ）。値は仮の値",
+    "description_ja": "投手の疲れ（2026-11-01、game_definition.md §3.6.2 の E。式は game_core/fatigue.py）。疲れは能力の点。試合の中（in_game）：その試合の球数が base_pitches ＋ (スタミナ − 50) × per_stamina を超えた1球ごとに per_pitch 点。試合をまたぐ（carry）：直近の日の球数のうち free_pitches を超えた分 × per_pitch を、1日ごとに exp(−回復の速さ) で減らして足す（回復の速さ = recovery_per_day ＋ (スタミナ − 50) × recovery_per_stamina。min_recovery_per_day より遅くしない）。球数制限の記録（7日分）から求める。疲れは stage_points ごとの段階に切り捨て、段階 × stage_points 点に drop を掛けた分だけ球速（km/h）・球威・制球・変化球の質と制球を下げる。交代：疲れが change の点（先発・救援）× 監督の継投傾向の倍率以上なら代える。先発：始まりの疲れが rest_starter_points 以上のエースは、もっと疲れの少ない投手がいれば先発を外し、救援の順番の最後に回す（rested_ace_relief）。rest_starter_points は画面の「疲れ小」（labels の最初の段階 × stage_points）と同じにする。画面：labels の段階から疲れの言葉を出す（部員の表・選手の画面の印は始まりの疲れ）。値は仮の値",
     "in_game": {
       "base_pitches": 90,
       "per_stamina": 0.8,
@@ -300,8 +301,8 @@
       "recovery_per_stamina": 0.01,
       "min_recovery_per_day": 0.3
     },
-    "stage_points": 2.0,
-    "max_stage": 10,
+    "stage_points": 1.5,
+    "max_stage": 12,
     "drop": {
       "velocity_kmh": 0.5,
       "stuff": 2.0,
@@ -316,7 +317,7 @@
     "rest_starter_points": 1.5,
     "labels": [
       {
-        "min_stage": 2,
+        "min_stage": 1,
         "label_ja": "疲れ小"
       },
       {
@@ -327,6 +328,15 @@
         "min_stage": 5,
         "label_ja": "疲れ大"
       }
-    ]
+    ],
+    "rested_ace_relief": {
+      "description_ja": "疲れで先発を外したエースは救援の順番の最後に回し、基本は休ませる。交代のとき、7回以降（late_inning_from）で点差が close_margin 以内、エースの始まりの疲れが max_carry_points 未満、エース（疲れを引いた能力）が次の候補より quality_gap_points 以上良ければ、base_probability ÷ 監督の継投傾向の倍率（早めに代える監督ほど大きい）の確率でエースを救援に出す。点差が close_margin を超えれば（大差のリード・ビハインド）休ませる。他に投げられる投手がいないときと7日500球の制限は今のまま。仮の値",
+      "late_inning_from": 7,
+      "close_margin": 2,
+      "max_carry_points": 6.0,
+      "quality_gap_points": 4.0,
+      "base_probability": 0.6,
+      "max_probability": 0.9
+    }
   }
 }

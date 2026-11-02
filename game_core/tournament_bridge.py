@@ -503,7 +503,8 @@ class AbilityMatchResolver:
                 days = log.setdefault(stat.player_id, {})
                 days[day.isoformat()] = days.get(day.isoformat(), 0) + stat.pitches
 
-    def _pitching_forecast(self, team, base, order, professional_count, allowances, tactics, opponent):
+    def _pitching_forecast(self, team, base, order, professional_count, allowances, tactics, opponent,
+                           carry=None):
         """規定回のアウト獲得に必要な打者数の分布を使い、各継投区間を見積もる。
 
         試合乱数・実際の将来結果を参照しない。継投を決定する処理ではなく、
@@ -550,6 +551,13 @@ class AbilityMatchResolver:
                 bf = self.simulator._pitcher_limit(self.simulator._as_pitcher(players[pid]), starter=index==0)
                 budget = min(budget, max(params['pitching_usage']['minimum_bf_before_change'],
                                          math.ceil(bf*tactics.bf_multiplier)))
+                # 疲れ（球数・連投）で代わる分も見積もる（試合の交代の判断と同じ式）
+                tired = self.simulator.fatigue_pitch_budget(
+                    self.simulator._as_pitcher(players[pid]), (carry or {}).get(pid, 0.0),
+                    starter=index == 0, tactics=tactics)
+                if math.isfinite(tired):
+                    budget = min(budget, max(params['pitching_usage']['minimum_bf_before_change'],
+                                             math.ceil(tired/pitch_mean)))
             endpoint = cumulative+budget if index+1 < len(order) else math.inf
             following = remaining(endpoint)
             # 残りの期待BFが合計へ加減算できない浮動小数点精度なら終了する。
@@ -582,8 +590,8 @@ class AbilityMatchResolver:
             if any(p.player_id in available and source.condition(p, day)[0] for p in members):
                 # 健康な9人も揃わない既存の救済経路では、追加のDHを起用しない。
                 return team
-        order, professional_count = self.simulator._game_staff(
-            team, allowances, self.simulator.carry_fatigue(team, pitch_history))
+        carry = self.simulator.carry_fatigue(team, pitch_history)
+        order, professional_count = self.simulator._game_staff(team, allowances, carry)
         if not order:
             return team  # 球数制限による試合不可は既存シミュレーターが扱う。
         actual = order[0]
@@ -592,7 +600,8 @@ class AbilityMatchResolver:
         replacement = order[1] if len(order) > 1 else actual
         if replacement in {s.player_id for s in base.batting_order}:
             replacement = actual  # 野手の登板では元の投手の打順が残る。
-        forecast = self._pitching_forecast(team, base, order, professional_count, allowances, tactics, opponent)
+        forecast = self._pitching_forecast(team, base, order, professional_count, allowances, tactics, opponent,
+                                           carry=carry)
         decision = self.team_generator.select_dh_mode(team.player_abilities,
             starting_pitcher_id=actual, replacement_batter_id=replacement,
             starter_share=forecast[0].batting_share,
