@@ -218,6 +218,100 @@ class PitchLogConnectionTests(unittest.TestCase):
         self.assertEqual(first, rule["rest_starter_points"])
 
 
+class RestedAceWithDHTests(unittest.TestCase):
+    """DHで予定の先発（二番手）を指定してチーム情報を作り直しても、疲れたエースの休養と
+    条件付きの救援が保たれる。DHなしも同じ。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.sim = MatchSimulator()
+        cls.generator = TeamStrengthGenerator()
+        cls.inputs = {}
+        for mode in ("none", "normal"):
+            teams = []
+            for sid in ("FAKE-DHF-A", "FAKE-DHF-B"):
+                players = tuple(replace(p, player_id=sid + "-" + p.player_id)
+                                for p in make_roster_abilities(school_id=sid))
+                base = cls.generator.generate(players)
+                staff = [e.player_id for e in sorted(base.pitching_staff.entries, key=lambda e: e.order)]
+                strength = (base if mode == "none" else cls.generator.generate(
+                    players, dh_mode="normal", starting_pitcher_id=staff[1]))
+                teams.append(TeamMatchInput(sid, strength, players))
+            cls.inputs[mode] = tuple(teams)
+
+    def staff(self, team):
+        return self.sim._quality_order(team)
+
+    def test_planned_dh_starter_keeps_the_tired_ace_last(self):
+        team = self.inputs["normal"][0]
+        ace, second = self.staff(team)[:2]
+        self.assertEqual(second, self.sim._pitcher_order(team)[0])  # DHの予定の先発が先頭
+        carry = {ace: 3.0}
+        self.assertEqual(ace, self.sim.rested_ace(team, carry))
+        order, size = self.sim._game_staff(team, None, carry)
+        self.assertEqual(second, order[0])
+        self.assertEqual(ace, order[size - 1])
+        # 球数制限があっても同じ（エースが投げられる球数は残っている）
+        order, size = self.sim._game_staff(team, {pid: 500 for pid in order}, carry)
+        self.assertEqual((second, ace), (order[0], order[size - 1]))
+
+    def test_tired_ace_rests_or_relieves_with_and_without_dh(self):
+        for mode, teams in self.inputs.items():
+            with self.subTest(mode=mode):
+                ace = self.staff(teams[0])[0]
+                rested = relieved = 0
+                for number in range(40):
+                    match = MatchSimulationInput(f"DHF-{mode}-{number}", "FAKE-FAT-CUP", 2026,
+                                                 20261102 + number, *teams,
+                                                 team_generation_seed=2026100701)
+                    result = self.sim.simulate(match, pitch_history={ace: {1: 135}})
+                    record = next(r for r in result.team_participation if r.school_id == teams[0].school_id)
+                    self.assertNotEqual(ace, record.starting_pitcher_id)
+                    rows = [p for p in result.pitcher_stats if p.school_id == teams[0].school_id
+                            and p.batters_faced > 0]
+                    if any(p.player_id == ace for p in rows):
+                        relieved += 1
+                        # 救援に出るのは他の投手のあと（休ませたエースは第1候補ではない）
+                        self.assertNotEqual(ace, rows[0].player_id)
+                    else:
+                        rested += 1
+                self.assertGreater(rested, 0)
+                self.assertGreater(relieved, 0)
+
+
+class FatigueBudgetTests(unittest.TestCase):
+    def test_budget_is_zero_once_fatigue_reaches_the_change_level(self):
+        sim = MatchSimulator()
+        pitcher = next(a for a in make_roster_abilities(school_id="FAKE-BUDGET") if a.primary_position == "P")
+        limit = sim.params["fatigue"]["change"]["starter_points"]
+        fresh = sim.fatigue_pitch_budget(pitcher, 0.0, starter=True)
+        self.assertGreater(fresh, sim.params["fatigue"]["in_game"]["base_pitches"] - 30)
+        self.assertLess(sim.fatigue_pitch_budget(pitcher, limit / 2, starter=True), fresh)
+        self.assertEqual(0.0, sim.fatigue_pitch_budget(pitcher, limit, starter=True))
+        self.assertEqual(0.0, sim.fatigue_pitch_budget(pitcher, limit + 5, starter=True))
+        # 監督の継投傾向で基準が下がっても同じ
+        self.assertEqual(0.0, sim.fatigue_pitch_budget(
+            pitcher, limit * 0.9, starter=True, tactics=CoachTactics(bf_multiplier=0.8)))
+
+    def test_dh_forecast_uses_the_minimum_batters_for_an_already_tired_starter(self):
+        from test_coach_tactics import NationalDHSelectionTests
+
+        fixture = NationalDHSelectionTests()
+        fixture.setUpClass()
+        live, team = fixture.live(), fixture.team()
+        sim = live.simulator
+        order, count = sim._game_staff(team, None)
+        base = sim._initial_state(team, order[0])
+        limit = sim.params["fatigue"]["change"]["starter_points"]
+        fresh = live._pitching_forecast(team, base, order, count, None, CoachTactics(), None)
+        worn = live._pitching_forecast(team, base, order, count, None, CoachTactics(), None,
+                                       carry={order[0]: limit + 1})
+        self.assertLess(worn[0].batting_share, fresh[0].batting_share)
+        # 先発は最低の対戦打者数（3人）だけで代わる見積もり：規定の打者数の1割強より小さい
+        minimum = sim.params["pitching_usage"]["minimum_bf_before_change"]
+        self.assertLess(worn[0].batting_share, (minimum + 1) / 27)
+
+
 class FatigueInjuryTests(unittest.TestCase):
     def test_tired_pitchers_get_hurt_a_little_more_unless_injuries_are_off(self):
         model = injury_model()

@@ -439,6 +439,16 @@ class MatchSimulator:
             return (planned, *(pid for pid in order if pid != planned))
         return order
 
+    @staticmethod
+    def _quality_order(team: TeamMatchInput) -> tuple[str, ...]:
+        """投手陣の能力の順（エースが先頭）。DHの予定の先発で並べ替えない。"""
+        return tuple(entry.player_id for entry in sorted(
+            team.team_strength.pitching_staff.entries, key=lambda entry: entry.order))
+
+    def rested_ace(self, team: TeamMatchInput, carry: Mapping[str, float] | None) -> str | None:
+        """疲れで先発を外すエース。DHで予定の先発が変わっていても、能力の順の先頭で決める。"""
+        return self._rested_ace(self._quality_order(team), carry)
+
     def carry_fatigue(
         self, team: TeamMatchInput, history: Mapping[str, Mapping[int, int]] | None,
     ) -> dict[str, float]:
@@ -462,8 +472,13 @@ class MatchSimulator:
         あと何球投げられるか）があれば、残りの少ない投手は先発にせず、投げられない
         投手は外す。後ろに野手を並べ、球数制限で投手がいなくなったときだけ使う。"""
         staff = self._pitcher_order(team)
-        if carry:
-            staff = self._rest_tired_starter(staff, carry)
+        ace = self.rested_ace(team, carry) if carry else None
+        if ace is not None:
+            if staff[0] == ace:
+                staff = self._rest_tired_starter(staff, carry)
+            else:
+                # DHで予定の先発（二番手など）が先頭のときも、エースは救援の順番の最後
+                staff = (*[pid for pid in staff if pid != ace], ace)
         if allowances is None:
             return staff, len(staff)
         usage = self.params["pitching_usage"]
@@ -499,6 +514,9 @@ class MatchSimulator:
         game = rule["in_game"]
         limit = float(rule["change"]["starter_points" if starter else "reliever_points"]) * tactics.bf_multiplier
         per_pitch = float(game["per_pitch"])
+        if carry_points >= limit:
+            # 登板の始めから交代の基準以上：最低の対戦打者数だけ投げて代わる
+            return 0.0
         if per_pitch <= 0:
             return math.inf
         threshold = float(game["base_pitches"]) + (float(pitcher.stamina or 50) - 50.0) * float(game["per_stamina"])
@@ -1455,7 +1473,7 @@ class MatchSimulator:
         }
         # 疲れで先発を外したエース（救援の順番の最後。終盤・接戦では救援に出すことがある）
         rested_aces = {
-            school_id: self._rested_ace(self._pitcher_order(team), carry[school_id])
+            school_id: self.rested_ace(team, carry[school_id])
             for school_id, team in teams.items()
         }
         pitcher_orders = {

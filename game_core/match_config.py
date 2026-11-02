@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from typing import Any
 
@@ -571,7 +572,8 @@ def load_and_validate_match_configs(
     if cached is None:
         cached = _load_and_validate_match_configs(root)
         _VALIDATED[key] = cached
-    return dict(cached)
+    # 呼び出し側が params を書き換えても、覚えておいた設定（ほかの試合計算）に漏れないよう写しを返す
+    return copy.deepcopy(cached)
 
 
 def _load_and_validate_match_configs(
