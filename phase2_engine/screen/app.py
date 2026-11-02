@@ -274,7 +274,23 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--slot", default="", help="付けないときは画面で選ぶ")
     parser.add_argument("--seed", type=int, default=2026100801)
     parser.add_argument("--title", default="2026年シーズン")
+    parser.add_argument(
+        "--check", action="store_true",
+        help="画面を出さずに、データ・設定・画面のファイル・セーブの一覧を読めるかだけ確かめて終わる",
+    )
     return parser
+
+
+def startup_check(api: "ScreenApi") -> dict:
+    """``--check``：ウィンドウを開く手前まで（EXE を作ったあとの起動の確認に使う）。"""
+    import webview  # noqa: F401  pywebview が EXE に入っているか
+
+    if not (WEB_DIR / "index.html").is_file():
+        raise FileNotFoundError(WEB_DIR / "index.html")
+    saves = api.saves()
+    if saves.get("error"):
+        raise RuntimeError(saves["error"])
+    return {"shell": bool(api.shell()), "slots": len(saves.get("slots", []))}
 
 
 def main(argv=None) -> None:
@@ -299,6 +315,9 @@ def main(argv=None) -> None:
         if args.slot else None
     )
     api = ScreenApi(GameScreenData(service, session))
+    if args.check:
+        print("起動の確認:", startup_check(api), flush=True)
+        return
     api.warm_up()
     import webview  # pywebview（requirements.txt）
 
