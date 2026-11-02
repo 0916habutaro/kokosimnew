@@ -231,7 +231,7 @@ class CoachStrategyTests(unittest.TestCase):
                      small_ball=small_ball, mobility=mobility)
 
     def test_strategy_multipliers_are_neutral_at_fifty_and_capped(self):
-        self.assertEqual((1.0, 1.0), self.book.strategy_multipliers(self.coach(50, 50)))
+        self.assertEqual((1.0, 1.0, 1.0), self.book.strategy_multipliers(self.coach(50, 50)))
         high, low = self.book.strategy_multipliers(self.coach(80, 80)), self.book.strategy_multipliers(self.coach(20, 20))
         self.assertTrue(high[0] > 1.5 and high[1] > 1.5 and low[0] < 0.6 and low[1] < 0.6)
         cap = self.book.tactics_config["strategy"]["max_abs_log"]

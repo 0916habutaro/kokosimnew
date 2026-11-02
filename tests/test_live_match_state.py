@@ -25,8 +25,8 @@ class ObservedSimulator(_ScriptedSimulator):
         self.states = {}
         self.observations = []
 
-    def _initial_state(self, team, actual_pitcher_id):
-        state = super()._initial_state(team, actual_pitcher_id)
+    def _initial_state(self, team, actual_pitcher_id, **kwargs):
+        state = super()._initial_state(team, actual_pitcher_id, **kwargs)
         self.states[team.school_id] = state
         return state
 

@@ -1,20 +1,21 @@
 {
   "config_id": "coach_tactics_v1",
-  "revision": 2,
+  "revision": 3,
   "status": "active",
   "first_match_date": "2027-04-01",
   "neutral_ability": 50,
   "bf_reduction_per_point": 0.002,
-  "max_abs_bf_reduction": 0.10,
+  "max_abs_bf_reduction": 0.1,
   "quick_hook_reduction_per_point": 0.02,
   "max_abs_quick_hook_reduction": 1,
   "selection_bias_per_point": 0.01,
-  "max_abs_selection_bias": 0.50,
+  "max_abs_selection_bias": 0.5,
   "strategy": {
-    "description_ja": "作戦を試みる確率の倍率 = exp(clamp((傾向 − 50) × 係数, −上限, +上限))。小技は犠打・スクイズ、機動力は盗塁・エンドラン。新規開始から使う。ゲーム用の仮の値",
+    "description_ja": "作戦・交代を試みる確率（または基準）の倍率 = exp(clamp((傾向 − 50) × 係数, −上限, +上限))。小技は犠打・スクイズ、機動力は盗塁・エンドラン、交代の積極性（段階F2）は代打・代走・守備固め・左右を見た起用（基準の能力差をこの倍率で割る）。新規開始から使う。ゲーム用の仮の値",
     "neutral_ability": 50,
     "small_ball_log_per_point": 0.025,
     "mobility_log_per_point": 0.02,
+    "substitutions_log_per_point": 0.02,
     "max_abs_log": 1.0
   }
 }

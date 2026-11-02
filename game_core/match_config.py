@@ -263,6 +263,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         raise ValueError("match simulation: stolen_bases.attempt.outs_multiplier needs 3 values")
 
     _validate_strategy(payload.get("strategy"))
+    _validate_substitutions(payload.get("substitutions"))
 
     fatigue = payload.get("fatigue")
     if not isinstance(fatigue, dict):
@@ -489,6 +490,34 @@ def _validate_strategy(strategy) -> None:
             raise ValueError(f"match simulation: invalid strategy.{section}.failure_weights")
 
 
+def _validate_substitutions(subs) -> None:
+    """選手の交代（段階F2）の値。回・点差・人数は0以上の整数、能力の差は0以上の数。"""
+    if not isinstance(subs, dict) or not isinstance(subs.get("late_inning_from"), int):
+        raise ValueError("match simulation: substitutions required")
+    shapes = {
+        "pinch_hitter": (("max_deficit", "max_lead", "max_per_game"), ("min_gain", "pitcher_slot_min_gain")),
+        "pinch_runner": (("inning_from", "max_deficit", "max_lead", "max_runner_speed", "max_per_game"),
+                         ("min_speed_gain",)),
+        "defensive_replacement": (("min_lead", "max_lead", "max_per_half"), ("min_gain", "entered_min_gain")),
+        "platoon_lineup": (("max_selection_swaps", "max_order_swaps"),
+                           ("selection_min_gain", "max_defense_loss", "order_min_gain")),
+        "platoon_relief": (("inning_from", "close_margin", "lookahead", "min_same_side", "min_batters_faced"),
+                           ("max_quality_gap",)),
+    }
+    for section, (integers, numbers) in shapes.items():
+        values = subs.get(section)
+        if not isinstance(values, dict):
+            raise ValueError(f"match simulation: substitutions.{section} required")
+        if not all(isinstance(values.get(k), int) and not isinstance(values.get(k), bool)
+                   and values[k] >= 0 for k in integers):
+            raise ValueError(f"match simulation: invalid substitutions.{section} count")
+        if not all(_number(values.get(k)) and float(values[k]) >= 0 for k in numbers):
+            raise ValueError(f"match simulation: invalid substitutions.{section} value")
+    relief = subs["platoon_relief"]
+    if relief["min_same_side"] > relief["lookahead"]:
+        raise ValueError("match simulation: platoon_relief.min_same_side exceeds lookahead")
+
+
 def validate_event_catalog(document: ConfigDocument) -> None:
     items = document.payload.get("event_types")
     if not isinstance(items, list) or not items:
@@ -573,6 +602,10 @@ def validate_game_stats_contract(document: ConfigDocument) -> None:
         "picked_off",
         "catcher_steal_attempts",
         "catcher_caught_stealing",
+        *(f"vs_{hand}_{key}" for hand in ("rhp", "lhp")
+          for key in ("at_bats", "hits", "home_runs", "walks", "strikeouts")),
+        "pinch_hit_at_bats",
+        "pinch_hit_hits",
     }
     expected_pitcher = {
         "outs_recorded",
@@ -586,6 +619,8 @@ def validate_game_stats_contract(document: ConfigDocument) -> None:
         "hit_batters",
         "pitches",
         "exit_fatigue",
+        *(f"vs_{hand}_{key}" for hand in ("rhb", "lhb")
+          for key in ("at_bats", "hits", "home_runs", "walks", "strikeouts")),
     }
     expected_team = {"runs", "hits", "errors"}
 

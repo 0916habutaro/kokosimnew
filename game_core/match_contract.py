@@ -107,6 +107,20 @@ class BatterGameStats:
     # 捕手として：盗塁を試みられた数と、そのうち刺した数（盗塁阻止）
     catcher_steal_attempts: int = 0
     catcher_caught_stealing: int = 0
+    # 左右別（段階F2）：相手投手の投げる腕ごとの打数・安打・本塁打・四死球・三振。打席ごとの記録は残さない
+    vs_rhp_at_bats: int = 0
+    vs_rhp_hits: int = 0
+    vs_rhp_home_runs: int = 0
+    vs_rhp_walks: int = 0
+    vs_rhp_strikeouts: int = 0
+    vs_lhp_at_bats: int = 0
+    vs_lhp_hits: int = 0
+    vs_lhp_home_runs: int = 0
+    vs_lhp_walks: int = 0
+    vs_lhp_strikeouts: int = 0
+    # 代打で入った打席の打数・安打
+    pinch_hit_at_bats: int = 0
+    pinch_hit_hits: int = 0
 
     @property
     def singles(self) -> int:
@@ -142,6 +156,17 @@ class PitcherGameStats:
     pitches: int = 0
     # 降板時（この試合の最後）の疲れの段階（game_core/fatigue.py）
     exit_fatigue: int = 0
+    # 左右別（段階F2）：打者の打席の側（両打ちは投手と逆）ごとの打数・被安打・被本塁打・与四死球・奪三振
+    vs_rhb_at_bats: int = 0
+    vs_rhb_hits: int = 0
+    vs_rhb_home_runs: int = 0
+    vs_rhb_walks: int = 0
+    vs_rhb_strikeouts: int = 0
+    vs_lhb_at_bats: int = 0
+    vs_lhb_hits: int = 0
+    vs_lhb_home_runs: int = 0
+    vs_lhb_walks: int = 0
+    vs_lhb_strikeouts: int = 0
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -458,6 +483,14 @@ def validate_batter_game_stats(stats: BatterGameStats) -> None:
         raise ValueError(
             f"{stats.player_id}: strikeouts cannot exceed at_bats"
         )
+    for key, total in (("at_bats", stats.at_bats), ("hits", stats.hits),
+                       ("home_runs", stats.home_runs),
+                       ("walks", stats.walks + stats.hit_by_pitch),
+                       ("strikeouts", stats.strikeouts)):
+        if getattr(stats, f"vs_rhp_{key}") + getattr(stats, f"vs_lhp_{key}") != total:
+            raise ValueError(f"{stats.player_id}: left/right split {key} differs from the total")
+    if stats.pinch_hit_hits > stats.pinch_hit_at_bats or stats.pinch_hit_at_bats > stats.at_bats:
+        raise ValueError(f"{stats.player_id}: invalid pinch-hit stats")
 
 
 def validate_pitcher_game_stats(stats: PitcherGameStats) -> None:
@@ -495,6 +528,11 @@ def validate_pitcher_game_stats(stats: PitcherGameStats) -> None:
         raise ValueError(
             f"{stats.player_id}: outs_recorded inconsistent with batters_faced"
         )
+    for key, total in (("hits", stats.hits_allowed), ("home_runs", stats.home_runs_allowed),
+                       ("walks", stats.walks + stats.hit_batters),
+                       ("strikeouts", stats.strikeouts)):
+        if getattr(stats, f"vs_rhb_{key}") + getattr(stats, f"vs_lhb_{key}") != total:
+            raise ValueError(f"{stats.player_id}: left/right split {key} differs from the total")
 
 
 def validate_team_game_stats(stats: TeamGameStats) -> None:

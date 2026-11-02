@@ -1,6 +1,6 @@
 {
   "config_id": "match_simulation_v1",
-  "revision": 15,
+  "revision": 16,
   "status": "tuned_2026_11_01",
   "description_ja": "能力ベースの試合モデル（打席結果・走者進塁・投手運用）。能力の効きと球数は従来の調整を維持（game_definition.md §11）。打席の基準重みは新基準バット導入後の夏甲子園（2024〜2026年の本塁打7・10・8本）と全国進行の得点・コールドを比較して調整。本塁打0.0025・単打0.195・二塁打0.060、他はrevision 5の相対重みを使い、合計1に正規化した。抽選時には能力補正後に再び正規化する。 先発の継投判断は完投可能性・スタミナ差・失点・球数制限と全国進行を比較して調整。 能力の効き（ability_effect_scale）は、入部品質を選手ごとの素質に変えて学校の強さの差が縮んだ分を戻すため、失策を除いて1.35倍にした（2026-10-31、地方大会の得点・点差・コールド・完封と夏の甲子園の初出場に合わせた）。 型の調整で投手の能力の平均と打撃の学校差が変わった分、能力の効きをさらに1.06倍にした（2026-11-01）。",
   "score_source": "ability_model_v1",
@@ -167,7 +167,7 @@
     "player_abilities_drive_events": true,
     "complete_game_stats_required": true,
     "event_stats_reconciliation_required": true,
-    "batting_substitutions_enabled": false,
+    "batting_substitutions_enabled": true,
     "pitching_substitutions_enabled": true
   },
   "rng_namespace_policy": {
@@ -431,6 +431,52 @@
       "single_first_to_third_bonus": 0.3,
       "double_first_scores_bonus": 0.25,
       "fly_runner_doubled_off": 0.3
+    }
+  },
+  "substitutions": {
+    "description_ja": "選手の交代（段階F2、2026-11-02）。能力の差（打撃は左右の差を入れた打撃の値、守備は守備位置ごとの守備の値、走力はそのまま）が基準以上なら交代する。基準は監督の交代の積極性の倍率（coach_tactics_v1 の strategy）で割る。乱数は使わない。控えは投手陣を除くベンチ入りの選手で、一度退いた選手は出ない。ゲーム用の仮の値",
+    "late_inning_from": 6,
+    "pinch_hitter": {
+      "description_ja": "代打：late_inning_from 回以降、攻める側の点差が −max_deficit〜+max_lead のとき、控えの打撃の値が打者より min_gain 以上高ければ出す。DHのない試合の投手の打順は pitcher_slot_min_gain（救援できる投手が残っているときだけ）。1試合に max_per_game 人まで",
+      "max_deficit": 5,
+      "max_lead": 1,
+      "min_gain": 3.0,
+      "pitcher_slot_min_gain": 0.0,
+      "max_per_game": 3
+    },
+    "pinch_runner": {
+      "description_ja": "代走：inning_from 回以降、攻める側の点差が −max_deficit〜+max_lead（同点・勝ち越しの走者）のとき、塁にいる走者（先の塁から）の走力が max_runner_speed 以下で、控えの走力が min_speed_gain 以上高ければ出す。投手には出さない。1試合に max_per_game 人まで",
+      "inning_from": 7,
+      "max_deficit": 3,
+      "max_lead": 1,
+      "max_runner_speed": 50,
+      "min_speed_gain": 10.0,
+      "max_per_game": 2
+    },
+    "defensive_replacement": {
+      "description_ja": "守備固め：late_inning_from 回以降の守りの初めに、リードが min_lead〜max_lead なら、守備の値が控えより min_gain 以上低い野手を代える。代打・代走で入って守備についた選手は、リードに関係なく entered_min_gain で代える。1回の守りで max_per_half 人まで",
+      "min_lead": 1,
+      "max_lead": 6,
+      "min_gain": 6.0,
+      "entered_min_gain": 2.0,
+      "max_per_half": 2
+    },
+    "platoon_lineup": {
+      "description_ja": "先発メンバーの左右：相手の先発投手の腕を見て、控えの野手（捕手を除く）の左右の差を入れた打撃の値が先発より selection_min_gain 以上高く、その守備位置の守備の値の差が max_defense_loss 以内なら1人まで入れ替える。打順は、次の打者の左右の差を入れた打撃の値が order_min_gain 以上高ければ隣どうしを入れ替える（max_order_swaps 回まで）",
+      "selection_min_gain": 3.0,
+      "max_defense_loss": 5.0,
+      "max_selection_swaps": 1,
+      "order_min_gain": 3.0,
+      "max_order_swaps": 2
+    },
+    "platoon_relief": {
+      "description_ja": "継投の左右：inning_from 回以降・点差 close_margin 以内で、次の lookahead 人の打者のうち min_same_side 人以上が同じ側（両打ちは数えない）なら、その側に強い腕（左打者に左投手）の救援を、次の候補との能力の差が max_quality_gap 以内なら先に出す。今の投手が逆の腕で min_batters_faced 人以上と対戦していれば、それを理由に交代もする",
+      "inning_from": 7,
+      "close_margin": 3,
+      "lookahead": 3,
+      "min_same_side": 2,
+      "max_quality_gap": 6.0,
+      "min_batters_faced": 3
     }
   }
 }

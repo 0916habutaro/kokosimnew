@@ -39,11 +39,23 @@ BATTING_KEYS = (
     "plate_appearances", "at_bats", "hits", "doubles", "triples", "home_runs",
     "rbi", "runs", "walks", "strikeouts", "stolen_bases", "grounded_into_double_plays",
     "caught_stealing", "picked_off", "catcher_steal_attempts", "catcher_caught_stealing",
+    "sacrifice_bunts",
+    # 左右別（段階F2）と代打
+    *(f"vs_{hand}_{key}" for hand in ("rhp", "lhp")
+      for key in ("at_bats", "hits", "home_runs", "walks", "strikeouts")),
+    "pinch_hit_at_bats", "pinch_hit_hits",
 )
 PITCHING_KEYS = (
     "outs_recorded", "batters_faced", "hits_allowed", "runs_allowed",
     "earned_runs", "walks", "strikeouts", "home_runs_allowed", "pitches",
+    *(f"vs_{hand}_{key}" for hand in ("rhb", "lhb")
+      for key in ("at_bats", "hits", "home_runs", "walks", "strikeouts")),
 )
+
+
+def _rate(hits: int, at_bats: int) -> str:
+    """打率の表示（.300 のように。打数がなければ −）。"""
+    return f"{hits / at_bats:.3f}".lstrip("0") if at_bats else "−"
 
 
 def injury_row(start: str, days: int, severity: int) -> dict:
@@ -206,10 +218,17 @@ def season_stats(details, player_id: str) -> dict:
     return {
         "batting": {
             **batting, "games": games,
-            "average": f"{batting['hits'] / at_bats:.3f}".lstrip("0") if at_bats else "−",
+            "average": _rate(batting["hits"], at_bats),
+            # 対右投手・対左投手の打率と、代打の打率（段階F2）
+            "vs_rhp_average": _rate(batting["vs_rhp_hits"], batting["vs_rhp_at_bats"]),
+            "vs_lhp_average": _rate(batting["vs_lhp_hits"], batting["vs_lhp_at_bats"]),
+            "pinch_hit_average": _rate(batting["pinch_hit_hits"], batting["pinch_hit_at_bats"]),
         } if games else None,
         "pitching": {
             **pitching, "games": pitched, "innings": _innings(outs),
+            # 対右打者・対左打者の被打率（段階F2）
+            "vs_rhb_average": _rate(pitching["vs_rhb_hits"], pitching["vs_rhb_at_bats"]),
+            "vs_lhb_average": _rate(pitching["vs_lhb_hits"], pitching["vs_lhb_at_bats"]),
             # 高校野球は9回
             "era": f"{pitching['earned_runs'] * 27 / outs:.2f}" if outs else "−",
         } if pitched else None,

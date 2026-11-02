@@ -151,12 +151,11 @@ class Stage13C2MatchSimulatorTests(unittest.TestCase):
             by_team.setdefault(event.offense_school_id, []).append(
                 event.batter_id
             )
+        starting = {p.school_id: p.starting_lineup for p in result.team_participation}
         for school_id, batter_ids in by_team.items():
             self.assertGreater(len(batter_ids), 9)
-            entries = sorted(
-                self.teams[school_id].team_strength.starting_lineup.entries,
-                key=lambda entry: entry.batting_order,
-            )
+            # 相手の先発投手の左右で少し変えた、実際の先発メンバー（段階F2）
+            entries = sorted(starting[school_id], key=lambda entry: entry.batting_order)
             pitchers = {
                 stats.player_id for stats in result.pitcher_stats
                 if stats.school_id == school_id
@@ -392,7 +391,7 @@ class Stage13C2MatchSimulatorTests(unittest.TestCase):
         )
 
     def test_match_config_revision_and_status(self):
-        self.assertEqual(15, self.simulator.config.revision)
+        self.assertEqual(16, self.simulator.config.revision)
         self.assertEqual(
             "tuned_2026_11_01",
             self.simulator.config.payload["status"],

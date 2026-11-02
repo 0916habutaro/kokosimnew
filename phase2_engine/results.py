@@ -139,6 +139,11 @@ def _save_match_simulation_results(
             "picked_off",
             "catcher_steal_attempts",
             "catcher_caught_stealing",
+            # 左右別と代打の成績（段階F2）
+            *(f"vs_{hand}_{key}" for hand in ("rhp", "lhp")
+              for key in ("at_bats", "hits", "home_runs", "walks", "strikeouts")),
+            "pinch_hit_at_bats",
+            "pinch_hit_hits",
             "singles",
         ],
         batter_rows,
@@ -163,6 +168,8 @@ def _save_match_simulation_results(
             "hit_batters",
             "pitches",
             "exit_fatigue",
+            *(f"vs_{hand}_{key}" for hand in ("rhb", "lhb")
+              for key in ("at_bats", "hits", "home_runs", "walks", "strikeouts")),
         ],
         pitcher_rows,
     )
