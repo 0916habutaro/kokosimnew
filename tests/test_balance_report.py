@@ -98,5 +98,27 @@ class BalanceTallyTests(unittest.TestCase):
         self.assertNotIn("leaders", merged[2026])
 
 
+
+class SituationCounterTests(unittest.TestCase):
+    def test_counts_tactics_by_situation_and_restores_the_simulator(self):
+        from game_core.match_simulator import MatchSimulator
+        from phase2_engine.balance_report import SituationCounter
+        import test_pitcher_run_accounting as accounting
+
+        accounting.PitcherRunAccountingTests.setUpClass()
+        fixture = accounting.PitcherRunAccountingTests()
+        original = MatchSimulator._choose_tactic
+        counter = SituationCounter(lambda cid: "national_championship")
+        with counter.watching():
+            for number in range(3):
+                MatchSimulator().simulate(fixture.match(number))
+        self.assertIs(original, MatchSimulator._choose_tactic)
+        summary = counter.summary()[2026]
+        first = summary["all"]["無死一塁"]
+        self.assertGreater(first["plate_appearances"], 0)
+        self.assertTrue(0 <= first["bunt"] <= 1 and 0 <= first["hit_and_run"] <= 1)
+        self.assertEqual(summary["all"], summary["koshien"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -442,14 +442,16 @@ class DHSimulationTests(unittest.TestCase):
                 self.frames = []
                 self.bunted = False
 
-            def _should_sacrifice_bunt(self, batter, bases, outs, margin, rng):
+            def _choose_tactic(self, *, bases, outs, **kwargs):
                 if not self.bunted and bases[0] and not bases[2] and outs < 2:
                     self.bunted = True
-                    return True
-                return False
+                    return 'bunt'
+                return None
 
-            def _apply_event(self, **kwargs):
-                offense = kwargs['offense_players'][kwargs['batter_id']].school_id
+            def _bunt_outcome(self, tactic, **kwargs):
+                return 'ok'
+
+            def check(self, batter_id, offense):
                 defense = next(sid for sid in self.states if sid != offense)
                 for state in self.states.values():
                     alignment = state.defensive_alignment
@@ -458,8 +460,17 @@ class DHSimulationTests(unittest.TestCase):
                     owner.assertEqual(9, len(ids))
                     owner.assertTrue(ids <= state.registered_player_ids & state.available_player_ids)
                     owner.assertFalse(state.active_player_ids & state.exited_player_ids)
-                self.frames.append((kwargs['batter_id'], self.states[defense].current_pitcher_id))
+                self.frames.append((batter_id, self.states[defense].current_pitcher_id))
+
+            def _apply_event(self, **kwargs):
+                self.check(kwargs['batter_id'], kwargs['offense_players'][kwargs['batter_id']].school_id)
                 return super()._apply_event(**kwargs)
+
+            def _apply_bunt(self, tactic, outcome, batter_id, bases):
+                # 作戦のバントの打席も同じように確かめる（打者のいる側が攻撃）
+                offense = next(sid for sid, st in self.states.items() if batter_id in st.active_player_ids)
+                self.check(batter_id, offense)
+                return MatchSimulator._apply_bunt(tactic, outcome, batter_id, bases)
 
         for mode in ('none', 'normal', 'pitcher'):
             with self.subTest(mode=mode):
@@ -887,7 +898,7 @@ class DHSimulationTests(unittest.TestCase):
             return original(simulator, *args)
 
         with patch.object(MatchSimulator, '_event_weights', observed), \
-                patch.object(MatchSimulator, '_should_sacrifice_bunt', return_value=False):
+                patch.object(MatchSimulator, '_choose_tactic', return_value=None):
             result = MatchSimulator().simulate(self.match('normal'))
         self.assertEqual([e.batter_id for e in result.events], calls)
 

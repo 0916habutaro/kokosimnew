@@ -8,6 +8,9 @@
 - 併殺：``["D", 回, 表裏, 併殺打の打者ID]``（守った側は表裏から決まる）
 - 盗塁：``["B", 回, 表裏, 走者ID, 結果, 進もうとした塁]``（結果は ``sb`` 盗塁・``cs`` 盗塁死・
   ``po`` 牽制死。塁は 2・3）
+- 作戦：``["T", 回, 表裏, 打者ID, 作戦, 結果]``。作戦は ``bunt``（送りバントの失敗だけ。結果は
+  ``foul`` 追い込まれて打席が続いた・``pop`` 小フライ・``fc`` 先の走者がアウト・``dp`` 併殺）、
+  ``squeeze``（``ok`` 成功・``fc`` 本塁でアウト・``pop``・``dp``）、``hit_and_run``（結果は打席の結果の種類）
 
 表裏は ``"t"``（表）・``"b"``（裏）。容量を抑えるため短い配列で持つ。
 """
@@ -20,6 +23,11 @@ PITCHING_CHANGE = "P"
 DOUBLE_PLAY = "D"
 STEAL = "B"
 STEAL_RESULTS = ("sb", "cs", "po")
+TACTIC = "T"
+TACTIC_RESULTS = {
+    "bunt": ("foul", "pop", "fc", "dp"),
+    "squeeze": ("ok", "pop", "fc", "dp"),
+}
 _HALF = {"top": "t", "bottom": "b"}
 
 
@@ -35,6 +43,13 @@ def game_highlights(events: Iterable) -> list[list]:
                 event.defense_school_id, event.pitcher_id,
             ])
         pitchers[event.defense_school_id] = event.pitcher_id
+        metadata = dict(getattr(event, "metadata", ()))
+        tactic = metadata.get("tactic")
+        if tactic is not None:
+            kind, result = tactic.split(":")
+            # 送りバントの成功は犠打の数でわかるので、要点には失敗だけを残す
+            if not (kind == "bunt" and result == "ok"):
+                out.append([TACTIC, event.inning, half, event.batter_id, kind, result])
         if event.runs_scored:
             out.append([
                 SCORE, event.inning, half,
@@ -42,7 +57,7 @@ def game_highlights(events: Iterable) -> list[list]:
             ])
         if event.event_type == "double_play":
             out.append([DOUBLE_PLAY, event.inning, half, event.batter_id])
-        steal = dict(getattr(event, "metadata", ())).get("steal")
+        steal = metadata.get("steal")
         if steal is not None:
             runner_id, from_base, result, _ = steal.split("|")
             out.append([STEAL, event.inning, half, runner_id, result, int(from_base) + 1])
@@ -68,6 +83,11 @@ def validate_highlights(value) -> None:
         elif kind == STEAL:
             if len(item) != 6 or item[4] not in STEAL_RESULTS or item[5] not in (2, 3):
                 raise ValueError("invalid steal highlight")
+        elif kind == TACTIC:
+            if (len(item) != 6 or item[4] not in (*TACTIC_RESULTS, "hit_and_run")
+                    or not isinstance(item[5], str)
+                    or (item[4] in TACTIC_RESULTS and item[5] not in TACTIC_RESULTS[item[4]])):
+                raise ValueError("invalid tactic highlight")
         else:
             raise ValueError(f"unknown highlight kind: {kind}")
         if not isinstance(item[1], int) or item[1] < 1 or item[2] not in ("t", "b"):

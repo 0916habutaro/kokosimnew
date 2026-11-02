@@ -306,8 +306,8 @@ v1では一度降板した投手の再登板はない。
 
 situational event:
 
-- sacrifice_bunt
 - sacrifice_fly
+- 送りバント・スクイズ・エンドランは作戦として打席の前に決める（`match_simulation_v1.json` の `strategy`、`game_definition.md` §3.6.2 F1）
 
 ### 基本方針
 

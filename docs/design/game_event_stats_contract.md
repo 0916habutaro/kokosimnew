@@ -67,6 +67,8 @@ event_no / plate_appearance_noは1から連番。
 - sacrifice_bunt
 - sacrifice_fly
 
+凡退の分け方（ground_out・fly_out・double_play）と作戦の失敗（bunt_pop_out・bunt_double_play・line_drive_double_play）も `config/match/event_catalog_v1.json` にある（`game_definition.md` §3.6.2 A・F1）。
+
 各event typeに
 
 - category

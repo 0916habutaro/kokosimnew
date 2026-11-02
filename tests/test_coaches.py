@@ -130,7 +130,10 @@ print(json.dumps(GameScreenData(game, session).school(sys.argv[3])["coach"], ens
             self.assertEqual(before, service(tmp).load_game("coach").state.coaches.coaches)
 
     def test_generation_does_not_change_players_abilities_or_matches(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        # 監督の作戦の傾向（段階F1）は新規開始から試合に効く。その倍率を中立にすれば、
+        # 監督を作ること自体は選手・能力・試合を変えない
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(CoachBook, "strategy_multipliers", return_value=(1.0, 1.0)):
             game = service(tmp, players=True)
             with patch.object(CoachBook, "generate", return_value=None):
                 control = game.new_game("without", rng_seed=17, save_initial=False)
