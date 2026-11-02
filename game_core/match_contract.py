@@ -140,6 +140,8 @@ class PitcherGameStats:
     strikeouts: int = 0
     hit_batters: int = 0
     pitches: int = 0
+    # 降板時（この試合の最後）の疲れの段階（game_core/fatigue.py）
+    exit_fatigue: int = 0
 
     def to_dict(self) -> dict:
         return asdict(self)

@@ -623,17 +623,17 @@ class RosterBook:
         self, appearances, *, day: date, rng,
     ) -> list[tuple[Player, Injury]]:
         """試合の怪我。``appearances`` は (選手, 投げた球数, 7日間の球数, 前の日から続けて
-        投げた日数)。投げていなければ球数は0。怪我をした (選手, 怪我) を返す。"""
+        投げた日数[, 降板時の疲れの段階])。投げていなければ球数は0。怪我をした (選手, 怪我) を返す。"""
         model = injury_model()
         out = []
         with self._lock:
-            for player, pitches, load7, consecutive in appearances:
+            for player, pitches, load7, consecutive, *rest in appearances:
                 state = self.state(player)
                 if state.injured_on(day) is not None:
                     continue
                 chance, overuse = model.match_chance(
                     pitches=pitches, load7=load7, consecutive=consecutive,
-                    level=self.injury_level,
+                    level=self.injury_level, fatigue_stage=rest[0] if rest else 0,
                 )
                 if rng.random() < chance:
                     injury = model.draw(rng, day + timedelta(days=1), overuse=overuse)

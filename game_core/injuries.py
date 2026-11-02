@@ -59,15 +59,18 @@ class InjuryModel:
         return chance * self.rate(level)
 
     def match_chance(
-        self, *, pitches: int, load7: int, consecutive: int, level: str,
+        self, *, pitches: int, load7: int, consecutive: int, level: str, fatigue_stage: int = 0,
     ) -> tuple[float, bool]:
-        """(起きやすさ, 投げすぎか)。``pitches`` が0なら打者・野手として出た試合。"""
+        """(起きやすさ, 投げすぎか)。``pitches`` が0なら打者・野手として出た試合。
+        ``fatigue_stage`` は降板時の疲れの段階（大きいまま投げると少し起きやすい）。"""
         m = self.config["match"]
         if not pitches:
             return float(m["batter"]) * self.rate(level), False
         factor = 1 + max(0, pitches - int(m["pitches_over"])) * float(m["per_pitch_over"])
         factor += max(0, load7 - int(m["load_over"])) * float(m["per_load_over"])
         factor *= float(m["consecutive_factor"]) ** consecutive
+        factor *= 1 + max(0, fatigue_stage - int(m.get("fatigue_stage_over", 0))) * float(
+            m.get("per_fatigue_stage", 0.0))
         return float(m["pitcher"]) * factor * self.rate(level), factor > 1.0
 
     # ---- 重さ ----

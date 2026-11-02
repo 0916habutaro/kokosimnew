@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from typing import Any
 
@@ -258,6 +259,33 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
             and all(isinstance(v, (int, float)) and v >= 0 for v in outs_multiplier)):
         raise ValueError("match simulation: stolen_bases.attempt.outs_multiplier needs 3 values")
 
+    fatigue = payload.get("fatigue")
+    if not isinstance(fatigue, dict):
+        raise ValueError("match simulation: fatigue required")
+    for section, keys in (
+        ("in_game", ("base_pitches", "per_stamina", "per_pitch")),
+        ("carry", ("free_pitches", "per_pitch", "recovery_per_day", "recovery_per_stamina",
+                   "min_recovery_per_day")),
+        ("drop", ("velocity_kmh", "stuff", "control", "pitch_quality", "pitch_command")),
+        ("change", ("starter_points", "reliever_points")),
+    ):
+        values = fatigue.get(section)
+        if not isinstance(values, dict) or not all(
+                isinstance(values.get(k), (int, float)) and not isinstance(values.get(k), bool)
+                for k in keys):
+            raise ValueError(f"match simulation: invalid fatigue.{section}")
+    if not (isinstance(fatigue.get("stage_points"), (int, float)) and fatigue["stage_points"] > 0
+            and isinstance(fatigue.get("max_stage"), int) and fatigue["max_stage"] >= 0
+            and isinstance(fatigue.get("rest_starter_points"), (int, float))
+            and isinstance(fatigue.get("labels"), list)):
+        raise ValueError("match simulation: invalid fatigue stages")
+    relief = fatigue.get("rested_ace_relief")
+    if not isinstance(relief, dict) or not all(
+            isinstance(relief.get(k), (int, float)) and not isinstance(relief.get(k), bool)
+            for k in ("late_inning_from", "close_margin", "max_carry_points", "quality_gap_points",
+                      "base_probability", "max_probability")):
+        raise ValueError("match simulation: invalid fatigue.rested_ace_relief")
+
     effects = payload.get("pitcher_effects")
     if not isinstance(effects, dict):
         raise ValueError("match simulation: pitcher_effects required")
@@ -372,6 +400,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         "event",
         "pitches",
         "steal",
+        "relief",
     }:
         raise ValueError(
             "match simulation: RNG namespace keys mismatch"
@@ -382,6 +411,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         "event": ("{match_id}", "{event_no}"),
         "pitches": ("{match_id}", "{plate_appearance_no}"),
         "steal": ("{match_id}", "{plate_appearance_no}"),
+        "relief": ("{match_id}", "{plate_appearance_no}"),
     }
     for key, placeholders in required_placeholders.items():
         template = str(namespaces[key])
@@ -491,6 +521,7 @@ def validate_game_stats_contract(document: ConfigDocument) -> None:
         "strikeouts",
         "hit_batters",
         "pitches",
+        "exit_fatigue",
     }
     expected_team = {"runs", "hits", "errors"}
 
@@ -541,7 +572,8 @@ def load_and_validate_match_configs(
     if cached is None:
         cached = _load_and_validate_match_configs(root)
         _VALIDATED[key] = cached
-    return dict(cached)
+    # 呼び出し側が params を書き換えても、覚えておいた設定（ほかの試合計算）に漏れないよう写しを返す
+    return copy.deepcopy(cached)
 
 
 def _load_and_validate_match_configs(

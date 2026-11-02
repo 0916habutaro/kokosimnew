@@ -285,6 +285,8 @@ nav button[disabled] { opacity: .35; cursor: default; }
 .school-side .overall-rank .rank { font-size: 48px; }
 
 .badge.injury { background: #5a2330; color: #ffb3c0; }
+.badge.fatigue { background: #4a3a14; color: #ffd98a; }
+.fatigue { margin-left: 4px; color: var(--muted); font-size: 11px; }
 
 #ask-dialog { max-width: min(760px, 95vw); max-height: 90vh; overflow-y: auto; }
 .ability-edit-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 14px; }

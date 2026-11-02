@@ -178,14 +178,16 @@ class FieldingExperienceTests(unittest.TestCase):
         baseline.bind(TEAMS.__getitem__)
         old_ids = {p.player_id for i, p in enumerate(players) if i in (0, 1, 3, 4, 5)}
         pitches = {p.player_id: p.pitches for p in result.pitcher_stats}
-        expected_entries = [(p, pitches.get(p.player_id, 0), 0, 0) for p in players if p.player_id in old_ids]
+        fatigue = {p.player_id: p.exit_fatigue for p in result.pitcher_stats}
+        expected_entries = [(p, pitches.get(p.player_id, 0), 0, 0, fatigue.get(p.player_id, 0))
+                            for p in players if p.player_id in old_ids]
         expected_rng, actual_rng = CountingRandom(123), CountingRandom(123)
         # 必ず重さ・日数まで抽選させ、抽選対象外の既往の怪我も含めて消費を比較する。
         with patch.object(injury_model(), 'match_chance', return_value=(1.0, False)):
             baseline.after_game(expected_entries, day=bridge.season_state.current_date, rng=expected_rng)
             previous_calls = expected_rng.calls
             previous_injuries = {p.player_id: tuple(baseline.state(p).injuries) for p in players}
-            fielding_entry = (players[2], 0, 0, 0)
+            fielding_entry = (players[2], 0, 0, 0, 0)
             baseline.after_game([fielding_entry], day=bridge.season_state.current_date, rng=expected_rng)
             with patch('game_core.tournament_bridge.rng_for', return_value=actual_rng), \
                     patch.object(book, 'after_game', wraps=book.after_game) as after:
