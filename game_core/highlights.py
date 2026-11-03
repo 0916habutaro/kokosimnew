@@ -7,7 +7,8 @@
 - 投手交代：``["P", 回, 表裏, 守備側の学校ID, 代わった投手ID]``
 - 併殺：``["D", 回, 表裏, 併殺打の打者ID]``（守った側は表裏から決まる）
 - 盗塁：``["B", 回, 表裏, 走者ID, 結果, 進もうとした塁]``（結果は ``sb`` 盗塁・``cs`` 盗塁死・
-  ``po`` 牽制死。塁は 2・3）
+  ``po`` 牽制死。塁は 2・3・4（本盗）。重盗は走者ごとに1件）
+- 暴投・捕逸：``["W", 回, 表裏, 種類, 投手か捕手のID, 得点]``（種類は ``wp`` 暴投・``pb`` 捕逸）
 - 作戦：``["T", 回, 表裏, 打者ID, 作戦, 結果]``。作戦は ``bunt``（送りバントの失敗だけ。結果は
   ``foul`` 追い込まれて打席が続いた・``pop`` 小フライ・``fc`` 先の走者がアウト・``dp`` 併殺）、
   ``squeeze``（``ok`` 成功・``fc`` 本塁でアウト・``pop``・``dp``）、``hit_and_run``（結果は打席の結果の種類）
@@ -23,6 +24,7 @@ PITCHING_CHANGE = "P"
 DOUBLE_PLAY = "D"
 STEAL = "B"
 STEAL_RESULTS = ("sb", "cs", "po")
+WILD_PITCH = "W"
 TACTIC = "T"
 TACTIC_RESULTS = {
     "bunt": ("foul", "pop", "fc", "dp"),
@@ -50,17 +52,26 @@ def game_highlights(events: Iterable) -> list[list]:
             # 送りバントの成功は犠打の数でわかるので、要点には失敗だけを残す
             if not (kind == "bunt" and result == "ok"):
                 out.append([TACTIC, event.inning, half, event.batter_id, kind, result])
-        if event.runs_scored:
+        steals = [entry.split("|") for entry in metadata["steal"].split(";")] if metadata.get("steal") else []
+        advance = metadata.get("advance")
+        # 打席のあとの暴投・捕逸・本盗の得点は、打者の得点の要点に入れない
+        after_play = metadata.get("bases_after_play", "||").split("|")
+        advance_runs = int(advance is not None and after_play[2] != "")
+        home_steals = sum(from_base == "3" and result == "sb" for _, from_base, result, _ in steals)
+        play_runs = event.runs_scored - advance_runs - home_steals
+        if play_runs:
             out.append([
                 SCORE, event.inning, half,
-                event.batter_id, event.event_type, event.runs_scored,
+                event.batter_id, event.event_type, play_runs,
             ])
         if event.event_type == "double_play":
             out.append([DOUBLE_PLAY, event.inning, half, event.batter_id])
-        steal = metadata.get("steal")
-        if steal is not None:
-            runner_id, from_base, result, _ = steal.split("|")
-            out.append([STEAL, event.inning, half, runner_id, result, int(from_base) + 1])
+        if advance is not None:
+            kind, player_id = advance.split("|")
+            out.append([WILD_PITCH, event.inning, half, kind, player_id, advance_runs])
+        for runner_id, from_base, result, _ in steals:
+            if result in STEAL_RESULTS:
+                out.append([STEAL, event.inning, half, runner_id, result, int(from_base) + 1])
     return out
 
 
@@ -81,8 +92,11 @@ def validate_highlights(value) -> None:
             if len(item) != 4:
                 raise ValueError("invalid double play highlight")
         elif kind == STEAL:
-            if len(item) != 6 or item[4] not in STEAL_RESULTS or item[5] not in (2, 3):
+            if len(item) != 6 or item[4] not in STEAL_RESULTS or item[5] not in (2, 3, 4):
                 raise ValueError("invalid steal highlight")
+        elif kind == WILD_PITCH:
+            if len(item) != 6 or item[3] not in ("wp", "pb") or item[5] not in (0, 1):
+                raise ValueError("invalid wild pitch highlight")
         elif kind == TACTIC:
             if (len(item) != 6 or item[4] not in (*TACTIC_RESULTS, "hit_and_run")
                     or not isinstance(item[5], str)

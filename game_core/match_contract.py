@@ -107,6 +107,8 @@ class BatterGameStats:
     # 捕手として：盗塁を試みられた数と、そのうち刺した数（盗塁阻止）
     catcher_steal_attempts: int = 0
     catcher_caught_stealing: int = 0
+    # 捕手として：捕逸（H1）
+    passed_balls: int = 0
     # 左右別（段階F2）：相手投手の投げる腕ごとの打数・安打・本塁打・四死球・三振。打席ごとの記録は残さない
     vs_rhp_at_bats: int = 0
     vs_rhp_hits: int = 0
@@ -156,6 +158,8 @@ class PitcherGameStats:
     pitches: int = 0
     # 降板時（この試合の最後）の疲れの段階（game_core/fatigue.py）
     exit_fatigue: int = 0
+    # 暴投（H1）
+    wild_pitches: int = 0
     # 左右別（段階F2）：打者の打席の側（両打ちは投手と逆）ごとの打数・被安打・被本塁打・与四死球・奪三振
     vs_rhb_at_bats: int = 0
     vs_rhb_hits: int = 0
@@ -861,15 +865,22 @@ def validate_match_simulation_result(
     # DHの有無によらず、チーム合計だけでなく各選手の実イベントへ照合する。
     # 盗塁・盗塁死・牽制死は打席のあとの走塁として、その打席のイベントに記録する。
     batting_events, pitching_events = defaultdict(list), defaultdict(list)
-    steals, catcher_steals = Counter(), Counter()
+    # 重盗は走者ごとに1件ずつ（adv は重盗で二塁走者が刺される間の進塁で、盗塁は付かない）。
+    # 暴投・捕逸は打席のあとの advance に「wp|投手」「pb|捕手」として1件。
+    steals, catcher_steals, advances = Counter(), Counter(), Counter()
     for event in events:
-        steal = dict(event.metadata).get('steal')
-        if steal is not None:
-            runner_id, _, steal_result, catcher_id = steal.split('|')
+        metadata = dict(event.metadata)
+        for entry in (metadata['steal'].split(';') if metadata.get('steal') else ()):
+            runner_id, _, steal_result, catcher_id = entry.split('|')
             steals[event.offense_school_id, runner_id, steal_result] += 1
-            if steal_result != 'po':
+            if steal_result in ('sb', 'cs'):
                 catcher_steals[event.defense_school_id, catcher_id, 'attempts'] += 1
                 catcher_steals[event.defense_school_id, catcher_id, 'cs'] += steal_result == 'cs'
+        if metadata.get('advance'):
+            kind, player_id = metadata['advance'].split('|')
+            if kind == 'wp' and player_id != event.pitcher_id:
+                raise ValueError('wild pitch is charged to another pitcher')
+            advances[event.defense_school_id, player_id, kind] += 1
     for event in events:
         batting_events[event.offense_school_id, event.batter_id].append(event)
         pitching_events[event.defense_school_id, event.pitcher_id].append(event)
@@ -886,7 +897,8 @@ def validate_match_simulation_result(
                     'caught_stealing': steals[row.school_id, row.player_id, 'cs'],
                     'picked_off': steals[row.school_id, row.player_id, 'po'],
                     'catcher_steal_attempts': catcher_steals[row.school_id, row.player_id, 'attempts'],
-                    'catcher_caught_stealing': catcher_steals[row.school_id, row.player_id, 'cs']}
+                    'catcher_caught_stealing': catcher_steals[row.school_id, row.player_id, 'cs'],
+                    'passed_balls': advances[row.school_id, row.player_id, 'pb']}
         expected.update({key: sum(e.event_type == event_type for e in actual) for key, event_type in (
             ('walks', 'walk'), ('strikeouts', 'strikeout'), ('hit_by_pitch', 'hit_by_pitch'),
             ('sacrifice_flies', 'sacrifice_fly'), ('sacrifice_bunts', 'sacrifice_bunt'),
@@ -902,7 +914,8 @@ def validate_match_simulation_result(
         actual = pitching_events[row.school_id, row.player_id]
         expected = {'batters_faced': len(actual), 'outs_recorded': sum(e.outs_on_play for e in actual),
                     'hits_allowed': sum(e.event_type in hit_types for e in actual),
-                    'home_runs_allowed': sum(e.event_type == 'home_run' for e in actual)}
+                    'home_runs_allowed': sum(e.event_type == 'home_run' for e in actual),
+                    'wild_pitches': advances[row.school_id, row.player_id, 'wp']}
         if has_dh:
             try:
                 pitches = [int(dict(e.metadata)['pitches']) for e in actual]

@@ -36,6 +36,15 @@ class _ScriptedSimulator(MatchSimulator):
         # 作戦（送りバント・スクイズ・エンドラン）は使わない
         return None
 
+    # 暴投・捕逸は advance_results（"wp"・"pb"・None）を走者のいる打席ごとに順に使う。なければ起きない
+    advance_results: tuple = ()
+
+    def _wild_pitch_or_passed_ball(self, *, bases, **kwargs):
+        if not any(bases):
+            return None
+        queue = self.__dict__.setdefault("_advance_queue", list(self.advance_results))
+        return queue.pop(0) if queue else None
+
     # 采配の交代（代打・代走・守備固め・左右の起用）も使わない（交代は明示の指示だけ）
     def _choose_pinch_hitter(self, **kwargs):
         return None

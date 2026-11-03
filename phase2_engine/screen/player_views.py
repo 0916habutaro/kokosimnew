@@ -39,7 +39,7 @@ BATTING_KEYS = (
     "plate_appearances", "at_bats", "hits", "doubles", "triples", "home_runs",
     "rbi", "runs", "walks", "strikeouts", "stolen_bases", "grounded_into_double_plays",
     "caught_stealing", "picked_off", "catcher_steal_attempts", "catcher_caught_stealing",
-    "sacrifice_bunts",
+    "passed_balls", "sacrifice_bunts",
     # 左右別（段階F2）と代打
     *(f"vs_{hand}_{key}" for hand in ("rhp", "lhp")
       for key in ("at_bats", "hits", "home_runs", "walks", "strikeouts")),
@@ -47,7 +47,7 @@ BATTING_KEYS = (
 )
 PITCHING_KEYS = (
     "outs_recorded", "batters_faced", "hits_allowed", "runs_allowed",
-    "earned_runs", "walks", "strikeouts", "home_runs_allowed", "pitches",
+    "earned_runs", "walks", "strikeouts", "home_runs_allowed", "pitches", "wild_pitches",
     *(f"vs_{hand}_{key}" for hand in ("rhb", "lhb")
       for key in ("at_bats", "hits", "home_runs", "walks", "strikeouts")),
 )

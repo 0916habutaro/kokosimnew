@@ -323,16 +323,29 @@ class HitAndRunStrikeoutTests(unittest.TestCase):
                 expected = f"|{runner}|{third}" if success else f"||{third}"
                 self.assertEqual(expected, metadata["bases_after"])
 
-    def test_no_hit_and_run_with_runners_on_first_and_second(self):
-        # 一・二塁では両方の走者が走る（重盗）。扱っていないのでエンドランにしない
+    def test_first_and_second_strikeout_is_a_double_steal(self):
+        # 一・二塁のエンドラン：空振り三振なら両方の走者が走り、走者ごとに盗塁・盗塁死を記録する
         sim = MatchSimulator()
         batter = make_roster_abilities(school_id="FAKE-HR")[3]
-        self.assertEqual(0, sim._hit_and_run_probability(batter, batter, ["R1", "R2", None], 0, 0))
-        event, metadata, rows = self.play(("walk", "walk", "strikeout"), True)
-        self.assertNotIn("tactic", metadata)
-        self.assertNotIn("steal", metadata)
-        self.assertEqual(metadata["bases_before"], metadata["bases_after"])
-        self.assertEqual("1", metadata["outs_after"])
+        self.assertGreater(sim._hit_and_run_probability(batter, batter, ["R1", "R2", None], 0, 0), 0)
+        self.assertEqual(0, sim._hit_and_run_probability(batter, batter, ["R1", "R2", "R3"], 0, 0))
+        for success in (True, False):
+            with self.subTest(success=success):
+                event, metadata, rows = self.play(("walk", "walk", "strikeout"), success)
+                self.assertEqual("hit_and_run:strikeout", metadata["tactic"])
+                first, second, _ = metadata["bases_before"].split("|")
+                entries = [e.split("|") for e in metadata["steal"].split(";")]
+                self.assertEqual([second, first], [e[0] for e in entries])
+                lead, trail = rows[(event.offense_school_id, second)], rows[(event.offense_school_id, first)]
+                if success:
+                    self.assertEqual(f"|{first}|{second}", metadata["bases_after"])
+                    self.assertEqual((1, 1), (lead.stolen_bases, trail.stolen_bases))
+                    self.assertEqual("1", metadata["outs_after"])
+                else:
+                    # 二塁走者が三塁で刺され、一塁走者は二塁へ（盗塁は付かない）
+                    self.assertEqual(f"|{first}|", metadata["bases_after"])
+                    self.assertEqual((1, 0, 0), (lead.caught_stealing, trail.stolen_bases, trail.caught_stealing))
+                    self.assertEqual("2", metadata["outs_after"])
 
 
 if __name__ == "__main__":
