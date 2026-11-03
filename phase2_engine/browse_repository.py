@@ -20,7 +20,12 @@ from .season import SeasonExecution
 # 左右別の成績と代打の成績の列（段階F2）
 BATTER_EXTRA_COLUMNS = ('vs_rhp_at_bats', 'vs_rhp_hits', 'vs_rhp_home_runs', 'vs_rhp_walks', 'vs_rhp_strikeouts', 'vs_lhp_at_bats', 'vs_lhp_hits', 'vs_lhp_home_runs', 'vs_lhp_walks', 'vs_lhp_strikeouts', 'pinch_hit_at_bats', 'pinch_hit_hits', 'passed_balls')
 
-SCHEMA_VERSION = 4
+# 5：打者の捕逸（passed_balls、段階H1）。前の版のファイルは開くときに列を足す（_initialize_schema_conn）
+SCHEMA_VERSION = 5
+
+# 後から足した打者の列（すべて INTEGER NOT NULL DEFAULT 0）。前の版で作ったファイルになければ足す
+BATTER_ADDED_COLUMNS = ('grounded_into_double_plays', 'picked_off', 'catcher_steal_attempts',
+                        'catcher_caught_stealing', *BATTER_EXTRA_COLUMNS)
 
 
 _SCHEMA_SQL = """
@@ -399,6 +404,12 @@ class BrowseRepository:
                 "ALTER TABLE ranking_matches "
                 "ADD COLUMN ranking_instance_id TEXT NOT NULL DEFAULT ''"
             )
+        # CREATE TABLE IF NOT EXISTS は前の版の表に列を足さないので、欠けた列だけ足す（何度でも安全）
+        batter_cols = {row[1] for row in conn.execute("PRAGMA table_info(batter_game_stats)")}
+        for column in BATTER_ADDED_COLUMNS:
+            if column not in batter_cols:
+                conn.execute(
+                    f"ALTER TABLE batter_game_stats ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0")
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     def initialize_schema(self) -> None:

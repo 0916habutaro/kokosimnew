@@ -138,6 +138,30 @@ class Stage43BInningScoreTests(unittest.TestCase):
             sqlite3.connect(self.db).execute("PRAGMA user_version").fetchone()[0],
         )
 
+    def test_file_from_before_passed_balls_gets_the_column_and_keeps_its_rows(self):
+        # 前の版（#437、捕逸の列がない）のファイル：同じ行を書いてから列を外し、版を4に戻す
+        self.repository.replace_season_match_results(self._season(self.result.to_dict()))
+        with sqlite3.connect(self.db) as conn:
+            conn.execute("ALTER TABLE batter_game_stats DROP COLUMN passed_balls")
+            conn.execute("PRAGMA user_version = 4")
+            before = conn.execute("SELECT COUNT(*) FROM batter_game_stats").fetchone()[0]
+        self.assertGreater(before, 0)
+        reopened = BrowseRepository(self.db)
+        for _ in range(2):  # 何度開いても列は1つだけ
+            reopened.initialize_schema()
+        with sqlite3.connect(self.db) as conn:
+            columns = [row[1] for row in conn.execute("PRAGMA table_info(batter_game_stats)")]
+            self.assertEqual(1, columns.count("passed_balls"))
+            self.assertEqual(before, conn.execute("SELECT COUNT(*) FROM batter_game_stats").fetchone()[0])
+            self.assertEqual(SCHEMA_VERSION, conn.execute("PRAGMA user_version").fetchone()[0])
+        player = self.result.batter_stats[0].player_id
+        self.assertEqual(0, reopened.player_batter_game_stats(2026, player)[0]["passed_balls"])
+        # 新しい試合の記録（捕逸つき）で入れ替えられる
+        detail = self.result.to_dict()
+        detail["batter_stats"][0]["passed_balls"] = 2
+        reopened.replace_season_match_results(self._season(detail))
+        self.assertEqual(2, reopened.player_batter_game_stats(2026, player)[0]["passed_balls"])
+
     def test_legacy_results_do_not_fabricate_inning_score(self):
         legacy = replace(self.result, inning_scores=None).to_dict()
         summary = self.repository.replace_season_match_results(self._season(legacy))
