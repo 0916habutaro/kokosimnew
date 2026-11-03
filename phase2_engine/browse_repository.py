@@ -20,13 +20,15 @@ from .season import SeasonExecution
 # 左右別の成績と代打の成績の列（段階F2）
 BATTER_EXTRA_COLUMNS = ('vs_rhp_at_bats', 'vs_rhp_hits', 'vs_rhp_home_runs', 'vs_rhp_walks', 'vs_rhp_strikeouts', 'vs_lhp_at_bats', 'vs_lhp_hits', 'vs_lhp_home_runs', 'vs_lhp_walks', 'vs_lhp_strikeouts', 'pinch_hit_at_bats', 'pinch_hit_hits', 'passed_balls', 'errors')
 
-# 5：打者の捕逸（passed_balls、段階H1）、6：守って記録した失策（errors、段階H2）。
+# 5：打者の捕逸（passed_balls、段階H1）、6：守って記録した失策（打者・投手の errors、段階H2）。
 # 前の版のファイルは開くときに列を足す（_initialize_schema_conn）
 SCHEMA_VERSION = 6
 
 # 後から足した打者の列（すべて INTEGER NOT NULL DEFAULT 0）。前の版で作ったファイルになければ足す
 BATTER_ADDED_COLUMNS = ('grounded_into_double_plays', 'picked_off', 'catcher_steal_attempts',
                         'catcher_caught_stealing', *BATTER_EXTRA_COLUMNS)
+# 後から足した投手の列（投手として守った失策、段階H2）
+PITCHER_ADDED_COLUMNS = ('errors',)
 
 
 _SCHEMA_SQL = """
@@ -273,6 +275,7 @@ CREATE TABLE IF NOT EXISTS pitcher_game_stats (
     walks INTEGER NOT NULL,
     strikeouts INTEGER NOT NULL,
     hit_batters INTEGER NOT NULL,
+    errors INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (year, competition_id, match_id, player_id),
     FOREIGN KEY (year, competition_id, match_id)
       REFERENCES ability_matches(year, competition_id, match_id)
@@ -407,11 +410,12 @@ class BrowseRepository:
                 "ADD COLUMN ranking_instance_id TEXT NOT NULL DEFAULT ''"
             )
         # CREATE TABLE IF NOT EXISTS は前の版の表に列を足さないので、欠けた列だけ足す（何度でも安全）
-        batter_cols = {row[1] for row in conn.execute("PRAGMA table_info(batter_game_stats)")}
-        for column in BATTER_ADDED_COLUMNS:
-            if column not in batter_cols:
-                conn.execute(
-                    f"ALTER TABLE batter_game_stats ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0")
+        for table, added in (("batter_game_stats", BATTER_ADDED_COLUMNS),
+                             ("pitcher_game_stats", PITCHER_ADDED_COLUMNS)):
+            existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+            for column in added:
+                if column not in existing:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0")
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     def initialize_schema(self) -> None:
@@ -766,8 +770,9 @@ class BrowseRepository:
                         INSERT INTO pitcher_game_stats (
                             year, competition_id, match_id, player_id, school_id,
                             outs_recorded, batters_faced, runs_allowed, earned_runs,
-                            hits_allowed, home_runs_allowed, walks, strikeouts, hit_batters
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            hits_allowed, home_runs_allowed, walks, strikeouts, hit_batters,
+                            errors
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             year,
@@ -784,6 +789,7 @@ class BrowseRepository:
                             int(row["walks"]),
                             int(row["strikeouts"]),
                             int(row["hit_batters"]),
+                            int(row.get("errors", 0)),
                         ),
                     )
                     pitcher_count += 1
