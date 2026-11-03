@@ -1,8 +1,8 @@
 {
   "config_id": "match_simulation_v1",
-  "revision": 18,
-  "status": "tuned_2026_11_01",
-  "description_ja": "能力ベースの試合モデル（打席結果・走者進塁・投手運用）。能力の効きと球数は従来の調整を維持（game_definition.md §11）。打席の基準重みは新基準バット導入後の夏甲子園（2024〜2026年の本塁打7・10・8本）と全国進行の得点・コールドを比較して調整。本塁打0.0025・単打0.195・二塁打0.060、他はrevision 5の相対重みを使い、合計1に正規化した。抽選時には能力補正後に再び正規化する。 先発の継投判断は完投可能性・スタミナ差・失点・球数制限と全国進行を比較して調整。 能力の効き（ability_effect_scale）は、入部品質を選手ごとの素質に変えて学校の強さの差が縮んだ分を戻すため、失策を除いて1.35倍にした（2026-10-31、地方大会の得点・点差・コールド・完封と夏の甲子園の初出場に合わせた）。 型の調整で投手の能力の平均と打撃の学校差が変わった分、能力の効きをさらに1.06倍にした（2026-11-01）。",
+  "revision": 19,
+  "status": "tuned_2026_11_03",
+  "description_ja": "能力ベースの試合モデル（打席結果・走者進塁・投手運用）。能力の効きと球数は従来の調整を維持（game_definition.md §11）。打席の基準重みは新基準バット導入後の夏甲子園（2024〜2026年の本塁打7・10・8本）と全国進行の得点・コールドを比較して調整。本塁打0.0025・単打0.195・二塁打0.060、他はrevision 5の相対重みを使い、合計1に正規化した。抽選時には能力補正後に再び正規化する。 先発の継投判断は完投可能性・スタミナ差・失点・球数制限と全国進行を比較して調整。 能力の効き（ability_effect_scale）は、入部品質を選手ごとの素質に変えて学校の強さの差が縮んだ分を戻すため、失策を除いて1.35倍にした（2026-10-31、地方大会の得点・点差・コールド・完封と夏の甲子園の初出場に合わせた）。 型の調整で投手の能力の平均と打撃の学校差が変わった分、能力の効きをさらに1.06倍にした（2026-11-01）。 §11 の調整（2026-11-03、A〜Hのあと）：4つの乱数の種で2026年4月〜2028年8月を進め、夏の地方大会の得点・点差・コールド・完封と夏の甲子園の本塁打・盗塁・犠打・失策・初出場に合わせた。能力の効きは、ミートの効き（単打・凡退）を下げて投手の球速・変化球の質の単打への重みを上げ、ほかの能力の効きを上げて学校の差を戻した。失策の基準の重みを2.9倍、送りバントの無死一塁を下げ無死二塁などを上げた（game_definition.md §11）。",
   "score_source": "ability_model_v1",
   "team_order": {
     "team1": "top_offense",
@@ -32,25 +32,25 @@
   },
   "plate_appearance_model": {
     "base_probabilities": {
-      "strikeout": 0.184019370460048,
-      "walk": 0.077481840193705,
-      "hit_by_pitch": 0.009685230024213,
-      "single": 0.188861985472155,
-      "double": 0.058111380145278,
-      "triple": 0.005811138014528,
-      "home_run": 0.002421307506053,
-      "reached_on_error": 0.019370460048426,
-      "fielder_choice": 0.018401937046005,
-      "field_out": 0.435835351089588
+      "strikeout": 0.17073438215607253,
+      "walk": 0.0690357956413776,
+      "hit_by_pitch": 0.009767402829469042,
+      "single": 0.16844713966809294,
+      "double": 0.058604416976814254,
+      "triple": 0.005860441697681627,
+      "home_run": 0.0028086288928673817,
+      "reached_on_error": 0.056650599435523266,
+      "fielder_choice": 0.018558065375991483,
+      "field_out": 0.4395331273261099
     },
     "ability_effect_scale": {
-      "strikeout": 0.02596,
-      "walk": 0.02163,
-      "single": 0.02163,
-      "extra_base_hit": 0.0238,
-      "home_run": 0.03029,
-      "error": 0.01814,
-      "field_out": 0.01514
+      "strikeout": 0.030583,
+      "walk": 0.032977,
+      "single": 0.019486,
+      "extra_base_hit": 0.042883,
+      "home_run": 0.054577,
+      "error": 0.027656,
+      "field_out": 0.01364
     },
     "probability_floor": 0.0001,
     "defense_center": 50.0
@@ -215,7 +215,7 @@
   "stolen_bases": {
     "description_ja": "盗塁（2026-11-01）。打席が終わったあと（次の打席の前）、一塁の走者（二塁が空いているとき）か二塁の走者（三塁が空いているとき）が二盗・三盗を試みる。本盗はしない。試みる確率 = 基準（second_base／third_base）× exp((盗塁 − 50)×per_stealing_point ＋ (走力 − 50)×per_speed_point) × アウトの数ごとの倍率 × 場面（7回以降で点差 close_margin 以内は late_close_multiplier、点差が blowout_margin 以上は blowout_multiplier）× 監督の機動力の倍率（coach_tactics_v1 の strategy。段階F1）を max_probability までに収める。試みると、まず牽制死（pickoff）を引き、そうでなければ成否を引く。成功の確率 = 基準 ＋ 走者の盗塁・走力 − 捕手の肩・送球・捕球 − 投手のクイック（それぞれ50との差×1点あたりの値）を min〜max に収める。牽制死の確率 = base × exp((クイック − 50)×per_quick_point − (走塁 − 50)×per_baserunning_point) を min〜max に収める。捕手が本職でない（捕球がない）ときは catcher_catching_default を使う。1試合あたりの盗塁の目安は game_definition.md §3.6.2（夏の甲子園の報道）。成功率・牽制死は仮の値",
     "attempt": {
-      "second_base": 0.043,
+      "second_base": 0.038,
       "third_base": 0.009,
       "per_stealing_point": 0.04,
       "per_speed_point": 0.02,
@@ -303,25 +303,25 @@
         "stuff": 0.1
       },
       "single": {
-        "velocity": 0.4,
-        "stuff": 0.3,
-        "pitch_quality": 0.15,
+        "velocity": 0.54,
+        "stuff": 0.255,
+        "pitch_quality": 0.2025,
         "control_low": 0.5
       },
       "extra_base_hit": {
-        "stuff": 0.55,
+        "stuff": 0.4675,
         "groundball": 0.4,
         "velocity": 0.1,
         "control_low": 0.4
       },
       "home_run": {
-        "stuff": 0.55,
+        "stuff": 0.4675,
         "groundball": 0.45,
         "control_low": 0.5
       },
       "field_out": {
         "stuff": 0.45,
-        "groundball": 0.25
+        "groundball": 0.3125
       }
     }
   },
@@ -383,13 +383,13 @@
       "description_ja": "送りバント。一塁・二塁（三塁は空き）に走者、0〜1死。base は アウトの数 → 走者の形（first：一塁だけ、second：二塁だけ、first_second：一・二塁）。点差が close_margin 以内なら1倍、リードが大きいと ahead_far_multiplier、ビハインドが大きいと behind_far_multiplier、late_inning_from 回以降で close_margin 以内は late_close_multiplier。失敗：foul はファウルで追い込まれて打席が続く（two_strike の重みで打つ）、pop は小フライのアウト、fc は先の走者がアウト（野選）、dp は併殺（一塁に走者がいるときだけ。いなければ fc）",
       "base": {
         "0": {
-          "first": 0.72,
-          "second": 0.38,
-          "first_second": 0.66
+          "first": 0.5,
+          "second": 0.62,
+          "first_second": 0.8
         },
         "1": {
-          "first": 0.08,
-          "second": 0.06,
+          "first": 0.12,
+          "second": 0.1,
           "first_second": 0.1
         }
       },
@@ -398,7 +398,7 @@
       "behind_far_multiplier": 0.5,
       "late_inning_from": 7,
       "late_close_multiplier": 1.3,
-      "batter_hitting_log_per_point": 0.01,
+      "batter_hitting_log_per_point": 0.007,
       "bunt_log_per_point": 0.01,
       "max_probability": 0.85,
       "success": {
