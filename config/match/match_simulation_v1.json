@@ -1,6 +1,6 @@
 {
   "config_id": "match_simulation_v1",
-  "revision": 17,
+  "revision": 18,
   "status": "tuned_2026_11_01",
   "description_ja": "能力ベースの試合モデル（打席結果・走者進塁・投手運用）。能力の効きと球数は従来の調整を維持（game_definition.md §11）。打席の基準重みは新基準バット導入後の夏甲子園（2024〜2026年の本塁打7・10・8本）と全国進行の得点・コールドを比較して調整。本塁打0.0025・単打0.195・二塁打0.060、他はrevision 5の相対重みを使い、合計1に正規化した。抽選時には能力補正後に再び正規化する。 先発の継投判断は完投可能性・スタミナ差・失点・球数制限と全国進行を比較して調整。 能力の効き（ability_effect_scale）は、入部品質を選手ごとの素質に変えて学校の強さの差が縮んだ分を戻すため、失策を除いて1.35倍にした（2026-10-31、地方大会の得点・点差・コールド・完封と夏の甲子園の初出場に合わせた）。 型の調整で投手の能力の平均と打撃の学校差が変わった分、能力の効きをさらに1.06倍にした（2026-11-01）。",
   "score_source": "ability_model_v1",
@@ -186,7 +186,8 @@
     "steal": "steal_v1:{match_id}:{plate_appearance_no}",
     "relief": "relief_v1:{match_id}:{plate_appearance_no}",
     "tactic": "tactic_v1:{match_id}:{plate_appearance_no}",
-    "wild_pitch": "wild_pitch_v1:{match_id}:{plate_appearance_no}"
+    "wild_pitch": "wild_pitch_v1:{match_id}:{plate_appearance_no}",
+    "fielding": "fielding_v1:{match_id}:{plate_appearance_no}"
   },
   "outs_in_play": {
     "description_ja": "凡退（field_out）の中身（2026-11-01）。ゴロの割合 = base ＋ (投手のゴロ − 50)×per_groundball_point ＋ (打者の長打 − 50)×per_power_point ＋ (打者のミート − 50)×per_contact_point を min〜max に収める。ゴロで一塁に走者・2死未満なら、併殺の確率 = base − (打者の走力 − 50)×speed_effect_per_point ＋ (守備力 − 50)×defense_effect_per_point。advance は凡退の間に走者が進む確率の基準（baserunning と同じく走者の走塁・走力と守備力で増減）：ゴロで二塁→三塁（押し出しでないとき）、ゴロで三塁走者の生還（押し出しでないとき）、フライで二塁→三塁のタッチアップ。フライで三塁走者が生還するのは犠飛（situational_events.sacrifice_fly）。値は仮の値（実際の高校野球の打球の割合・進塁の割合の集計は見つからなかった）。併殺の回数の目安は game_definition.md §3.6",
@@ -533,5 +534,138 @@
     "control_per_point": 0.15,
     "stuff_per_point": 0.15,
     "max_points": 8.0
+  },
+  "fielding": {
+    "description_ja": "打球の方向ごとの守備（H2、2026-11-03）。インプレーの打球（単打・凡退・失策・二塁打・三塁打）の種類（ゴロ・ライナー・フライ）と方向（引っ張り・中央・流し）を引き、処理する守備位置を決める。種類は単打・失策・長打は ball_types、凡退は outs_in_play.ground_share でゴロ、残りの air_line_share がライナー。方向は direction（右打者の引っ張りは左方向。左打者は左右を入れ替える）。守備位置は positions（長打は外野だけの outfield）。その選手の守備の値 = skill_weights（内野・外野。本職でない位置は適性が低い）の重み付き平均、肩の値 = arm_weights。チームの基準はその時の9人の値を reference_share で重み付けした平均で、選手の値と基準の差を使う（チーム全体の守備力は今までどおり打席の結果の重みに効くので、チームの平均の安打・失策の割合は変えない）。差1点ごとに、単打と凡退の分かれを hit_log_per_point、失策と凡退の分かれを error_log_per_point（倍率は min_multiplier〜max_multiplier）で動かす。肩の差は走者の進塁（守備力の点に advance_points_per_arm_point 倍して足す）と、内野ゴロの併殺の確率（double_play_per_arm_point）に効く。失策はその選手に付ける。値は仮の値（打球の方向はプロ野球の引っ張りの割合約4割を代用。game_definition.md §3.6.2 H2）",
+    "ball_types": {
+      "single": {
+        "ground": 0.45,
+        "line": 0.4,
+        "fly": 0.15
+      },
+      "reached_on_error": {
+        "ground": 0.8,
+        "line": 0.05,
+        "fly": 0.15
+      },
+      "extra_base": {
+        "line": 0.55,
+        "fly": 0.45
+      }
+    },
+    "air_line_share": 0.25,
+    "direction": {
+      "ground": {
+        "pull": 0.5,
+        "center": 0.3,
+        "opposite": 0.2
+      },
+      "line": {
+        "pull": 0.4,
+        "center": 0.35,
+        "opposite": 0.25
+      },
+      "fly": {
+        "pull": 0.32,
+        "center": 0.36,
+        "opposite": 0.32
+      }
+    },
+    "positions": {
+      "ground": {
+        "pull": {
+          "3B": 0.5,
+          "SS": 0.5
+        },
+        "center": {
+          "P": 0.2,
+          "SS": 0.4,
+          "2B": 0.4
+        },
+        "opposite": {
+          "2B": 0.45,
+          "1B": 0.55
+        }
+      },
+      "line": {
+        "pull": {
+          "LF": 0.6,
+          "3B": 0.25,
+          "SS": 0.15
+        },
+        "center": {
+          "CF": 0.6,
+          "P": 0.1,
+          "SS": 0.15,
+          "2B": 0.15
+        },
+        "opposite": {
+          "RF": 0.6,
+          "1B": 0.2,
+          "2B": 0.2
+        }
+      },
+      "fly": {
+        "pull": {
+          "LF": 0.85,
+          "3B": 0.1,
+          "SS": 0.05
+        },
+        "center": {
+          "CF": 0.85,
+          "SS": 0.075,
+          "2B": 0.075
+        },
+        "opposite": {
+          "RF": 0.85,
+          "1B": 0.1,
+          "2B": 0.05
+        }
+      },
+      "outfield": {
+        "pull": {
+          "LF": 1.0
+        },
+        "center": {
+          "CF": 1.0
+        },
+        "opposite": {
+          "RF": 1.0
+        }
+      }
+    },
+    "skill_weights": {
+      "infield": {
+        "fielding": 0.6,
+        "position_aptitude": 0.25,
+        "speed": 0.15
+      },
+      "outfield": {
+        "fielding": 0.45,
+        "position_aptitude": 0.2,
+        "speed": 0.35
+      }
+    },
+    "arm_weights": {
+      "throwing": 0.6,
+      "arm_strength": 0.4
+    },
+    "reference_share": {
+      "P": 0.06,
+      "1B": 0.09,
+      "2B": 0.14,
+      "3B": 0.12,
+      "SS": 0.16,
+      "LF": 0.15,
+      "CF": 0.14,
+      "RF": 0.14
+    },
+    "untrained_ability_value": 30,
+    "hit_log_per_point": 0.008,
+    "error_log_per_point": 0.03,
+    "min_multiplier": 0.4,
+    "max_multiplier": 2.5,
+    "advance_points_per_arm_point": 0.6,
+    "double_play_per_arm_point": 0.003
   }
 }

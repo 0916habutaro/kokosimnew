@@ -22,6 +22,8 @@
 - 左右別の打率（打者の左右は名簿から）：同じ側どうし・逆の側、右対右・左対左・両打ち
 - 暴投・捕逸・重盗・本盗の1試合あたりの数、1打席・1チーム1試合（9回あたり）の球数（段階H1）
 - 度胸（段階G）：投手の度胸の帯（〜44・45〜59・60〜）ごとの、ピンチ・終盤の接戦とそれ以外の被打率
+- 守備（段階H2）：失策の1試合あたりの数（地方大会・夏の甲子園）、守備位置ごとの打球・失策の割合、
+  守った選手の守備の値の帯（〜44・45〜54・55〜）ごとの単打・失策の割合、本職でない位置（適性60未満）の失策の割合
 """
 from __future__ import annotations
 
@@ -46,6 +48,8 @@ VELOCITY_BANDS = ((0, "〜129"), (130, "130〜134"), (135, "135〜139"),
 TOP = 5
 TENDENCY_BANDS = ((0, "低"), (41, "中"), (61, "高"))
 COMPOSURE_BANDS = ((0, "〜44"), (45, "45〜59"), (60, "60〜"))
+FIELDING_BANDS = ((0, "〜44"), (45, "45〜54"), (55, "55〜"))
+FIELDING_POSITIONS = ("P", "1B", "2B", "3B", "SS", "LF", "CF", "RF")
 HITS = ("single", "double", "triple", "home_run")
 
 
@@ -121,6 +125,11 @@ class BalanceTally:
         run["stolen_bases"] += sum(int(b.get("stolen_bases", 0)) for b in batters)
         run["double_plays"] += sum(int(b.get("grounded_into_double_plays", 0)) for b in batters)
         run["passed_balls"] += sum(int(b.get("passed_balls", 0)) for b in batters)
+        errors = sum(int(t.get("errors", 0)) for t in detail.get("team_stats") or ())
+        run["errors"] += errors
+        if kind in (LOCAL, KOSHIEN):
+            run[f"games_{kind}"] += 1
+            run[f"errors_{kind}"] += errors
         for key in ("wild_pitches", "pitches", "batters_faced", "outs_recorded"):
             run[key] += sum(int(p.get(key, 0)) for p in pitchers)
         for b in batters:
@@ -335,7 +344,10 @@ class BalanceTally:
             if run and run["games"]:
                 games = run["games"]
                 row["per_game"] = {"games": games, **{key: round(run[key] / games, 3) for key in (
-                    "stolen_bases", "double_plays", "wild_pitches", "passed_balls")}}
+                    "stolen_bases", "double_plays", "wild_pitches", "passed_balls", "errors")}}
+                for kind, label in ((LOCAL, "errors_local"), (KOSHIEN, "errors_koshien")):
+                    if run[f"games_{kind}"]:
+                        row["per_game"][label] = round(run[f"errors_{kind}"] / run[f"games_{kind}"], 3)
                 if run["batters_faced"] and run["outs_recorded"]:
                     row["pitch_counts"] = {
                         "per_plate_appearance": round(run["pitches"] / run["batters_faced"], 2),
@@ -422,6 +434,7 @@ class SituationCounter:
         self.steals = defaultdict(Counter)   # 年度 → 重盗・本盗（試み・成功）
         self.pressure = defaultdict(lambda: defaultdict(lambda: [0, 0]))  # 年度 → (場面, 帯) → [打数, 安打]
         self.pressed = False
+        self.fielding = defaultdict(Counter)  # 年度 → 守備位置・帯ごとの打球・単打・失策
 
     @contextmanager
     def watching(self):
@@ -430,6 +443,7 @@ class SituationCounter:
         simulate, choose = MatchSimulator.simulate, MatchSimulator._choose_tactic
         attempt, under, pitches = (MatchSimulator._attempt_steal,
                                    getattr(MatchSimulator, "_under_pressure", None), MatchSimulator._pitches)
+        field = getattr(MatchSimulator, "_field_ball", None)
         counter = self
 
         def watched_attempt(sim, *, bases, **kwargs):
@@ -472,15 +486,31 @@ class SituationCounter:
             return tactic
 
         MatchSimulator.simulate, MatchSimulator._choose_tactic = watched_simulate, watched_choose
-        # 変更の前の版（度胸・重盗のない版）と比べるときは、ないものを包まない
+        def watched_field(sim, event_type, **kwargs):
+            result, fielded = field(sim, event_type, **kwargs)
+            if fielded is not None and result in ("single", "field_out", "reached_on_error"):
+                row = counter.fielding[counter.year]
+                band = next(label for low, label in reversed(FIELDING_BANDS) if fielded.skill >= low)
+                primary = "primary" if fielded.aptitude >= 60 else "out_of_position"
+                for key in (f"pos:{fielded.position}", f"band:{band}", f"apt:{primary}", "all"):
+                    row[f"{key}:balls"] += 1
+                    row[f"{key}:single"] += result == "single"
+                    row[f"{key}:error"] += result == "reached_on_error"
+            return result, fielded
+
+        # 変更の前の版（度胸・重盗・守備のない版）と比べるときは、ないものを包まない
         h1 = under is not None
         if h1:
             MatchSimulator._attempt_steal, MatchSimulator._under_pressure = watched_attempt, watched_under
             MatchSimulator._pitches = watched_pitches
+        if field is not None:
+            MatchSimulator._field_ball = watched_field
         try:
             yield self
         finally:
             MatchSimulator.simulate, MatchSimulator._choose_tactic = simulate, choose
+            if field is not None:
+                MatchSimulator._field_ball = field
             if h1:
                 MatchSimulator._attempt_steal, MatchSimulator._under_pressure = attempt, under
                 MatchSimulator._pitches = pitches
@@ -490,6 +520,19 @@ class SituationCounter:
         out = defaultdict(dict)
         for year, row in self.steals.items():
             out[year]["steals"] = dict(sorted(row.items()))
+        for year, row in self.fielding.items():
+            total_errors = row["all:error"]
+            out[year]["fielding"] = {
+                key: {"balls": row[f"{key}:balls"],
+                      "single_rate": round(row[f"{key}:single"] / row[f"{key}:balls"], 4),
+                      "error_rate": round(row[f"{key}:error"] / row[f"{key}:balls"], 4),
+                      **({"error_share": round(row[f"{key}:error"] / total_errors, 3)}
+                         if key.startswith("pos:") and total_errors else {})}
+                for key in ([f"pos:{p}" for p in FIELDING_POSITIONS]
+                            + [f"band:{label}" for _, label in FIELDING_BANDS]
+                            + ["apt:primary", "apt:out_of_position", "all"])
+                if row[f"{key}:balls"]
+            }
         for year, cells in self.pressure.items():
             out[year]["composure"] = {f"{scene}:{band}": {"at_bats": ab, "average": round(h / ab, 3)}
                                       for (scene, band), (ab, h) in sorted(cells.items()) if ab}
@@ -592,6 +635,8 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
                 report[year]["steal_kinds"] = extra["steals"]
             if "composure" in extra:
                 report[year]["composure"] = extra["composure"]
+            if "fielding" in extra:
+                report[year]["fielding"] = extra["fielding"]
     return report
 
 
@@ -628,6 +673,17 @@ def format_report(seed_label: str, report: dict) -> str:
             lines.append(f"  1試合あたり（{pg['games']}試合）: 盗塁 {pg['stolen_bases']} / 併殺 {pg['double_plays']}"
                          f" / 暴投 {pg.get('wild_pitches')} / 捕逸 {pg.get('passed_balls')}"
                          f" / 重盗 {pg.get('double_steal', '−')} / 本盗 {pg.get('home_steal', '−')}")
+        if pg and pg.get("errors") is not None:
+            lines.append(f"  失策（1試合あたり）: 全試合 {pg['errors']} / 地方大会 {pg.get('errors_local', '−')}"
+                         f" / 夏の甲子園 {pg.get('errors_koshien', '−')}")
+        fd = row.get("fielding")
+        if fd:
+            lines.append("  守備位置ごと（打球・単打・失策の割合・失策の内訳）: " + " / ".join(
+                f"{k[4:]} {v['balls']}・{v['single_rate']:.3f}・{v['error_rate']:.4f}・{v.get('error_share', 0):.1%}"
+                for k, v in fd.items() if k.startswith("pos:")))
+            lines.append("  守った選手の守備の値の帯・適性（単打・失策の割合）: " + " / ".join(
+                f"{k} {v['single_rate']:.3f}・{v['error_rate']:.4f}（{v['balls']}）"
+                for k, v in fd.items() if not k.startswith("pos:")))
         sk = row.get("steal_kinds")
         if sk:
             lines.append("  重盗・本盗（試み・成功）: " + " ".join(f"{k}:{v}" for k, v in sk.items()))

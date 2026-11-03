@@ -162,6 +162,34 @@ class Stage43BInningScoreTests(unittest.TestCase):
         reopened.replace_season_match_results(self._season(detail))
         self.assertEqual(2, reopened.player_batter_game_stats(2026, player)[0]["passed_balls"])
 
+    def test_errors_of_fielders_and_pitchers_are_saved_and_old_files_get_the_columns(self):
+        # 前の版（#438、失策の列がない）のファイル：同じ行を書いてから両方の表の列を外し、版を5に戻す
+        self.repository.replace_season_match_results(self._season(self.result.to_dict()))
+        with sqlite3.connect(self.db) as conn:
+            for table in ("batter_game_stats", "pitcher_game_stats"):
+                conn.execute(f"ALTER TABLE {table} DROP COLUMN errors")
+            conn.execute("PRAGMA user_version = 5")
+            before = [conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+                      for t in ("batter_game_stats", "pitcher_game_stats")]
+        reopened = BrowseRepository(self.db)
+        for _ in range(2):
+            reopened.initialize_schema()
+        with sqlite3.connect(self.db) as conn:
+            for table, count in zip(("batter_game_stats", "pitcher_game_stats"), before):
+                columns = [row[1] for row in conn.execute(f"PRAGMA table_info({table})")]
+                self.assertEqual(1, columns.count("errors"))
+                self.assertEqual(count, conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+        pitcher = self.result.pitcher_stats[0].player_id
+        fielder = self.result.batter_stats[0].player_id
+        self.assertEqual(0, reopened.player_pitcher_game_stats(2026, pitcher)[0]["errors"])
+        # 投手の失策1・野手の失策2を持つ試合の記録を保存して読み戻せる
+        detail = self.result.to_dict()
+        detail["pitcher_stats"][0]["errors"] = 1
+        detail["batter_stats"][0]["errors"] = 2
+        reopened.replace_season_match_results(self._season(detail))
+        self.assertEqual(1, reopened.player_pitcher_game_stats(2026, pitcher)[0]["errors"])
+        self.assertEqual(2, reopened.player_batter_game_stats(2026, fielder)[0]["errors"])
+
     def test_legacy_results_do_not_fabricate_inning_score(self):
         legacy = replace(self.result, inning_scores=None).to_dict()
         summary = self.repository.replace_season_match_results(self._season(legacy))

@@ -12,7 +12,7 @@ RANKINGS = {
 KINDS = {"LOC": "summer_local_qualifier", "KOS": "national_championship"}
 
 
-def match(year, cid, a, b, score_a, score_b, inning, *, complete=True, sb=0, dp=0, wp=0, pb=0):
+def match(year, cid, a, b, score_a, score_b, inning, *, complete=True, sb=0, dp=0, wp=0, pb=0, errors=0):
     pitchers = [dict(player_id=f"{a}-P1", school_id=a, batters_faced=30, pitches=120,
                      outs_recorded=27, earned_runs=score_b, wild_pitches=wp),
                 dict(player_id=f"{b}-P1", school_id=b, batters_faced=20, pitches=80,
@@ -27,6 +27,7 @@ def match(year, cid, a, b, score_a, score_b, inning, *, complete=True, sb=0, dp=
         "team_participation": [dict(school_id=a, starting_pitcher_id=f"{a}-P1"),
                                dict(school_id=b, starting_pitcher_id=f"{b}-P1")],
         "pitcher_stats": pitchers,
+        "team_stats": [dict(school_id=a, errors=errors), dict(school_id=b, errors=0)],
         "batter_stats": [dict(player_id=f"{a}-B1", school_id=a, plate_appearances=4, at_bats=4,
                               hits=2, home_runs=1, stolen_bases=sb, grounded_into_double_plays=dp),
                          dict(player_id=f"{b}-B1", school_id=b, plate_appearances=4, at_bats=4,
@@ -40,7 +41,7 @@ class BalanceTallyTests(unittest.TestCase):
 
     def test_local_metrics_and_per_game_counts(self):
         tally = self.tally()
-        tally.add_match("LOC1", match(2026, "LOC1", "FAKE-A", "FAKE-B", 10, 0, 5, sb=2, dp=1, wp=2, pb=1))
+        tally.add_match("LOC1", match(2026, "LOC1", "FAKE-A", "FAKE-B", 10, 0, 5, sb=2, dp=1, wp=2, pb=1, errors=3))
         tally.add_match("LOC1", match(2026, "LOC1", "FAKE-C", "FAKE-D", 3, 2, 9, complete=False))
         row = tally.summary()[2026]
         self.assertEqual({"games": 2, "runs_per_team": 3.75, "called_share": 0.5,
@@ -48,7 +49,7 @@ class BalanceTallyTests(unittest.TestCase):
         self.assertEqual({"starts": 4, "pitches_mean": 100.0, "complete_game_share": 0.75},
                          row["starters"])
         self.assertEqual({"games": 2, "stolen_bases": 1.0, "double_plays": 0.5, "wild_pitches": 1.0,
-                          "passed_balls": 0.5}, row["per_game"])
+                          "passed_balls": 0.5, "errors": 1.5, "errors_local": 1.5}, row["per_game"])
         # 球数：420球・105打者・87アウト（2試合。2試合目は救援が1人）
         self.assertEqual({"per_plate_appearance": 4.0, "per_team_game": 105.0, "per_nine_innings": 130.3},
                          row["pitch_counts"])
@@ -113,6 +114,7 @@ class SituationCounterTests(unittest.TestCase):
         fixture = accounting.PitcherRunAccountingTests()
         original = MatchSimulator._choose_tactic
         original_pitches = MatchSimulator._pitches
+        original_field = MatchSimulator._field_ball
         counter = SituationCounter(lambda cid: "national_championship")
         with counter.watching():
             for number in range(3):
@@ -127,6 +129,11 @@ class SituationCounterTests(unittest.TestCase):
         self.assertIs(original_pitches, MatchSimulator._pitches)
         bands = counter.play_summary()[2026]["composure"]
         self.assertTrue(bands and all(0 <= v["average"] <= 1 for v in bands.values()))
+        # 守備位置・守備の値の帯ごとの打球も数える（H2）
+        self.assertIs(original_field, MatchSimulator._field_ball)
+        fielding = counter.play_summary()[2026]["fielding"]
+        self.assertEqual(fielding["all"]["balls"],
+                         sum(v["balls"] for k, v in fielding.items() if k.startswith("pos:")))
 
 
 if __name__ == "__main__":
