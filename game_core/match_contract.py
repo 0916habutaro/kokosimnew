@@ -109,6 +109,8 @@ class BatterGameStats:
     catcher_caught_stealing: int = 0
     # 捕手として：捕逸（H1）
     passed_balls: int = 0
+    # 守って記録した失策（H2。投手として守った分は投手の成績に付ける）
+    errors: int = 0
     # 左右別（段階F2）：相手投手の投げる腕ごとの打数・安打・本塁打・四死球・三振。打席ごとの記録は残さない
     vs_rhp_at_bats: int = 0
     vs_rhp_hits: int = 0
@@ -160,6 +162,8 @@ class PitcherGameStats:
     exit_fatigue: int = 0
     # 暴投（H1）
     wild_pitches: int = 0
+    # 投手として守って記録した失策（H2）
+    errors: int = 0
     # 左右別（段階F2）：打者の打席の側（両打ちは投手と逆）ごとの打数・被安打・被本塁打・与四死球・奪三振
     vs_rhb_at_bats: int = 0
     vs_rhb_hits: int = 0
@@ -867,7 +871,7 @@ def validate_match_simulation_result(
     batting_events, pitching_events = defaultdict(list), defaultdict(list)
     # 重盗は走者ごとに1件ずつ（adv は重盗で二塁走者が刺される間の進塁で、盗塁は付かない）。
     # 暴投・捕逸は打席のあとの advance に「wp|投手」「pb|捕手」として1件。
-    steals, catcher_steals, advances = Counter(), Counter(), Counter()
+    steals, catcher_steals, advances, fielding_errors = Counter(), Counter(), Counter(), Counter()
     for event in events:
         metadata = dict(event.metadata)
         for entry in (metadata['steal'].split(';') if metadata.get('steal') else ()):
@@ -876,6 +880,15 @@ def validate_match_simulation_result(
             if steal_result in ('sb', 'cs'):
                 catcher_steals[event.defense_school_id, catcher_id, 'attempts'] += 1
                 catcher_steals[event.defense_school_id, catcher_id, 'cs'] += steal_result == 'cs'
+        if event.event_type == 'reached_on_error':
+            # 失策出塁は処理した選手の失策（H2）。投手の失策はその打席の投手に付く
+            try:
+                position, fielder_id = metadata['fielder'].split('|')
+            except (KeyError, ValueError) as exc:
+                raise ValueError('reached on error requires the fielder') from exc
+            if position == 'P' and fielder_id != event.pitcher_id:
+                raise ValueError('pitcher error is charged to another pitcher')
+            fielding_errors[event.defense_school_id, fielder_id, 'P' if position == 'P' else 'F'] += 1
         if metadata.get('advance'):
             kind, player_id = metadata['advance'].split('|')
             if kind == 'wp' and player_id != event.pitcher_id:
@@ -898,7 +911,8 @@ def validate_match_simulation_result(
                     'picked_off': steals[row.school_id, row.player_id, 'po'],
                     'catcher_steal_attempts': catcher_steals[row.school_id, row.player_id, 'attempts'],
                     'catcher_caught_stealing': catcher_steals[row.school_id, row.player_id, 'cs'],
-                    'passed_balls': advances[row.school_id, row.player_id, 'pb']}
+                    'passed_balls': advances[row.school_id, row.player_id, 'pb'],
+                    'errors': fielding_errors[row.school_id, row.player_id, 'F']}
         expected.update({key: sum(e.event_type == event_type for e in actual) for key, event_type in (
             ('walks', 'walk'), ('strikeouts', 'strikeout'), ('hit_by_pitch', 'hit_by_pitch'),
             ('sacrifice_flies', 'sacrifice_fly'), ('sacrifice_bunts', 'sacrifice_bunt'),
@@ -915,7 +929,8 @@ def validate_match_simulation_result(
         expected = {'batters_faced': len(actual), 'outs_recorded': sum(e.outs_on_play for e in actual),
                     'hits_allowed': sum(e.event_type in hit_types for e in actual),
                     'home_runs_allowed': sum(e.event_type == 'home_run' for e in actual),
-                    'wild_pitches': advances[row.school_id, row.player_id, 'wp']}
+                    'wild_pitches': advances[row.school_id, row.player_id, 'wp'],
+                    'errors': fielding_errors[row.school_id, row.player_id, 'P']}
         if has_dh:
             try:
                 pitches = [int(dict(e.metadata)['pitches']) for e in actual]
@@ -933,6 +948,16 @@ def validate_match_simulation_result(
                 f'pitcher individual stats differ from actual events: '
                 f'match={result.match_id}, player={row.player_id}, '
                 f'PA={[e.plate_appearance_no for e in actual]}, expected/actual={differences}')
+
+    # チームの失策は失策出塁の数、個人の失策の合計とも一致する（H2）
+    for school_id, row in team_by_id.items():
+        charged = sum(n for (sid, _, _), n in fielding_errors.items() if sid == school_id)
+        roe = sum(e.event_type == 'reached_on_error' and e.defense_school_id == school_id for e in events)
+        if not row.errors == roe == charged:
+            raise ValueError(f'match result: team errors differ from fielders: {school_id}')
+    known_rows = {(r.school_id, r.player_id, 'F') for r in batters} | {(r.school_id, r.player_id, 'P') for r in pitchers}
+    if not set(fielding_errors) <= known_rows:
+        raise ValueError('match result: error charged to a player without stats')
 
     batter_ids = {row.player_id for row in batters}
     pitcher_ids = {row.player_id for row in pitchers}

@@ -265,6 +265,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
     _validate_strategy(payload.get("strategy"))
     _validate_substitutions(payload.get("substitutions"))
     _validate_h1(payload)
+    _validate_fielding(payload.get("fielding"))
 
     fatigue = payload.get("fatigue")
     if not isinstance(fatigue, dict):
@@ -410,6 +411,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         "relief",
         "tactic",
         "wild_pitch",
+        "fielding",
     }:
         raise ValueError(
             "match simulation: RNG namespace keys mismatch"
@@ -423,6 +425,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         "relief": ("{match_id}", "{plate_appearance_no}"),
         "tactic": ("{match_id}", "{plate_appearance_no}"),
         "wild_pitch": ("{match_id}", "{plate_appearance_no}"),
+        "fielding": ("{match_id}", "{plate_appearance_no}"),
     }
     for key, placeholders in required_placeholders.items():
         template = str(namespaces[key])
@@ -518,6 +521,45 @@ def _validate_h1(payload) -> None:
             and _probability(tendency.get("max_probability"))
             and isinstance(tendency.get("max_extra"), int) and tendency["max_extra"] >= 0):
         raise ValueError("match simulation: invalid pitch_count.tendency")
+
+
+_FIELD_POSITIONS = ("P", "1B", "2B", "3B", "SS", "LF", "CF", "RF")
+
+
+def _validate_fielding(rule) -> None:
+    """打球の方向ごとの守備（H2）の値。割合は0〜1で、それぞれ合計1。"""
+    def shares(value, keys=None):
+        return (isinstance(value, dict) and value and all(_probability(v) for v in value.values())
+                and abs(sum(float(v) for v in value.values()) - 1.0) < 1e-6
+                and (keys is None or set(value) <= set(keys)))
+
+    if not isinstance(rule, dict):
+        raise ValueError("match simulation: invalid fielding")
+    types = rule.get("ball_types")
+    if not (isinstance(types, dict) and set(types) == {"single", "reached_on_error", "extra_base"}
+            and all(shares(v, ("ground", "line", "fly")) for v in types.values())
+            and set(types["extra_base"]) <= {"line", "fly"}):
+        raise ValueError("match simulation: invalid fielding.ball_types")
+    direction, positions = rule.get("direction"), rule.get("positions")
+    sides = ("pull", "center", "opposite")
+    if not (isinstance(direction, dict) and set(direction) == {"ground", "line", "fly"}
+            and all(shares(v, sides) and len(v) == 3 for v in direction.values())):
+        raise ValueError("match simulation: invalid fielding.direction")
+    if not (isinstance(positions, dict) and set(positions) == {"ground", "line", "fly", "outfield"}
+            and all(isinstance(v, dict) and set(v) == set(sides)
+                    and all(shares(x, _FIELD_POSITIONS) for x in v.values()) for v in positions.values())):
+        raise ValueError("match simulation: invalid fielding.positions")
+    weights = rule.get("skill_weights")
+    if not (isinstance(weights, dict) and set(weights) == {"infield", "outfield"}
+            and all(shares(v) for v in weights.values()) and shares(rule.get("arm_weights"))
+            and shares(rule.get("reference_share"), _FIELD_POSITIONS)):
+        raise ValueError("match simulation: invalid fielding weights")
+    if not (_probability(rule.get("air_line_share"))
+            and all(_number(rule.get(k)) and float(rule[k]) >= 0 for k in (
+                "untrained_ability_value", "hit_log_per_point", "error_log_per_point", "min_multiplier",
+                "max_multiplier", "advance_points_per_arm_point", "double_play_per_arm_point"))
+            and float(rule["min_multiplier"]) <= 1.0 <= float(rule["max_multiplier"])):
+        raise ValueError("match simulation: invalid fielding values")
 
 
 def _validate_substitutions(subs) -> None:
@@ -633,6 +675,7 @@ def validate_game_stats_contract(document: ConfigDocument) -> None:
         "catcher_steal_attempts",
         "catcher_caught_stealing",
         "passed_balls",
+        "errors",
         *(f"vs_{hand}_{key}" for hand in ("rhp", "lhp")
           for key in ("at_bats", "hits", "home_runs", "walks", "strikeouts")),
         "pinch_hit_at_bats",
@@ -651,6 +694,7 @@ def validate_game_stats_contract(document: ConfigDocument) -> None:
         "pitches",
         "exit_fatigue",
         "wild_pitches",
+        "errors",
         *(f"vs_{hand}_{key}" for hand in ("rhb", "lhb")
           for key in ("at_bats", "hits", "home_runs", "walks", "strikeouts")),
     }

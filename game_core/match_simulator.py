@@ -405,6 +405,35 @@ class _EarnedRunTracker:
         )
 
 
+# 打球を処理する守備位置（H2）。左打者は左右を入れ替える
+_MIRROR_POSITION = {"3B": "1B", "1B": "3B", "SS": "2B", "2B": "SS", "LF": "RF", "RF": "LF"}
+_OUTFIELD = frozenset(("LF", "CF", "RF"))
+# 守った選手で結果が変わりうる打球（本塁打・三振・四死球・バントは対象外）
+_FIELDED_EVENTS = frozenset(("single", "double", "triple", "field_out", "reached_on_error"))
+
+
+@dataclass(frozen=True)
+class _Fielded:
+    """打球を処理した選手。skill_gap・arm_gap はチームの基準（守っている9人の平均）との差。"""
+
+    position: str
+    player_id: str
+    ball_type: str
+    skill: float
+    aptitude: int
+    skill_gap: float
+    arm_gap: float
+
+
+@dataclass(frozen=True)
+class _FieldingProfile:
+    """守っている並びごとの、守備位置 → (選手, 守備の値, 肩の値, 適性) とチームの基準。"""
+
+    players: Mapping[str, tuple[str, float, float, int]]
+    skill_reference: float
+    arm_reference: float
+
+
 class MatchSimulator:
     def __init__(
         self,
@@ -1251,6 +1280,112 @@ class MatchSimulator:
         )
         return self._clamp_probability(value, float(rule["min"]), float(rule["max"]))
 
+    # ---- 打球の方向ごとの守備（H2） ----
+    def _fielding_value(self, player: PlayerAbilitySnapshot, position: str, weights: Mapping) -> float:
+        untrained = float(self.params["fielding"]["untrained_ability_value"])
+        total = 0.0
+        for key, weight in weights.items():
+            if key == "position_aptitude":
+                value = float(player.aptitude(position))
+            else:
+                raw = getattr(player, key)
+                value = untrained if raw is None else float(raw)
+            total += value * float(weight)
+        return total / sum(float(w) for w in weights.values())
+
+    def _fielding_profile(self, alignment, players: Mapping[str, PlayerAbilitySnapshot]) -> _FieldingProfile:
+        """守っている並び（守備位置, 選手）から、打球を処理する8つの位置の値とチームの基準。"""
+        rule = self.params["fielding"]
+        shares = rule["reference_share"]
+        out: dict[str, tuple[str, float, float, int]] = {}
+        for position, player_id in alignment:
+            if position not in shares:
+                continue
+            player = players[player_id]
+            group = "outfield" if position in _OUTFIELD else "infield"
+            out[position] = (
+                player_id,
+                self._fielding_value(player, position, rule["skill_weights"][group]),
+                self._fielding_value(player, position, rule["arm_weights"]),
+                int(player.aptitude(position)),
+            )
+        total = sum(float(shares[p]) for p in out)
+        return _FieldingProfile(
+            players=out,
+            skill_reference=sum(out[p][1] * float(shares[p]) for p in out) / total,
+            arm_reference=sum(out[p][2] * float(shares[p]) for p in out) / total,
+        )
+
+    @staticmethod
+    def _draw_share(shares: Mapping[str, float], rng) -> str:
+        roll = rng.random()
+        last = None
+        for key, share in shares.items():
+            last = key
+            roll -= float(share)
+            if roll < 0:
+                return key
+        return last
+
+    def _ball_type(self, event_type: str, batter: PlayerAbilitySnapshot,
+                   pitcher: PlayerAbilitySnapshot, rng) -> str:
+        rule = self.params["fielding"]
+        if event_type == "field_out":
+            if rng.random() < self._ground_share(batter, pitcher):
+                return "ground"
+            return "line" if rng.random() < float(rule["air_line_share"]) else "fly"
+        key = "extra_base" if event_type in ("double", "triple") else event_type
+        return self._draw_share(rule["ball_types"][key], rng)
+
+    def _fielding_position(self, event_type: str, ball_type: str, side: str, rng) -> str:
+        """打球の種類と方向から処理する守備位置（右打者の引っ張りは左方向）。"""
+        rule = self.params["fielding"]
+        direction = self._draw_share(rule["direction"][ball_type], rng)
+        table = rule["positions"]["outfield" if event_type in ("double", "triple") else ball_type]
+        position = self._draw_share(table[direction], rng)
+        return _MIRROR_POSITION.get(position, position) if side == "L" else position
+
+    def _fielding_multiplier(self, gap: float, per_point: float) -> float:
+        rule = self.params["fielding"]
+        return min(float(rule["max_multiplier"]), max(float(rule["min_multiplier"]),
+                                                       math.exp(max(-20.0, min(20.0, -gap * per_point)))))
+
+    def _fielded_event(self, event_type: str, weights: Mapping[str, float], skill_gap: float, rng) -> str:
+        """処理した選手の守備の値とチームの基準の差で、単打⇔凡退、失策⇔凡退を少し動かす。
+
+        単打（失策）の確率をその打球だけ倍率 m 倍にする：m < 1 なら単打（失策）を m の割合だけ残し、
+        m > 1 なら凡退を (m − 1) × 単打（失策）の重み ÷ 凡退の重み の割合で単打（失策）にする。
+        基準との差の平均は0なので、チーム全体の単打・失策の割合はほとんど変わらない。重みに
+        単打・凡退・失策がない（試験用の打席列）ときは変えない。"""
+        rule = self.params["fielding"]
+        out_weight = float(weights.get("field_out", 0.0))
+        for target, per_point in (("single", rule["hit_log_per_point"]),
+                                  ("reached_on_error", rule["error_log_per_point"])):
+            weight = float(weights.get(target, 0.0))
+            if out_weight <= 0 or weight <= 0:
+                continue
+            m = self._fielding_multiplier(skill_gap, float(per_point))
+            roll = rng.random()
+            if event_type == target and m < 1 and roll >= m:
+                event_type = "field_out"
+            elif event_type == "field_out" and m > 1 and roll < min(1.0, (m - 1) * weight / out_weight):
+                event_type = target
+        return event_type
+
+    def _field_ball(self, event_type: str, *, weights: Mapping[str, float], batter: PlayerAbilitySnapshot,
+                    pitcher: PlayerAbilitySnapshot, profile: _FieldingProfile, rng):
+        """インプレーの打球の行き先を決め、守った選手で結果を動かす。(結果, _Fielded か None)。"""
+        if event_type not in _FIELDED_EVENTS:
+            return event_type, None
+        ball_type = self._ball_type(event_type, batter, pitcher, rng)
+        position = self._fielding_position(event_type, ball_type, self.batting_side(batter, pitcher), rng)
+        player_id, skill, arm, aptitude = profile.players[position]
+        gap = skill - profile.skill_reference
+        if event_type in ("single", "field_out", "reached_on_error"):
+            event_type = self._fielded_event(event_type, weights, gap, rng)
+        return event_type, _Fielded(position, player_id, ball_type, skill, aptitude, gap,
+                                    arm - profile.arm_reference)
+
     def _classify_out(
         self,
         event_type: str,
@@ -1260,21 +1395,31 @@ class MatchSimulator:
         rng,
         pitcher: PlayerAbilitySnapshot | None = None,
         defense_strength: float = 50.0,
+        ball_type: str | None = None,
+        double_play_bonus: float = 0.0,
     ) -> str:
         """凡退（field_out）をゴロ・併殺打・フライ・犠飛に分ける。
+
+        ``ball_type`` は打球の行き先を決めたときの打球の種類（ゴロ・ライナー・フライ。ライナーは犠飛に
+        しない）、``double_play_bonus`` は処理した内野手の肩・送球による併殺の確率の増減（H2）。
 
         ゴロ／フライの割合は打者と投手の能力、併殺は一塁に走者・2死未満のゴロで打者の
         走力と守備力、犠飛は三塁に走者・2死未満のフライで打者のミート・長打で決める。"""
         if event_type != "field_out":
             return event_type
         pitcher = pitcher or batter
-        if rng.random() < self._ground_share(batter, pitcher):
+        ground = (rng.random() < self._ground_share(batter, pitcher)) if ball_type is None else ball_type == "ground"
+        if ground:
+            rule = self._outs_in_play()["double_play"]
             if (bases[0] is not None and outs < 2
-                    and rng.random() < self._double_play_probability(float(batter.speed), defense_strength)):
+                    and rng.random() < self._clamp_probability(
+                        self._double_play_probability(float(batter.speed), defense_strength) + double_play_bonus,
+                        float(rule["min"]), float(rule["max"]))):
                 return "double_play"
             return "ground_out"
         settings = self.params["situational_events"]["sacrifice_fly"]
-        if (settings["enabled"] and outs <= int(settings["max_outs"]) and bases[2] is not None):
+        if (settings["enabled"] and outs <= int(settings["max_outs"]) and bases[2] is not None
+                and ball_type != "line"):
             contact_factor = 0.75 + float(batter.contact) / 200.0
             power_factor = 0.85 + float(batter.power) / 300.0
             probability = min(
@@ -1816,6 +1961,7 @@ class MatchSimulator:
             "catcher_steal_attempts": 0,
             "catcher_caught_stealing": 0,
             "passed_balls": 0,
+            "errors": 0,
             **{key: 0 for key in BATTER_SPLIT_FIELDS},
             "pinch_hit_at_bats": 0,
             "pinch_hit_hits": 0,
@@ -1841,6 +1987,7 @@ class MatchSimulator:
             "pitches": 0,
             "exit_fatigue": 0,
             "wild_pitches": 0,
+            "errors": 0,
             **{key: 0 for key in PITCHER_SPLIT_FIELDS},
         }
 
@@ -1947,6 +2094,9 @@ class MatchSimulator:
                          and getattr(weight_model, '__func__', None) is _EVENT_WEIGHT_MODEL
                          and self._weighted_choice is _WEIGHTED_CHOICE_MODEL)
         weight_cache = {}
+        # 守っている並びごとの守備の値（H2）。打席の結果の重みはチーム全体の守備力だけで決まり、
+        # 選手ごとの守備は打球の行き先を決めてから効くので、交代で並びが変わってもそのまま正しい
+        fielding_profiles: dict[tuple, _FieldingProfile] = {}
         defer_event_random = (type(self) is MatchSimulator and rng_for is _RNG_FACTORY
             and getattr(self._apply_event, '__func__', None) is _APPLY_EVENT_MODEL)
         policies = {sid: (tactics or {}).get(sid, CoachTactics()) for sid in teams}
@@ -2405,6 +2555,7 @@ class MatchSimulator:
                             # ファウルで追い込まれ、打席が続く（打って出る）
                             weight_mode = "two_strike"
                     bunt_play = tactic_outcome not in (None, "foul")
+                    fielded = None
                     # 疲れの段階と度胸（ピンチ・終盤の接戦で能力が落ちるか）ごとに能力が決まるので、
                     # どちらも使い回しのキーに入れる
                     stage = fatigue_model.stage_of(
@@ -2437,6 +2588,22 @@ class MatchSimulator:
                                     weight_cache[mode_key] = moded
                             weights = moded
                         event_type = self._weighted_choice(pa_rng, weights)
+                        # 打球の行き先と守った選手（H2）。守っている並びが変われば値も変わる
+                        alignment = tuple((a.defensive_position, a.player_id)
+                                          for a in states[defense_id].defensive_alignment)
+                        profile = fielding_profiles.get(alignment)
+                        if profile is None:
+                            profile = self._fielding_profile(alignment, player_maps[defense_id])
+                            fielding_profiles[alignment] = profile
+                        event_type, fielded = self._field_ball(
+                            event_type, weights=weights, batter=batter, pitcher=pitcher, profile=profile,
+                            rng=rng_for(
+                                match_input.generation_seed,
+                                self.params["rng_namespace_policy"]["fielding"].format(
+                                    match_id=match_input.match_id, plate_appearance_no=pa_no,
+                                ),
+                            ),
+                        )
                         event_type = self._classify_out(
                             event_type,
                             bases,
@@ -2445,6 +2612,9 @@ class MatchSimulator:
                             pa_rng,
                             pitcher,
                             defense_values[defense_id],
+                            None if fielded is None else fielded.ball_type,
+                            0.0 if fielded is None else (
+                                fielded.arm_gap * float(self.params["fielding"]["double_play_per_arm_point"])),
                         )
                         if tactic == "hit_and_run":
                             rule = self._strategy()["hit_and_run"]
@@ -2465,7 +2635,9 @@ class MatchSimulator:
                             batter_id=batter_id,
                             bases=bases,
                             offense_players=player_maps[offense_id],
-                            defense_strength=defense_values[defense_id],
+                            # 走者の進塁は、処理した選手の肩・送球（チームの基準との差）でも変わる
+                            defense_strength=defense_values[defense_id] + (0.0 if fielded is None else (
+                                fielded.arm_gap * float(self.params["fielding"]["advance_points_per_arm_point"]))),
                             rng=event_rng,
                             outs=outs,
                             **({"running_start": True} if tactic == "hit_and_run" else {}),
@@ -2531,6 +2703,15 @@ class MatchSimulator:
                         team_hits[offense_id] += 1
                     if event_type == "reached_on_error":
                         team_errors[defense_id] += 1
+                        # 失策は処理した選手に付ける（投手は投手の成績に）
+                        if fielded is not None:
+                            if fielded.position == "P":
+                                pitcher_stat["errors"] = int(pitcher_stat["errors"]) + 1
+                            else:
+                                fielder_row = batter_rows[defense_id].get(fielded.player_id)
+                                if fielder_row is None:
+                                    raise ValueError(f"fielder {fielded.player_id} not in batting lineup")
+                                fielder_row["errors"] = int(fielder_row["errors"]) + 1
 
                     pitcher_stat["batters_faced"] = (
                         int(pitcher_stat["batters_faced"]) + 1
@@ -2705,6 +2886,8 @@ class MatchSimulator:
                                 *((('scored_runners', '|'.join(scored)),) if dh_game else ()),
                                 *((('walkoff_hit', pitch_event_type),) if event_type != pitch_event_type else ()),
                                 *((('tactic', f"{tactic}:{tactic_outcome}"),) if tactic else ()),
+                                *((('fielder', f"{fielded.position}|{fielded.player_id}"),)
+                                  if fielded is not None and event_type == "reached_on_error" else ()),
                                 *((('bases_after_play', self._bases_text(bases_after_play)),)
                                   if steal or advance else ()),
                                 *((('steal', ';'.join(f"{r}|{f + 1}|{x}|{catcher_id}" for r, f, x in steal)),)

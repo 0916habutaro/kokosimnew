@@ -703,7 +703,7 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                 **{key: stat.get(key, 0) for key in (
                     "at_bats", "hits", "runs", "rbi", "home_runs",
                     "walks", "strikeouts", "stolen_bases", "grounded_into_double_plays",
-                    "caught_stealing", "picked_off", "sacrifice_bunts", "passed_balls",
+                    "caught_stealing", "picked_off", "sacrifice_bunts", "passed_balls", "errors",
                 )},
             }
             for stat in detail.get("batter_stats") or ()
@@ -720,7 +720,7 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                 **{key: stat.get(key, 0) for key in (
                     "batters_faced", "hits_allowed", "runs_allowed",
                     "earned_runs", "walks", "strikeouts",
-                    "home_runs_allowed", "pitches", "wild_pitches",
+                    "home_runs_allowed", "pitches", "wild_pitches", "errors",
                 )},
                 # 降板時の疲れ（例：疲れ大）。なければ空
                 "fatigue": _fatigue_label(stat.get("exit_fatigue", 0)),
