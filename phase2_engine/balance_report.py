@@ -24,6 +24,12 @@
 - 度胸（段階G）：投手の度胸の帯（〜44・45〜59・60〜）ごとの、ピンチ・終盤の接戦とそれ以外の被打率
 - 守備（段階H2）：失策の1試合あたりの数（地方大会・夏の甲子園）、守備位置ごとの打球・失策の割合、
   守った選手の守備の値の帯（〜44・45〜54・55〜）ごとの単打・失策の割合、本職でない位置（適性60未満）の失策の割合
+- §11 の調整：地方大会の点差（0〜2・3〜5・6〜9・10以上）と延長の割合、夏の甲子園の直前10年の夏の出場回数
+  （0・1・2・3回以上。実在の出場とゲームの年度）、夏の甲子園の1試合あたり（両チーム）の本塁打・盗塁・犠打・
+  失策・四死球・三振とチーム打率・出塁率、甲子園の先発の球数・完投、甲子園の大会の個人成績の上位、
+  同じ打者の対右・対左の打率の差（起用の偏りを除く）
+- ``--ability-table``：打者・守備・投手が全部50の相手に、能力を30・80・95にしたときの三振・四球・打率・長打率・本塁打
+  （打席の結果の重みから計算する。試合は進めない）
 """
 from __future__ import annotations
 
@@ -86,6 +92,12 @@ class BalanceTally:
         self.starts = defaultdict(lambda: [0, 0, 0])  # 年度 → [先発数, 球数の合計, 完投]
         self.running = defaultdict(Counter)      # 年度 → 試合・盗塁・併殺・暴投・捕逸・球数・打者・アウト
         self.koshien = defaultdict(set)          # 年度 → 夏の甲子園に出た学校
+        self.koshien_play = defaultdict(Counter)  # 年度 → 夏の甲子園の試合の打撃・投手の合計
+        self.koshien_starts = defaultdict(lambda: [0, 0, 0])  # 年度 → 甲子園の [先発数, 球数, 完投]
+        self.koshien_batters = defaultdict(lambda: defaultdict(Counter))  # 年度 → 選手 → 甲子園の成績
+        self.koshien_pitchers = defaultdict(lambda: defaultdict(Counter))
+        self.platoon = defaultdict(lambda: defaultdict(Counter))  # 年度 → (学校, 選手) → 対右・対左
+        self.platoon_side = defaultdict(dict)    # 年度 → (学校, 選手) → 打つ側
         self.batters = defaultdict(lambda: defaultdict(Counter))   # 年度 → 選手 → 成績
         self.pitchers = defaultdict(lambda: defaultdict(Counter))
         self.team_games = defaultdict(Counter)   # 年度 → 学校 → 試合数
@@ -115,10 +127,10 @@ class BalanceTally:
             starter = next((p for p in mine if p["player_id"] == part["starting_pitcher_id"]), None)
             if starter is None:
                 continue
-            row = self.starts[year]
-            row[0] += 1
-            row[1] += int(starter["pitches"])
-            row[2] += len(mine) == 1
+            for row in (self.starts[year], *((self.koshien_starts[year],) if kind == KOSHIEN else ())):
+                row[0] += 1
+                row[1] += int(starter["pitches"])
+                row[2] += len(mine) == 1
         batters = detail.get("batter_stats") or []
         run = self.running[year]
         run["games"] += 1
@@ -135,6 +147,21 @@ class BalanceTally:
         for b in batters:
             self.batters[year][(b["school_id"], b["player_id"])].update(
                 {k: int(b.get(k, 0)) for k in ("plate_appearances", "at_bats", "hits", "home_runs")})
+            self.platoon[year][(b["school_id"], b["player_id"])].update(
+                {k: int(b.get(k, 0)) for k in ("vs_rhp_at_bats", "vs_rhp_hits", "vs_lhp_at_bats", "vs_lhp_hits")})
+        if kind == KOSHIEN:
+            play = self.koshien_play[year]
+            play["games"] += 1
+            for b in batters:
+                for k in ("plate_appearances", "at_bats", "hits", "home_runs", "walks", "hit_by_pitch",
+                          "strikeouts", "stolen_bases", "sacrifice_bunts", "sacrifice_flies"):
+                    play[k] += int(b.get(k, 0))
+                self.koshien_batters[year][(b["school_id"], b["player_id"])].update(
+                    {k: int(b.get(k, 0)) for k in ("plate_appearances", "at_bats", "hits", "home_runs")})
+            play["errors"] += sum(int(t.get("errors", 0)) for t in detail.get("team_stats") or ())
+            for p in pitchers:
+                self.koshien_pitchers[year][(p["school_id"], p["player_id"])].update(
+                    {k: int(p.get(k, 0)) for k in ("outs_recorded", "earned_runs")})
         for p in pitchers:
             self.pitchers[year][(p["school_id"], p["player_id"])].update(
                 {k: int(p.get(k, 0)) for k in ("outs_recorded", "earned_runs")})
@@ -142,6 +169,10 @@ class BalanceTally:
         self._add_substitutions(year, detail, batters, coach_of)
         if bats_of is not None:
             self._add_splits(year, batters, bats_of)
+            for b in batters:
+                key = (b["school_id"], b["player_id"])
+                if key not in self.platoon_side[year]:
+                    self.platoon_side[year][key] = bats_of(*key)
 
     def _add_substitutions(self, year, detail, batters, coach_of) -> None:
         tally = self.substitutions[year]
@@ -318,6 +349,41 @@ class BalanceTally:
             return self.koshien[year - 1]
         return {sid for sid, years in self.history.items() if year - 1 in years}
 
+    def _appearances(self, school: str, year: int) -> int:
+        """直前10年（year−10〜year−1）の夏の甲子園の出場回数（ゲームの年度はゲームの出場、それ以前は実在）。"""
+        return sum((school in self.koshien[y]) if y in self.koshien else (y in self.history.get(school, ()))
+                   for y in range(year - 10, year))
+
+    def _koshien_leaders(self, year: int) -> dict:
+        """夏の甲子園の大会の個人成績の上位（打率は10打席以上、防御率は9回以上）。"""
+        avg = sorted(((round(r["hits"] / r["at_bats"], 3), r["at_bats"]) for r in self.koshien_batters[year].values()
+                      if r["plate_appearances"] >= 10 and r["at_bats"]), key=lambda x: (-x[0], -x[1]))[:TOP]
+        hr = sorted((r["home_runs"] for r in self.koshien_batters[year].values()), reverse=True)[:TOP]
+        era = sorted((round(r["earned_runs"] * 27 / r["outs_recorded"], 2), r["outs_recorded"])
+                     for r in self.koshien_pitchers[year].values() if r["outs_recorded"] >= 27)[:TOP]
+        return {"batting_average": avg, "home_runs": hr, "earned_run_average": era}
+
+    def _platoon_within(self, year: int) -> dict:
+        """同じ打者の、逆の側の投手と同じ側の投手に対する打率の差（右打ち・左打ちごと。起用の偏りを除く）。
+
+        両方の投手に10打数以上の打者だけ。打者ごとの差を、2つの打数の調和平均で重み付けして平均する。"""
+        out = {}
+        for side in ("R", "L"):
+            num = den = 0.0
+            for key, row in self.platoon[year].items():
+                if self.platoon_side[year].get(key) != side:
+                    continue
+                same, opposite = ("rhp", "lhp") if side == "R" else ("lhp", "rhp")
+                s_ab, o_ab = row[f"vs_{same}_at_bats"], row[f"vs_{opposite}_at_bats"]
+                if s_ab < 10 or o_ab < 10:
+                    continue
+                weight = 2 * s_ab * o_ab / (s_ab + o_ab)
+                num += weight * (row[f"vs_{opposite}_hits"] / o_ab - row[f"vs_{same}_hits"] / s_ab)
+                den += weight
+            if den:
+                out[side] = {"weight": round(den, 1), "opposite_minus_same": round(num / den, 4)}
+        return out
+
     def summary(self) -> dict:
         years = sorted({y for y, _ in self.games} | set(self.rosters))
         out = {}
@@ -329,12 +395,35 @@ class BalanceTally:
                 first = {t for t in teams
                          if not any(y < year for y in self.history.get(t, ()))
                          and not any(t in self.koshien[y] for y in self.koshien if y < year)}
+                prior = Counter(min(3, self._appearances(t, year)) for t in teams)
                 row["koshien"] = {
                     "teams": len(teams),
                     "first_time": len(first),
                     "first_time_share": round(len(first) / len(teams), 3),
                     "repeat": len(teams & self._previous_koshien(year)),
+                    "prior10": {str(n): round(prior[n] / len(teams), 3) for n in range(4)},
                 }
+            play = self.koshien_play.get(year)
+            if play and play["games"]:
+                g = play["games"]
+                row["koshien_per_game"] = {
+                    "games": g,
+                    **{k: round(play[k] / g, 3) for k in ("home_runs", "stolen_bases", "sacrifice_bunts",
+                                                           "errors", "strikeouts")},
+                    "walks_hbp": round((play["walks"] + play["hit_by_pitch"]) / g, 3),
+                    "batting_average": round(play["hits"] / play["at_bats"], 3) if play["at_bats"] else None,
+                    "on_base": round((play["hits"] + play["walks"] + play["hit_by_pitch"])
+                                     / (play["at_bats"] + play["walks"] + play["hit_by_pitch"]
+                                        + play["sacrifice_flies"]), 3) if play["at_bats"] else None,
+                }
+                ks = self.koshien_starts[year]
+                if ks[0]:
+                    row["koshien_starters"] = {"starts": ks[0], "pitches_mean": round(ks[1] / ks[0], 1),
+                                               "complete_game_share": round(ks[2] / ks[0], 3)}
+                row["koshien_leaders"] = self._koshien_leaders(year)
+            platoon = self._platoon_within(year)
+            if platoon:
+                row["platoon_within"] = platoon
             starts = self.starts.get(year)
             if starts and starts[0]:
                 row["starters"] = {"starts": starts[0],
@@ -378,11 +467,15 @@ def _game_metrics(games) -> dict:
     if not games:
         return {}
     runs = [x for a, b, _ in games for x in (a, b)]
+    margins = [abs(a - b) for a, b, _ in games]
     return {
         "games": len(games),
         "runs_per_team": round(statistics.mean(runs), 2),
         "called_share": round(sum(inning < 9 for *_, inning in games) / len(games), 3),
         "shutout_share": round(sum(min(a, b) == 0 for a, b, _ in games) / len(games), 3),
+        "extra_share": round(sum(inning >= 10 for *_, inning in games) / len(games), 3),
+        "margin": {label: round(sum(low <= m <= high for m in margins) / len(games), 3)
+                   for label, low, high in (("0-2", 0, 2), ("3-5", 3, 5), ("6-9", 6, 9), ("10+", 10, 999))},
     }
 
 
@@ -645,7 +738,8 @@ def average(reports: list[dict]) -> dict:
     def merge(values):
         if all(isinstance(v, dict) for v in values):
             keys = set.intersection(*(set(v) for v in values))
-            return {k: merge([v[k] for v in values]) for k in sorted(keys) if k != "leaders"}
+            return {k: merge([v[k] for v in values]) for k in sorted(keys)
+                    if k not in ("leaders", "koshien_leaders")}
         if all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in values):
             return round(statistics.mean(values), 3)
         return None
@@ -661,10 +755,35 @@ def format_report(seed_label: str, report: dict) -> str:
         if local:
             lines.append(f"  地方大会 {local['games']}試合: 得点 {local['runs_per_team']} / "
                          f"コールド {local['called_share']:.1%} / 完封 {local['shutout_share']:.1%}")
+            if local.get("margin"):
+                lines.append(f"  地方大会 点差 0〜2／3〜5／6〜9／10以上: " + "／".join(
+                    f"{local['margin'][k]:.1%}" for k in ("0-2", "3-5", "6-9", "10+"))
+                    + f" / 延長 {local['extra_share']:.1%}")
         ko = row.get("koshien")
         if ko:
             lines.append(f"  夏の甲子園 {ko['teams']}校: 初出場 {ko['first_time']}校"
                          f"（{ko['first_time_share']:.1%}） / 2年続けて {ko['repeat']}校")
+        if ko and ko.get("prior10"):
+            lines.append("  夏の甲子園 直前10年の出場 0回／1回／2回／3回以上: " + "／".join(
+                f"{ko['prior10'][k]:.1%}" for k in ("0", "1", "2", "3")))
+        kp = row.get("koshien_per_game")
+        if kp:
+            lines.append(f"  夏の甲子園 1試合あたり（{kp['games']}試合）: 本塁打 {kp['home_runs']} / 盗塁 {kp['stolen_bases']}"
+                         f" / 犠打 {kp['sacrifice_bunts']} / 失策 {kp['errors']} / 四死球 {kp['walks_hbp']}"
+                         f" / 三振 {kp['strikeouts']} / 打率 {kp['batting_average']} / 出塁率 {kp['on_base']}")
+        kst = row.get("koshien_starters")
+        if kst:
+            lines.append(f"  夏の甲子園 先発 {kst['starts']}: 平均 {kst['pitches_mean']}球 / 完投 {kst['complete_game_share']:.1%}")
+        kl = row.get("koshien_leaders")
+        if kl:
+            lines.append("  夏の甲子園の個人（10打席以上の打率・本塁打・9回以上の防御率）: "
+                         + ", ".join(f"{a:.3f}({n})" for a, n in kl["batting_average"]) + " / "
+                         + ", ".join(str(h) for h in kl["home_runs"]) + " / "
+                         + ", ".join(f"{e:.2f}({o // 3}回)" for e, o in kl["earned_run_average"]))
+        pw = row.get("platoon_within")
+        if pw:
+            lines.append("  同じ打者の左右の差（逆の側−同じ側の打率）: " + " / ".join(
+                f"{side}打ち {v['opposite_minus_same']:+.3f}" for side, v in pw.items()))
         st = row.get("starters")
         if st:
             lines.append(f"  先発 {st['starts']}: 平均 {st['pitches_mean']}球 / 完投 {st['complete_game_share']:.1%}")
@@ -743,14 +862,110 @@ def format_report(seed_label: str, report: dict) -> str:
     return "\n".join(lines)
 
 
+ABILITY_TABLE_LEVELS = (30, 50, 80, 95)
+ABILITY_TABLE_BATTER = ("contact", "power", "plate_discipline", "strikeout_resistance", "speed")
+ABILITY_TABLE_PITCHER = ("velocity_kmh", "stuff", "control", "strikeout")
+
+
+def ability_table() -> dict:
+    """打者・守備・投手が全部50（球速は140km/h）の相手に、1つの能力だけを変えたときの打席の結果の割合。
+
+    打席の結果の重みから計算する（左右の差・疲れ・度胸・作戦・守った選手の効きは入れない）。"""
+    from dataclasses import replace
+
+    from game_core.match_simulator import MatchSimulator
+
+    import copy
+
+    sim = MatchSimulator()
+    # 左右の差を入れない（同じ側・逆の側の点を0にした写しで計算する）
+    sim.params = copy.deepcopy(sim.params)
+    platoon = sim.params["platoon"]
+    platoon["same_side_points"] = {side: 0 for side in platoon["same_side_points"]}
+    platoon["opposite_side_points"] = 0
+    base = _neutral_player()
+    batter, pitcher = replace(base, bats="R"), replace(base, throws="L", bats="L")
+
+    def rates(b, p, defense=50.0):
+        w = sim._event_weights(b, p, defense)
+        total = sum(w.values())
+        pa = {k: v / total for k, v in w.items()}
+        walks = pa.get("walk", 0) + pa.get("hit_by_pitch", 0)
+        at_bats = 1.0 - walks - pa.get("sacrifice_fly", 0)
+        hits = sum(pa.get(k, 0) for k in ("single", "double", "triple", "home_run"))
+        bases = pa.get("single", 0) + 2 * pa.get("double", 0) + 3 * pa.get("triple", 0) + 4 * pa.get("home_run", 0)
+        return {"strikeout": round(pa.get("strikeout", 0), 3), "walk": round(walks, 3),
+                "average": round(hits / at_bats, 3), "slugging": round(bases / at_bats, 3),
+                "home_run": round(pa.get("home_run", 0), 4)}
+
+    out = {}
+    for key in ABILITY_TABLE_BATTER:
+        out[f"打者 {key}"] = {lv: rates(replace(batter, **{key: lv}), pitcher) for lv in ABILITY_TABLE_LEVELS}
+    for key in ABILITY_TABLE_PITCHER:
+        levels = {30: 125, 50: 140, 80: 150, 95: 155} if key == "velocity_kmh" else {lv: lv for lv in ABILITY_TABLE_LEVELS}
+        out[f"投手 {key}"] = {lv: rates(batter, replace(pitcher, **{key: value})) for lv, value in levels.items()}
+    out["守備（チームの守備力）"] = {lv: rates(batter, pitcher, float(lv)) for lv in ABILITY_TABLE_LEVELS}
+    return out
+
+
+def _neutral_player():
+    """能力が全部50の架空の選手（投手の能力も持つ。変化球なし）。"""
+    from dataclasses import fields, replace
+
+    from game_core.abilities import PlayerAbilitySnapshot
+
+    values = {}
+    for f in fields(PlayerAbilitySnapshot):
+        if f.name in ("player_id", "school_id"):
+            values[f.name] = "FAKE-NEUTRAL"
+        elif f.name == "primary_position":
+            values[f.name] = "P"
+        elif f.name == "pitch_repertoire":
+            values[f.name] = ()
+        elif f.name == "position_aptitude":
+            values[f.name] = tuple((pos, 50) for pos in ("P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"))
+        elif f.name == "velocity_kmh":
+            values[f.name] = 140
+        elif f.name in ("bats", "throws"):
+            values[f.name] = "R"
+        elif f.type in ("int", "int | None", "float", "float | None"):
+            values[f.name] = 50
+        else:
+            values[f.name] = None
+    return PlayerAbilitySnapshot(**values)
+
+
+def format_ability_table(table: dict) -> str:
+    lines = ["能力ごとの効き（相手は全部50。三振・四死球は打席あたり、打率・長打率は打数あたり、本塁打は打席あたり）"]
+    for name, by_level in table.items():
+        lines.append(f"  {name}: " + " / ".join(
+            f"{lv}→三振{r['strikeout']:.3f} 四死球{r['walk']:.3f} 打率{r['average']:.3f} 長打率{r['slugging']:.3f} "
+            f"本塁打{r['home_run']:.4f}" for lv, r in by_level.items()))
+    return "\n".join(lines)
+
+
+def _run_one(args):
+    seed, until, min_team_games = args
+    return seed, run_seed(seed, until, min_team_games=min_team_games,
+                          progress=lambda s, d: print(f"[{s}] {d}", file=sys.stderr, flush=True))
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="新しく始めて進め、バランスの指標を出す")
-    parser.add_argument("--seeds", required=True, help="カンマ区切りの乱数の種")
-    parser.add_argument("--until", required=True, help="進める日（YYYY-MM-DD）")
+    parser.add_argument("--seeds", help="カンマ区切りの乱数の種")
+    parser.add_argument("--until", help="進める日（YYYY-MM-DD）")
+    parser.add_argument("--workers", type=int, default=1, help="乱数の種を並べて進めるプロセスの数")
+    parser.add_argument("--ability-table", action="store_true",
+                        help="能力ごとの効きの表だけを出す（試合は進めない）")
     parser.add_argument("--min-team-games", type=int, default=8,
                         help="個人成績の上位に入れる選手のチームの最少試合数（年度ごと）")
     parser.add_argument("--json", type=Path, help="結果をJSONで書く先（リポジトリの外に置く）")
     args = parser.parse_args(argv)
+    if args.ability_table:
+        print(format_ability_table(ability_table()))
+        return 0
+    if not args.seeds or not args.until:
+        parser.error("--seeds と --until が必要です（--ability-table のときは不要）")
     seeds = [int(s) for s in args.seeds.split(",") if s.strip()]
     until = date.fromisoformat(args.until)
     started = time.time()
@@ -759,14 +974,23 @@ def main(argv=None) -> int:
         print(f"[{seed}] {day} {time.time() - started:.0f}秒", file=sys.stderr, flush=True)
 
     reports = {}
-    for seed in seeds:
-        reports[seed] = run_seed(seed, until, min_team_games=args.min_team_games, progress=progress)
-        print(format_report(f"seed {seed}", reports[seed]), flush=True)
-    if len(seeds) > 1:
-        print(format_report("平均", average(list(reports.values()))))
+    if args.workers > 1 and len(seeds) > 1:
+        from concurrent.futures import ProcessPoolExecutor
+
+        with ProcessPoolExecutor(max_workers=args.workers) as pool:
+            for seed, report in pool.map(_run_one, [(s, until, args.min_team_games) for s in seeds]):
+                reports[seed] = report
+        for seed in seeds:
+            print(format_report(f"seed {seed}", reports[seed]), flush=True)
+    else:
+        for seed in seeds:
+            reports[seed] = run_seed(seed, until, min_team_games=args.min_team_games, progress=progress)
+            print(format_report(f"seed {seed}", reports[seed]), flush=True)
     if args.json:
         args.json.write_text(json.dumps({str(k): v for k, v in reports.items()},
                                         ensure_ascii=False, indent=1), encoding="utf-8")
+    if len(seeds) > 1:
+        print(format_report("平均", average(list(reports.values()))))
     return 0
 
 

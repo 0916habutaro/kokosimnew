@@ -45,7 +45,8 @@ class BalanceTallyTests(unittest.TestCase):
         tally.add_match("LOC1", match(2026, "LOC1", "FAKE-C", "FAKE-D", 3, 2, 9, complete=False))
         row = tally.summary()[2026]
         self.assertEqual({"games": 2, "runs_per_team": 3.75, "called_share": 0.5,
-                          "shutout_share": 0.5}, row["local"])
+                          "shutout_share": 0.5, "extra_share": 0.0,
+                          "margin": {"0-2": 0.5, "3-5": 0.0, "6-9": 0.0, "10+": 0.5}}, row["local"])
         self.assertEqual({"starts": 4, "pitches_mean": 100.0, "complete_game_share": 0.75},
                          row["starters"])
         self.assertEqual({"games": 2, "stolen_bases": 1.0, "double_plays": 0.5, "wild_pitches": 1.0,
@@ -59,11 +60,18 @@ class BalanceTallyTests(unittest.TestCase):
         tally.add_match("KOS", match(2026, "KOS", "FAKE-A", "FAKE-B", 3, 1, 9))
         tally.add_match("KOS", match(2027, "KOS", "FAKE-B", "FAKE-C", 3, 1, 9))
         summary = tally.summary()
-        self.assertEqual({"teams": 2, "first_time": 1, "first_time_share": 0.5, "repeat": 1},
+        # FAKE-A は2020年・2025年に出ている（直前10年に2回）、FAKE-B は初めて
+        self.assertEqual({"teams": 2, "first_time": 1, "first_time_share": 0.5, "repeat": 1,
+                          "prior10": {"0": 0.5, "1": 0.0, "2": 0.5, "3": 0.0}},
                          summary[2026]["koshien"])
         # FAKE-B は2026年に出ているので初出場ではなく、2年続けて
-        self.assertEqual({"teams": 2, "first_time": 1, "first_time_share": 0.5, "repeat": 1},
+        self.assertEqual({"teams": 2, "first_time": 1, "first_time_share": 0.5, "repeat": 1,
+                          "prior10": {"0": 0.5, "1": 0.5, "2": 0.0, "3": 0.0}},
                          summary[2027]["koshien"])
+        # 甲子園の1試合あたり（両チーム）と大会の個人成績
+        per_game = summary[2026]["koshien_per_game"]
+        self.assertEqual((1, 1.0, 0.375), (per_game["games"], per_game["home_runs"], per_game["batting_average"]))
+        self.assertIn("koshien_leaders", summary[2026])
 
     def test_leaders_use_qualification_and_rosters_count_s_and_velocity(self):
         tally = self.tally()
@@ -102,6 +110,28 @@ class BalanceTallyTests(unittest.TestCase):
         self.assertEqual(0.5, merged[2026]["local"]["shutout_share"])
         self.assertNotIn("leaders", merged[2026])
 
+
+
+class PlatoonAndAbilityTableTests(unittest.TestCase):
+    def test_platoon_within_the_same_batter(self):
+        tally = BalanceTally(lambda cid: KINDS[cid[:3]], {}, RANKINGS)
+        detail = match(2026, "LOC1", "FAKE-A", "FAKE-B", 2, 1, 9)
+        detail["batter_stats"][0].update(vs_rhp_at_bats=20, vs_rhp_hits=4, vs_lhp_at_bats=20, vs_lhp_hits=8)
+        tally.add_match("LOC1", detail, bats_of=lambda school, player: "R")
+        # 右打ちが逆の側（左投手）に .400、同じ側に .200
+        self.assertEqual({"R": {"weight": 20.0, "opposite_minus_same": 0.2}},
+                         tally.summary()[2026]["platoon_within"])
+
+    def test_ability_table_moves_in_the_intended_direction(self):
+        from phase2_engine.balance_report import ability_table
+
+        table = ability_table()
+        contact = table["打者 contact"]
+        self.assertLess(contact[30]["average"], contact[50]["average"])
+        self.assertLess(contact[50]["average"], contact[95]["average"])
+        self.assertLess(table["打者 power"][30]["home_run"], table["打者 power"][95]["home_run"])
+        self.assertGreater(table["投手 strikeout"][95]["strikeout"], table["投手 strikeout"][50]["strikeout"])
+        self.assertLess(table["投手 control"][95]["walk"], table["投手 control"][30]["walk"])
 
 
 class SituationCounterTests(unittest.TestCase):
