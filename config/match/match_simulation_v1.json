@@ -85,7 +85,7 @@
     "emergency_pitcher_ability": 20
   },
   "pitch_count": {
-    "description_ja": "1打席の球数。[最少, 上乗せの最大]。上乗せは0〜最大から等しい確率で選び、さらに投手の奪三振・制球と打者の選球で決まる確率で1球ずつ足す（tendency。最大 tendency.max_extra 球）。三振・四球が多い投手（奪三振が高い・制球が低い）ほど球数が増える。目安は1打席3.7〜4.0球（game_definition.md §3.6.2 H1）",
+    "description_ja": "1打席の球数。[最少, 上乗せの最大]。上乗せは0〜最大から等しい確率で選び、さらに投手の奪三振・制球と打者の選球で決まる確率で1球ずつ足す（tendency。最大 tendency.max_extra 球）。三振・四球が多い投手（奪三振が高い・制球が低い）ほど球数が増える。目安は1打席3.6〜3.9球・1チーム1試合130〜140球（game_definition.md §3.6.2 H1）",
     "by_event": {
       "strikeout": [
         3,
