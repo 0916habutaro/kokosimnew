@@ -161,7 +161,7 @@
       ]
     },
     "tendency": {
-      "base": 0.25,
+      "base": 0.12,
       "per_strikeout_point": 0.006,
       "per_control_point": 0.006,
       "per_discipline_point": 0.004,
