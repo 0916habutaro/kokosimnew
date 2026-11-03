@@ -738,7 +738,8 @@ def average(reports: list[dict]) -> dict:
     def merge(values):
         if all(isinstance(v, dict) for v in values):
             keys = set.intersection(*(set(v) for v in values))
-            return {k: merge([v[k] for v in values]) for k in sorted(keys) if k != "leaders"}
+            return {k: merge([v[k] for v in values]) for k in sorted(keys)
+                    if k not in ("leaders", "koshien_leaders")}
         if all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in values):
             return round(statistics.mean(values), 3)
         return None
@@ -985,11 +986,11 @@ def main(argv=None) -> int:
         for seed in seeds:
             reports[seed] = run_seed(seed, until, min_team_games=args.min_team_games, progress=progress)
             print(format_report(f"seed {seed}", reports[seed]), flush=True)
-    if len(seeds) > 1:
-        print(format_report("平均", average(list(reports.values()))))
     if args.json:
         args.json.write_text(json.dumps({str(k): v for k, v in reports.items()},
                                         ensure_ascii=False, indent=1), encoding="utf-8")
+    if len(seeds) > 1:
+        print(format_report("平均", average(list(reports.values()))))
     return 0
 
 
