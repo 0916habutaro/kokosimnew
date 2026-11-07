@@ -146,8 +146,9 @@ class AnnualReputationTests(unittest.TestCase):
         other = control.roster(2027, 'SCH-A')
         fresh = [p for p in new.players if p.entry_year == 2027]
         self.assertEqual(new, other)
-        self.assertGreater(sum(rosters.ability(p).contact for p in fresh),
-                           sum(control.ability(p).contact for p in fresh))
+        # 評判の差は小さいので、新入生の能力をまとめて比べる
+        self.assertGreater(sum(sum(rosters.state(p).values) for p in fresh),
+                           sum(sum(control.state(p).values) for p in fresh))
         returned = [p for p in new.players if p.entry_year < 2027]
         by_id = dict(zip((p.player_id for p in old.players), abilities))
         self.assertTrue(all(rosters.ability(p).contact == by_id[p.player_id].contact for p in returned))

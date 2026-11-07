@@ -47,7 +47,8 @@ class RosterBookTests(unittest.TestCase):
         generator = book.ability_generator
         with patch.object(generator.intake_model, 'profile', wraps=generator.intake_model.profile) as profile:
             roster = book.roster(2026, 'SCH-A')
-        self.assertEqual(len(roster.players), profile.call_count)
+        # 能力は選手ごと、部員の人数は入学年度ごと（3学年）に1回
+        self.assertEqual(len(roster.players) + 3, profile.call_count)
         for player in roster.players:
             program = generator.intake_model.profile(
                 school_id=player.school_id, entry_year=player.entry_year,
@@ -61,7 +62,7 @@ class RosterBookTests(unittest.TestCase):
         # 翌年度の新入生もその生成結果から取得し、前の年度の値を保持しない。
         with patch.object(generator.intake_model, 'profile', wraps=generator.intake_model.profile) as profile:
             advanced = book.roster(2027, 'SCH-A')
-        self.assertEqual(sum(p.entry_year == 2027 for p in advanced.players), profile.call_count)
+        self.assertEqual(sum(p.entry_year == 2027 for p in advanced.players) + 1, profile.call_count)
 
     @classmethod
     def setUpClass(cls):
@@ -89,8 +90,9 @@ class RosterBookTests(unittest.TestCase):
         after = self.book.roster(2027, "SCH-A").players
         returning = [p for p in after if p.player_id in before]
         newcomers = [p for p in after if p.player_id not in before]
-        self.assertEqual(12, len(returning))
-        self.assertEqual(8, len(newcomers))
+        self.assertEqual(sum(p.academic_year > 1 for p in after), len(returning))
+        self.assertLessEqual(len(returning), sum(p.academic_year < 3 for p in before.values()))
+        self.assertGreaterEqual(len(newcomers), 1)
         self.assertTrue(all(p.academic_year == 1 for p in newcomers))
         names = [p.display_name for p in after]
         self.assertEqual(len(names), len(set(names)))
@@ -108,7 +110,7 @@ class RosterBookTests(unittest.TestCase):
     def test_march_before_the_first_year_uses_the_first_abilities(self):
         first = {p.player_id: p for p in self.book.roster(2026, "SCH-B").players}
         before = self.book.roster(2025, "SCH-B")
-        self.assertEqual(15, len(before.players))
+        self.assertEqual(sum(p.academic_year >= 2 for p in first.values()), len(before.players))
         for player in before.players:
             self.assertEqual(
                 self.book.ability(first[player.player_id]).contact,
@@ -160,7 +162,7 @@ class RosterBookTests(unittest.TestCase):
         book.drop_year_end(2026)
         self.assertIsNone(decode_closed_record(book.closed_record(2026, "SCH-A"))[0]["abilities"])
         before = decode_closed_record(book.closed_record(2025, "SCH-A"))
-        self.assertEqual(15, len(before))
+        self.assertEqual(sum(p.academic_year >= 2 for p in roster.players), len(before))
         self.assertTrue(all(row["abilities"] is None for row in before))
 
     def test_forgetting_a_closed_year_keeps_the_next_year(self):

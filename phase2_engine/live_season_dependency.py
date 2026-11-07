@@ -214,6 +214,8 @@ class LiveSeasonDependencyRuntimeState:
     # 選手 → 試合の日 → 投げた球数（球数制限。直近の日数分だけ残す）。
     # 年度の重なりでは前の年度と共有する
     pitch_log: dict[str, dict[str, int]] = field(default_factory=dict, repr=False)
+    # 「competition_id:school_id」→ その大会のベンチ入りの選手ID（最初の試合の日に決めて固定）
+    bench_members: dict[str, tuple[str, ...]] = field(default_factory=dict, repr=False)
     # 学校ごとの試合の日。全大会で共有し、年度の重なりでは前の年度と共有する。
     school_days: dict[str, set] = field(
         default_factory=dict,

@@ -33,6 +33,7 @@ from .career_rosters import _newcomer_id, advance_school_roster
 from .injuries import Injury, injury_model
 from .player_growth import PlayerGrowth
 from .players import Player, PlayerRosterGenerator, SchoolRoster, _player_id, _position_group
+from .roster_size import SizeContext, roster_size_model
 
 
 SCALARS = BATTER_ABILITIES + CATCHER_ABILITIES + PITCHER_ABILITIES
@@ -239,8 +240,13 @@ class RosterBook:
         generator: PlayerRosterGenerator | None = None,
         ability_generator=None,
         growth: PlayerGrowth | None = None,
+        ownership_for: Callable[[str], str] | None = None,
     ):
         self.reputation = None
+        # 学校ID → (年度, 部員の集まりやすさ（対数）)。年ごとに少しだけ変わる（roster_size.py）
+        self.appeal: dict[str, tuple[int, float]] = {}
+        # 年度 → 新入部員を最低人数まで増やした学校の数
+        self.floor_hits: dict[int, int] = {}
         self.coaches = None
         self.grown_through: date | None = None
         self.ability_edits = {}
@@ -265,10 +271,16 @@ class RosterBook:
         self.today: date | None = None
         self.bind(
             team_for, generator=generator, ability_generator=ability_generator, growth=growth,
+            ownership_for=ownership_for,
         )
 
-    def bind(self, team_for, *, generator=None, ability_generator=None, growth=None) -> None:
+    def bind(self, team_for, *, generator=None, ability_generator=None, growth=None,
+             ownership_for=None) -> None:
         self.team_for = team_for
+        # 学校の設置者（新入部員の人数に使う）。省くと team_for の持ち主（DataRepository）から
+        if ownership_for is None:
+            ownership_for = getattr(getattr(team_for, "__self__", None), "ownership_type", None)
+        self.ownership_for = ownership_for
         self.generator = generator or PlayerRosterGenerator()
         self._ability_generator = ability_generator
         self._growth = growth
@@ -283,6 +295,8 @@ class RosterBook:
             "first_year": self.first_year,
             "reputation": self.reputation,
             "coaches": self.coaches,
+            "appeal": self.appeal,
+            "floor_hits": self.floor_hits,
             "grown_through": self.grown_through,
             "ability_edits": self.ability_edits,
             "team_edits": self.team_edits,
@@ -398,6 +412,45 @@ class RosterBook:
             trait=TRAITS.index(snapshot.platoon_trait),
         )
 
+    # ---- 部員の人数 ----
+
+    def school_appeal(self, school_id: str, year: int) -> float:
+        """その年度の部員の集まりやすさ（対数）。新規開始の年度より前は新規開始の値。"""
+        model = roster_size_model()
+        if year <= self.first_year:
+            return model.initial_appeal(self.career_seed, school_id, self.first_year)
+        kept_year, value = self.appeal.get(school_id) or (
+            self.first_year, model.initial_appeal(self.career_seed, school_id, self.first_year))
+        if year < kept_year:
+            raise ValueError(f"{school_id}: appeal for {year} is already past")
+        while kept_year < year:
+            kept_year += 1
+            value = model.next_appeal(self.career_seed, school_id, kept_year, value)
+        self.appeal[school_id] = (kept_year, value)
+        return value
+
+    def size_context(self, team: Team) -> SizeContext:
+        """新入部員の人数の材料：設置者・評判と監督の z（入学年度ごと）・集まりやすさ。"""
+        school_id = team.school_id
+        intake = getattr(self.ability_generator, "intake_model", None)
+        profiles = {}
+
+        def profile(year):
+            if intake is None:
+                return None
+            if year not in profiles:
+                profiles[year] = intake.profile(
+                    school_id=school_id, entry_year=year, base_seed=self.career_seed)
+            return profiles[year]
+
+        return SizeContext(
+            ownership=self.ownership_for(school_id) if self.ownership_for is not None else "",
+            prefecture_code=team.prefecture_code,
+            reputation_z=lambda year: profile(year).program_quality_z if intake else 0.0,
+            coach_z=lambda year: profile(year).coach_quality_z if intake else 0.0,
+            appeal=lambda year: self.school_appeal(school_id, year),
+        )
+
     # ---- 名簿 ----
 
     def years(self) -> list[int]:
@@ -428,7 +481,8 @@ class RosterBook:
         team = self.team_for(school_id)
         states = self._states.setdefault(school_id, {})
         if year == self.first_year:
-            roster = self.generator.generate_school(team, year, self.career_seed)
+            roster = self.generator.generate_school(
+                team, year, self.career_seed, size=self.size_context(team))
             newcomers = roster.players
         else:
             if (year - 1, school_id) not in self._packed and year - 1 != self.first_year:
@@ -436,6 +490,7 @@ class RosterBook:
             transition = advance_school_roster(
                 self.roster(year - 1, school_id), team, next_year=year,
                 career_seed=self.career_seed, generator=self.generator,
+                size=self.size_context(team),
             )
             roster = transition.roster
             newcomers = transition.newcomers
@@ -446,6 +501,8 @@ class RosterBook:
             states[(player.entry_year, player.roster_no)] = self._new_state(
                 player, year, cohorts[player.entry_year],
             )
+        if roster.floor_hit:
+            self.floor_hits[year] = self.floor_hits.get(year, 0) + 1
         self._packed[key] = pack_school(roster, first_year=self.first_year)
         self._rosters[key] = roster
         return roster

@@ -4,3 +4,4 @@
 - `player_growth_v1.json`：選手の成長（毎月・公式戦の出場・成長の型・潜在能力・上限に近いほど伸びにくい係数）。使うのは `game_core/player_growth.py`（`game_definition.md` §3.1）
 - `injuries_v1.json`：選手の怪我（頻度の4段階・練習と試合の起きやすさ・重さ・復帰直後の能力の下がり方）。使うのは `game_core/injuries.py`（`game_definition.md` §3.2）
 - `handedness_v1.json`：新しく作る選手の投打の左右（守備位置ごとの左投げの確率、投げる腕ごとの打つ側）。使うのは `game_core/players.py`（新規開始）と `game_core/career_rosters.py`（新入生）（`game_definition.md` §3.6.2）
+- `roster_size_v1.json`：部員の人数（新入部員の期待人数と負の二項のばらつき・学校ごとの集まりやすさ・退部・最低人数・守備位置の確率・ベンチ入り）。使うのは `game_core/roster_size.py`（`game_definition.md` §3.7）

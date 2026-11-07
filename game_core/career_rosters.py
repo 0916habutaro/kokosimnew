@@ -1,8 +1,7 @@
-"""Year-to-year continuity for the 20-player structural school roster.
+"""年度の切り替え（4月1日）の名簿：3年生の卒業・退部・進級と新入部員。
 
-This intentionally leaves the existing initial-season generator unchanged.
-A later live-year scheduler must supply the previous saved roster rather
-than rebuilding it from next year's random seed.
+進級した選手は前の年度の名簿をそのまま引き継ぐ（前の年度の名簿を渡す。翌年度の乱数の種から
+作り直さない）。新入部員の人数・守備位置・退部は ``roster_size.py``。
 """
 from __future__ import annotations
 
@@ -13,9 +12,10 @@ from phase2_engine.models import Team
 from phase2_engine.randomness import rng_for
 
 from .players import (
-    CORE_ROSTER_SIZE, Player, PlayerRosterGenerator, SchoolRoster, draw_hands,
+    GRADES, Player, PlayerRosterGenerator, SchoolRoster, draw_hands,
     _position_group, draw_identity, validate_school_roster,
 )
+from .roster_size import SizeContext, free_numbers, roster_size_model
 
 
 @dataclass(frozen=True)
@@ -27,6 +27,7 @@ class CareerRosterTransition:
     returning: tuple[Player, ...]
     newcomers: tuple[Player, ...]
     roster: SchoolRoster
+    withdrawn: tuple[Player, ...] = ()
 
     def summary(self) -> dict:
         return {
@@ -35,11 +36,13 @@ class CareerRosterTransition:
             "school_id": self.school_id,
             "graduated_player_ids": [p.player_id for p in self.graduated],
             "returning_player_ids": [p.player_id for p in self.returning],
+            "withdrawn_player_ids": [p.player_id for p in self.withdrawn],
             "newcomer_player_ids": [p.player_id for p in self.newcomers],
             "cohort_counts": {
                 grade: sum(p.academic_year == grade for p in self.roster.players)
-                for grade in (1, 2, 3)
+                for grade in GRADES
             },
+            "floor_hit": self.roster.floor_hit,
             "roster_count": len(self.roster.players),
         }
 
@@ -58,16 +61,12 @@ def advance_school_roster(
     next_year: int,
     career_seed: int,
     generator: PlayerRosterGenerator | None = None,
+    size: SizeContext | None = None,
 ) -> CareerRosterTransition:
-    """Promote all survivors and recruit one freshman per graduation.
+    """3年生は卒業、1・2年生は退部を引いてから進級し、新入部員を入れる。
 
-    A returning player's player_id, school, entry_year, identity, position,
-    handedness and jersey slot remain untouched. Newcomers fill precisely
-    the graduated position slots; 20-player positional quotas remain stable.
-
-    The initial 2026 grade quotas are (5,7,8), so the actual next-year
-    (freshmen, sophomores, juniors) counts are (8,5,7), *not* (5,7,8).
-    Silently replacing returnees to force initial quotas is forbidden.
+    進級する選手の選手ID・名前・出身・守備位置・投打・部員番号は変えない。新入部員の人数は
+    卒業した人数と関係なく ``roster_size.py`` で決め、空いている部員番号を小さい順に使う。
     """
     validate_school_roster(previous)
     if next_year != previous.reference_year + 1:
@@ -82,19 +81,36 @@ def advance_school_roster(
         raise ValueError("roster transition school name mismatch")
 
     generator = generator or PlayerRosterGenerator()
+    model = roster_size_model()
+    size = size or SizeContext(prefecture_code=team.prefecture_code)
+    if size.appeal is None:
+        first = model.initial_appeal(career_seed, team.school_id, next_year)
+        size = replace(size, appeal=lambda _year: first)
     graduates = tuple(
         p for p in previous.players if p.academic_year == 3
     )
+    reputation_z = size.reputation_z(next_year)
+    withdrawn = tuple(
+        p for p in previous.players
+        if p.academic_year in (1, 2) and model.withdraws(
+            career_seed, team.school_id, next_year, p.entry_year, p.roster_no, reputation_z)
+    )
+    gone = {p.player_id for p in withdrawn}
     continued = tuple(
         replace(p, academic_year=p.academic_year + 1)
-        for p in previous.players if p.academic_year in (1, 2)
+        for p in previous.players
+        if p.academic_year in (1, 2) and p.player_id not in gone
     )
+    second = [p.primary_position for p in continued if p.academic_year == 2]
+    plan = model.plan_freshmen(career_seed, team.school_id, next_year, size,
+                               second_years=second)
+    numbers = free_numbers((p.roster_no for p in continued), plan.count)
+    positions = model.positions(career_seed, team.school_id, next_year, numbers,
+                                second_years=second)
     newcomers: list[Player] = []
     # 同じ学校の中で同姓同名にならないように（残る部員と新入生どうし）
     taken = {p.display_name for p in continued}
-    for former in graduates:
-        slot = former.roster_no
-        pos = former.primary_position
+    for slot, pos in zip(numbers, positions):
         rng = rng_for(
             career_seed,
             f"career_roster_v1:{next_year}:{team.school_id}:slot:{slot}",
@@ -132,8 +148,6 @@ def advance_school_roster(
     sorted_players = sorted(
         [*continued, *newcomers], key=lambda p: p.roster_no
     )
-    if len(sorted_players) != CORE_ROSTER_SIZE:
-        raise ValueError("career roster size changed")
     old_ids = {p.player_id for p in previous.players}
     fresh_ids = {p.player_id for p in newcomers}
     if fresh_ids & old_ids or len(fresh_ids) != len(newcomers):
@@ -146,19 +160,9 @@ def advance_school_roster(
         rng_seed=career_seed,
         players=sorted_players,
         cohort_policy="career_v1",
+        floor_hit=plan.floor_hit,
     )
     validate_school_roster(next_roster)
-    # An extra lineage check ensures not even a subtle survivor mutation
-    # is hidden behind a valid 20-person/position-count snapshot.
-    after_by_id = {p.player_id: p for p in next_roster.players}
-    for p in previous.players:
-        if p.academic_year in (1, 2):
-            if after_by_id.get(p.player_id) != replace(
-                p, academic_year=p.academic_year + 1
-            ):
-                raise ValueError("returning player's identity was modified")
-        elif p.player_id in after_by_id:
-            raise ValueError("graduated player unexpectedly returned")
     return CareerRosterTransition(
         previous_year=previous.reference_year,
         new_year=next_year,
@@ -167,6 +171,7 @@ def advance_school_roster(
         returning=continued,
         newcomers=tuple(newcomers),
         roster=next_roster,
+        withdrawn=withdrawn,
     )
 
 
@@ -180,7 +185,11 @@ def advance_rosters(
 ):
     """Stream school transitions without loading all 3,000+ rosters at once."""
     for roster in previous_rosters:
+        team = repo.team(roster.school_id)
         yield advance_school_roster(
-            roster, repo.team(roster.school_id), next_year=next_year,
+            roster, team, next_year=next_year,
             career_seed=career_seed, generator=generator,
+            size=SizeContext(
+                ownership=getattr(repo, "ownership_type", lambda _sid: "")(roster.school_id),
+                prefecture_code=team.prefecture_code),
         )
