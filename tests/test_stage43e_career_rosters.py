@@ -11,7 +11,7 @@ from game_core.career_rosters import advance_school_roster, advance_rosters
 from game_core.tournament_bridge import AbilityMatchResolver
 from game_core.player_names import PlayerIdentity
 from game_core.players import (
-    GRADE_COUNTS, PlayerRosterGenerator, validate_school_roster, write_players_csv
+    PlayerRosterGenerator, validate_school_roster, write_players_csv
 )
 from phase2_engine.career_roster_archive import (
     CareerRosterArchive, CareerRosterConflictError
@@ -53,35 +53,32 @@ class Stage43ECareerRostersTests(unittest.TestCase):
     def test_2026_bootstrap_is_unchanged(self):
         self.assertEqual("initial_v1", self.initial.cohort_policy)
         self.assertNotIn("cohort_policy", self.initial.to_dict())
-        self.assertEqual(GRADE_COUNTS, {
-            grade: sum(p.academic_year == grade for p in self.initial.players)
-            for grade in (1, 2, 3)
-        })
         second = self.generator.generate_school(self.team, 2026, self.seed)
         self.assertEqual(self.initial.to_dict(), second.to_dict())
 
     def test_yearly_progression_and_three_year_graduation(self):
         p26 = {p.player_id: p for p in self.initial.players}
-        s27 = self._step(self.initial, 2027)
-        self.assertEqual({1: 8, 2: 5, 3: 7}, s27.summary()["cohort_counts"])
-        self.assertEqual(8, len(s27.graduated))
-        self.assertEqual(12, len(s27.returning))
-        self.assertEqual(8, len(s27.newcomers))
-        s28 = self._step(s27.roster, 2028)
-        self.assertEqual({1: 7, 2: 8, 3: 5}, s28.summary()["cohort_counts"])
-        self.assertEqual(7, len(s28.graduated))
-        s29 = self._step(s28.roster, 2029)
-        self.assertEqual({1: 5, 2: 7, 3: 8}, s29.summary()["cohort_counts"])
-        self.assertEqual(5, len(s29.graduated))
+        current = self.initial
         initial_grade1_ids = {
             pid for pid, p in p26.items() if p.academic_year == 1
         }
-        for year, roster in [(2027, s27.roster), (2028, s28.roster)]:
-            returned = {
-                p.player_id: p for p in roster.players
-                if p.player_id in initial_grade1_ids
-            }
-            self.assertEqual(initial_grade1_ids, set(returned))
+        kept = set(initial_grade1_ids)
+        for year in (2027, 2028, 2029):
+            step = self._step(current, year)
+            before = current.players
+            # 3年生は全員卒業、1・2年生は退部した選手を除いて進級する
+            self.assertEqual({p.player_id for p in before if p.academic_year == 3},
+                             {p.player_id for p in step.graduated})
+            self.assertEqual({p.player_id for p in before if p.academic_year < 3},
+                             {p.player_id for p in step.returning}
+                             | {p.player_id for p in step.withdrawn})
+            self.assertEqual(len(step.returning) + len(step.newcomers), len(step.roster.players))
+            self.assertTrue(all(p.academic_year == 1 for p in step.newcomers))
+            kept -= {p.player_id for p in step.withdrawn}
+            current = step.roster
+            returned = {p.player_id: p for p in current.players if p.player_id in initial_grade1_ids}
+            if year < 2029:
+                self.assertEqual(kept, set(returned))
             for pid, p in returned.items():
                 self.assertEqual(p26[pid].entry_year, p.entry_year)
                 self.assertEqual(p26[pid].display_name, p.display_name)
@@ -89,23 +86,24 @@ class Stage43ECareerRostersTests(unittest.TestCase):
                 self.assertEqual(p26[pid].bats, p.bats)
                 self.assertEqual(p26[pid].roster_no, p.roster_no)
                 self.assertEqual(year - 2025, p.academic_year)
-        self.assertFalse(
-            initial_grade1_ids & {p.player_id for p in s29.roster.players}
-        )
+        self.assertFalse(initial_grade1_ids & {p.player_id for p in current.players})
 
-    def test_immutable_roster_numbers_and_positions_each_year(self):
-        initial_slots = {p.roster_no: p.primary_position for p in self.initial.players}
+    def test_roster_numbers_stay_unique_and_new_team_meets_minimum(self):
         current = self.initial
         all_ids = {p.player_id for p in current.players}
         for year in range(2027, 2037):
             result = self._step(current, year)
+            numbers = {p.player_id: p.roster_no for p in result.returning}
             current = result.roster
             validate_school_roster(current)
-            self.assertEqual(20, len(current.players))
-            self.assertEqual(
-                initial_slots,
-                {p.roster_no: p.primary_position for p in current.players},
-            )
+            # 進級した選手は番号・守備位置を変えない
+            for p in current.players:
+                if p.player_id in numbers:
+                    self.assertEqual(numbers[p.player_id], p.roster_no)
+            new_team = [p for p in current.players if p.academic_year <= 2]
+            self.assertGreaterEqual(len(new_team), 10)
+            self.assertGreaterEqual(sum(p.primary_position == "P" for p in new_team), 2)
+            self.assertGreaterEqual(sum(p.primary_position == "C" for p in new_team), 1)
             ids = {p.player_id for p in result.newcomers}
             self.assertFalse(ids & all_ids)
             all_ids.update(ids)
@@ -119,7 +117,7 @@ class Stage43ECareerRostersTests(unittest.TestCase):
         other_result = advance_school_roster(
             other, other_team, next_year=2027, career_seed=self.seed
         )
-        self.assertEqual(20, len(other_result.roster.players))
+        self.assertGreaterEqual(len(other_result.roster.players), 10)
         self.assertFalse(
             {p.player_id for p in other_result.roster.players} &
             {p.player_id for p in first_players(first)}
@@ -153,7 +151,7 @@ class Stage43ECareerRostersTests(unittest.TestCase):
         result = self._step(self.initial, 2027)
         dest = Path(self.tmp.name) / "players.csv"
         written = write_players_csv([result.roster], dest)
-        self.assertEqual(20, written["player_count"])
+        self.assertEqual(len(result.roster.players), written["player_count"])
 
     def test_streaming_many_schools_only_advances_received_rosters(self):
         inputs = (
@@ -171,14 +169,17 @@ class Stage43ECareerRostersTests(unittest.TestCase):
         first = self.archive.save_initial_roster(self.initial)
         self.assertTrue(first["inserted"])
         self.assertFalse(self.archive.save_initial_roster(self.initial)["inserted"])
-        first_id = next(
-            p.player_id for p in self.initial.players if p.academic_year == 1
-        )
         for year in (2027, 2028, 2029):
             result = self.archive.advance_and_save(
                 self.team, next_year=year, career_seed=self.seed,
             )
             self.assertTrue(result["inserted"])
+        # 退部しなかった1年生
+        stayed = {p.player_id for p in self.archive.roster(2028, self.school).players}
+        first_id = next(
+            p.player_id for p in self.initial.players
+            if p.academic_year == 1 and p.player_id in stayed
+        )
         self.assertEqual(
             [2026, 2027, 2028, 2029],
             self.archive.school_years(self.school),
@@ -282,10 +283,12 @@ class Stage43ECareerRostersTests(unittest.TestCase):
             generation_seed=self.seed,
         )
         current_ids = {p.player_id for p in ability_team.player_abilities}
-        self.assertTrue(old_ids <= current_ids)
-        self.assertEqual(20, len(current_ids))
+        saved = self.archive.roster(2027, self.school)
+        self.assertEqual({p.player_id for p in saved.players}, current_ids)
+        self.assertTrue(old_ids >= {
+                p.player_id for p in saved.players if p.academic_year in (2, 3)})
         self.assertEqual(
-            old_ids, {
+            old_ids & current_ids, {
                 p.player_id for p in self.archive.roster(2027, self.school).players
                 if p.academic_year in (2, 3)
             }

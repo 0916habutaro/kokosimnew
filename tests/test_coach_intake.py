@@ -101,7 +101,11 @@ class CoachIntakeTests(unittest.TestCase):
         for f in (high, low):
             annual(f, 2027)
         a, b = freshmen(high[3], 2027), freshmen(low[3], 2027)
-        self.assertEqual(a, b)
+        # 評判の高い監督の学校には新入部員が少し多く集まる。同じ番号の選手で能力を比べる
+        self.assertGreaterEqual(len(a), len(b))
+        same = {p for p in b if p in set(a)}
+        a, b = [p for p in a if p in same], [p for p in b if p in same]
+        self.assertTrue(a)
         av, bv = abilities(high[3], a), abilities(low[3], b)
         self.assertTrue(all(x.contact >= y.contact for x, y in zip(av, bv)))
         self.assertGreater(sum(x.contact for x in av), sum(x.contact for x in bv))

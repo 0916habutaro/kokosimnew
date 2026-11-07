@@ -75,7 +75,8 @@ class RosterInjuryTests(unittest.TestCase):
     def test_injured_player_rests_does_not_grow_and_recovers(self):
         book = _book()
         players = book.roster(2026, "SCH-A").players
-        player = players[0]
+        # 伸びしろの大きい1年生で比べる
+        player = next(p for p in players if p.academic_year == 1)
         injury = Injury(date(2026, 5, 3), 20, 2)
         book.state(player).injuries.append(injury)
         self.assertEqual(injury, book.injury(player, date(2026, 5, 10)))

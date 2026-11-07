@@ -227,7 +227,7 @@ svg text { font-family: var(--ui); }
 /* 学校の一覧（見えている行だけ描く） */
 .grid { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 /* 初期サイズ（1400×900）で右の欄を残したまま全部の列が見える幅（約830px）に収める */
-.ghead, .grow { display: grid; grid-template-columns: 64px minmax(96px, 1fr) 44px repeat(5, 36px) 38px 34px 34px 52px 54px minmax(150px, 1.4fr); align-items: center; font-size: 13px; }
+.ghead, .grow { display: grid; grid-template-columns: 64px minmax(96px, 1fr) 44px 40px repeat(5, 36px) 38px 34px 34px 52px 54px minmax(150px, 1.4fr); align-items: center; font-size: 13px; }
 .ghead { height: 36px; background: var(--panel2); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }
 .ghead div { padding: 0 6px; cursor: pointer; white-space: nowrap; overflow: hidden; }
 .ghead div:hover { color: var(--text); }
@@ -348,3 +348,10 @@ small.called { color: var(--accent); font-size: 10.5px; font-family: var(--ui); 
 .board-called { margin-top: 6px; color: var(--accent); font-weight: 700; font-size: 13px; }
 p.decisions { margin: 8px 0 4px; }
 .trait { margin-left: 4px; color: var(--accent); font-size: 11px; }
+
+/* 部員：学年ごとの人数・絞り込み・ベンチ入りの印 */
+.member-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; font-size: 13px; }
+.member-head .spacer { flex: 1; }
+.chip { background: transparent; color: var(--muted, #9aa8b4); border: 1px solid var(--line, #2a3a48); border-radius: 12px; padding: 2px 10px; font-size: 12px; cursor: pointer; }
+.chip.on { color: var(--text, #e6edf3); border-color: var(--accent, #4aa3ff); }
+.bench { color: var(--accent, #4aa3ff); }

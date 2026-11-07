@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import random
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Callable, Collection, Iterable, Iterator
 
@@ -12,21 +12,13 @@ from phase2_engine.randomness import rng_for
 from phase2_engine.repository import DataRepository
 
 from .player_names import PlayerIdentity, name_generator
+from .roster_size import MAX_ROSTER_NO, SizeContext, roster_size_model
 
 
-CORE_ROSTER_SIZE = 20
-GRADE_COUNTS = {1: 5, 2: 7, 3: 8}
-POSITION_SLOTS = (
-    "P", "P", "P", "P", "P",
-    "C", "C",
-    "1B",
-    "2B", "2B",
-    "3B", "3B",
-    "SS", "SS",
-    "LF", "LF",
-    "CF", "CF",
-    "RF", "RF",
-)
+# 学年（1〜3年）。部員の人数・学年ごとの人数・守備位置は学校と年度で変わる
+# （game_core/roster_size.py、config/players/roster_size_v1.json）
+GRADES = (1, 2, 3)
+POSITIONS = ("P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF")
 
 
 @dataclass(frozen=True)
@@ -60,9 +52,10 @@ class SchoolRoster:
     school_name: str
     rng_seed: int
     players: list[Player] = field(default_factory=list)
-    # Initial fixed grade quotas only apply to the 2026 bootstrap cohort.
-    # Returning players keep their identity in later years.
+    # initial_v1：新規開始の名簿。career_v1：前の年度から進級した名簿
     cohort_policy: str = "initial_v1"
+    # 新入部員が最低人数（roster_size_v1 の minimum）に届かず増やしたか
+    floor_hit: bool = field(default=False, compare=False)
 
     def to_dict(self) -> dict:
         return {
@@ -163,10 +156,10 @@ def _player_id(
 
 
 class PlayerRosterGenerator:
-    """Generate a deterministic 20-player structural roster per school.
+    """新規開始の名簿（学校ごと）：3学年を、入学した年の順に同じ決め方でつくる。
 
-    Stage 13A intentionally models identity/affiliation only.  Player ability,
-    batting order, pitching usage and statistics are later-stage concerns.
+    人数・退部・守備位置は ``roster_size.py``。``size`` を省くと評判・監督・集まりやすさを
+    中立にする（名簿だけを試すとき）。ゲームでは ``RosterBook`` が渡す。
     """
 
     def __init__(
@@ -175,110 +168,94 @@ class PlayerRosterGenerator:
         name_provider: NameProvider | None = None,
     ):
         self.name_provider = name_provider or player_names
-        self._validate_contract()
-
-    @staticmethod
-    def _validate_contract() -> None:
-        if sum(GRADE_COUNTS.values()) != CORE_ROSTER_SIZE:
-            raise ValueError("grade counts must sum to CORE_ROSTER_SIZE")
-        if len(POSITION_SLOTS) != CORE_ROSTER_SIZE:
-            raise ValueError("position slots must match CORE_ROSTER_SIZE")
-        if set(GRADE_COUNTS) != {1, 2, 3}:
-            raise ValueError("grade counts must contain years 1, 2 and 3")
 
     def generate_school(
         self,
         team: Team,
         reference_year: int,
         base_seed: int,
+        *,
+        size: SizeContext | None = None,
     ) -> SchoolRoster:
         if reference_year <= 0:
             raise ValueError("reference_year must be positive")
         if not team.school_id:
             raise ValueError("team.school_id is required")
+        model = roster_size_model()
+        school_id = team.school_id
+        size = size or SizeContext(prefecture_code=team.prefecture_code)
+        if size.appeal is None:
+            first = model.initial_appeal(base_seed, school_id, reference_year)
+            size = replace(size, appeal=lambda _year: first)
 
-        grade_slots = [
-            grade
-            for grade, count in sorted(GRADE_COUNTS.items())
-            for _ in range(count)
-        ]
-        grade_rng = rng_for(
-            base_seed,
-            f"player_roster_v1:{reference_year}:{team.school_id}:grades",
-        )
-        grade_rng.shuffle(grade_slots)
-
-        positions = list(POSITION_SLOTS)
-        position_rng = rng_for(
-            base_seed,
-            f"player_roster_v1:{reference_year}:{team.school_id}:positions",
-        )
-        position_rng.shuffle(positions)
+        # (入学年度, 番号, 守備位置)。3年生から順に入部させ、進級のたびに退部を引く。
+        # 開始の前の年度の名簿（3月に始まる大会）はこの名簿を1学年戻したものなので、
+        # 最低人数はその新チーム（今の2・3年生）と今の新チーム（1・2年生）の両方にかけ、
+        # 開始の年度の4月の退部は引かない
+        members: list[tuple[int, int, str]] = []
+        next_no = 1
+        floor_hit = False
+        for entry_year in range(reference_year - 2, reference_year + 1):
+            if entry_year < reference_year:
+                members = [
+                    m for m in members
+                    if not model.withdraws(base_seed, school_id, entry_year, m[0], m[1],
+                                           size.reputation_z(entry_year))
+                ]
+            enforce = entry_year >= reference_year - 1
+            second = [m[2] for m in members if m[0] == entry_year - 1]
+            plan = model.plan_freshmen(base_seed, school_id, entry_year, size,
+                                       second_years=second, enforce_minimum=enforce)
+            numbers = list(range(next_no, next_no + plan.count))
+            next_no += plan.count
+            positions = model.positions(base_seed, school_id, entry_year, numbers,
+                                        second_years=second, enforce_minimum=enforce)
+            members.extend((entry_year, n, pos) for n, pos in zip(numbers, positions))
+            floor_hit = floor_hit or (entry_year == reference_year and plan.floor_hit)
 
         players: list[Player] = []
         taken: set[str] = set()
-        for index in range(CORE_ROSTER_SIZE):
-            roster_no = index + 1
-            academic_year = grade_slots[index]
-            position = positions[index]
+        for entry_year, roster_no, position in members:
+            academic_year = reference_year - entry_year + 1
             player_rng = rng_for(
                 base_seed,
-                (
-                    f"player_roster_v1:{reference_year}:"
-                    f"{team.school_id}:player:{roster_no}"
-                ),
+                f"player_roster_v1:{reference_year}:{school_id}:player:{roster_no}",
             )
-
             # 名前は別の乱数（名前を選び直しても投打が変わらない）
             identity = draw_identity(
-                self.name_provider,
-                team,
-                base_seed,
-                rng_for(
-                    base_seed,
-                    (
-                        f"player_names_v1:{reference_year}:"
-                        f"{team.school_id}:player:{roster_no}"
-                    ),
-                ),
+                self.name_provider, team, base_seed,
+                rng_for(base_seed,
+                        f"player_names_v1:{reference_year}:{school_id}:player:{roster_no}"),
                 taken,
             )
             taken.add(identity.display_name)
-
             throws, bats = draw_hands(position, player_rng)
-
-            players.append(
-                Player(
-                    player_id=_player_id(
-                        base_seed,
-                        reference_year,
-                        team.school_id,
-                        roster_no,
-                    ),
-                    school_id=team.school_id,
-                    program_id=team.program_id,
-                    display_name=identity.display_name,
-                    name_source=identity.name_source,
-                    hometown_prefecture_code=identity.hometown_prefecture_code,
-                    academic_year=academic_year,
-                    entry_year=reference_year - academic_year + 1,
-                    roster_no=roster_no,
-                    primary_position=position,
-                    position_group=_position_group(position),
-                    bats=bats,
-                    throws=throws,
-                    roster_status="active_core",
-                    generation_seed=base_seed,
-                )
-            )
+            players.append(Player(
+                player_id=_player_id(base_seed, reference_year, school_id, roster_no),
+                school_id=school_id,
+                program_id=team.program_id,
+                display_name=identity.display_name,
+                name_source=identity.name_source,
+                hometown_prefecture_code=identity.hometown_prefecture_code,
+                academic_year=academic_year,
+                entry_year=entry_year,
+                roster_no=roster_no,
+                primary_position=position,
+                position_group=_position_group(position),
+                bats=bats,
+                throws=throws,
+                roster_status="active_core",
+                generation_seed=base_seed,
+            ))
 
         roster = SchoolRoster(
             reference_year=reference_year,
-            school_id=team.school_id,
+            school_id=school_id,
             program_id=team.program_id,
             school_name=team.display_name,
             rng_seed=base_seed,
             players=players,
+            floor_hit=floor_hit,
         )
         validate_school_roster(roster)
         return roster
@@ -290,10 +267,13 @@ class PlayerRosterGenerator:
         reference_year: int,
         base_seed: int,
     ) -> SchoolRoster:
+        team = repo.team(school_id)
         return self.generate_school(
-            repo.team(school_id),
+            team,
             reference_year,
             base_seed,
+            size=SizeContext(ownership=getattr(repo, "ownership_type", lambda _sid: "")(school_id),
+                             prefecture_code=team.prefecture_code),
         )
 
     def iter_all_rosters(
@@ -314,12 +294,6 @@ class PlayerRosterGenerator:
 
 
 def validate_school_roster(roster: SchoolRoster) -> None:
-    if len(roster.players) != CORE_ROSTER_SIZE:
-        raise ValueError(
-            f"{roster.school_id}: expected {CORE_ROSTER_SIZE} players, "
-            f"got {len(roster.players)}"
-        )
-
     player_ids = [player.player_id for player in roster.players]
     if len(player_ids) != len(set(player_ids)):
         raise ValueError(f"{roster.school_id}: duplicate player_id")
@@ -329,14 +303,19 @@ def validate_school_roster(roster: SchoolRoster) -> None:
         raise ValueError(f"{roster.school_id}: duplicate player name")
 
     roster_numbers = [player.roster_no for player in roster.players]
-    if sorted(roster_numbers) != list(range(1, CORE_ROSTER_SIZE + 1)):
-        raise ValueError(f"{roster.school_id}: roster_no must be 1..20")
+    if len(roster_numbers) != len(set(roster_numbers)) or any(
+            not 1 <= number <= MAX_ROSTER_NO for number in roster_numbers):
+        raise ValueError(f"{roster.school_id}: roster_no must be unique in 1..{MAX_ROSTER_NO}")
+    if roster.cohort_policy not in {"initial_v1", "career_v1"}:
+        raise ValueError(f"{roster.school_id}: unknown cohort policy")
 
     for player in roster.players:
         if player.school_id != roster.school_id:
             raise ValueError(f"{player.player_id}: school_id mismatch")
         if player.program_id != roster.program_id:
             raise ValueError(f"{player.player_id}: program_id mismatch")
+        if player.academic_year not in GRADES:
+            raise ValueError(f"{player.player_id}: invalid academic_year")
         if player.entry_year != roster.reference_year - player.academic_year + 1:
             raise ValueError(f"{player.player_id}: entry_year mismatch")
         if player.position_group != _position_group(player.primary_position):
@@ -345,32 +324,6 @@ def validate_school_roster(roster: SchoolRoster) -> None:
             raise ValueError(f"{player.player_id}: invalid bats")
         if player.throws not in {"R", "L"}:
             raise ValueError(f"{player.player_id}: invalid throws")
-
-    actual_grades = {
-        grade: sum(player.academic_year == grade for player in roster.players)
-        for grade in (1, 2, 3)
-    }
-    if roster.cohort_policy == "initial_v1":
-        if actual_grades != GRADE_COUNTS:
-            raise ValueError(
-                f"{roster.school_id}: grade distribution mismatch {actual_grades}"
-            )
-    elif roster.cohort_policy == "career_v1":
-        if (sum(actual_grades.values()) != CORE_ROSTER_SIZE
-                or any(count <= 0 for count in actual_grades.values())):
-            raise ValueError(
-                f"{roster.school_id}: career cohort must retain all grades"
-            )
-    else:
-        raise ValueError(f"{roster.school_id}: unknown cohort policy")
-
-    actual_positions = sorted(
-        player.primary_position for player in roster.players
-    )
-    if actual_positions != sorted(POSITION_SLOTS):
-        raise ValueError(
-            f"{roster.school_id}: position slots do not match contract"
-        )
 
 
 def write_players_csv(

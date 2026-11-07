@@ -850,6 +850,7 @@ async function renderMatchDetail(content, detail) {
 
 const SCHOOL_COLS = [
   ["pref", "都道府県"], ["name", "校名"], ["ownership", "設置者"],
+  ["members", "部員", 1, "今の部員の数（引退した3年生を除く）"],
   ["overall", "総合", 1], ["batting", "打撃", 1], ["pitching", "投手", 1],
   ["defense", "守備", 1], ["running", "走力", 1], ["reputation", "評判", 1],
   ["koshien_summer", "夏", 1, "甲子園の出場回数（夏。実際の記録＋ゲーム内の記録）"],
@@ -986,6 +987,7 @@ function renderSchoolRows() {
     const ab = (key) => a ? rankHtml(a[key]) : "…";
     html += `<div class="grow ${s.school_id === st.selected ? "sel" : ""}" style="top:${i * RH}px" data-id="${esc(s.school_id)}">
       <div>${esc(s.prefecture)}</div><div title="${esc(s.official_name)}">${esc(s.name)}</div><div>${esc(s.ownership)}</div>
+      <div class="n">${s.members ?? "−"}</div>
       <div class="n">${ab("overall")}</div><div class="n">${ab("batting")}</div><div class="n">${ab("pitching")}</div>
       <div class="n">${ab("defense")}</div><div class="n">${ab("running")}</div>
       <div class="n">${s.reputation ? `<span class="rank r-${s.reputation}">${s.reputation}</span>` : "−"}</div>
@@ -1280,6 +1282,7 @@ function schoolKoshien(d) {
 
 // 部員：投手と野手で表を分け、能力（ランクと数値）と今年度の公式戦成績を出す。見出しを押すと並べ替え
 const MEMBER_BASE = [
+  ["bench", "入", (m) => (m.bench ? 1 : 0), (m) => (m.bench ? '<span class="bench" title="ベンチ入り">◎</span>' : ""), 1],
   ["name", "名前", (m) => m.name, (m, d) => playerLink(d.school_id, m.player_id, m.name)],
   ["grade", "学年", (m) => m.grade, (m) => `${m.grade}年`, 1],
   ["hometown", "出身", (m) => m.hometown, (m) => esc(m.hometown)],
@@ -1307,12 +1310,24 @@ const MEMBER_TABLES = [
   ]],
 ];
 
+// 部員の絞り込み（学年・ベンチ入り）。部員の多い学校でも見やすく
+const MEMBER_FILTERS = [["", "全員"], ["1", "1年"], ["2", "2年"], ["3", "3年"], ["bench", "ベンチ入り"]];
+
 function drawMembers(body, d) {
   if (!d.members.length) { body.innerHTML = '<div class="empty">部員は選手で試合をしているときに出ます。</div>'; return; }
   const sorts = (state.schools.memberSort ||= {});
-  body.innerHTML = MEMBER_TABLES.map(([id, title, pick, cols]) => {
+  // ベンチ入りの記録がない学校では、その絞り込みを「全員」に戻す
+  if (state.schools.memberFilter === "bench" && !d.bench) state.schools.memberFilter = "";
+  const filter = state.schools.memberFilter || "";
+  const grades = [1, 2, 3].map((g) => `${g}年 ${d.members.filter((m) => m.grade === g).length}人`).join("・");
+  const bench = d.bench ? `　ベンチ入り（${esc(d.bench.competition)}）◎ ${d.bench.count}人` : "";
+  const shown = (m) => !filter || (filter === "bench" ? m.bench : String(m.grade) === filter);
+  const head = `<div class="member-head"><span>部員 ${d.members.length}人（${grades}）${bench}</span>
+    <span class="spacer"></span>${MEMBER_FILTERS.filter(([v]) => v !== "bench" || d.bench).map(([v, label]) =>
+      `<button class="chip${v === filter ? " on" : ""}" data-mf="${v}">${label}</button>`).join("")}</div>`;
+  body.innerHTML = head + MEMBER_TABLES.map(([id, title, pick, cols]) => {
     const sort = sorts[id];
-    const rows = d.members.filter(pick);
+    const rows = d.members.filter((m) => pick(m) && shown(m));
     if (sort) {
       const col = cols.find((c) => c[0] === sort.key);
       rows.sort((a, b) => { const x = col[2](a), y = col[2](b); return (x < y ? -1 : x > y ? 1 : 0) * sort.dir; });
@@ -1329,6 +1344,10 @@ function drawMembers(body, d) {
     // 数の列は大きい順から（防御率は小さい順から）。もう一度押すと逆
     const first = col[4] ? (col[5] ? 1 : -1) : 1;
     sorts[id] = { key, dir: cur && cur.key === key ? -cur.dir : first };
+    drawMembers(body, d);
+  }));
+  body.querySelectorAll("[data-mf]").forEach((b) => b.addEventListener("click", () => {
+    state.schools.memberFilter = b.dataset.mf;
     drawMembers(body, d);
   }));
   bindPlayerLinks(body);

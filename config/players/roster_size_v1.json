@@ -1,0 +1,70 @@
+{
+  "config_id": "roster_size_v1",
+  "revision": 1,
+  "status": "design_default_not_tuned",
+  "description_ja": "学校ごと・年度ごとの部員の人数（新入部員の人数・退部・最低人数・守備位置・ベンチ入り）。使うのは game_core/roster_size.py。新入部員の期待人数 = base_freshmen × 設置（ownership）× exp(reputation_per_z × 評判の z) × exp(学校ごとの集まりやすさ) × exp(coach_per_z × 監督の z) × 都道府県の傾向。実際の人数は期待人数から負の二項（ガンマ・ポアソン。dispersion が小さいほどばらつく）で引く。傾向の目安は docs/research/school_roster_2026/（実在の値には合わせていない）。学校の強さに直接足す補正はない。",
+  "freshmen": {
+    "base_freshmen": 8.6,
+    "ownership": {
+      "private": 1.12,
+      "national": 0.95,
+      "default": 0.97
+    },
+    "reputation_per_z": 0.3,
+    "reputation_z_clip": {"min": -2.5, "max": 3.5},
+    "coach_per_z": 0.5,
+    "dispersion": 6.0,
+    "max_freshmen": 34
+  },
+  "school_appeal": {
+    "description_ja": "学校ごとの部員の集まりやすさ（対数）。新規開始の年に N(0, stddev) で引いてセーブに入れ、毎年 前の値 × carry ＋ N(0, stddev × √(1 − carry²)) で少しだけ変える（全体の広がりは変わらない）",
+    "stddev": 0.38,
+    "carry": 0.95,
+    "clip": 1.2
+  },
+  "prefecture": {
+    "description_ja": "都道府県の傾向（対数）。セーブの乱数の種と都道府県から N(0, stddev) で決める（弱め）",
+    "stddev": 0.08
+  },
+  "withdrawal": {
+    "description_ja": "退部：年度の切り替え（4月1日）に、進級する1・2年生が1人ずつ base の確率でやめる。評判の z が低いほど exp(−per_z × z) 倍に増える（max まで）",
+    "base": 0.035,
+    "per_z": 0.25,
+    "max": 0.12
+  },
+  "minimum": {
+    "description_ja": "最低人数：4月1日の新チーム（新1年生＋新2年生）が players 人（9以上）を下回るときは、新入部員を増やしてそろえる（3年生の引退後も試合ができる）。新規開始の名簿は、前の年度の3月の大会の新チーム（今の2・3年生）にもかける。連合チームはまだない",
+    "players": 10,
+    "pitchers": 2,
+    "catchers": 1
+  },
+  "positions": {
+    "description_ja": "新入部員の守備位置の確率（合計1）。最低人数の投手・捕手が新チームにいなければ、新入部員の一部を投手・捕手にする",
+    "P": 0.27,
+    "C": 0.11,
+    "1B": 0.06,
+    "2B": 0.1,
+    "3B": 0.09,
+    "SS": 0.1,
+    "LF": 0.09,
+    "CF": 0.1,
+    "RF": 0.08
+  },
+  "bench": {
+    "description_ja": "ベンチ入り：大会ごとに size 人を、その学校の最初の試合の日の能力で選ぶ（大会の途中で入れ替えない）。投手と捕手を先に min_pitchers・min_catchers 人まで入れ、残りは評価の高い順。評価は投手が pitcher の重み、野手が fielder の重みの平均に、学年1つにつき grade_bonus を足したもの。ベンチ外の選手は試合に出ず、試合の経験も付かない",
+    "size": 20,
+    "min_pitchers": 4,
+    "min_catchers": 2,
+    "grade_bonus": 1.5,
+    "pitcher": {"control": 0.25, "stuff": 0.25, "strikeout": 0.15, "stamina": 0.15, "velocity_kmh": 0.2},
+    "velocity_scale": {"description_ja": "球速を1〜100に直す：(km/h − low) × per_kmh", "low": 105, "per_kmh": 1.8},
+    "fielder": {"contact": 0.25, "power": 0.2, "plate_discipline": 0.1, "speed": 0.1, "fielding": 0.2, "arm_strength": 0.15}
+  },
+  "rng_namespaces": {
+    "count": "roster_size_v1:{year}:{school_id}:count",
+    "position": "roster_size_v1:{year}:{school_id}:position:{roster_no}",
+    "withdrawal": "roster_size_v1:{year}:{school_id}:withdrawal:{entry_year}:{roster_no}",
+    "appeal": "roster_size_v1:{year}:{school_id}:appeal",
+    "prefecture": "roster_size_v1:prefecture:{prefecture_code}"
+  }
+}
