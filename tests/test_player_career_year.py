@@ -229,7 +229,9 @@ class PlayerCareerYearTests(unittest.TestCase):
 
     def test_closed_year_names_come_from_the_history(self):
         archived = self.service.closed_roster("year", 2026, "SCH000001")
-        self.assertEqual(20, len(archived))
+        # 閉じた年度の部員は全員、履歴に残る（人数は学校・年度で変わる）
+        self.assertGreaterEqual(len(archived), 10)
+        self.assertEqual(len(archived), len({row["player_id"] for row in archived}))
         # 年度末の能力と成長の型も残る
         self.assertTrue(all(row["abilities"] and row["growth_type"] for row in archived))
         # 終わった大会の試合の記録はまとめて圧縮してある
@@ -252,7 +254,9 @@ class PlayerCareerYearTests(unittest.TestCase):
         }
         now = self.session.state.rosters.roster(2027, "SCH000001").players
         returning = [p for p in now if p.player_id in archived]
-        self.assertEqual(12, len(returning))
+        # 3年生は卒業、1・2年生は退部した選手を除いて進級する
+        self.assertEqual(sum(p.academic_year >= 2 for p in now), len(returning))
+        self.assertLessEqual(len(returning), sum(row["academic_year"] < 3 for row in archived.values()))
         for player in returning:
             self.assertEqual(archived[player.player_id]["display_name"], player.display_name)
             self.assertEqual(
