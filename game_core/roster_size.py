@@ -184,12 +184,20 @@ class RosterSizeModel:
             out.append(chosen)
         if enforce_minimum:
             minimum = self.config["minimum"]
-            for position, key in (("P", "pitchers"), ("C", "catchers")):
-                short = int(minimum[key]) - sum(p == position for p in (*second_years, *out))
+            floors = {"P": int(minimum["pitchers"]), "C": int(minimum["catchers"])}
+
+            def count(position):
+                return sum(p == position for p in (*second_years, *out))
+
+            for position in ("P", "C"):
+                short = floors[position] - count(position)
                 for index in reversed(range(len(out))):
                     if short <= 0:
                         break
-                    if out[index] in ("P", "C"):
+                    current = out[index]
+                    # 投手・捕手は最低人数を超えている分だけ振り替えてよい
+                    if current == position or (current in floors
+                                                and count(current) <= floors[current]):
                         continue
                     out[index] = position
                     short -= 1

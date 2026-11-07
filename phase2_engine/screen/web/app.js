@@ -1316,6 +1316,8 @@ const MEMBER_FILTERS = [["", "全員"], ["1", "1年"], ["2", "2年"], ["3", "3�
 function drawMembers(body, d) {
   if (!d.members.length) { body.innerHTML = '<div class="empty">部員は選手で試合をしているときに出ます。</div>'; return; }
   const sorts = (state.schools.memberSort ||= {});
+  // ベンチ入りの記録がない学校では、その絞り込みを「全員」に戻す
+  if (state.schools.memberFilter === "bench" && !d.bench) state.schools.memberFilter = "";
   const filter = state.schools.memberFilter || "";
   const grades = [1, 2, 3].map((g) => `${g}年 ${d.members.filter((m) => m.grade === g).length}人`).join("・");
   const bench = d.bench ? `　ベンチ入り（${esc(d.bench.competition)}）◎ ${d.bench.count}人` : "";

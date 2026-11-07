@@ -1708,12 +1708,16 @@ class GameScreenData:
         if latest is None:
             return None
         _, season, competition_id, ids = latest
+        if not ids:
+            # 部員が20人以下で全員がベンチ入り（今の部員がその大会の出場メンバー）
+            ids = {row["player_id"] for row in rows}
         current = {row["player_id"] for row in rows}
         for row in rows:
             row["bench"] = row["player_id"] in ids
         return {
             "competition": self._competition_name(season, competition_id, competition_id),
             "count": len(ids & current),
+            "all": len(ids & current) == len(current),
         }
 
     # ---- 監督（読み取り専用） ----

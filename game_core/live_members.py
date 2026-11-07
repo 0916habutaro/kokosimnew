@@ -20,6 +20,8 @@ from .roster_size import bench_score, roster_size_model, select_bench
 
 
 SUMMER = "summer"
+# ベンチ入りの記録で「その大会の出場メンバー全員」（部員が20人以下）
+ALL_MEMBERS: tuple[str, ...] = ()
 SUMMER_FINAL_TYPE = "national_championship"
 
 
@@ -142,21 +144,29 @@ class LiveSeasonMembers:
 
     def _bench(self, members: CompetitionMembers) -> CompetitionMembers:
         """ベンチ入り（roster_size_v1 の bench）。最初に必要になった日（その学校の最初の
-        試合の日）の能力で選び、進行中の状態に入れて固定する（セーブの読込で選び直さない）。"""
+        試合の日）の能力で選び、進行中の状態に入れて固定する（セーブの読込で選び直さない）。
+
+        部員が ``size`` 人以下で全員が入るときも、大会ごとに ``ALL_MEMBERS``（空の並び）を
+        入れる（画面が前の大会のベンチ入りを出さないように。選手IDは持たずセーブを小さく）。"""
         rosters = self.members.rosters
-        bench = roster_size_model().config["bench"]
-        if rosters is None or len(members.players) <= int(bench["size"]):
+        if rosters is None:
             return members
+        bench = roster_size_model().config["bench"]
         saved = getattr(self.state, "bench_members", None)
         slot = f"{members.competition_id}:{members.school_id}"
         ids = saved.get(slot) if saved is not None else None
         if ids is None:
-            chosen = select_bench(members.players, lambda p: bench_score(rosters.ability(p)))
-            ids = tuple(p.player_id for p in chosen)
+            if len(members.players) <= int(bench["size"]):
+                ids = ALL_MEMBERS
+            else:
+                chosen = select_bench(members.players, lambda p: bench_score(rosters.ability(p)))
+                ids = tuple(p.player_id for p in chosen)
             if saved is not None:
                 saved[slot] = ids
             else:
                 self._unsaved[slot] = ids
+        if ids == ALL_MEMBERS:
+            return members
         keep = set(ids)
         return replace(members, players=tuple(p for p in members.players if p.player_id in keep))
 

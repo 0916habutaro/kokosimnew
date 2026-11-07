@@ -78,6 +78,23 @@ class MinimumAndPositionTests(unittest.TestCase):
             self.assertGreaterEqual(positions.count("C"), 1)
         self.assertGreater(hits, 0)
 
+    def test_catcher_is_taken_from_extra_pitchers(self):
+        # 新入部員が全員投手に引かれても、最低人数を超える投手から捕手に振り替える
+        config = deepcopy(roster_size_model().config)
+        for position in config["positions"]:
+            if position != "rng_namespaces" and isinstance(config["positions"][position], float):
+                config["positions"][position] = 0.0
+        config["positions"]["P"] = 1.0
+        model = RosterSizeModel(config)
+        for second in ([], ["P"] * 5, ["SS"] * 9):
+            # plan_freshmen と同じく、足りない投手・捕手の人数以上は入部する
+            need = max(0, 2 - second.count("P")) + max(0, 1 - second.count("C"))
+            count = max(need, 10 - len(second))
+            out = model.positions(7, "SCH-A", 2027, list(range(1, count + 1)), second_years=second)
+            team = [*second, *out]
+            self.assertGreaterEqual(team.count("P"), 2, second)
+            self.assertGreaterEqual(team.count("C"), 1, second)
+
     def test_minimum_is_not_used_when_not_asked(self):
         plans = [self.model.plan_freshmen(7, f"SCH-{n}", 2024, self.small, enforce_minimum=False)
                  for n in range(40)]

@@ -286,6 +286,13 @@ class LiveSeasonMembersTests(unittest.TestCase):
         autumn = live("AUTUMN", "SCH-TEST")
         self.assertEqual(min(20, new_team), len(autumn.players))
         self.assertNotIn(3, self.grades_of(autumn.players))
+        # 全員が入る大会も大会ごとに記録する（画面が前の大会のベンチ入りを出さない）
+        for cid, players in (("SPRING", spring.players), ("AUTUMN", autumn.players)):
+            saved = state.bench_members[f"{cid}:SCH-TEST"]
+            if len(players) < 20 or saved == ():
+                self.assertEqual((), saved)
+            else:
+                self.assertEqual(tuple(p.player_id for p in players), saved)
         # 一度決めたメンバーは固定。状態に入るので読み込み直しても同じ
         self.assertIs(autumn, live("AUTUMN", "SCH-TEST"))
         again = LiveSeasonMembers(Plan(), book)
@@ -294,6 +301,26 @@ class LiveSeasonMembersTests(unittest.TestCase):
             self.assertIn("SPRING:SCH-TEST", state.bench_members)
             with unittest.mock.patch.object(book, "ability", side_effect=AssertionError):
                 self.assertEqual(spring.players, again("SPRING", "SCH-TEST").players)
+
+    def test_small_team_records_that_everyone_is_on_the_bench(self):
+        from types import SimpleNamespace
+
+        from game_core.live_members import ALL_MEMBERS, LiveSeasonMembers
+        from game_core.membership import CompetitionMembers
+
+        book = _book()
+        plan = SimpleNamespace(year=2026, calendar_rows=[], stage_calendar_rows=[], entries={})
+        live = LiveSeasonMembers(plan, book)
+        state = _State({})
+        live.attach(state)
+        players = tuple(book.roster(2026, "SCH-TEST").players)
+        small = CompetitionMembers("AUTUMN", "SCH-TEST", date(2026, 9, 20), 2026, players[:15])
+        self.assertEqual(small, live._bench(small))
+        # 夏の大会で20人を選んでいても、秋の大会は「全員」として記録する
+        self.assertEqual(ALL_MEMBERS, state.bench_members["AUTUMN:SCH-TEST"])
+        big = CompetitionMembers("SUMMER", "SCH-TEST", date(2026, 7, 1), 2026, players[:30])
+        self.assertEqual(20, len(live._bench(big).players))
+        self.assertEqual(20, len(state.bench_members["SUMMER:SCH-TEST"]))
 
     @staticmethod
     def grades_of(players):
