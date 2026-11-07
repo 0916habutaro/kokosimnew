@@ -14,7 +14,7 @@
     "reputation_z_clip": {"min": -2.5, "max": 3.5},
     "coach_per_z": 0.5,
     "dispersion": 6.0,
-    "max_freshmen": 40
+    "max_freshmen": 34
   },
   "school_appeal": {
     "description_ja": "学校ごとの部員の集まりやすさ（対数）。新規開始の年に N(0, stddev) で引いてセーブに入れ、毎年 前の値 × carry ＋ N(0, stddev × √(1 − carry²)) で少しだけ変える（全体の広がりは変わらない）",

@@ -85,13 +85,19 @@ class PlayerCareerYearTests(unittest.TestCase):
         left, right = cls.march.state.rosters, control.state.rosters
         cls.personnel_reputation_equal = (left.reputation.values == right.reputation.values
                                          and left.reputation.intake_by_year == right.reputation.intake_by_year)
-        cls.returning_values_equal = all(bytes(state.values) == bytes(right._states[sid][key].values)
-            for sid, states in left._states.items() for key, state in states.items() if key[0] <= 2026)
+        # 監督の評判は新入部員の人数にも効く（roster_size_v1）。両側にいる選手で比べる
+        both = [(sid, key, state) for sid, states in left._states.items()
+                for key, state in states.items() if key in right._states.get(sid, {})]
+        cls.returning_kept = all(key in right._states.get(sid, {})
+            for sid, states in left._states.items() for key in states if key[0] <= 2026)
+        cls.returning_values_equal = cls.returning_kept and all(
+            bytes(state.values) == bytes(right._states[sid][key].values)
+            for sid, key, state in both if key[0] <= 2026)
         cls.new_intake_changed = any(bytes(state.values) != bytes(right._states[sid][key].values)
-            for sid, states in left._states.items() for key, state in states.items() if key[0] == 2027)
+            for sid, key, state in both if key[0] == 2027)
         cls.growth_potential_equal = all((state.growth_type, state.potential) ==
             (right._states[sid][key].growth_type, right._states[sid][key].potential)
-            for sid, states in left._states.items() for key, state in states.items())
+            for sid, key, state in both)
         del control, control_service, left, right
         control_tmp.cleanup()
         cls.april_rosters = cls.march.state.rosters.years()
