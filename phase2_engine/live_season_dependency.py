@@ -216,6 +216,10 @@ class LiveSeasonDependencyRuntimeState:
     pitch_log: dict[str, dict[str, int]] = field(default_factory=dict, repr=False)
     # 「competition_id:school_id」→ その大会のベンチ入りの選手ID（最初の試合の日に決めて固定）
     bench_members: dict[str, tuple[str, ...]] = field(default_factory=dict, repr=False)
+    # 大会 → 連合チームと出ない学校（game_core/joint_teams.py の UnionPlan）
+    union_plans: dict[str, object] = field(default_factory=dict, repr=False)
+    # 部員の名簿がまだなく、連合を組まずにつくった大会（4月1日に組み直す）
+    union_pending: set[str] = field(default_factory=set, repr=False)
     # 学校ごとの試合の日。全大会で共有し、年度の重なりでは前の年度と共有する。
     school_days: dict[str, set] = field(
         default_factory=dict,
@@ -1002,6 +1006,55 @@ class LiveSeasonDependencyRuntimeState:
             del self.competitions[cid]
             self._activate_competition(cid, exempt, activation_date=today)
 
+    # ---- 連合チーム（game_definition.md §3.8） ----
+
+    def _union_planner(self):
+        resolver = getattr(self.engine, "main_match_resolver", None)
+        provider = getattr(resolver, "member_provider", None)
+        return provider if hasattr(provider, "plan_unions") else None
+
+    def _with_unions(
+        self, competition_id: str, annual: AnnualCompetitionInput,
+    ) -> AnnualCompetitionInput:
+        """部員の足りない学校の連合チームを組み、代表校以外と出ない学校を出場校から外す。
+        部員の名簿がまだつくれない大会は、そのままつくって4月1日に組み直す。"""
+        planner = self._union_planner()
+        if planner is None:
+            return annual
+        from game_core.joint_teams import apply_to_annual
+
+        plan = planner.plan_unions(competition_id, annual)
+        if plan is None:
+            self.union_pending.add(competition_id)
+            self.union_plans.pop(competition_id, None)
+            return annual
+        self.union_pending.discard(competition_id)
+        if plan.teams or plan.absent:
+            self.union_plans[competition_id] = plan
+        else:
+            self.union_plans.pop(competition_id, None)
+        return apply_to_annual(annual, plan)
+
+    def rebuild_pending_unions(self, today: str) -> list[str]:
+        """名簿ができたら（4月1日）、連合を組まずにつくってあった大会を組み直す。
+        まだ試合をしていない大会だけ。組み直した大会を返す。"""
+        rebuilt = []
+        for cid in sorted(self.union_pending):
+            scheduled = self.competitions.get(cid)
+            annual = self.activated_annuals.get(cid)
+            if scheduled is None or annual is None or scheduled.is_complete:
+                continue
+            if any(match.status != SCHEDULE_PENDING or match.match_date < today
+                   for match in scheduled.matches.values()):
+                continue
+            for match in scheduled.matches.values():
+                for team in (match.team1_id, match.team2_id):
+                    self.school_days.get(team, set()).discard(match.match_date)
+            del self.competitions[cid]
+            self._activate_competition(cid, annual, activation_date="")
+            rebuilt.append(cid)
+        return rebuilt
+
     def _activate_competition(
         self,
         competition_id: str,
@@ -1011,6 +1064,7 @@ class LiveSeasonDependencyRuntimeState:
     ) -> bool:
         base_annual = deepcopy(annual)
         annual = self._with_koshien_exemption(competition_id, annual)
+        annual = self._with_unions(competition_id, annual)
         self._refresh_koshien_holds()
         scheduled = (
             self.engine

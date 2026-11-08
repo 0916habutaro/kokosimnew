@@ -200,6 +200,11 @@ class CareerState:
             if self.current_date.month != previous.month:
                 self.rosters.grow(previous)
             self.rosters.set_today(self.current_date)
+            if (self.current_date.month, self.current_date.day) == (4, 1):
+                # 新しい年度の名簿ができたので、連合を組まずにつくってあった大会を組み直す
+                for state in self.seasons.values():
+                    if hasattr(state, "rebuild_pending_unions"):
+                        state.rebuild_pending_unions(self.current_date.isoformat())
         opened = self._open_next_season()
         return {
             "from_date": previous.isoformat(),

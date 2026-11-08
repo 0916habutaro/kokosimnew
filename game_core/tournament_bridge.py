@@ -325,6 +325,14 @@ class AbilityMatchResolver:
             self._player_ability(player, reference_year, team_seed)
             for player in members
         )
+        if any(snapshot.school_id != school_id for snapshot in abilities):
+            # 連合チーム：試合では代表校のチームとして出る。選手の名簿上の学校は変えない
+            # （試合の記録は選手IDから選手それぞれの学校に付く）
+            abilities = tuple(
+                snapshot if snapshot.school_id == school_id
+                else replace(snapshot, school_id=school_id)
+                for snapshot in abilities
+            )
         team = TeamMatchInput(
             school_id=school_id,
             team_strength=self.team_generator.generate(

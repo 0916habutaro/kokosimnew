@@ -30,6 +30,7 @@
   同じ打者の対右・対左の打率の差（起用の偏りを除く）
 - 部員の人数（4月1日の名簿）：全国の1校あたりの学年ごとの人数、1校の部員数の分布、私立・公立と
   評判の帯（z）ごとの平均、新入部員を最低人数まで増やした学校の数、退部した人数
+- 連合チーム（11月1日の年度の状態）：大会の種類ごとの連合チームの数・構成校の数・出なかった学校の数
 - ``--ability-table``：打者・守備・投手が全部50の相手に、能力を30・80・95にしたときの三振・四球・打率・長打率・本塁打
   （打席の結果の重みから計算する。試合は進めない）
 """
@@ -105,6 +106,7 @@ class BalanceTally:
         self.team_games = defaultdict(Counter)   # 年度 → 学校 → 試合数
         self.rosters = {}                        # 年度 → 名簿の集計
         self.sizes = {}                          # 年度 → 部員の人数の集計（4月1日）
+        self.unions = {}                         # 年度 → 大会の種類 → 連合チームの集計
         self.tactics = defaultdict(Counter)      # 年度 → 作戦の数（全試合）
         self.tactics_koshien = defaultdict(Counter)  # 年度 → 作戦の数（夏の甲子園）
         self.substitutions = defaultdict(Counter)   # 年度 → 交代の数・代打の成績
@@ -321,6 +323,16 @@ class BalanceTally:
             "s_count": dict(sorted(s_count.items())),
         }
 
+    def add_unions(self, year: int, season, kind_of) -> None:
+        """その年度の連合チーム（大会の種類ごとに合計）。"""
+        out = defaultdict(Counter)
+        for cid, plan in (getattr(season, "union_plans", None) or {}).items():
+            row = out[kind_of(cid)]
+            row["teams"] += len(plan.teams)
+            row["schools"] += sum(len(team.schools) for team in plan.teams)
+            row["absent"] += len(plan.absent)
+        self.unions[year] = {kind: dict(row) for kind, row in sorted(out.items())}
+
     def add_sizes(self, year: int, schools, floor_hits: int = 0) -> None:
         """``schools`` は (設置者, 評判のランク S〜E, 学年ごとの人数 {1: 人, 2: 人, 3: 人}) の並び。"""
         totals, grades = [], Counter()
@@ -426,7 +438,8 @@ class BalanceTally:
         return out
 
     def summary(self) -> dict:
-        years = sorted({y for y, _ in self.games} | set(self.rosters) | set(self.sizes))
+        years = sorted({y for y, _ in self.games} | set(self.rosters) | set(self.sizes)
+                       | set(self.unions))
         out = {}
         for year in years:
             local = self.games.get((year, LOCAL), [])
@@ -502,6 +515,8 @@ class BalanceTally:
                 row["rosters"] = self.rosters[year]
             if year in self.sizes:
                 row["sizes"] = self.sizes[year]
+            if year in self.unions:
+                row["unions"] = self.unions[year]
             out[year] = row
         return out
 
@@ -773,6 +788,8 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
             if (today.month, today.day) == (4, 1):
                 sizes = list(size_rows(state.rosters, today.year, repo))
                 tally.add_sizes(today.year, sizes, state.rosters.floor_hits.get(today.year, 0))
+            if (today.month, today.day) == (11, 1) and today.year in state.seasons:
+                tally.add_unions(today.year, state.seasons[today.year], tally.kind_of)
             if (today.month, today.day) == (7, 1):
                 tally.add_rosters(today.year, roster_rows(state.rosters, today.year))
                 last_snapshot = today.year
@@ -938,6 +955,11 @@ def format_report(seed_label: str, report: dict) -> str:
                 lines.append("  私立・公立×評判 平均（10%点〜90%点、校数）: " + " ".join(
                     f"{k}:{v['mean']}({v['p10']}〜{v['p90']},{v['n']})" for k, v in sz["by_rank"].items()))
                 lines.append(f"  評判Sの私立で50人未満: {sz['private_s_under_50']}校")
+        un = row.get("unions")
+        if un:
+            lines.append("  連合チーム（チーム／構成校／出ない学校）: " + " ".join(
+                f"{k}:{v.get('teams', 0)}／{v.get('schools', 0)}／{v.get('absent', 0)}"
+                for k, v in un.items()))
         ro = row.get("rosters")
         if ro:
             lines.append(f"  3年の投手 {ro['third_year_pitchers']}人: 平均 {ro['velocity_mean']}km/h / "

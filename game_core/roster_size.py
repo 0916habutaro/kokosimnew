@@ -118,9 +118,10 @@ class RosterSizeModel:
         if abs(total - 1.0) > 1e-9:
             raise ValueError("roster_size_v1: position shares must sum to 1")
         self.namespaces = self.config["rng_namespaces"]
-        # 試合には9人が要る（新チームはこの人数を下回らない）
-        if int(self.config["minimum"]["players"]) < 9:
-            raise ValueError("roster_size_v1: minimum players must be at least 9")
+        # かさ上げするなら試合に要る9人以上（0 はかさ上げしない。連合チームで補う）
+        players = int(self.config["minimum"]["players"])
+        if players and players < 9:
+            raise ValueError("roster_size_v1: minimum players must be 0 or at least 9")
 
     # ---- 学校ごとの集まりやすさ・都道府県 ----
 
@@ -228,7 +229,9 @@ class RosterSizeModel:
             minimum = self.config["minimum"]
             need_p = max(0, int(minimum["pitchers"]) - sum(p == "P" for p in second_years))
             need_c = max(0, int(minimum["catchers"]) - sum(p == "C" for p in second_years))
-            count = max(count, int(minimum["players"]) - len(second_years), need_p + need_c)
+            players = int(minimum["players"])
+            if players:
+                count = max(count, players - len(second_years), need_p + need_c)
         return IntakePlan(count=count, drawn=drawn, floor_hit=count > drawn, expected=mean)
 
     def positions(

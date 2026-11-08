@@ -28,6 +28,9 @@ class Fmt006QualifierGroupRuntime:
     cross_order: List[str] = field(default_factory=list)
     cross_activated: bool = False
     direct_school_ids: List[str] = field(default_factory=list)
+    # 出場校が少なく3〜4校の組に分けきれないとき、組の試合をせずに進む学校
+    # （連合チームで出場校が減った年。できるだけ少なくする）
+    bye_school_ids: List[str] = field(default_factory=list)
     runnerup_3_school_ids: List[str] = field(default_factory=list)
     standings_by_pool: Dict[str, dict] = field(default_factory=dict)
 
@@ -59,7 +62,7 @@ class Fmt006QualifierGroupRuntime:
             if any(len(pool) not in {3, 4} for pool in pools):
                 raise ValueError(f"{gid}: FMT006 pools must have 3 or 4 teams")
         else:
-            four_count, three_count = cls._solve_3_or_4_pool_plan(
+            four_count, three_count, bye_count = cls._solve_pool_plan_with_byes(
                 len(eligible), output_slots
             )
             sizes = [4] * four_count + [3] * three_count
@@ -73,6 +76,8 @@ class Fmt006QualifierGroupRuntime:
                 generation_seed,
                 f"{competition_id}:{stage_id}:{gid}:pool_draw",
             )
+            byes = drawn[len(drawn) - bye_count:] if bye_count else []
+            drawn = drawn[:len(drawn) - bye_count]
             pools = []
             pos = 0
             for size in sizes:
@@ -101,6 +106,7 @@ class Fmt006QualifierGroupRuntime:
             group=dict(group),
             eligible_school_ids=eligible,
             output_slots=output_slots,
+            bye_school_ids=list(byes) if not supplied_pools else [],
             pools=pools,
             pool_runtimes=pool_runtimes,
             generation_seed=generation_seed,
@@ -110,6 +116,23 @@ class Fmt006QualifierGroupRuntime:
             stage_code=stage_code,
             match_resolver=match_resolver,
             match_simulation_results=sink,
+        )
+
+    @classmethod
+    def _solve_pool_plan_with_byes(
+        cls, entrant_count: int, output_slots: int,
+    ) -> tuple[int, int, int]:
+        """3〜4校の組の数と、組に入らずに進む学校の数（いちばん少なく）。"""
+        for byes in range(0, min(entrant_count, output_slots) + 1):
+            try:
+                four, three = cls._solve_3_or_4_pool_plan(
+                    entrant_count - byes, output_slots - byes)
+            except ValueError:
+                continue
+            return four, three, byes
+        raise ValueError(
+            f"cannot partition entrants={entrant_count} into 3/4-team pools "
+            f"for output_slots={output_slots}"
         )
 
     @staticmethod
@@ -242,7 +265,7 @@ class Fmt006QualifierGroupRuntime:
                 direct.append(ranking[0])
                 runnerups_3.append(ranking[1])
 
-        self.direct_school_ids = direct
+        self.direct_school_ids = list(self.bye_school_ids) + direct
         self.runnerup_3_school_ids = runnerups_3
         self.standings_by_pool = standings
 

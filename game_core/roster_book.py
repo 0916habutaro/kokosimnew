@@ -98,8 +98,11 @@ def pack_school(roster: SchoolRoster, *, first_year: int) -> tuple:
     """学校・年度の名簿を詰める：名前は改行でつなぎ、小さい項目は1バイトずつ
     （同じ種類の値をまとめると圧縮が効く）。"""
     sources = {p.name_source for p in roster.players}
-    if len(sources) != 1:
+    if len(sources) > 1:
         raise ValueError(f"{roster.school_id}: mixed name sources")
+    if not sources:
+        # 部員のいない学校（新入部員が0人の年が続いた）
+        sources = {""}
     small = bytearray()
     for p in roster.players:
         small.extend((
@@ -121,6 +124,8 @@ def unpack_school(packed: tuple, *, first_year: int) -> list[tuple]:
     """(入学年度, 番号, 名前, 名前の出典, 出身, 守備位置, 打, 投) の並び。"""
     _, _, _, source, names, small = packed
     rows = []
+    if not small:
+        return rows
     for index, name in enumerate(names.split("\n")):
         entry, roster_no, hometown, position, bats, throws = small[index * 6:index * 6 + 6]
         rows.append((
@@ -470,6 +475,11 @@ class RosterBook:
         )
 
     # ---- 名簿 ----
+
+    def can_build(self, year: int) -> bool:
+        """その年度の名簿を今つくれるか（新入生は4月1日の評判・監督の確定のあと）。"""
+        today = school_year_of(self.today) if self.today is not None else self.first_year
+        return self.closed_through < year <= max(self.first_year, today)
 
     def years(self) -> list[int]:
         return sorted({year for year, _ in self._packed})
