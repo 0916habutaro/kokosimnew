@@ -1,0 +1,8 @@
+{
+  "config_id": "summer_seed_points_v1",
+  "revision": 1,
+  "status": "design_default_not_tuned",
+  "notes_ja": "夏の地方大会の成績シードを、前年の秋季県大会と当年の春季県大会の成績を合わせて選ぶ大会（competition_seed_rules.csv の source_result_selector=points_rank）で使うゲームの仮の配点（game_definition.md §8「夏の地方大会のシード」）。実際の配点は各県高野連が公表しておらず（docs/research/2026_summer_seeding/）、ここの値は実在の値ではない。大会ごとの到達点（best＝優勝1・準優勝2・ベスト4・8・16・32…）に点を付け、秋と春の点を足す。同点は春の順位が上の学校、それも同じなら抽選。前年秋の結果がない年度（最初の2026年度）は春だけで選ぶ。",
+  "points_by_best": {"1": 10, "2": 8, "4": 6, "8": 4, "16": 2, "32": 1},
+  "source_weights": {"autumn_prefectural": 1.0, "spring_prefectural": 1.0}
+}

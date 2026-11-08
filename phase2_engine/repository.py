@@ -38,6 +38,11 @@ class DataRepository:
             if not path.exists():
                 raise FileNotFoundError(path)
             self.tables[name] = self._read(path)
+        # 本大会の抽選の決まり（夏の地方大会のシードの不戦勝・途中の抽選。seed_draw.py）
+        policy_path = resolve_data_file(self.data_dir, "bracket_generation_policies.csv")
+        self.tables["bracket_generation_policies.csv"] = (
+            self._read(policy_path) if policy_path.exists() else []
+        )
         # 遊んでいるセーブで編集した設置者（学校ID → ownership_type）。
         # マスターは書き換えず、これを優先する（phase2_engine/school_edits.py）
         self.ownership_overrides: Dict[str, str] = {}
@@ -85,6 +90,11 @@ class DataRepository:
         self.seed_rules_by_comp = defaultdict(list)
         for r in self.tables["competition_seed_rules.csv"]:
             self.seed_rules_by_comp[r["destination_competition_id"]].append(r)
+
+        self.bracket_policies = {
+            (r["competition_id"], r["stage_code"]): r
+            for r in self.tables["bracket_generation_policies.csv"]
+        }
 
         self.access_rules_by_comp = defaultdict(list)
         for r in self.tables["competition_access_rules.csv"]:
