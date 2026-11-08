@@ -1,6 +1,6 @@
 """Fail-closed docs-only CI route for pull_request and main push.
 
-Only Markdown/reStructuredText documentation is exempt from long-running checks.
+Only whitelisted prose docs and research CSVs bypass game tests.
 Manual triggers, unknown revisions and git errors always run the full workload.
 """
 from __future__ import annotations
@@ -17,16 +17,31 @@ _ROOT_DOCS = frozenset({"README.md", "CHANGELOG.md", "CONTRIBUTING.md",
 _DOC_EXT = frozenset({".md", ".markdown", ".rst"})
 
 
-def is_documentation_path(name: str) -> bool:
-    """Only explicitly whitelisted prose documents; never scripts or config."""
-    if not name or "\\" in name or name.startswith("/") or "\x00" in name:
+def _safe_repo_path(name: str) -> bool:
+    return bool(name and not name.startswith("/") and "\\" not in name
+                and "\x00" not in name
+                and all(part not in ("", ".", "..") for part in name.split("/")))
+
+
+def is_research_csv_path(name: str) -> bool:
+    """Only CSVs under docs/research; other CSVs can affect the game."""
+    if not _safe_repo_path(name):
         return False
     path = PurePosixPath(name)
-    if any(part in ("", ".", "..") for part in name.split("/")):
+    return (len(path.parts) >= 3 and path.parts[:2] == ("docs", "research")
+            and path.suffix.lower() == ".csv")
+
+
+def is_documentation_path(name: str) -> bool:
+    """Only explicitly whitelisted docs and research CSV, not scripts/config."""
+    if not _safe_repo_path(name):
         return False
+    path = PurePosixPath(name)
     if len(path.parts) == 1:
         return name in _ROOT_DOCS
-    return path.parts[0] == "docs" and path.suffix.lower() in _DOC_EXT
+    return ((path.parts[0] == "docs" and path.suffix.lower() in _DOC_EXT)
+            or is_research_csv_path(name))
+
 
 
 def changed_paths(base: str, head: str):
@@ -65,7 +80,7 @@ def route(event: str, ref: str, base: str, head: str, *, paths=None):
     if not paths:
         return False, "missing/empty git diff; fail closed"
     if all(is_documentation_path(p) for p in paths):
-        return True, "all changes are allowlisted documentation"
+        return True, "all changes are allowlisted documentation/research CSV"
     return False, "non-documentation or mixed changes require full CI"
 
 
