@@ -17,22 +17,6 @@ def _shares(scores):
     return {sid: (i + 0.5) / len(order) for i, sid in enumerate(order)}
 
 
-def union_teams(season, competition_id):
-    """その大会に出た連合チーム（連合を組んだ大会と、そこから進んだ同じつながりの大会）。"""
-    from .joint_teams import joint_team_config
-
-    plans = getattr(season, "union_plans", None) or {}
-    if competition_id in plans:
-        return plans[competition_id].teams
-    chains = joint_team_config()["chains"]
-    type_of = lambda cid: season.repo.competitions.get(cid, {}).get("competition_type", "")  # noqa: E731
-    chain = chains.get(type_of(competition_id))
-    if chain is None:
-        return ()
-    return tuple(team for cid, plan in plans.items() if chains.get(type_of(cid)) == chain
-                 for team in plan.teams)
-
-
 class AnnualReputation:
     def __init__(self, root: str | Path, seed: int, first_year: int = 2026):
         root = Path(root).resolve()
@@ -112,6 +96,8 @@ class AnnualReputation:
                         if sid:
                             points[sid] = max(points[sid], float(finish[label]))
                 # 連合チームの結果は構成校それぞれに付ける（初期値の union_start と同じ考え方）
+                from .joint_teams import union_teams
+
                 for team in union_teams(season, cid):
                     if team.lead in points:
                         for partner in team.partners:

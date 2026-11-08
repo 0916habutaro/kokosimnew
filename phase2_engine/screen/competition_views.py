@@ -105,9 +105,10 @@ def _first_day(season, competition_id: str, calendar: dict, scheduled) -> str:
 
 
 def competition_list(
-    seasons: dict, plans: dict, repo, names, short_names,
+    seasons: dict, plans: dict, repo, names, short_names, *, union_name=None,
 ) -> list[dict]:
-    """進行中の年度の大会（始まっていない大会も含む）。"""
+    """進行中の年度の大会（始まっていない大会も含む）。``union_name(学校, 大会)`` は
+    連合チームの名前（優勝が連合のとき）。"""
     rows = []
     for year, season in seasons.items():
         plan = plans.get(year)
@@ -146,7 +147,8 @@ def competition_list(
                 "status": status,
                 "status_label": STATUS_LABELS[status],
                 "champion_id": champion,
-                "champion_name": names(champion) if champion else "",
+                "champion_name": ((union_name(champion, cid) if union_name else "")
+                                  or names(champion)) if champion else "",
             })
     # 開催中 → これから → 終了の順。その中は始まる日の順
     level_order = {"national": 0, "regional": 1, "local": 2}
