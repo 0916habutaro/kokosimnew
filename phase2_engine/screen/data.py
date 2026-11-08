@@ -646,6 +646,8 @@ class GameScreenData:
                     "finish": r["finish"],
                     "wins": r["wins"],
                     "losses": r["losses"],
+                    # 連合チームで出た大会の相手の学校（「連合（相手）」の印）
+                    "union": r.get("union", []),
                     "games": [
                         {key: m[key] for key in (
                             "match_id", "match_date", "round_name", "won",
@@ -865,7 +867,7 @@ class GameScreenData:
             lambda school_id: self.team_name(
                 school_id, competition_id, row.get("match_date", ""), year,
             ),
-            lambda school_id: self._roster_players(year, school_id),
+            lambda school_id: self._union_roster_players(year, competition_id, school_id),
             school_year=year, mercy=self._mercy,
         )
         out["school_year"] = year
@@ -873,6 +875,15 @@ class GameScreenData:
             competition_id, detail.get("competition_name") or competition_id,
         )
         return out
+
+    def _union_roster_players(self, year: int, competition_id: str, school_id: str) -> dict:
+        """閉じた年度の試合の選手名。連合チームなら構成校すべての名簿から（試合の記録の
+        学校は代表校）。"""
+        team = self.union(school_id, competition_id, year)
+        players = {}
+        for member in (team.schools if team is not None else (school_id,)):
+            players.update(self._roster_players(year, member))
+        return players
 
     # ---- 今日 ----
 

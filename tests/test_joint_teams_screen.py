@@ -68,3 +68,51 @@ class UnionScreenTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UnionMatchDetailTests(unittest.TestCase):
+    def test_union_player_links_go_to_the_players_own_school(self):
+        from phase2_engine.screen.competition_views import match_detail
+
+        # A・B 連合（試合のチームは代表校 A）の B の選手
+        players = {
+            "SCH-A": {"PA": SimpleNamespace(display_name="選手A", primary_position="SS", school_id="SCH-A"),
+                      "PB": SimpleNamespace(display_name="選手B", primary_position="P", school_id="SCH-B")},
+            "SCH-Z": {"PZ": SimpleNamespace(display_name="選手Z", primary_position="P", school_id="SCH-Z")},
+        }
+        row = {"competition_id": "C", "match_id": "M", "match_date": "2026-07-01", "round_name": "1回戦",
+               "team1_id": "SCH-A", "team2_id": "SCH-Z", "team1_score": 2, "team2_score": 1,
+               "winner_id": "SCH-A", "status": "completed"}
+        detail = {
+            "inning_scores": [], "team_stats": [], "highlights": [],
+            "batter_stats": [{"school_id": "SCH-A", "player_id": "PB", "at_bats": 3, "hits": 1}],
+            "pitcher_stats": [{"school_id": "SCH-Z", "player_id": "PZ", "outs_recorded": 24}],
+        }
+        out = match_detail(row, detail, lambda sid: sid, players.get)
+        self.assertEqual({"PB": "SCH-B"}, out["player_schools"])
+        self.assertEqual("選手B", out["batting"]["SCH-A"][0]["name"])
+
+    def test_closed_match_reads_every_member_roster(self):
+        screen = _screen(_season())
+        rosters = {"SCH-A": {"PA": "A"}, "SCH-B": {"PB": "B"}}
+        screen._roster_players = lambda year, sid: rosters.get(sid, {})
+        method = GameScreenData._union_roster_players.__get__(screen)
+        self.assertEqual({"PA": "A", "PB": "B"}, method(2026, "PREF", "SCH-A"))
+        self.assertEqual({"PB": "B"}, method(2026, "PREF", "SCH-B"))
+
+
+class UnionSidePanelTests(unittest.TestCase):
+    def test_side_panel_keeps_the_union_mark(self):
+        screen = SimpleNamespace(
+            school_matches=lambda sid, year: {"matches": []},
+            _match_record=lambda *args: None,
+            service=SimpleNamespace(repo=SimpleNamespace(schools={})),
+            names=lambda sid, day="": NAMES.get(sid, sid),
+            _official_name=lambda sid: "", prefectures={}, _ownership=lambda sid: "",
+            _entrant_abilities=lambda year, ids: {},
+        )
+        side = GameScreenData._school_side(screen, 2026, "SCH-B", [{
+            "competition_id": "PREF", "competition_name": "秋季大会", "finish": "ベスト8",
+            "wins": 2, "losses": 1, "union": [{"school_id": "SCH-A", "name": "甲"}],
+        }])
+        self.assertEqual([{"school_id": "SCH-A", "name": "甲"}], side["results"][0]["union"])

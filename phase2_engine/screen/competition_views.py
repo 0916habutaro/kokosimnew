@@ -752,4 +752,10 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                 if table == 'pitching':
                     stat['position'] = position(team, pid)
                     stat['exited'] = pid in exited[team]
+    # 連合チームの選手：試合のチーム（代表校）と違う、名簿上の学校（選手の画面へのリンクに使う）
+    out['player_schools'] = {
+        pid: player.school_id
+        for team, table in lookup.items() for pid, player in (table or {}).items()
+        if getattr(player, 'school_id', team) != team
+    }
     return out

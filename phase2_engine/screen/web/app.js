@@ -725,7 +725,7 @@ function scoreboard(m, wide = false) {
 // 得点板の下の1行：「勝 〇〇　敗 〇〇　本塁打 〇〇（3回）」。選手名は選手の画面へのリンク
 function decisionsLine(m) {
   const parts = [];
-  const link = (p) => playerLink(p.school_id, p.player_id, p.name, m.school_year);
+  const link = (p) => playerLink((m.player_schools || {})[p.player_id] || p.school_id, p.player_id, p.name, m.school_year);
   if (m.decisions) parts.push(`<span class="muted">勝</span> ${link(m.decisions.win)}`, `<span class="muted">敗</span> ${link(m.decisions.loss)}`);
   if ((m.home_runs || []).length) parts.push(`<span class="muted">本塁打</span> ${m.home_runs.map((h) => `${link(h)}（${h.inning}回）`).join("、")}`);
   return parts.length ? `<p class="decisions">${parts.join("　")}</p>` : "";
@@ -770,7 +770,8 @@ async function renderMatchDetail(content, detail) {
   const m = await call("match", detail.year, detail.competitionId, detail.matchId);
   if (!m) return;
   const hasDh = Object.values(m.lineups || {}).some((r) => r && r.designated_hitter_id);
-  const link = (team, person) => playerLink(team, person.player_id, person.name, m.school_year);
+  // 連合チームの選手は名簿上の学校（試合のチームは代表校）
+  const link = (team, person) => playerLink((m.player_schools || {})[person.player_id] || team, person.player_id, person.name, m.school_year);
   const highlights = (m.highlights || []).map((h) => h.kind === "score"
     ? `<div class="hl ${h.is_home_run ? "hr" : ""}"><span class="inn">${h.inning}回${h.half}</span><span class="what">${esc(h.school_name)}　${esc(h.player_name)}　${esc(h.event)}で${h.runs}点</span></div>`
     : (h.kind === "steal" || h.kind === "tactic" || h.kind === "substitution")
