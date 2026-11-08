@@ -16,6 +16,7 @@ from .membership import (
     SchoolMembers,
     summer_end_dates,
 )
+from .joint_teams import JointTeam, UnionPlan, form_unions, joint_team_config
 from .roster_size import bench_score, roster_size_model, select_bench
 
 
@@ -73,6 +74,8 @@ class LiveSeasonMembers:
             cid for cid, entry in plan.entries.items()
             if entry.competition_type == SUMMER_FINAL_TYPE
         }
+        self.types = {cid: entry.competition_type for cid, entry in plan.entries.items()}
+        self._areas = None
         self.members = SchoolMembers(rosters, self._summer_end)
         self.state = None
         self._fixed: dict[tuple[str, str], CompetitionMembers] = {}
@@ -122,7 +125,102 @@ class LiveSeasonMembers:
                 completed,
             )
             self._summer_ends_as_of = marker
-        return self._summer_ends.get(school_id)
+        lead = self._summer_lead(school_id)
+        return self._summer_ends.get(lead or school_id)
+
+    # ---- 連合チーム（game_core/joint_teams.py） ----
+
+    def _plans(self) -> dict:
+        return getattr(self.state, "union_plans", None) or {}
+
+    def union_for(self, competition_id: str, school_id: str, *,
+                  chain_only: bool = False) -> JointTeam | None:
+        """その大会で ``school_id`` が代表校の連合チーム。連合を組んだ大会から進んだ大会
+        （地区大会・甲子園など）は、同じ年度の同じつながり（``chains``）の連合を使う。"""
+        plans = self._plans()
+        if competition_id in plans and not chain_only:
+            team = plans[competition_id].team_of(school_id)
+            if team is not None:
+                return team
+            # この大会の計画（新しく組んだ連合・出ない学校）にない学校は、つながりの連合を見る
+        chains = joint_team_config()["chains"]
+        chain = chains.get(self.types.get(competition_id, ""))
+        if chain is None:
+            return None
+        for cid, plan in plans.items():
+            if cid != competition_id and chains.get(self.types.get(cid, "")) == chain:
+                team = plan.team_of(school_id)
+                if team is not None:
+                    return team
+        return None
+
+    def _summer_lead(self, school_id: str) -> str | None:
+        """夏の連合のほかの学校なら、代表校（夏の終わりは代表校の負けた日）。"""
+        plans = self._plans()
+        key = tuple(id(plan) for plan in plans.values())
+        if key != getattr(self, "_summer_leads_key", None):
+            chains = joint_team_config()["chains"]
+            self._summer_leads = {
+                partner: team.lead
+                for cid, plan in plans.items()
+                if chains.get(self.types.get(cid, "")) == SUMMER
+                for team in plan.teams for partner in team.partners
+            }
+            self._summer_leads_key = key
+        return self._summer_leads.get(school_id)
+
+    def plan_unions(self, competition_id: str, annual) -> UnionPlan | None:
+        """大会の連合チーム。その大会の部員の名簿がまだつくれないときは None
+        （4月1日に組み直す）。連合を組まない種類の大会は空の計画。"""
+        rule = joint_team_config()
+        rosters = self.members.rosters
+        if rosters is None or self.types.get(competition_id) not in rule["competition_types"]:
+            return UnionPlan()
+        start = self.starts.get(competition_id)
+        if start is None or not rosters.can_build(school_year_of(start)):
+            return None
+        def count(school_id):
+            # 同じつながりの大会ですでに連合の代表校なら、連合の部員で数える
+            team = self.union_for(competition_id, school_id, chain_only=True)
+            return sum(
+                len(self.members.competition_members(
+                    competition_id, member, start_date=start,
+                    season_segment=self.segments[competition_id]).players)
+                for member in (team.schools if team is not None else (school_id,))
+            )
+
+        players = {school_id: count(school_id) for school_id in annual.entrant_school_ids}
+        branch, town = self._area_lookup()
+        preferred = {
+            *annual.direct_main_entry_school_ids, *annual.seed_event_bypass_school_ids,
+            *annual.main_seed_school_ids, *annual.koshien_exempt_school_ids,
+        }
+        return form_unions(
+            f"{self.plan.year}:{competition_id}", annual.entrant_school_ids, players,
+            seed=self.plan.rng_seed, branch_of=branch, municipality_of=town, preferred=preferred,
+        )
+
+    def _area_lookup(self):
+        """学校 → 支部・地区（data/areas の federation_branch）と市町村。"""
+        if self._areas is None:
+            import csv
+
+            from phase2_engine.paths import resolve_data_file
+
+            repo = self.plan.repo
+            path = resolve_data_file(repo.data_dir, "area_schemes.csv")
+            with path.open(encoding="utf-8-sig", newline="") as handle:
+                schemes = {row["scheme_id"] for row in csv.DictReader(handle)
+                           if row["scheme_type"] == "federation_branch"}
+            branch = {}
+            for (_, scheme_id), schools in repo.school_areas_by_scheme.items():
+                if scheme_id in schemes:
+                    for school_id, areas in schools.items():
+                        branch[school_id] = min(areas)
+            town = {sid: row.get("municipality", "") for sid, row in repo.schools.items()}
+            self._areas = (branch, town)
+        branch, town = self._areas
+        return (lambda sid: branch.get(sid, "")), (lambda sid: town.get(sid, ""))
 
     def __call__(
         self,
@@ -138,6 +236,15 @@ class LiveSeasonMembers:
                 start_date=self.starts[competition_id],
                 season_segment=self.segments[competition_id],
             )
+            team = self.union_for(competition_id, school_id)
+            if team is not None:
+                # 連合チーム：構成校それぞれの大会開始日の部員をまとめる（選手の学校は変えない）
+                fixed = replace(fixed, players=tuple(
+                    player for member in team.schools
+                    for player in self.members.competition_members(
+                        competition_id, member, start_date=self.starts[competition_id],
+                        season_segment=self.segments[competition_id]).players
+                ))
             fixed = self._bench(fixed)
             self._fixed[key] = fixed
         return fixed

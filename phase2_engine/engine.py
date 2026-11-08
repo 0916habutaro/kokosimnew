@@ -349,8 +349,10 @@ class TournamentEngine:
         stage_date_lists=None,
         school_days=None,
         school_holds=None,
+        team_members=None,
     ):
-        """Prepare a lazy competition runtime and bind its next ready wave to dates."""
+        """Prepare a lazy competition runtime and bind its next ready wave to dates.
+        ``team_members``：連合チームの代表校 → 構成校（試合の日を構成校それぞれで確かめる）。"""
         from .competition_schedule_runtime import (
             ScheduledCompetitionRuntime,
         )
@@ -365,6 +367,7 @@ class TournamentEngine:
             stage_date_lists=stage_date_lists,
             school_days=school_days,
             school_holds=school_holds,
+            team_members=team_members,
         )
 
     def _pre_main_resolution_kwargs(self, annual: AnnualCompetitionInput) -> dict:

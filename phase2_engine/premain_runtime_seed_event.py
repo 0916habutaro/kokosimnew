@@ -207,11 +207,13 @@ class SeedGroupRuntimeState:
         if format_model_id not in SEED_EVENT_MODELS:
             raise NotImplementedError(format_model_id)
         eligible = list(eligible_school_ids)
-        if output_slots <= 0 or len(eligible) < output_slots:
+        if output_slots <= 0:
             raise ValueError(
                 f"{group['group_name']}: entrants={len(eligible)} "
                 f"< seed slots={output_slots}"
             )
+        # シードの数より出場校が少ない（連合チームで出場校が減った年）なら、全校がシード
+        output_slots = min(output_slots, len(eligible))
         sink = resolved_match_sink if resolved_match_sink is not None else {}
         runtime = cls(
             repo=repo,
@@ -1130,9 +1132,10 @@ class SeedEventRuntimeState:
             )
         )
 
+        # 組の出場校がシードの数より少ないときは、その組は出場校の数まで（create で詰めた数）
         expected = (
             sum(
-                int(runtime.group.get("seed_slots_generated") or 0)
+                min(int(runtime.group.get("seed_slots_generated") or 0), runtime.output_slots)
                 for runtime in self.group_runtimes
             )
             + len(self.forced_seed_assignments)

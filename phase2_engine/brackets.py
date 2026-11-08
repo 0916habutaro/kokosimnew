@@ -109,8 +109,10 @@ def balanced_partition(
     items = shuffled(teams, base_seed, namespace)
     if block_count <= 0:
         raise ValueError("block_count must be positive")
-    if block_count > len(items):
-        raise ValueError(f"block_count={block_count} exceeds entrants={len(items)}")
+    if not items:
+        return []
+    # ブロックの数より出場校が少ない（連合チームで出場校が減った年）なら、1ブロック1校まで
+    block_count = min(block_count, len(items))
     q, r = divmod(len(items), block_count)
     sizes = [q + (1 if i < r else 0) for i in range(block_count)]
     out: List[List[str]] = []

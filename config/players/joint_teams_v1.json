@@ -1,0 +1,36 @@
+{
+  "config_id": "joint_teams_v1",
+  "revision": 1,
+  "description_ja": "連合チーム（部員不足の学校どうしのチーム。game_definition.md §3.8）。使うのは game_core/joint_teams.py。実在の規則（日本高野連 2012年5月の通達）：部員8人以下の学校2校以上で組める・同じ都道府県の加盟校どうし（距離は問わない）・地区大会と全国大会を含めて参加できる。それ以外は「ゲームの仮の決まり」（rules_ja の game_rule）。実在の連合チームの組み合わせは使わず、ゲームの中で大会ごとに組む",
+  "eligible_max_players": 8,
+  "team_min_players": 9,
+  "target_players": 13,
+  "max_schools": 4,
+  "competition_types": [
+    "summer_local_qualifier",
+    "spring_prefectural",
+    "autumn_prefectural",
+    "spring_regional",
+    "autumn_regional"
+  ],
+  "chains": {
+    "description_ja": "連合で勝ち進んだ大会でも同じ連合で出る。大会の種類 → 連合を組んだ大会の種類（同じ年度の計画の中）",
+    "summer_local_qualifier": "summer",
+    "national_championship": "summer",
+    "spring_prefectural": "spring",
+    "spring_regional": "spring",
+    "autumn_prefectural": "autumn",
+    "autumn_regional": "autumn",
+    "national_autumn_championship": "autumn",
+    "national_invitational": "autumn"
+  },
+  "rng_namespace": "joint_teams_v1:{competition_id}:{school_id}",
+  "rules_ja": {
+    "eligible": "real：部員8人以下の学校が組める（日本高野連 2012年5月24日の理事会で決定、通達「部員数不足の高等学校間の連合チームによる大会参加」）。部員はその大会の開始日の出場できる部員（秋季・春季は1・2年生）で数える（game_rule）",
+    "scope": "real：同じ都道府県の加盟校どうし。距離は問わない。game_rule：同じ大会の出場校の中で、同じ支部・地区（data/areas の federation_branch）、同じ市町村の順に近い学校を選ぶ",
+    "competitions": "real：地方大会・都道府県大会に出られ、地区大会・全国大会へも進める。game_rule：連合は夏の地方大会・春季・秋季の都道府県大会（北海道は支部予選からの春季・秋季の全道大会）ごとに組み、そこから進んだ地区大会・甲子園・神宮・選抜も同じ連合で出る（すでに連合の代表校の学校は、連合の部員で数えるので組み直さない）。選抜の選考は単独の学校と同じに扱う",
+    "absent": "game_rule：連合でも9人に届かない（または max_schools 校まで集めても届かない）学校は、その大会に出ない。部員0人の学校も出ない",
+    "lead": "game_rule：連合の代表は、シード・予選免除のある学校、なければ部員のいちばん多い学校。組み合わせ・日程・勝敗は代表校の枠で行い、名前は「代表校・ほかの学校」とつなぐ",
+    "size": "game_rule：連合は target_players 人（交代ができる人数）に届くまで、max_schools 校まで近い学校を加える。9人（team_min_players）に届けば出られる"
+  }
+}

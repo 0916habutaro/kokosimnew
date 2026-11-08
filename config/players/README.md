@@ -5,3 +5,4 @@
 - `injuries_v1.json`：選手の怪我（頻度の4段階・練習と試合の起きやすさ・重さ・復帰直後の能力の下がり方）。使うのは `game_core/injuries.py`（`game_definition.md` §3.2）
 - `handedness_v1.json`：新しく作る選手の投打の左右（守備位置ごとの左投げの確率、投げる腕ごとの打つ側）。使うのは `game_core/players.py`（新規開始）と `game_core/career_rosters.py`（新入生）（`game_definition.md` §3.6.2）
 - `roster_size_v1.json`：部員の人数（新入部員の期待人数と負の二項のばらつき・学校ごとの集まりやすさ・退部・最低人数・守備位置の確率・ベンチ入り）。使うのは `game_core/roster_size.py`（`game_definition.md` §3.7）
+- `joint_teams_v1.json`：連合チーム（組める条件・相手の選び方・出ない学校・代表校・勝ち進んだ大会での扱い）。使うのは `game_core/joint_teams.py`・`game_core/live_members.py`（`game_definition.md` §3.8）
