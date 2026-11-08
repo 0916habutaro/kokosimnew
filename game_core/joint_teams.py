@@ -164,8 +164,7 @@ def union_teams(season, competition_id: str) -> tuple[JointTeam, ...]:
     """その大会に出た連合チーム（連合を組んだ大会と、そこから進んだ同じつながりの大会）。
     ``season`` は進行中・閉じた年度の状態（``union_plans`` と ``repo`` を持つ）。"""
     plans = getattr(season, "union_plans", None) or {}
-    if competition_id in plans:
-        return plans[competition_id].teams
+    own = tuple(plans[competition_id].teams) if competition_id in plans else ()
     chains = joint_team_config()["chains"]
     competitions = season.repo.competitions
 
@@ -174,6 +173,11 @@ def union_teams(season, competition_id: str) -> tuple[JointTeam, ...]:
 
     chain = chains.get(type_of(competition_id))
     if chain is None:
-        return ()
-    return tuple(team for cid, plan in plans.items() if chains.get(type_of(cid)) == chain
-                 for team in plan.teams)
+        return own
+    # この大会で組んだ連合と、つながりの大会から進んできた連合（この大会の計画にあっても
+    # 出ない学校だけの計画のことがあるので、両方を見る）
+    leads = {team.lead for team in own}
+    inherited = tuple(team for cid, plan in plans.items()
+                      if cid != competition_id and chains.get(type_of(cid)) == chain
+                      for team in plan.teams if team.lead not in leads)
+    return own + inherited

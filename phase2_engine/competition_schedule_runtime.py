@@ -142,6 +142,14 @@ class ScheduledCompetitionRuntime:
     # 全国大会：試合ID → 計画の試合日（config/schedule/national_day_plans_v1.json）。
     # あれば回戦の終わりを待たず、対戦が決まった試合から計画の日に入れる
     match_plan: Dict[str, str] = field(default_factory=dict)
+    # 連合チーム：代表校 → 構成校（この大会）。学校ごとの試合の日・甲子園の予定は
+    # 構成校それぞれで確かめて記録する（同じ選手が同じ日に2試合しないように）
+    team_members: Dict[str, tuple] = field(default_factory=dict)
+
+    def _schools(self, teams) -> list[str]:
+        """チーム（連合なら代表校）→ 試合の日を確かめる学校（連合の構成校すべて）。"""
+        return [school for team in teams if team
+                for school in self.team_members.get(team, (team,))]
 
     @classmethod
     def from_calendar_row(
@@ -153,6 +161,7 @@ class ScheduledCompetitionRuntime:
         stage_date_lists: Mapping[str, Sequence[str]] | None = None,
         school_days: Dict[str, set] | None = None,
         school_holds: Dict[str, str] | None = None,
+        team_members: Mapping[str, Sequence[str]] | None = None,
     ) -> "ScheduledCompetitionRuntime":
         competition_id = getattr(
             runtime,
@@ -210,6 +219,7 @@ class ScheduledCompetitionRuntime:
         )
         if school_days is not None:
             state.school_days = school_days
+        state.team_members = {lead: tuple(schools) for lead, schools in (team_members or {}).items()}
         if hasattr(runtime, "match_ids_by_round") and hasattr(runtime, "redraw_rounds"):
             plan = plan_for(
                 repo.data_dir,
@@ -547,7 +557,7 @@ class ScheduledCompetitionRuntime:
                         + [day for day in dates if day > window_end or day == window_end]
                     )
                 hold = max(
-                    (self.school_holds.get(team, "") for team in teams),
+                    (self.school_holds.get(school, "") for school in self._schools(teams)),
                     default="",
                 ) if self.respect_holds else ""
                 if hold:
@@ -563,16 +573,16 @@ class ScheduledCompetitionRuntime:
                     (
                         day for day in candidates
                         if not any(
-                            day in self.school_days.get(team, ())
-                            for team in teams
+                            day in self.school_days.get(school, ())
+                            for school in self._schools(teams)
                         )
                     ),
                     candidates[0],
                 )
                 if target not in (round_dates or dates[:1]):
                     self.spread_matches = True
-                for team in teams:
-                    self.school_days.setdefault(team, set()).add(target)
+                for school in self._schools(teams):
+                    self.school_days.setdefault(school, set()).add(target)
                 record = self._record_from_ready_row(
                     row,
                     target,
@@ -604,9 +614,8 @@ class ScheduledCompetitionRuntime:
                 day = self.match_plan.get(match_id)
                 if not day:
                     continue
-                for team in slots[index * width:(index + 1) * width]:
-                    if team:
-                        self.school_days.setdefault(team, set()).add(day)
+                for school in self._schools(slots[index * width:(index + 1) * width]):
+                    self.school_days.setdefault(school, set()).add(day)
 
     def _schedule_planned(self) -> list[ScheduledRuntimeMatch]:
         """対戦が決まった試合を、計画の日に入れる（全国大会）。"""
@@ -620,9 +629,8 @@ class ScheduledCompetitionRuntime:
                 row, day, self.date_source_override or "national_day_plan_v1",
             )
             self.matches[match_id] = record
-            for team in (record.team1_id, record.team2_id):
-                if team:
-                    self.school_days.setdefault(team, set()).add(day)
+            for school in self._schools((record.team1_id, record.team2_id)):
+                self.school_days.setdefault(school, set()).add(day)
             assigned.append(record)
         if assigned:
             self.last_scheduled_date = max(
