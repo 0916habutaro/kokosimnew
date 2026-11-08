@@ -212,8 +212,10 @@ class MatchLineupScreenTests(unittest.TestCase):
             pending_match_details={f'{result.competition_id}:{result.match_id}': detail},
             engine=SimpleNamespace(main_match_resolver=SimpleNamespace(member_provider=provider)))
         data = GameScreenData.__new__(GameScreenData)
-        data.session = SimpleNamespace(state=season, slot_id='fake-screen')
-        data.service = SimpleNamespace(historical_match=lambda slot, year, cid, mid: archive.get_match(year, cid, mid))
+        data.session = SimpleNamespace(state=season, slot_id='fake-screen', plan=SimpleNamespace(rng_seed=0))
+        # 閉じた年度の状態（連合チームを読む）はない
+        data.service = SimpleNamespace(historical_match=lambda slot, year, cid, mid: archive.get_match(year, cid, mid),
+                                       closed_season=lambda slot, year, seed: None)
         data.team_name = lambda sid, *args: self.names[sid]
         data._competition_name = lambda *args: '架空テスト大会'
         data.competition_names = lambda cid, fallback: '架空テスト大会'

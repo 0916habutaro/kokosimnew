@@ -12,6 +12,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Callable
 
+from game_core.joint_teams import team_name, union_teams
 from game_core.players import Player
 from game_core.school_reputation import reputation_for
 
@@ -384,6 +385,7 @@ class GameScreenData:
         rows = competition_list(
             {year: season}, {year: self._plan_of(year)}, self.service.repo,
             self.names, self.competition_names,
+            union_name=lambda sid, cid: self.union_name(sid, cid, year),
         ) if season is not None else []
         return {
             "school_year": year,
@@ -399,6 +401,7 @@ class GameScreenData:
             for row in competition_list(
                 {int(school_year): season}, {int(school_year): self._plan_of(int(school_year))},
                 self.service.repo, names, self.competition_names,
+                union_name=lambda sid, cid: self.union_name(sid, cid, int(school_year)),
             )
         }
         if competition_id not in listing:
@@ -545,7 +548,7 @@ class GameScreenData:
         for school_id in main.entrant_school_ids:
             row = {
                 "school_id": school_id,
-                "name": self.names(school_id),
+                "name": self.union_name(school_id, competition_id, year) or self.names(school_id),
                 "prefecture": self.prefectures.get(
                     schools.get(school_id, {}).get("prefecture_code"), ""
                 ),
@@ -643,6 +646,8 @@ class GameScreenData:
                     "finish": r["finish"],
                     "wins": r["wins"],
                     "losses": r["losses"],
+                    # 連合チームで出た大会の相手の学校（「連合（相手）」の印）
+                    "union": r.get("union", []),
                     "games": [
                         {key: m[key] for key in (
                             "match_id", "match_date", "round_name", "won",
@@ -734,7 +739,7 @@ class GameScreenData:
         夏の甲子園は代表の地区名（東東京など）、地区大会は都道府県大会の順位
         （金沢商（石川1位））。日を渡すと、その日の名前（学校の編集で名前を変える前の
         試合は当時の名前）。``year`` は大会の年度（省くと今の年度）。"""
-        name = self.names(school_id, day)
+        name = self.union_name(school_id, competition_id, year, day) or self.names(school_id, day)
         level = self.service.repo.competitions.get(competition_id, {}).get(
             "competition_level", ""
         )
@@ -742,6 +747,21 @@ class GameScreenData:
             return name
         tag = self.entry_tags(competition_id, year).get(school_id)
         return f"{name}（{tag or self.prefecture_short(school_id)}）"
+
+    def union(self, school_id: str, competition_id: str, year: int | None = None):
+        """その大会で ``school_id`` が代表校の連合チーム（なければ None）。"""
+        season = self._season_of(year or self._current_year())
+        if season is None or not school_id:
+            return None
+        return next((team for team in union_teams(season, competition_id)
+                     if team.lead == school_id), None)
+
+    def union_name(
+        self, school_id: str, competition_id: str, year: int | None = None, day: str = "",
+    ) -> str:
+        """連合チームの名前（「代表校・ほかの学校」）。連合でなければ空。"""
+        team = self.union(school_id, competition_id, year)
+        return team_name(team, lambda sid: self.names(sid, day)) if team is not None else ""
 
     def entry_tags(self, competition_id: str, year: int | None = None) -> dict[str, str]:
         """学校 → 校名に添える札（夏の甲子園の地区名・地区大会の都道府県の順位）。"""
@@ -847,7 +867,7 @@ class GameScreenData:
             lambda school_id: self.team_name(
                 school_id, competition_id, row.get("match_date", ""), year,
             ),
-            lambda school_id: self._roster_players(year, school_id),
+            lambda school_id: self._union_roster_players(year, competition_id, school_id),
             school_year=year, mercy=self._mercy,
         )
         out["school_year"] = year
@@ -855,6 +875,15 @@ class GameScreenData:
             competition_id, detail.get("competition_name") or competition_id,
         )
         return out
+
+    def _union_roster_players(self, year: int, competition_id: str, school_id: str) -> dict:
+        """閉じた年度の試合の選手名。連合チームなら構成校すべての名簿から（試合の記録の
+        学校は代表校）。"""
+        team = self.union(school_id, competition_id, year)
+        players = {}
+        for member in (team.schools if team is not None else (school_id,)):
+            players.update(self._roster_players(year, member))
+        return players
 
     # ---- 今日 ----
 
@@ -1185,6 +1214,9 @@ class GameScreenData:
         by_competition: dict[str, list[tuple[str, dict]]] = {}
         for school_id, rows in results.items():
             for row in rows:
+                # 連合チームは代表校の行だけ（ほかの構成校の同じ成績の行は数えない）
+                if row.get("union_lead", school_id) != school_id:
+                    continue
                 by_competition.setdefault(row["competition_id"], []).append(
                     (school_id, row)
                 )
@@ -1193,7 +1225,8 @@ class GameScreenData:
         def entry(school_id, row):
             return {
                 "school_id": school_id,
-                "name": self.names(school_id),
+                "name": (self.union_name(school_id, row["competition_id"], year)
+                         or self.names(school_id)),
                 "prefecture": self.prefectures.get(
                     self.service.repo.schools.get(school_id, {}).get("prefecture_code"), ""
                 ),
@@ -1401,9 +1434,36 @@ class GameScreenData:
             rows, self.service.repo.competitions, rounds,
             self.competition_names, unfinished,
         )
+        self._add_union_results(year, results)
         if year not in _seasons(self.state):
             self._closed_years[year] = results
         return results
+
+    def _add_union_results(self, year: int, results: dict[str, list[dict]]) -> None:
+        """連合チームの成績：代表校の行に「連合」の印を付け、ほかの構成校にも同じ成績の行を
+        「連合として」足す（勝敗・最高成績は構成校それぞれに付く）。"""
+        season = self._season_of(year)
+        if season is None or not getattr(season, "union_plans", None):
+            return
+        extra: dict[str, list[dict]] = {}
+        for school_id, rows in results.items():
+            for row in rows:
+                team = next((t for t in union_teams(season, row["competition_id"])
+                             if t.lead == school_id), None)
+                if team is None:
+                    continue
+                for member in team.schools:
+                    partners = [s for s in team.schools if s != member]
+                    tagged = {**row, "union_lead": team.lead, "union": [
+                        {"school_id": s, "name": self.names(s)} for s in partners
+                    ]}
+                    if member == school_id:
+                        row.update(tagged)
+                    else:
+                        extra.setdefault(member, []).append(tagged)
+        for school_id, rows in extra.items():
+            results[school_id] = sorted(results.get(school_id, []) + rows,
+                                        key=lambda r: r["first_date"])
 
     def _years(self) -> list[int]:
         archived = {
@@ -1979,20 +2039,26 @@ class GameScreenData:
         seasons = _seasons(self.state)
         details = []
         for season_year in (year, year + 1):
+            # 連合チームで出た大会は代表校の枠の試合（この学校の選手も出ている）
+            leads = self._union_leads(school_id, season_year)
+
+            def ours(cid, team1, team2):
+                return school_id in (team1, team2) or leads.get(cid) in (team1, team2)
+
             if season_year in seasons:
                 season = seasons[season_year]
                 rows = [
                     (cid, row.match_id, row.match_date)
                     for cid, scheduled in season.competitions.items()
                     for row in scheduled.matches.values()
-                    if row.status == "completed" and school_id in (row.team1_id, row.team2_id)
+                    if row.status == "completed" and ours(cid, row.team1_id, row.team2_id)
                 ]
             else:
                 season = None
                 rows = [
                     (row["competition_id"], row["match_id"], row["match_date"])
                     for row in self.service.historical_match_index(self.session.slot_id, season_year)
-                    if school_id in (row["team1_id"], row["team2_id"])
+                    if ours(row["competition_id"], row["team1_id"], row["team2_id"])
                 ]
             for cid, match_id, day in rows:
                 if not day or school_year_of(date.fromisoformat(day)) != year:
@@ -2012,20 +2078,40 @@ class GameScreenData:
                     details.append(detail)
         return details
 
+    def _union_leads(self, school_id: str, year: int) -> dict[str, str]:
+        """大会 → 連合の代表校（その大会に ``school_id`` が代表校以外の構成校として出たとき）。"""
+        season = self._season_of(year) if year in self._years() or year in _seasons(self.state) else None
+        plans = getattr(season, "union_plans", None) or {}
+        if not plans:
+            return {}
+        out = {}
+        for cid in season.competitions:
+            for team in union_teams(season, cid):
+                if school_id in team.partners:
+                    out[cid] = team.lead
+        return out
+
     def school_matches(self, school_id: str, school_year) -> dict:
         year = int(school_year)
         seasons = _seasons(self.state)
+        # 連合チームで出た大会は、代表校の枠の試合をこの学校の試合として出す
+        leads = self._union_leads(school_id, year)
+
+        def mine_in(cid, team1, team2):
+            return school_id in (team1, team2) or leads.get(cid) in (team1, team2)
+
         if year in seasons:
             rows = [
                 {**row.public_dict(), "competition_id": cid}
                 for cid, scheduled in seasons[year].competitions.items()
                 for row in scheduled.matches.values()
-                if school_id in (row.team1_id, row.team2_id)
+                if mine_in(cid, row.team1_id, row.team2_id)
             ]
         else:
             rows = self.service.historical_match_index(self.session.slot_id, year)
             rows = [
-                row for row in rows if school_id in (row["team1_id"], row["team2_id"])
+                row for row in rows
+                if mine_in(row["competition_id"], row["team1_id"], row["team2_id"])
             ]
         all_rows, rounds = self._year_rows(year)
         for row in all_rows:
@@ -2036,7 +2122,9 @@ class GameScreenData:
                     rounds[cid] = max(rounds[cid], row["round_no"])
         out = []
         for row in normalized_rows(rows):
-            mine = 1 if row["team1_id"] == school_id else 2
+            me = (school_id if school_id in (row["team1_id"], row["team2_id"])
+                  else leads.get(row["competition_id"], school_id))
+            mine = 1 if row["team1_id"] == me else 2
             other = row["team2_id"] if mine == 1 else row["team1_id"]
             competition = self.service.repo.competitions.get(row["competition_id"], {})
             original = next(
@@ -2060,8 +2148,11 @@ class GameScreenData:
                     row["match_id"], original.get("group_name", ""),
                 ),
                 "opponent_id": other,
-                "opponent_name": self.names(other, row["match_date"]),
-                "won": row["winner_id"] == school_id,
+                "opponent_name": (self.union_name(other, row["competition_id"], year, row["match_date"])
+                                  or self.names(other, row["match_date"])),
+                "won": row["winner_id"] == me,
+                # 連合チームで出た試合なら、連合の名前
+                "union_name": self.union_name(me, row["competition_id"], year, row["match_date"]),
                 "score": row[f"team{mine}_score"],
                 "opponent_score": row[f"team{3 - mine}_score"],
                 "called": self._called(year, row["competition_id"], row["match_id"], "completed"),

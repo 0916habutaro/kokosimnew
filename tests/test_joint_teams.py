@@ -247,7 +247,7 @@ class InheritedUnionTests(unittest.TestCase):
                          {p.school_id for p in case.live("REGION", "SCH-A").players})
 
     def test_reputation_counts_the_inherited_union(self):
-        from game_core.annual_reputation import union_teams
+        from game_core.joint_teams import union_teams
 
         season = SimpleNamespace(
             repo=SimpleNamespace(competitions={

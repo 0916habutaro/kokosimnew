@@ -17,26 +17,6 @@ def _shares(scores):
     return {sid: (i + 0.5) / len(order) for i, sid in enumerate(order)}
 
 
-def union_teams(season, competition_id):
-    """その大会に出た連合チーム（連合を組んだ大会と、そこから進んだ同じつながりの大会）。"""
-    from .joint_teams import joint_team_config
-
-    plans = getattr(season, "union_plans", None) or {}
-    own = tuple(plans[competition_id].teams) if competition_id in plans else ()
-    chains = joint_team_config()["chains"]
-    type_of = lambda cid: season.repo.competitions.get(cid, {}).get("competition_type", "")  # noqa: E731
-    chain = chains.get(type_of(competition_id))
-    if chain is None:
-        return own
-    # この大会で組んだ連合と、つながりの大会から進んできた連合（この大会の計画にあっても
-    # 出ない学校だけの計画のことがあるので、両方を見る）
-    leads = {team.lead for team in own}
-    inherited = tuple(team for cid, plan in plans.items()
-                      if cid != competition_id and chains.get(type_of(cid)) == chain
-                      for team in plan.teams if team.lead not in leads)
-    return own + inherited
-
-
 class AnnualReputation:
     def __init__(self, root: str | Path, seed: int, first_year: int = 2026):
         root = Path(root).resolve()
@@ -116,6 +96,8 @@ class AnnualReputation:
                         if sid:
                             points[sid] = max(points[sid], float(finish[label]))
                 # 連合チームの結果は構成校それぞれに付ける（初期値の union_start と同じ考え方）
+                from .joint_teams import union_teams
+
                 for team in union_teams(season, cid):
                     if team.lead in points:
                         for partner in team.partners:

@@ -519,7 +519,7 @@ function drawSchoolSide(side, d, { noAbilities, noResults }) {
   const a = d.abilities;
   const st = d.stats;
   const avg = (v) => v === null ? "—" : v.toFixed(3).replace(/^0/, "");
-  const results = d.results.map((r) => `<h4>${esc(r.competition_name)}　<span class="muted">${esc(r.finish)}（${r.wins}勝${r.losses}敗）</span></h4>
+  const results = d.results.map((r) => `<h4>${esc(r.competition_name)}${unionNote(r)}　<span class="muted">${esc(r.finish)}（${r.wins}勝${r.losses}敗）</span></h4>
     <table class="list small egames">${r.games.map((g) => `<tr class="click" data-cid="${esc(g.competition_id)}" data-mid="${esc(g.match_id)}">
       <td title="${esc(g.round_name)}">${esc(g.round_name)}</td><td class="${g.won ? "w" : "l"}">${g.won ? "○" : "●"}</td>
       <td class="num">${g.score === null ? "" : `${g.score}-${g.opponent_score}`}</td><td title="${esc(g.opponent_name)}">${esc(g.opponent_name)}</td></tr>`).join("")}</table>`).join("");
@@ -725,7 +725,7 @@ function scoreboard(m, wide = false) {
 // 得点板の下の1行：「勝 〇〇　敗 〇〇　本塁打 〇〇（3回）」。選手名は選手の画面へのリンク
 function decisionsLine(m) {
   const parts = [];
-  const link = (p) => playerLink(p.school_id, p.player_id, p.name, m.school_year);
+  const link = (p) => playerLink((m.player_schools || {})[p.player_id] || p.school_id, p.player_id, p.name, m.school_year);
   if (m.decisions) parts.push(`<span class="muted">勝</span> ${link(m.decisions.win)}`, `<span class="muted">敗</span> ${link(m.decisions.loss)}`);
   if ((m.home_runs || []).length) parts.push(`<span class="muted">本塁打</span> ${m.home_runs.map((h) => `${link(h)}（${h.inning}回）`).join("、")}`);
   return parts.length ? `<p class="decisions">${parts.join("　")}</p>` : "";
@@ -770,7 +770,8 @@ async function renderMatchDetail(content, detail) {
   const m = await call("match", detail.year, detail.competitionId, detail.matchId);
   if (!m) return;
   const hasDh = Object.values(m.lineups || {}).some((r) => r && r.designated_hitter_id);
-  const link = (team, person) => playerLink(team, person.player_id, person.name, m.school_year);
+  // 連合チームの選手は名簿上の学校（試合のチームは代表校）
+  const link = (team, person) => playerLink((m.player_schools || {})[person.player_id] || team, person.player_id, person.name, m.school_year);
   const highlights = (m.highlights || []).map((h) => h.kind === "score"
     ? `<div class="hl ${h.is_home_run ? "hr" : ""}"><span class="inn">${h.inning}回${h.half}</span><span class="what">${esc(h.school_name)}　${esc(h.player_name)}　${esc(h.event)}で${h.runs}点</span></div>`
     : (h.kind === "steal" || h.kind === "tactic" || h.kind === "substitution")
@@ -1209,12 +1210,18 @@ async function editSchool(d) {
   renderPage();
 }
 
+// 連合チームで出た大会の印「連合（相手の学校）」
+function unionNote(r) {
+  if (!r.union || !r.union.length) return "";
+  return ` <small class="union">連合（${r.union.map((u) => esc(u.name)).join("・")}）</small>`;
+}
+
 function schoolOverview(d) {
   const a = d.abilities;
   const bars = a ? ABILITY_LABELS.map(([k, l]) =>
     `<span>${l}</span><div class="bar"><div style="width:${Math.round(abilityScale(a[k]) * 100)}%"></div></div><span>${rankHtml(a[k])}</span>`).join("")
     : '<span class="muted">能力は選手で試合をしているときに出ます</span>';
-  const rows = d.this_year.map((r) => `<tr><td>${esc(r.competition_name)}</td><td class="n">${r.wins}-${r.losses}</td><td>${badge(r.score, r.finish)}</td></tr>`).join("");
+  const rows = d.this_year.map((r) => `<tr><td>${esc(r.competition_name)}${unionNote(r)}</td><td class="n">${r.wins}-${r.losses}</td><td>${badge(r.score, r.finish)}</td></tr>`).join("");
   return `<div class="split">
     <div class="panel"><h3>能力</h3>${a ? `<div class="radar-row">${abilityRadar(a)}
       <div class="overall-rank"><span>総合</span>${rankHtml(a.overall)}</div></div>` : ""}<div class="bars">${bars}</div></div>
@@ -1491,7 +1498,7 @@ async function schoolGames(body, d) {
   body.innerHTML = `<div class="head" style="padding:0 0 10px;border:0"><select id="sg-year">${d.years.map((y) => `<option value="${y}" ${y === st.gamesYear ? "selected" : ""}>${y}年度</option>`).join("")}</select></div>
     <div class="panel"><table class="list"><tr><th>日</th><th>大会</th><th>回戦</th><th>相手</th><th></th><th class="n">スコア</th></tr>
     ${data.matches.map((m) => `<tr class="click" data-year="${m.school_year}" data-cid="${esc(m.competition_id)}" data-id="${esc(m.match_id)}">
-      <td class="num">${fmtDate(m.match_date)}</td><td>${esc(m.competition_name)}</td><td>${esc(m.round_name)}</td>
+      <td class="num">${fmtDate(m.match_date)}</td><td>${esc(m.competition_name)}${m.union_name ? `<br><small class="union">連合（${esc(m.union_name)}）</small>` : ""}</td><td>${esc(m.round_name)}</td>
       <td>${esc(m.opponent_name)}</td><td class="${m.won ? "w" : ""}">${m.won ? "○" : "●"}</td><td class="n">${m.score}-${m.opponent_score}${calledTag(m)}</td></tr>`).join("")
       || '<tr><td class="muted">試合はありません</td></tr>'}</table></div>`;
   $("sg-year").addEventListener("change", (e) => { st.gamesYear = Number(e.target.value); renderPage(); });
