@@ -12,7 +12,7 @@ from phase2_engine.randomness import rng_for
 from phase2_engine.repository import DataRepository
 
 from .player_names import PlayerIdentity, name_generator
-from .roster_size import MAX_ROSTER_NO, SizeContext, roster_size_model
+from .roster_size import MAX_ROSTER_NO, SizeContext, roster_size_model, standalone_floor_players
 
 
 # 学年（1〜3年）。部員の人数・学年ごとの人数・守備位置は学校と年度で変わる
@@ -183,7 +183,8 @@ class PlayerRosterGenerator:
             raise ValueError("team.school_id is required")
         model = roster_size_model()
         school_id = team.school_id
-        size = size or SizeContext(prefecture_code=team.prefecture_code)
+        size = size or SizeContext(prefecture_code=team.prefecture_code,
+                                   floor_players=standalone_floor_players())
         if size.appeal is None:
             first = model.initial_appeal_state(
                 base_seed, school_id, reference_year, ownership=size.ownership,
@@ -275,7 +276,8 @@ class PlayerRosterGenerator:
             reference_year,
             base_seed,
             size=SizeContext(ownership=getattr(repo, "ownership_type", lambda _sid: "")(school_id),
-                             prefecture_code=team.prefecture_code),
+                             prefecture_code=team.prefecture_code,
+                             floor_players=standalone_floor_players()),
         )
 
     def iter_all_rosters(

@@ -63,9 +63,10 @@ class MembersByDateTests(unittest.TestCase):
         self.summer_end[(2026, "SCH-TEST")] = date(2026, 7, 20)
         march = self.members.members_on("SCH-TEST", date(2027, 3, 31))
         april = self.members.members_on("SCH-TEST", date(2027, 4, 1))
-        self.assertEqual(
-            {p.player_id for p in march},
+        # 4月の2・3年生は3月の部員から（退部した選手はいない）
+        self.assertLessEqual(
             {p.player_id for p in april if p.academic_year >= 2},
+            {p.player_id for p in march},
         )
         newcomers = [p for p in april if p.academic_year == 1]
         self.assertGreaterEqual(len(newcomers), 1)

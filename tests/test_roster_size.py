@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import math
 import random
 import statistics
@@ -10,6 +10,7 @@ import unittest
 
 from game_core.roster_size import (
     RosterSizeModel, SizeContext, bench_score, free_numbers, roster_size_model, select_bench,
+    standalone_floor_players,
 )
 
 
@@ -103,13 +104,23 @@ class MinimumAndPositionTests(unittest.TestCase):
         # 最低人数に当たりやすい学校（評判も集まりやすさも低い）
         self.small = SizeContext(reputation_z=lambda y: -2.5, appeal=lambda y: -1.2)
 
-    def test_new_team_is_topped_up_to_the_minimum(self):
+    def test_game_rosters_are_not_topped_up(self):
+        # ゲームの名簿はかさ上げしない（足りない学校は連合チームを組む）
+        self.assertEqual(0, self.model.config["minimum"]["players"])
+        plans = [self.model.plan_freshmen(7, f"SCH-{n}", 2027, self.small, second_years=["SS"] * 3)
+                 for n in range(40)]
+        self.assertTrue(any(plan.count + 3 < 9 for plan in plans))
+        self.assertFalse(any(plan.floor_hit for plan in plans))
+
+    def test_standalone_rosters_are_topped_up(self):
+        # 連合を組まない経路（名簿だけを試すとき）は新チームをそろえる
+        standalone = replace(self.small, floor_players=standalone_floor_players())
         hits = 0
         for n in range(40):
             school = f"SCH-{n}"
             second = ["SS"] * 3
-            plan = self.model.plan_freshmen(7, school, 2027, self.small, second_years=second)
-            self.assertGreaterEqual(plan.count + len(second), 10)
+            plan = self.model.plan_freshmen(7, school, 2027, standalone, second_years=second)
+            self.assertGreaterEqual(plan.count + len(second), standalone_floor_players())
             hits += plan.floor_hit
             positions = self.model.positions(7, school, 2027, list(range(1, plan.count + 1)),
                                              second_years=second)

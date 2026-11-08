@@ -46,6 +46,14 @@ class SizeContext:
     reputation_z: Callable[[int], float] = _zero
     coach_z: Callable[[int], float] = _zero
     appeal: Callable[[int], float] | None = None
+    # 新チームをこの人数までかさ上げする（0 はしない）。連合チームを組まない経路
+    # （名簿だけを試すとき・ゲームの外のツール）だけで使う。ゲームの名簿（RosterBook）は0
+    floor_players: int = 0
+
+
+def standalone_floor_players() -> int:
+    """連合チームを組まない経路のかさ上げの人数（``minimum.standalone_players``）。"""
+    return int(roster_size_model().config["minimum"]["standalone_players"])
 
 
 @dataclass(frozen=True)
@@ -229,7 +237,7 @@ class RosterSizeModel:
             minimum = self.config["minimum"]
             need_p = max(0, int(minimum["pitchers"]) - sum(p == "P" for p in second_years))
             need_c = max(0, int(minimum["catchers"]) - sum(p == "C" for p in second_years))
-            players = int(minimum["players"])
+            players = int(minimum["players"]) or context.floor_players
             if players:
                 count = max(count, players - len(second_years), need_p + need_c)
         return IntakePlan(count=count, drawn=drawn, floor_hit=count > drawn, expected=mean)

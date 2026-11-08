@@ -15,7 +15,7 @@ from .players import (
     GRADES, Player, PlayerRosterGenerator, SchoolRoster, draw_hands,
     _position_group, draw_identity, validate_school_roster,
 )
-from .roster_size import SizeContext, free_numbers, roster_size_model
+from .roster_size import SizeContext, free_numbers, roster_size_model, standalone_floor_players
 
 
 @dataclass(frozen=True)
@@ -82,7 +82,8 @@ def advance_school_roster(
 
     generator = generator or PlayerRosterGenerator()
     model = roster_size_model()
-    size = size or SizeContext(prefecture_code=team.prefecture_code)
+    size = size or SizeContext(prefecture_code=team.prefecture_code,
+                               floor_players=standalone_floor_players())
     if size.appeal is None:
         first = model.initial_appeal_state(
             career_seed, team.school_id, next_year, ownership=size.ownership,
@@ -193,5 +194,6 @@ def advance_rosters(
             career_seed=career_seed, generator=generator,
             size=SizeContext(
                 ownership=getattr(repo, "ownership_type", lambda _sid: "")(roster.school_id),
-                prefecture_code=team.prefecture_code),
+                prefecture_code=team.prefecture_code,
+                floor_players=standalone_floor_players()),
         )

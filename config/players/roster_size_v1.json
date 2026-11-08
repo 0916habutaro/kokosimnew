@@ -184,10 +184,11 @@
     "max": 0.12
   },
   "minimum": {
-    "description_ja": "最低人数：players が1以上のときは、4月1日の新チーム（新1年生＋新2年生）が players 人を下回ると新入部員を増やしてそろえる。0 ならかさ上げしない（人数の足りない学校は大会ごとに連合チームを組む。config/players/joint_teams_v1.json）。投手 pitchers 人・捕手 catchers 人は、新入部員の守備位置の振り替えでそろえる（人数は増やさない）",
+    "description_ja": "最低人数：players が1以上のときは、4月1日の新チーム（新1年生＋新2年生）が players 人を下回ると新入部員を増やしてそろえる。0 ならかさ上げしない（人数の足りない学校は大会ごとに連合チームを組む。config/players/joint_teams_v1.json）。投手 pitchers 人・捕手 catchers 人は、新入部員の守備位置の振り替えでそろえる（人数は増やさない）。standalone_players は、連合チームを組まない経路（名簿だけを試すとき・ゲームの外のツール）で新チームをかさ上げする人数",
     "players": 0,
     "pitchers": 2,
-    "catchers": 1
+    "catchers": 1,
+    "standalone_players": 10
   },
   "positions": {
     "description_ja": "新入部員の守備位置の確率（合計1）。最低人数の投手・捕手が新チームにいなければ、新入部員の一部を投手・捕手にする",

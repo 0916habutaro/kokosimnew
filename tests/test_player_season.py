@@ -173,7 +173,8 @@ class DHPlayerSaveTests(unittest.TestCase):
 
         def explicit_dh(resolver, **kwargs):
             team = original(resolver, **kwargs)
-            if kwargs.get('competition_id') == 'CMP000029':
+            # 指名打者には10人が要る（9人の学校・連合チームは使わない）
+            if kwargs.get('competition_id') == 'CMP000029' and len(team.player_abilities) >= 10:
                 team = replace(team, team_strength=resolver.team_generator.generate(team.player_abilities, dh_mode='normal'))
             return team
 

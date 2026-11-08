@@ -172,3 +172,34 @@ class UnionReputationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UnionMatchTests(unittest.TestCase):
+    """連合チームの試合：構成校の選手をまとめて代表校のチームとして出る。成績・経験は選手の学校に付く。"""
+
+    def test_union_team_plays_and_players_keep_their_school(self):
+        from types import SimpleNamespace as NS
+
+        from test_fielding_experience import make_bridge, short_game
+        from test_roster_book import TEAMS
+
+        book, bridge = make_bridge()
+        a, b = TEAMS
+        own = book.roster(2026, a).players[:5]
+        other = book.roster(2026, b).players[:6]
+        solo = book.roster(2026, b).players[6:20]
+        bridge.member_provider = lambda cid, sid: NS(players=tuple(own + other) if sid == a else tuple(solo))
+        team = bridge.team_input(school_id=a, reference_year=2026, generation_seed=7,
+                                 competition_id="FAKE-EXPERIENCE-2026")
+        self.assertEqual({a}, {s.school_id for s in team.player_abilities})
+        self.assertEqual({p.player_id for p in own + other}, {s.player_id for s in team.player_abilities})
+        result = short_game(bridge)
+        bridge._record_games(result.competition_id, result)
+        played = {s.player_id for s in result.batter_stats if s.plate_appearances} | {
+            pid for t in result.team_participation if t.school_id == a for pid in t.fielding_player_ids}
+        partner = [p for p in other if p.player_id in played]
+        self.assertTrue(partner)
+        for player in partner:
+            # 名簿上は構成校の選手のまま、試合の経験が付く
+            self.assertEqual(b, player.school_id)
+            self.assertEqual(1, book.state(player).games)
