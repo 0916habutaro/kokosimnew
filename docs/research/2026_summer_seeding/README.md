@@ -61,6 +61,7 @@ CSVは過去の調査成果物からテキストとして再構成していま�
 
 ## 史実データからゲーム仕様へ移す際の注意
 
+- ゲームの夏の地方大会のシード・途中の抽選は、この資料から `data/competitions/`（`competition_seed_rules.csv` の `season_segment=summer`、`bracket_generation_policies.csv`）へ大会ごとに取り込んだ（2026-11-08。決まりと仮の決まりは `docs/design/game_definition.md` §8「夏の地方大会のシード」）。
 - **本フォルダは閲覧・比較用**。変更前に`data/competitions/`、抽選ロジック、`docs/design/game_definition.md`との現行仕様差分を別途検証する。
 - 史実の確度は「公式の条文」「当年の公式原図」「当年の結果・報道」「未確定の仮説」の順に判定し、確度の低い値を強制的に埋めない。
 - トーナメント生成では、成績シード／ブロック固定／BYE／途中再抽選／地区接続を独立して扱う。
