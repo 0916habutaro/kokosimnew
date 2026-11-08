@@ -322,17 +322,18 @@ class BalanceTally:
         }
 
     def add_sizes(self, year: int, schools, floor_hits: int = 0) -> None:
-        """``schools`` は (設置者, 評判の z, 学年ごとの人数 {1: 人, 2: 人, 3: 人}) の並び。"""
+        """``schools`` は (設置者, 評判のランク S〜E, 学年ごとの人数 {1: 人, 2: 人, 3: 人}) の並び。"""
         totals, grades = [], Counter()
         groups = defaultdict(list)
-        for ownership, z, counts in schools:
+        by_rank = defaultdict(list)
+        for ownership, rank, counts in schools:
             total = sum(counts.values())
             totals.append(total)
             grades.update(counts)
-            groups["私立" if ownership == "private" else "公立"].append(total)
-            if z is not None:
-                band = next(label for low, label in reversed(SIZE_BANDS) if z >= low)
-                groups[band].append(total)
+            owner = "私立" if ownership == "private" else "公立"
+            groups[owner].append(total)
+            if rank:
+                by_rank[f"{owner}{rank}"].append(total)
         if not totals:
             return
         n = len(totals)
@@ -344,6 +345,10 @@ class BalanceTally:
             "total_quantiles": {"p5": q[0], "p25": q[4], "p50": q[9], "p75": q[14], "p95": q[18],
                                 "max": max(totals)},
             "group_mean": {k: round(statistics.mean(v), 1) for k, v in sorted(groups.items())},
+            # 私立・公立 × 評判のランクごとの部員数（平均・10%点・90%点・学校の数）
+            "by_rank": {k: _spread(v) for k, v in sorted(by_rank.items(), key=lambda kv: _rank_key(kv[0]))},
+            # 評判Sの私立で部員が50人に届かない学校
+            "private_s_under_50": sum(total < 50 for total in by_rank.get("私立S", ())),
             "floor_hits": floor_hits,
             "grade_totals": {str(g): grades[g] for g in (1, 2, 3)},
         }
@@ -540,17 +545,30 @@ def roster_rows(book, year: int):
                    {name: values[i] for i, name in enumerate(SCALARS)})
 
 
-SIZE_BANDS = ((-99.0, "評判z<0"), (0.0, "評判z0〜1"), (1.0, "評判z1〜2"), (2.0, "評判z2〜"))
+RANK_ORDER = "SABCDE"
+
+
+def _rank_key(label: str):
+    return (label[:2], RANK_ORDER.index(label[2:]) if label[2:] in RANK_ORDER else 9)
+
+
+def _spread(values) -> dict:
+    ordered = sorted(values)
+
+    def at(share):
+        return ordered[min(len(ordered) - 1, int(share * len(ordered)))]
+
+    return {"n": len(ordered), "mean": round(statistics.mean(ordered), 1),
+            "p10": at(0.1), "p90": at(0.9)}
 
 
 def size_rows(book, year: int, repo):
-    """4月1日の全校の (設置者, 評判の z, 学年ごとの人数)。"""
+    """4月1日の全校の (設置者, 評判のランク, 学年ごとの人数)。ランクはその日の評判（画面と同じ）。"""
     reputation = getattr(book, "reputation", None)
-    values = getattr(reputation, "values", None) or {}
     for school in book.school_ids:
         counts = Counter(p.academic_year for p in book.roster(year, school).players)
-        yield (repo.ownership_type(school), values.get(school),
-               {g: counts.get(g, 0) for g in (1, 2, 3)})
+        rank = reputation.rank(school) if reputation is not None else ""
+        yield (repo.ownership_type(school), rank, {g: counts.get(g, 0) for g in (1, 2, 3)})
 
 
 SITUATIONS = {
@@ -916,6 +934,10 @@ def format_report(seed_label: str, report: dict) -> str:
             lines.append("  部員数の分布 p5/25/50/75/95/最大: " + "/".join(
                 str(q[k]) for k in ("p5", "p25", "p50", "p75", "p95", "max")))
             lines.append("  帯ごとの平均: " + " ".join(f"{k}:{v}" for k, v in sz["group_mean"].items()))
+            if sz.get("by_rank"):
+                lines.append("  私立・公立×評判 平均（10%点〜90%点、校数）: " + " ".join(
+                    f"{k}:{v['mean']}({v['p10']}〜{v['p90']},{v['n']})" for k, v in sz["by_rank"].items()))
+                lines.append(f"  評判Sの私立で50人未満: {sz['private_s_under_50']}校")
         ro = row.get("rosters")
         if ro:
             lines.append(f"  3年の投手 {ro['third_year_pitchers']}人: 平均 {ro['velocity_mean']}km/h / "

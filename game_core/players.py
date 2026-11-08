@@ -185,7 +185,9 @@ class PlayerRosterGenerator:
         school_id = team.school_id
         size = size or SizeContext(prefecture_code=team.prefecture_code)
         if size.appeal is None:
-            first = model.initial_appeal(base_seed, school_id, reference_year)
+            first = model.initial_appeal_state(
+                base_seed, school_id, reference_year, ownership=size.ownership,
+                reputation_z=size.reputation_z(reference_year)).value
             size = replace(size, appeal=lambda _year: first)
 
         # (入学年度, 番号, 守備位置)。3年生から順に入部させ、進級のたびに退部を引く。

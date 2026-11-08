@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
+import math
 import random
 import statistics
 import unittest
@@ -23,20 +24,25 @@ class ExpectedFreshmenTests(unittest.TestCase):
     def setUp(self):
         self.model = roster_size_model()
 
-    def expected(self, **kwargs):
-        base = dict(ownership="prefectural", reputation_z=0.0, appeal=0.0)
-        base.update(kwargs)
-        return self.model.expected_freshmen(**base)
+    def target(self, ownership, z):
+        return math.exp(self.model.target_appeal(ownership, z))
 
-    def test_reputation_ownership_appeal_and_coach_raise_the_mean(self):
-        self.assertGreater(self.expected(reputation_z=2.0), self.expected())
-        self.assertGreater(self.expected(ownership="private"), self.expected())
-        self.assertGreater(self.expected(appeal=0.4), self.expected())
-        self.assertGreater(self.expected(coach_z=0.2), self.expected())
-        # 設置・監督の効きは評判より小さい
-        self.assertLess(self.expected(ownership="private") / self.expected(),
-                        self.expected(reputation_z=1.0) / self.expected())
-        self.assertLess(self.expected(coach_z=0.2) / self.expected(), 1.15)
+    def test_reputation_rank_and_private_raise_the_target(self):
+        # 評判の順位が上ほど多い。中位では私立・公立の差は小さく、強豪では私立が大きく多い
+        for ownership in ("private", "prefectural"):
+            values = [self.target(ownership, z) for z in (-1.5, 0.0, 1.0, 2.0, 2.7)]
+            self.assertEqual(values, sorted(values))
+        self.assertLess(abs(self.target("private", 0.0) - self.target("prefectural", 0.0)), 1.0)
+        self.assertGreater(self.target("private", 2.7), 1.5 * self.target("prefectural", 2.7))
+        # 公立は強豪でも1学年20人前後まで
+        self.assertLessEqual(self.target("prefectural", 3.5), 20.0)
+        self.assertEqual(self.target("municipal", 2.0), self.target("prefectural", 2.0))
+
+    def test_appeal_and_coach_raise_the_mean_a_little(self):
+        base = self.model.expected_freshmen(appeal=math.log(10.0))
+        self.assertAlmostEqual(10.0, base)
+        self.assertGreater(self.model.expected_freshmen(appeal=math.log(10.0), coach_z=0.2), base)
+        self.assertLess(self.model.expected_freshmen(appeal=math.log(10.0), coach_z=0.2) / base, 1.15)
 
     def test_draws_follow_the_mean_with_extra_spread(self):
         rng = random.Random(1)
@@ -44,18 +50,51 @@ class ExpectedFreshmenTests(unittest.TestCase):
         self.assertAlmostEqual(10.0, statistics.mean(draws), delta=0.4)
         # 負の二項：Poisson（分散=平均）より広い
         self.assertGreater(statistics.variance(draws), 11.0)
-        rule = self.model.config["freshmen"]
-        self.assertLessEqual(max(self.model.draw_freshmen(rng, 200.0) for _ in range(50)),
-                             rule["max_freshmen"])
+        self.assertLessEqual(max(self.model.draw_freshmen(rng, 200.0, maximum=26)
+                                 for _ in range(50)), 26)
+        self.assertEqual(42, self.model.max_freshmen("private"))
+        self.assertEqual(26, self.model.max_freshmen("prefectural"))
+
+    def test_strong_private_schools_vary_less(self):
+        strong = self.model.stability("private", 2.7)
+        middle = self.model.stability("private", 0.0)
+        self.assertGreater(strong, self.model.stability("prefectural", 2.7))
+        self.assertEqual(0.0, middle)
+        rng = random.Random(2)
+        steady = [self.model.draw_freshmen(rng, 25.0, stability=strong) for _ in range(3000)]
+        loose = [self.model.draw_freshmen(rng, 25.0, stability=middle) for _ in range(3000)]
+        self.assertAlmostEqual(25.0, statistics.mean(steady), delta=0.6)
+        self.assertLess(statistics.pstdev(steady), 0.6 * statistics.pstdev(loose))
+
+    def test_appeal_starts_near_the_reputation_and_follows_it_slowly(self):
+        model = self.model
+        first = model.initial_appeal_state(7, "SCH-A", 2026, ownership="private", reputation_z=2.7)
+        self.assertEqual(round(model.target_appeal("private", 2.7), 6), first.anchor)
+        # 評判が下がった次の年：目安は follow の割合だけ近づく（一気には下がらない）
+        after = model.next_appeal_state(7, "SCH-A", 2027, first, ownership="private",
+                                        reputation_z=0.0)
+        follow = model.config["school_appeal"]["follow"]
+        expected = first.anchor + (model.target_appeal("private", 0.0) - first.anchor) * follow
+        self.assertAlmostEqual(expected, after.anchor, places=5)
+        self.assertGreater(after.anchor, model.target_appeal("private", 0.0))
+        # ずれは強豪の私立ほど小さい
+        def spread(ownership, z):
+            return statistics.pstdev(
+                model.initial_appeal_state(7, f"SCH-{n}", 2026, ownership=ownership,
+                                           reputation_z=z).deviation for n in range(800))
+        self.assertLess(spread("private", 2.7), 0.6 * spread("private", 0.0))
+        self.assertLess(spread("private", 2.7), spread("prefectural", 2.7))
 
     def test_school_appeal_changes_a_little_each_year(self):
-        first = self.model.initial_appeal(7, "SCH-A", 2026)
-        values = [first]
+        state = self.model.initial_appeal_state(7, "SCH-A", 2026, ownership="prefectural",
+                                                reputation_z=0.0)
+        values = [state.value]
         for year in range(2027, 2037):
-            values.append(self.model.next_appeal(7, "SCH-A", year, values[-1]))
+            state = self.model.next_appeal_state(7, "SCH-A", year, state, ownership="prefectural",
+                                                 reputation_z=0.0)
+            values.append(state.value)
         steps = [abs(b - a) for a, b in zip(values, values[1:])]
         self.assertLess(max(steps), 0.5)
-        self.assertEqual(values[1], self.model.next_appeal(7, "SCH-A", 2027, first))
 
 
 class MinimumAndPositionTests(unittest.TestCase):
