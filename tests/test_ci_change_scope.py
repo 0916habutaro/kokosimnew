@@ -19,7 +19,7 @@ WORKFLOWS = (
 class CiChangeScopeTests(unittest.TestCase):
     def test_allowlisted_prose_only(self):
         good = ("docs/research/stage43g119b_v3_save_design_20261018.md",
-                "docs/guide/intro.rst", "README.md", "CHANGELOG.md", "CONTRIBUTING.md",
+                "docs/guide/intro.rst", "docs/research/2026/a.csv", "README.md", "CHANGELOG.md", "CONTRIBUTING.md",
                 "AGENTS.md", "CLAUDE.md")
         for name in good:
             with self.subTest(name=name):
@@ -29,6 +29,8 @@ class CiChangeScopeTests(unittest.TestCase):
         bad = (
             "tests/test_example.py", "phase2_engine/saved_fictional_bracket.py",
             "docs/config.json", "docs/ci-change.py", "docs/fixture.csv",
+            "docs/data/fixture.csv", "data/research/fixture.csv",
+            "docs/research/a.csv/../hack.py",
             ".github/workflows/python-tests.yml", ".github/README.md",
             "docs/research/a.md/../hack.py", "docs/../README.md",
             "other/README.md", "/docs/test.md", "docs\\test.md", "docs/readme",
@@ -39,7 +41,7 @@ class CiChangeScopeTests(unittest.TestCase):
                 self.assertFalse(scope.is_documentation_path(name))
 
     def test_docs_only_pr_and_main_push_are_fast(self):
-        docs = ["docs/design/a.md", "README.md"]
+        docs = ["docs/design/a.md", "README.md", "docs/research/season/rules.csv"]
         self.assertTrue(scope.route("pull_request", "refs/pull/1/merge",
                                     BASE, HEAD, paths=docs)[0])
         self.assertTrue(scope.route("push", "refs/heads/main",
@@ -51,6 +53,8 @@ class CiChangeScopeTests(unittest.TestCase):
             ["README.md", "tests/test_ci_change_scope.py"],
             ["docs/notes.md", ".github/workflows/python-tests.yml"],
             ["docs/data/master.csv"],
+            ["docs/research/rules.csv", "config/game.json"],
+            ["docs/research/rules.csv", "game_core/simulator.py"],
         ):
             with self.subTest(changes=changes):
                 self.assertFalse(scope.route("pull_request", "", BASE, HEAD, paths=changes)[0])
@@ -100,6 +104,8 @@ class CiChangeScopeTests(unittest.TestCase):
                 self.assertIn("steps.scope.outputs.docs_only == 'true'", content)
                 self.assertIn("pull_request", content)
                 self.assertIn("main", content)
+        self.assertIn("python tests/ci_research_csv.py",
+                      workflows[WORKFLOWS[0]])
         self.assertIn("python tests/ci_unittest_timings.py",
                       workflows[WORKFLOWS[0]])
         self.assertIn("test_stage13e3e1_full_season_save_load.py",
