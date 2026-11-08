@@ -22,15 +22,19 @@ def union_teams(season, competition_id):
     from .joint_teams import joint_team_config
 
     plans = getattr(season, "union_plans", None) or {}
-    if competition_id in plans:
-        return plans[competition_id].teams
+    own = tuple(plans[competition_id].teams) if competition_id in plans else ()
     chains = joint_team_config()["chains"]
     type_of = lambda cid: season.repo.competitions.get(cid, {}).get("competition_type", "")  # noqa: E731
     chain = chains.get(type_of(competition_id))
     if chain is None:
-        return ()
-    return tuple(team for cid, plan in plans.items() if chains.get(type_of(cid)) == chain
-                 for team in plan.teams)
+        return own
+    # この大会で組んだ連合と、つながりの大会から進んできた連合（この大会の計画にあっても
+    # 出ない学校だけの計画のことがあるので、両方を見る）
+    leads = {team.lead for team in own}
+    inherited = tuple(team for cid, plan in plans.items()
+                      if cid != competition_id and chains.get(type_of(cid)) == chain
+                      for team in plan.teams if team.lead not in leads)
+    return own + inherited
 
 
 class AnnualReputation:

@@ -139,7 +139,10 @@ class LiveSeasonMembers:
         （地区大会・甲子園など）は、同じ年度の同じつながり（``chains``）の連合を使う。"""
         plans = self._plans()
         if competition_id in plans and not chain_only:
-            return plans[competition_id].team_of(school_id)
+            team = plans[competition_id].team_of(school_id)
+            if team is not None:
+                return team
+            # この大会の計画（新しく組んだ連合・出ない学校）にない学校は、つながりの連合を見る
         chains = joint_team_config()["chains"]
         chain = chains.get(self.types.get(competition_id, ""))
         if chain is None:

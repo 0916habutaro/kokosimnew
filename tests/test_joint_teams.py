@@ -233,3 +233,60 @@ class SmallerFieldFormatTests(unittest.TestCase):
             phase_code="KO", group_id="G", group_name="G", generation_seed=1, stop_at_survivors=3,
         )
         self.assertEqual({}, few.matches)
+
+
+class InheritedUnionTests(unittest.TestCase):
+    """進んだ大会に新しい計画（出ない学校だけなど）があっても、進んできた連合は消えない。"""
+
+    def test_union_survives_a_plan_made_in_the_next_competition(self):
+        case = AdvanceAndMembersTests("test_union_continues_into_the_regional_competition")
+        case.setUp()
+        case.state.union_plans["REGION"] = UnionPlan((), ("SCH-X",))
+        self.assertEqual(("SCH-A", "SCH-B"), case.live.union_for("REGION", "SCH-A").schools)
+        self.assertEqual({"SCH-A", "SCH-B"},
+                         {p.school_id for p in case.live("REGION", "SCH-A").players})
+
+    def test_reputation_counts_the_inherited_union(self):
+        from game_core.annual_reputation import union_teams
+
+        season = SimpleNamespace(
+            repo=SimpleNamespace(competitions={
+                "PREF": {"competition_type": "spring_prefectural"},
+                "REGION": {"competition_type": "spring_regional"},
+            }),
+            union_plans={
+                "PREF": UnionPlan((JointTeam("SCH-A", ("SCH-A", "SCH-B")),)),
+                "REGION": UnionPlan((), ("SCH-X",)),
+            },
+        )
+        self.assertEqual(("SCH-A",), tuple(t.lead for t in union_teams(season, "REGION")))
+
+
+class UnionScheduleTests(unittest.TestCase):
+    """連合の試合の日・甲子園の予定は構成校それぞれで確かめる（同じ選手が同じ日に2試合しない）。"""
+
+    def _scheduled(self, members):
+        from phase2_engine.competition_schedule_runtime import ScheduledCompetitionRuntime
+
+        scheduled = object.__new__(ScheduledCompetitionRuntime)
+        scheduled.team_members = members
+        return scheduled
+
+    def test_union_days_cover_every_member_school(self):
+        scheduled = self._scheduled({"SCH-C": ("SCH-C", "SCH-B")})
+        self.assertEqual(["SCH-C", "SCH-B", "SCH-Z"], scheduled._schools(("SCH-C", "SCH-Z", "")))
+
+    def test_koshien_hold_reaches_union_partners(self):
+        from phase2_engine.live_season_dependency import LiveSeasonDependencyRuntimeState as Runtime
+
+        koshien = self._scheduled({"SCH-A": ("SCH-A", "SCH-B")})
+        koshien.calendar_dates = ["2026-08-06", "2026-08-23"]
+        koshien.runtime = SimpleNamespace(entrant_school_ids=["SCH-A", "SCH-Y"])
+        koshien.matches = {"M1": SimpleNamespace(
+            match_date="2026-08-10", completed_on="2026-08-10", status="completed",
+            loser_id="SCH-A")}
+        state = SimpleNamespace(school_holds={}, _koshien=lambda: koshien)
+        Runtime._refresh_koshien_holds(state)
+        self.assertEqual("2026-08-10", state.school_holds["SCH-B"])
+        self.assertEqual("2026-08-10", state.school_holds["SCH-A"])
+        self.assertEqual("2026-08-23", state.school_holds["SCH-Y"])
