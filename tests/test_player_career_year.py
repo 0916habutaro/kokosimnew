@@ -85,13 +85,19 @@ class PlayerCareerYearTests(unittest.TestCase):
         left, right = cls.march.state.rosters, control.state.rosters
         cls.personnel_reputation_equal = (left.reputation.values == right.reputation.values
                                          and left.reputation.intake_by_year == right.reputation.intake_by_year)
-        cls.returning_values_equal = all(bytes(state.values) == bytes(right._states[sid][key].values)
-            for sid, states in left._states.items() for key, state in states.items() if key[0] <= 2026)
+        # 監督の評判は新入部員の人数にも効く（roster_size_v1）。両側にいる選手で比べる
+        both = [(sid, key, state) for sid, states in left._states.items()
+                for key, state in states.items() if key in right._states.get(sid, {})]
+        cls.returning_kept = all(key in right._states.get(sid, {})
+            for sid, states in left._states.items() for key in states if key[0] <= 2026)
+        cls.returning_values_equal = cls.returning_kept and all(
+            bytes(state.values) == bytes(right._states[sid][key].values)
+            for sid, key, state in both if key[0] <= 2026)
         cls.new_intake_changed = any(bytes(state.values) != bytes(right._states[sid][key].values)
-            for sid, states in left._states.items() for key, state in states.items() if key[0] == 2027)
+            for sid, key, state in both if key[0] == 2027)
         cls.growth_potential_equal = all((state.growth_type, state.potential) ==
             (right._states[sid][key].growth_type, right._states[sid][key].potential)
-            for sid, states in left._states.items() for key, state in states.items())
+            for sid, key, state in both)
         del control, control_service, left, right
         control_tmp.cleanup()
         cls.april_rosters = cls.march.state.rosters.years()
@@ -223,7 +229,9 @@ class PlayerCareerYearTests(unittest.TestCase):
 
     def test_closed_year_names_come_from_the_history(self):
         archived = self.service.closed_roster("year", 2026, "SCH000001")
-        self.assertEqual(20, len(archived))
+        # 閉じた年度の部員は全員、履歴に残る（人数は学校・年度で変わる）
+        self.assertGreaterEqual(len(archived), 10)
+        self.assertEqual(len(archived), len({row["player_id"] for row in archived}))
         # 年度末の能力と成長の型も残る
         self.assertTrue(all(row["abilities"] and row["growth_type"] for row in archived))
         # 終わった大会の試合の記録はまとめて圧縮してある
@@ -246,7 +254,9 @@ class PlayerCareerYearTests(unittest.TestCase):
         }
         now = self.session.state.rosters.roster(2027, "SCH000001").players
         returning = [p for p in now if p.player_id in archived]
-        self.assertEqual(12, len(returning))
+        # 3年生は卒業、1・2年生は退部した選手を除いて進級する
+        self.assertEqual(sum(p.academic_year >= 2 for p in now), len(returning))
+        self.assertLessEqual(len(returning), sum(row["academic_year"] < 3 for row in archived.values()))
         for player in returning:
             self.assertEqual(archived[player.player_id]["display_name"], player.display_name)
             self.assertEqual(

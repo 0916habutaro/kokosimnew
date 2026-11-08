@@ -15,7 +15,7 @@ from pathlib import Path
 
 from game_core.career_rosters import advance_school_roster
 from game_core.players import (
-    GRADE_COUNTS, Player, SchoolRoster, validate_school_roster,
+    GRADES, Player, SchoolRoster, validate_school_roster,
 )
 from .career_option_a_storage_profile import _read_only
 
@@ -259,7 +259,7 @@ class CareerRosterArchive:
                 raise CareerRosterConflictError(
                     "permanent player identity fields changed"
                 )
-            max_year = entry_year + max(GRADE_COUNTS) - 1
+            max_year = entry_year + max(GRADES) - 1
             years = conn.execute(
                 "SELECT year FROM career_school_rosters "
                 "WHERE school_id=? AND year BETWEEN ? AND ? ORDER BY year",

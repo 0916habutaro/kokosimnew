@@ -135,7 +135,18 @@ class PlayerSeasonServiceTests(unittest.TestCase):
             school_id = archived["batter_stats"][0]["school_id"]
             members = screen.school(school_id)["members"]
             self.assertEqual(members, again.school(school_id)["members"])
-            self.assertEqual(20, len({m["name"] for m in members}))
+            self.assertEqual(len(members), len({m["name"] for m in members}))
+            self.assertGreaterEqual(len(members), 10)
+            # 学校の一覧の部員数。部員が多い学校は大会ごとのベンチ入りの印
+            listing = {row["school_id"]: row for row in screen.schools()["schools"]}
+            self.assertEqual(len(members), listing[school_id]["members"])
+            big = max(listing.values(), key=lambda row: row["members"] or 0)
+            self.assertGreater(big["members"], 20)
+            bench = screen.school(big["school_id"])
+            if bench["bench"] is not None:
+                self.assertLessEqual(bench["bench"]["count"], 20)
+                self.assertEqual(bench["bench"]["count"],
+                                 sum(bool(m.get("bench")) for m in bench["members"]))
             self.assertTrue(all(" " in m["name"] and m["hometown"] for m in members))
             self.assertTrue(all("injury" in m for m in members))
 

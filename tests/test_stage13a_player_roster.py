@@ -7,9 +7,6 @@ from pathlib import Path
 
 from game_core.player_names import PlayerIdentity
 from game_core.players import (
-    CORE_ROSTER_SIZE,
-    GRADE_COUNTS,
-    POSITION_SLOTS,
     PlayerRosterGenerator,
     validate_school_roster,
     write_players_csv,
@@ -27,14 +24,15 @@ class Stage13APlayerRosterFoundationTests(unittest.TestCase):
         cls.generator = PlayerRosterGenerator()
         cls.seed = 2026100701
 
-    def test_roster_has_20_players(self):
+    def test_new_team_meets_the_minimum(self):
+        # 人数は学校で変わる。4月の新チーム（1・2年）は最低人数・投手・捕手にそろう
         roster = self.generator.generate_for_school_id(
-            self.repo,
-            self.school_ids[0],
-            2026,
-            self.seed,
+            self.repo, self.school_ids[0], 2026, self.seed,
         )
-        self.assertEqual(CORE_ROSTER_SIZE, len(roster.players))
+        new_team = [p for p in roster.players if p.academic_year <= 2]
+        self.assertGreaterEqual(len(new_team), 10)
+        self.assertGreaterEqual(sum(p.primary_position == "P" for p in new_team), 2)
+        self.assertGreaterEqual(sum(p.primary_position == "C" for p in new_team), 1)
 
     def test_roster_is_deterministic_for_same_seed(self):
         first = self.generator.generate_for_school_id(
@@ -72,51 +70,12 @@ class Stage13APlayerRosterFoundationTests(unittest.TestCase):
             [player.player_id for player in second.players],
         )
 
-    def test_grade_distribution_contract(self):
+    def test_roster_numbers_are_unique_from_one(self):
         roster = self.generator.generate_for_school_id(
-            self.repo,
-            self.school_ids[0],
-            2026,
-            self.seed,
-        )
-        actual = {
-            grade: sum(
-                player.academic_year == grade
-                for player in roster.players
-            )
-            for grade in (1, 2, 3)
-        }
-        self.assertEqual(GRADE_COUNTS, actual)
-
-    def test_position_slot_contract(self):
-        roster = self.generator.generate_for_school_id(
-            self.repo,
-            self.school_ids[0],
-            2026,
-            self.seed,
+            self.repo, self.school_ids[0], 2026, self.seed,
         )
         self.assertEqual(
-            sorted(POSITION_SLOTS),
-            sorted(player.primary_position for player in roster.players),
-        )
-        self.assertEqual(
-            5,
-            sum(player.position_group == "pitcher" for player in roster.players),
-        )
-        self.assertEqual(
-            2,
-            sum(player.position_group == "catcher" for player in roster.players),
-        )
-
-    def test_roster_numbers_are_1_to_20(self):
-        roster = self.generator.generate_for_school_id(
-            self.repo,
-            self.school_ids[0],
-            2026,
-            self.seed,
-        )
-        self.assertEqual(
-            list(range(1, 21)),
+            list(range(1, len(roster.players) + 1)),
             [player.roster_no for player in roster.players],
         )
 
@@ -135,8 +94,7 @@ class Stage13APlayerRosterFoundationTests(unittest.TestCase):
             for roster in rosters
             for player in roster.players
         ]
-        self.assertEqual(40, len(ids))
-        self.assertEqual(40, len(set(ids)))
+        self.assertEqual(len(ids), len(set(ids)))
 
     def test_entry_year_matches_academic_year(self):
         roster = self.generator.generate_for_school_id(
@@ -231,9 +189,10 @@ class Stage13APlayerRosterFoundationTests(unittest.TestCase):
             with path.open(encoding="utf-8-sig", newline="") as f:
                 rows = list(csv.DictReader(f))
 
+        total = sum(len(roster.players) for roster in rosters)
         self.assertEqual(2, summary["roster_count"])
-        self.assertEqual(40, summary["player_count"])
-        self.assertEqual(40, len(rows))
+        self.assertEqual(total, summary["player_count"])
+        self.assertEqual(total, len(rows))
         self.assertIn("player_id", rows[0])
         self.assertIn("academic_year", rows[0])
         self.assertIn("primary_position", rows[0])

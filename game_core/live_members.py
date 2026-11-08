@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 
 from phase2_engine.school_year import school_year_of
@@ -15,9 +16,12 @@ from .membership import (
     SchoolMembers,
     summer_end_dates,
 )
+from .roster_size import bench_score, roster_size_model, select_bench
 
 
 SUMMER = "summer"
+# ベンチ入りの記録で「その大会の出場メンバー全員」（部員が20人以下）
+ALL_MEMBERS: tuple[str, ...] = ()
 SUMMER_FINAL_TYPE = "national_championship"
 
 
@@ -72,11 +76,18 @@ class LiveSeasonMembers:
         self.members = SchoolMembers(rosters, self._summer_end)
         self.state = None
         self._fixed: dict[tuple[str, str], CompetitionMembers] = {}
+        self._unsaved: dict[str, tuple[str, ...]] = {}
         self._summer_ends: dict[str, date] = {}
         self._summer_ends_as_of: tuple | None = None
 
     def attach(self, state) -> None:
         self.state = state
+        # 状態ができる前（開始前の試合）に選んだベンチ入りも状態に入れる
+        saved = getattr(state, "bench_members", None)
+        if saved is not None:
+            for slot, ids in self._unsaved.items():
+                saved.setdefault(slot, ids)
+        self._unsaved = {}
 
     def _summer_end(self, year: int, school_id: str) -> date | None:
         if self.state is None or year != self.plan.year:
@@ -127,8 +138,37 @@ class LiveSeasonMembers:
                 start_date=self.starts[competition_id],
                 season_segment=self.segments[competition_id],
             )
+            fixed = self._bench(fixed)
             self._fixed[key] = fixed
         return fixed
+
+    def _bench(self, members: CompetitionMembers) -> CompetitionMembers:
+        """ベンチ入り（roster_size_v1 の bench）。最初に必要になった日（その学校の最初の
+        試合の日）の能力で選び、進行中の状態に入れて固定する（セーブの読込で選び直さない）。
+
+        部員が ``size`` 人以下で全員が入るときも、大会ごとに ``ALL_MEMBERS``（空の並び）を
+        入れる（画面が前の大会のベンチ入りを出さないように。選手IDは持たずセーブを小さく）。"""
+        rosters = self.members.rosters
+        if rosters is None:
+            return members
+        bench = roster_size_model().config["bench"]
+        saved = getattr(self.state, "bench_members", None)
+        slot = f"{members.competition_id}:{members.school_id}"
+        ids = saved.get(slot) if saved is not None else None
+        if ids is None:
+            if len(members.players) <= int(bench["size"]):
+                ids = ALL_MEMBERS
+            else:
+                chosen = select_bench(members.players, lambda p: bench_score(rosters.ability(p)))
+                ids = tuple(p.player_id for p in chosen)
+            if saved is not None:
+                saved[slot] = ids
+            else:
+                self._unsaved[slot] = ids
+        if ids == ALL_MEMBERS:
+            return members
+        keep = set(ids)
+        return replace(members, players=tuple(p for p in members.players if p.player_id in keep))
 
     def members_on(self, school_id: str, on: date):
         if school_year_of(on) != self.plan.year:

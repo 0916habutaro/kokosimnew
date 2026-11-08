@@ -184,8 +184,8 @@ class PitchLimitTests(_TeamsFixture):
         by_event = self.simulator.params["pitch_count"]["by_event"]
         most = max(low + extra for low, extra in by_event.values())
         team = self.teams[self.school_ids[0]]
-        # 投手陣はみな30球まで。足りなければ野手が投げる
-        allowances = {pid: 30 for pid in self._staff()}
+        # 投げられる投手は3人で、みな30球まで（残りの投手は投げられない）。足りなければ野手が投げる
+        allowances = {pid: (30 if index < 3 else 0) for index, pid in enumerate(self._staff())}
         fielders = 0
         for number in range(20):
             result = self.simulator.simulate(

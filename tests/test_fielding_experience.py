@@ -10,6 +10,7 @@ from unittest.mock import patch
 from game_core.injuries import Injury, injury_model
 from game_core.match_contract import BatterGameStats, MatchSimulationInput, PitcherGameStats
 from game_core.roster_book import RosterBook
+from game_core.roster_size import bench_score, select_bench
 from game_core.tournament_bridge import AbilityMatchResolver
 from test_pitcher_run_accounting import _ScriptedSimulator
 from test_roster_book import TEAMS
@@ -22,7 +23,9 @@ def make_bridge(*, seed=7, year=2026, level='none', book=None):
         book.injury_level = level
     book.bind(repo.team)
     book.school_ids = tuple(TEAMS)
-    members = lambda cid, sid: SimpleNamespace(players=book.roster(year, sid).players)
+    # 試合と同じく大会のベンチ入り（部員が多い学校は20人）
+    members = lambda cid, sid: SimpleNamespace(players=select_bench(
+        book.roster(year, sid).players, lambda p: bench_score(book.ability(p))))
     bridge = AbilityMatchResolver(repo, member_provider=members, team_generation_seed=seed)
     bridge.ability_generator.source = book
     bridge.season_state = SimpleNamespace(current_date=date(year, 7, 5), pitch_log={})
@@ -156,9 +159,10 @@ class FieldingExperienceTests(unittest.TestCase):
         self.assertEqual((0, 0), (book.state(player).games, book.state(player).season_games))
 
     def test_planned_pitcher_who_stays_in_field_is_credited_despite_no_pa_or_bf(self):
-        book, bridge = make_bridge()
+        # 予定の投手が9番を打つ名簿（1回の試合で打席が回らない）
+        book, bridge = make_bridge(seed=8)
         sid = list(TEAMS)[1]
-        team = bridge.team_input(school_id=sid, reference_year=2026, generation_seed=7,
+        team = bridge.team_input(school_id=sid, reference_year=2026, generation_seed=8,
                                  competition_id='FAKE-EXPERIENCE-2026')
         planned = team.team_strength.starting_lineup.player_for_position('P')
         fielder = team.team_strength.starting_lineup.player_for_position('SS')
