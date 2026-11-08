@@ -1689,35 +1689,39 @@ class GameScreenData:
         }
 
     def _bench_info(self, school_id: str, rows: list[dict]) -> dict | None:
-        """いちばん最近始まった大会のベンチ入り（部員が多い学校だけ選んでいる）。
-        部員の行に ``bench`` の印を付け、大会の名前を返す。"""
+        """いちばん最近始まった大会のベンチ入り。部員の行に ``bench`` の印を付け、大会の
+        名前を返す。
+
+        印はその大会の出場メンバー（大会開始日の部員から決めて固定したもの。部員が20人
+        以下なら全員）から付ける。今日の部員ではない（3月に始まった大会のあとに入った
+        新入生は入らない）。名簿と開始日・保存したベンチ入りから決まるので、保存して
+        読み込み直しても同じ。"""
         seasons = (self.state.seasons.values() if isinstance(self.state, CareerState)
                    else (self.state,))
         latest = None
         for season in seasons:
             saved = getattr(season, "bench_members", None) or {}
             resolver = getattr(season.engine, "main_match_resolver", None)
-            starts = getattr(getattr(resolver, "member_provider", None), "starts", {})
-            for slot, ids in saved.items():
+            provider = getattr(resolver, "member_provider", None)
+            starts = getattr(provider, "starts", {})
+            for slot in saved:
                 competition_id, _, school = slot.rpartition(":")
                 start = starts.get(competition_id)
                 if school != school_id or start is None or start > self.state.current_date:
                     continue
                 if latest is None or start > latest[0]:
-                    latest = (start, season, competition_id, set(ids))
+                    latest = (start, season, provider, competition_id)
         if latest is None:
             return None
-        _, season, competition_id, ids = latest
-        if not ids:
-            # 部員が20人以下で全員がベンチ入り（今の部員がその大会の出場メンバー）
-            ids = {row["player_id"] for row in rows}
+        _, season, provider, competition_id = latest
+        ids = {p.player_id for p in provider(competition_id, school_id).players}
         current = {row["player_id"] for row in rows}
         for row in rows:
             row["bench"] = row["player_id"] in ids
         return {
             "competition": self._competition_name(season, competition_id, competition_id),
             "count": len(ids & current),
-            "all": len(ids & current) == len(current),
+            "all": current <= ids,
         }
 
     # ---- 監督（読み取り専用） ----

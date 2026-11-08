@@ -329,3 +329,107 @@ class LiveSeasonMembersTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ScreenBenchMarkTests(unittest.TestCase):
+    """学校の詳細の部員の◎：大会開始日の出場メンバーから付ける（今日の部員ではない）。"""
+
+    def setUp(self):
+        from types import SimpleNamespace
+
+        from game_core.live_members import LiveSeasonMembers
+        from game_core.roster_size import roster_size_model
+
+        # 部員が全員ベンチ入りする（記録が「全員」になる）ように、ベンチの人数を大きくする
+        bench = roster_size_model().config["bench"]
+        patcher = unittest.mock.patch.dict(bench, {"size": 500})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        class Plan:
+            year = 2026
+            calendar_rows = [
+                {"competition_id": "SUMMER", "start_date": "2026-07-01",
+                 "game_date_list": "2026-07-01"},
+                # 3月に始まり4月まで続く春の大会（翌年度の大会だが、2026年度の名簿の部員）
+                {"competition_id": "SPRING", "start_date": "2027-03-25",
+                 "game_date_list": "2027-03-25"},
+            ]
+            stage_calendar_rows = []
+            entries = {"SUMMER": _Entry("summer"), "SPRING": _Entry("spring")}
+
+        self.Plan = Plan
+        self.book = _book()
+        self.state = _State({
+            "SUMMER": _Competition([_Match("2026-07-10", "SCH-TEST", "SCH-X", "SCH-TEST")]),
+        })
+        self.live = LiveSeasonMembers(Plan(), self.book)
+        self.live.attach(self.state)
+        self.state.engine = SimpleNamespace(
+            main_match_resolver=SimpleNamespace(member_provider=self.live))
+
+    def info(self, rows, today, state=None):
+        from types import SimpleNamespace
+
+        from phase2_engine.screen.data import GameScreenData
+
+        state = state or self.state
+        state.current_date = today
+        screen = SimpleNamespace(state=state, _competition_name=lambda season, cid, fallback: cid)
+        rows = [{"player_id": p.player_id} for p in rows]
+        return GameScreenData._bench_info(screen, "SCH-TEST", rows), rows
+
+    def test_freshmen_after_a_march_competition_are_not_marked(self):
+        from game_core.live_members import ALL_MEMBERS
+
+        spring = self.live("SPRING", "SCH-TEST")
+        self.assertEqual(ALL_MEMBERS, self.state.bench_members["SPRING:SCH-TEST"])
+        april = self.book.roster(2027, "SCH-TEST").players
+        info, rows = self.info(april, date(2027, 4, 2))
+        registered = {p.player_id for p in spring.players}
+        self.assertEqual("SPRING", info["competition"])
+        self.assertFalse(info["all"])
+        for player, row in zip(april, rows):
+            # 4月1日の新入生は出場資格がない（◎なし）。進級した部員は◎
+            self.assertEqual(player.player_id in registered, row["bench"])
+            if player.academic_year == 1:
+                self.assertFalse(row["bench"])
+        self.assertEqual(sum(row["bench"] for row in rows), info["count"])
+
+    def test_summer_marks_before_and_after_retirement(self):
+        summer = self.live("SUMMER", "SCH-TEST")
+        roster = self.book.roster(2026, "SCH-TEST").players
+        self.assertEqual(len(roster), len(summer.players))
+        before = self.live.members_on("SCH-TEST", date(2026, 7, 10))
+        info, rows = self.info(before, date(2026, 7, 10))
+        self.assertTrue(info["all"])
+        self.assertEqual(len(roster), info["count"])
+        # 負けた次の日に3年生が引退。残った部員は夏の出場メンバーなので全員◎
+        after = self.live.members_on("SCH-TEST", date(2026, 7, 11))
+        self.assertNotIn(3, {p.academic_year for p in after})
+        info, rows = self.info(after, date(2026, 7, 11))
+        self.assertTrue(all(row["bench"] for row in rows))
+        self.assertEqual(len(after), info["count"])
+
+    def test_marks_are_the_same_after_save_and_load(self):
+        import pickle
+
+        from game_core.live_members import LiveSeasonMembers
+
+        self.live("SPRING", "SCH-TEST")
+        april = self.book.roster(2027, "SCH-TEST").players
+        expected, expected_rows = self.info(april, date(2027, 4, 2))
+        from types import SimpleNamespace
+
+        # 名簿は保存して読み込み直す。進行中の状態は保存されるベンチ入りの記録だけを引き継ぐ
+        book = pickle.loads(pickle.dumps(self.book))
+        book.bind(lambda school_id: TEAM)
+        state = _State(self.state.competitions)
+        state.bench_members = pickle.loads(pickle.dumps(self.state.bench_members))
+        live = LiveSeasonMembers(self.Plan(), book)
+        live.attach(state)
+        state.engine = SimpleNamespace(main_match_resolver=SimpleNamespace(member_provider=live))
+        with unittest.mock.patch.object(book, "ability", side_effect=AssertionError):
+            info, rows = self.info(book.roster(2027, "SCH-TEST").players, date(2027, 4, 2), state)
+        self.assertEqual(expected, info)
+        self.assertEqual(expected_rows, rows)
