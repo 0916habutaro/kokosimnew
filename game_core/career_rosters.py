@@ -84,7 +84,9 @@ def advance_school_roster(
     model = roster_size_model()
     size = size or SizeContext(prefecture_code=team.prefecture_code)
     if size.appeal is None:
-        first = model.initial_appeal(career_seed, team.school_id, next_year)
+        first = model.initial_appeal_state(
+            career_seed, team.school_id, next_year, ownership=size.ownership,
+            reputation_z=size.reputation_z(next_year)).value
         size = replace(size, appeal=lambda _year: first)
     graduates = tuple(
         p for p in previous.players if p.academic_year == 3

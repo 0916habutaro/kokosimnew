@@ -33,7 +33,7 @@ from .career_rosters import _newcomer_id, advance_school_roster
 from .injuries import Injury, injury_model
 from .player_growth import PlayerGrowth
 from .players import Player, PlayerRosterGenerator, SchoolRoster, _player_id, _position_group
-from .roster_size import SizeContext, roster_size_model
+from .roster_size import AppealState, SizeContext, roster_size_model
 
 
 SCALARS = BATTER_ABILITIES + CATCHER_ABILITIES + PITCHER_ABILITIES
@@ -243,8 +243,8 @@ class RosterBook:
         ownership_for: Callable[[str], str] | None = None,
     ):
         self.reputation = None
-        # 学校ID → (年度, 部員の集まりやすさ（対数）)。年ごとに少しだけ変わる（roster_size.py）
-        self.appeal: dict[str, tuple[int, float]] = {}
+        # 学校ID → 部員の集まりやすさ（roster_size.AppealState。年ごとに少しずつ変わる）
+        self.appeal: dict[str, AppealState] = {}
         # 年度 → 新入部員を最低人数まで増やした学校の数
         self.floor_hits: dict[int, int] = {}
         self.coaches = None
@@ -414,20 +414,32 @@ class RosterBook:
 
     # ---- 部員の人数 ----
 
-    def school_appeal(self, school_id: str, year: int) -> float:
-        """その年度の部員の集まりやすさ（対数）。新規開始の年度より前は新規開始の値。"""
+    def school_appeal(self, school_id: str, year: int, *, ownership: str,
+                      reputation_z: Callable[[int], float]) -> float:
+        """その年度の部員の集まりやすさ（対数）。新規開始の年度までは新規開始の評判から
+        決めた値。それより後は毎年、その年の評判へ少しずつ近づける（roster_size.py）。"""
         model = roster_size_model()
+        state = self.appeal.get(school_id)
+        if state is None:
+            state = model.initial_appeal_state(
+                self.career_seed, school_id, self.first_year, ownership=ownership,
+                reputation_z=reputation_z(self.first_year))
+            self.appeal[school_id] = state
         if year <= self.first_year:
-            return model.initial_appeal(self.career_seed, school_id, self.first_year)
-        kept_year, value = self.appeal.get(school_id) or (
-            self.first_year, model.initial_appeal(self.career_seed, school_id, self.first_year))
-        if year < kept_year:
+            if state.year == self.first_year:
+                return state.value
+            return model.initial_appeal_state(
+                self.career_seed, school_id, self.first_year, ownership=ownership,
+                reputation_z=reputation_z(self.first_year)).value
+        if year < state.year:
             raise ValueError(f"{school_id}: appeal for {year} is already past")
-        while kept_year < year:
-            kept_year += 1
-            value = model.next_appeal(self.career_seed, school_id, kept_year, value)
-        self.appeal[school_id] = (kept_year, value)
-        return value
+        while state.year < year:
+            following = state.year + 1
+            state = model.next_appeal_state(
+                self.career_seed, school_id, following, state, ownership=ownership,
+                reputation_z=reputation_z(following))
+        self.appeal[school_id] = state
+        return state.value
 
     def size_context(self, team: Team) -> SizeContext:
         """新入部員の人数の材料：設置者・評判と監督の z（入学年度ごと）・集まりやすさ。"""
@@ -443,12 +455,18 @@ class RosterBook:
                     school_id=school_id, entry_year=year, base_seed=self.career_seed)
             return profiles[year]
 
+        ownership = self.ownership_for(school_id) if self.ownership_for is not None else ""
+
+        def reputation_z(year):
+            return profile(year).program_quality_z if intake else 0.0
+
         return SizeContext(
-            ownership=self.ownership_for(school_id) if self.ownership_for is not None else "",
+            ownership=ownership,
             prefecture_code=team.prefecture_code,
-            reputation_z=lambda year: profile(year).program_quality_z if intake else 0.0,
+            reputation_z=reputation_z,
             coach_z=lambda year: profile(year).coach_quality_z if intake else 0.0,
-            appeal=lambda year: self.school_appeal(school_id, year),
+            appeal=lambda year: self.school_appeal(
+                school_id, year, ownership=ownership, reputation_z=reputation_z),
         )
 
     # ---- 名簿 ----

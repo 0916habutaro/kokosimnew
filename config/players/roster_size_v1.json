@@ -1,25 +1,168 @@
 {
   "config_id": "roster_size_v1",
-  "revision": 1,
+  "revision": 2,
   "status": "design_default_not_tuned",
-  "description_ja": "学校ごと・年度ごとの部員の人数（新入部員の人数・退部・最低人数・守備位置・ベンチ入り）。使うのは game_core/roster_size.py。新入部員の期待人数 = base_freshmen × 設置（ownership）× exp(reputation_per_z × 評判の z) × exp(学校ごとの集まりやすさ) × exp(coach_per_z × 監督の z) × 都道府県の傾向。実際の人数は期待人数から負の二項（ガンマ・ポアソン。dispersion が小さいほどばらつく）で引く。傾向の目安は docs/research/school_roster_2026/（実在の値には合わせていない）。学校の強さに直接足す補正はない。",
+  "description_ja": "学校ごと・年度ごとの部員の人数（新入部員の人数・退部・最低人数・守備位置・ベンチ入り）。使うのは game_core/roster_size.py（game_definition.md §3.7）。新入部員の期待人数 = scale × exp(学校ごとの集まりやすさ) × exp(coach_per_z × 監督の z) × 都道府県の傾向。集まりやすさ（対数）= 目安 ＋ 学校ごとのずれ。目安は by_share（評判の全国の順位 → 1学年の人数の目安。私立と公立で別）の対数。実際の人数は期待人数から負の二項で引き、stability の割合だけ期待人数に寄せる。傾向の目安は docs/research/school_roster_2026/（実在の値には合わせていない）。学校の強さに直接足す補正はない。",
   "freshmen": {
-    "base_freshmen": 8.6,
-    "ownership": {
-      "private": 1.12,
-      "national": 0.95,
-      "default": 0.97
+    "description_ja": "by_share・stability は [順位, 値] の点を直線でつなぐ。順位は評判の全国の順位（下から0〜1。入部品質の学校成分の z を正規分布の割合に直したもの。0.995以上がS、0.98以上がA、0.93以上がB、0.8以上がC）。by_share は1学年の新入部員の目安（人）で、公立は強豪でも20人前後に寄せる。stability は年ごとのばらつきを小さくする割合（強豪・私立は推薦・寮で安定して集める）。max_freshmen は1学年の上限",
+    "scale": 1.0,
+    "by_share": {
+      "private": [
+        [
+          0.0,
+          5.3
+        ],
+        [
+          0.5,
+          8.6
+        ],
+        [
+          0.8,
+          11.0
+        ],
+        [
+          0.93,
+          13.0
+        ],
+        [
+          0.98,
+          19.0
+        ],
+        [
+          0.995,
+          31.0
+        ],
+        [
+          1.0,
+          36.0
+        ]
+      ],
+      "public": [
+        [
+          0.0,
+          4.8
+        ],
+        [
+          0.5,
+          8.8
+        ],
+        [
+          0.8,
+          11.0
+        ],
+        [
+          0.93,
+          13.0
+        ],
+        [
+          0.98,
+          16.0
+        ],
+        [
+          1.0,
+          19.0
+        ]
+      ]
     },
-    "reputation_per_z": 0.3,
-    "reputation_z_clip": {"min": -2.5, "max": 3.5},
+    "stability": {
+      "private": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.8,
+          0.0
+        ],
+        [
+          0.93,
+          0.3
+        ],
+        [
+          0.98,
+          0.5
+        ],
+        [
+          0.995,
+          0.6
+        ],
+        [
+          1.0,
+          0.6
+        ]
+      ],
+      "public": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.8,
+          0.0
+        ],
+        [
+          0.98,
+          0.3
+        ],
+        [
+          1.0,
+          0.35
+        ]
+      ]
+    },
     "coach_per_z": 0.5,
     "dispersion": 6.0,
-    "max_freshmen": 34
+    "max_freshmen": {
+      "private": 42,
+      "public": 26
+    }
   },
   "school_appeal": {
-    "description_ja": "学校ごとの部員の集まりやすさ（対数）。新規開始の年に N(0, stddev) で引いてセーブに入れ、毎年 前の値 × carry ＋ N(0, stddev × √(1 − carry²)) で少しだけ変える（全体の広がりは変わらない）",
-    "stddev": 0.38,
+    "description_ja": "学校ごとの部員の集まりやすさ（対数）= 目安 ＋ ずれ。目安は新規開始の評判の by_share から始め、毎年 その年の評判の目安へ follow の割合だけ近づく。ずれは新規開始の年に N(0, deviation_stddev) で引き、毎年 前の値 × carry ＋ N(0, deviation_stddev × √(1 − carry²)) で少しだけ変える。deviation_stddev は順位で決め、強豪・私立ほど小さい。セーブに入れる",
+    "follow": 0.25,
     "carry": 0.95,
+    "deviation_stddev": {
+      "private": [
+        [
+          0.0,
+          0.38
+        ],
+        [
+          0.8,
+          0.33
+        ],
+        [
+          0.93,
+          0.22
+        ],
+        [
+          0.98,
+          0.14
+        ],
+        [
+          1.0,
+          0.1
+        ]
+      ],
+      "public": [
+        [
+          0.0,
+          0.38
+        ],
+        [
+          0.8,
+          0.32
+        ],
+        [
+          0.98,
+          0.22
+        ],
+        [
+          1.0,
+          0.2
+        ]
+      ]
+    },
     "clip": 1.2
   },
   "prefecture": {
@@ -56,9 +199,26 @@
     "min_pitchers": 4,
     "min_catchers": 2,
     "grade_bonus": 1.5,
-    "pitcher": {"control": 0.25, "stuff": 0.25, "strikeout": 0.15, "stamina": 0.15, "velocity_kmh": 0.2},
-    "velocity_scale": {"description_ja": "球速を1〜100に直す：(km/h − low) × per_kmh", "low": 105, "per_kmh": 1.8},
-    "fielder": {"contact": 0.25, "power": 0.2, "plate_discipline": 0.1, "speed": 0.1, "fielding": 0.2, "arm_strength": 0.15}
+    "pitcher": {
+      "control": 0.25,
+      "stuff": 0.25,
+      "strikeout": 0.15,
+      "stamina": 0.15,
+      "velocity_kmh": 0.2
+    },
+    "velocity_scale": {
+      "description_ja": "球速を1〜100に直す：(km/h − low) × per_kmh",
+      "low": 105,
+      "per_kmh": 1.8
+    },
+    "fielder": {
+      "contact": 0.25,
+      "power": 0.2,
+      "plate_discipline": 0.1,
+      "speed": 0.1,
+      "fielding": 0.2,
+      "arm_strength": 0.15
+    }
   },
   "rng_namespaces": {
     "count": "roster_size_v1:{year}:{school_id}:count",
