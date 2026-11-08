@@ -203,3 +203,33 @@ class UnionMatchTests(unittest.TestCase):
             # 名簿上は構成校の選手のまま、試合の経験が付く
             self.assertEqual(b, player.school_id)
             self.assertEqual(1, book.state(player).games)
+
+
+class SmallerFieldFormatTests(unittest.TestCase):
+    """連合チームで出場校が減っても、予選の形式が組める。"""
+
+    def test_pool_qualifier_gives_the_fewest_byes(self):
+        from phase2_engine.premain_runtime_fmt006 import Fmt006QualifierGroupRuntime as Pools
+
+        self.assertEqual((10, 2, 0), Pools._solve_pool_plan_with_byes(46, 23))
+        four, three, byes = Pools._solve_pool_plan_with_byes(44, 23)
+        self.assertEqual(1, byes)
+        self.assertEqual(43, 4 * four + 3 * three)
+        self.assertEqual((0, 0, 19), Pools._solve_pool_plan_with_byes(19, 23))
+
+    def test_single_elimination_cut_between_rounds_uses_byes(self):
+        from phase2_engine.premain_runtime_single_elim import SingleEliminationRuntimeState
+
+        state = SingleEliminationRuntimeState.create(
+            ["A", "B", "C", "D", "E", "F"], competition_id="CUP", reference_year=2027,
+            stage_id="S", stage_code="Q", phase_code="KO", group_id="G", group_name="G",
+            generation_seed=1, stop_at_survivors=4,
+        )
+        played = [m for m in state.matches.values() if m.source2]
+        self.assertEqual(2, len(played))
+        self.assertEqual(4, len(state.survivor_sources))
+        few = SingleEliminationRuntimeState.create(
+            ["A", "B"], competition_id="CUP", reference_year=2027, stage_id="S", stage_code="Q",
+            phase_code="KO", group_id="G", group_name="G", generation_seed=1, stop_at_survivors=3,
+        )
+        self.assertEqual({}, few.matches)

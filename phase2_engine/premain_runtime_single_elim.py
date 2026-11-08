@@ -67,7 +67,9 @@ class SingleEliminationRuntimeState:
         )
         if not active:
             raise ValueError("single elimination runtime requires entrants")
-        if stop_at_survivors <= 0 or stop_at_survivors > len(active):
+        # 出場校が勝ち残りの数以下（連合チームで出場校が減った年）なら、試合をせずに全校が残る
+        stop_at_survivors = min(stop_at_survivors, len(active))
+        if stop_at_survivors <= 0:
             raise ValueError(
                 f"stop_at_survivors={stop_at_survivors} is invalid "
                 f"for entrants={len(active)}"
@@ -80,18 +82,16 @@ class SingleEliminationRuntimeState:
         round_no = 1
         match_seq = 1
         while len(sources) > stop_at_survivors:
-            next_count = (len(sources) + 1) // 2
-            if next_count < stop_at_survivors:
-                raise ValueError(
-                    "single elimination cutoff does not align with a round boundary: "
-                    f"entrants={len(sources)} "
-                    f"stop_at_survivors={stop_at_survivors}"
-                )
+            games = len(sources) // 2
+            if (len(sources) + 1) // 2 < stop_at_survivors:
+                # 勝ち残りの数が回戦の区切りに合わない（連合チームで出場校が減った年）：
+                # 必要な数だけ試合をして、残りは不戦で進む
+                games = len(sources) - stop_at_survivors
+            pairs = [(sources[i], sources[i + 1]) for i in range(0, 2 * games, 2)]
+            pairs += [(source, "") for source in sources[2 * games:]]
             next_sources = []
             round_ids = []
-            for i in range(0, len(sources), 2):
-                source1 = sources[i]
-                source2 = sources[i + 1] if i + 1 < len(sources) else ""
+            for source1, source2 in pairs:
                 match_id = (
                     f"{stage_id}-{group_id or 'GLOBAL'}-"
                     f"{phase_code}-{match_seq:03d}"

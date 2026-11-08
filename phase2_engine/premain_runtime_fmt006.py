@@ -122,7 +122,10 @@ class Fmt006QualifierGroupRuntime:
     def _solve_pool_plan_with_byes(
         cls, entrant_count: int, output_slots: int,
     ) -> tuple[int, int, int]:
-        """3〜4校の組の数と、組に入らずに進む学校の数（いちばん少なく）。"""
+        """3〜4校の組の数と、組に入らずに進む学校の数（いちばん少なく）。出場校が代表の数
+        以下なら、全校が組に入らずに進む。"""
+        if entrant_count <= output_slots:
+            return 0, 0, entrant_count
         for byes in range(0, min(entrant_count, output_slots) + 1):
             try:
                 four, three = cls._solve_3_or_4_pool_plan(
@@ -332,7 +335,7 @@ class Fmt006QualifierGroupRuntime:
             for mid in self.cross_order
         ]
         output = list(self.direct_school_ids) + supplemental
-        if len(output) != self.output_slots:
+        if len(output) != min(self.output_slots, len(self.eligible_school_ids)):
             raise AssertionError(
                 f"{self.group['group_name']}: qualifiers={len(output)} "
                 f"!= output_slots={self.output_slots}"

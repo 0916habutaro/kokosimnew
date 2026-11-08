@@ -142,7 +142,7 @@ class CompositeQualifierGroupRuntime:
         if format_model_id not in COMPOSITE_QUALIFIER_MODELS:
             raise NotImplementedError(format_model_id)
         eligible = list(eligible_school_ids)
-        if output_slots <= 0 or output_slots > len(eligible):
+        if output_slots <= 0:
             raise ValueError(
                 f"{group['group_name']}: {format_model_id} "
                 f"output_slots={output_slots} entrants={len(eligible)}"
@@ -163,6 +163,10 @@ class CompositeQualifierGroupRuntime:
                 resolved_match_sink if resolved_match_sink is not None else {}
             ),
         )
+        if len(eligible) <= output_slots:
+            # 出場校が代表の数以下（連合チームで出場校が減った年）なら、試合をせずに全校が進む
+            runtime._finish(eligible, {"reason": "entrants_not_more_than_output_slots"})
+            return runtime
         runtime._advance_until_waiting()
         return runtime
 
