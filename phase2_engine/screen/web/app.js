@@ -322,7 +322,7 @@ function entrantsTable(data) {
   };
   if (!data.matrix) {
     return `<table class="list zebra entrants-years"><thead><tr><th>年度</th><th>出場校</th></tr></thead><tbody>${data.rows.map((r) =>
-      `<tr><td>${recordYearHead(r, data)}</td><td><details open><summary>${(r.entrants || []).length}校</summary><div class="entrant-list">${(r.entrants || []).map((e) => school(e, true)).join("")}</div></details></td></tr>`).join("")}</tbody></table>`;
+      `<tr><td>${recordYearHead(r, data)}</td><td><details open><summary>${(r.entrants || []).length}校</summary><div class="entrant-list">${(r.entrants || []).map((e) => school(e, false)).join("")}</div></details></td></tr>`).join("")}</tbody></table>`;
   }
   return `<table class="list zebra entrants-matrix"><thead><tr><th>${data.summer ? "代表地区" : "都道府県"}</th>${data.rows.map((r) => `<th>${recordYearHead(r, data)}</th>`).join("")}</tr></thead><tbody>${data.axes.map(([id, label]) => `<tr><td>${esc(label)}</td>${data.rows.map((r) => {
     const entries = (r.entrants || []).filter((e) => e.axis === id);
@@ -335,8 +335,12 @@ function prefName(data, code) {
 }
 
 function best8Table(data) {
-  const school = (s) => `<span class="entrant"><button class="link" data-school="${esc(s.school_id)}">${esc(s.name)}</button>${s.prefecture ? `<small class="muted">${esc(s.prefecture)}</small>` : ""}</span>`;
-  return `<table class="list zebra best8-table"><colgroup><col style="width:190px"><col style="width:15%"><col style="width:15%"><col style="width:24%"><col></colgroup>
+  // 都道府県は全国・地区大会だけ。都道府県の大会・夏の地方大会と、北海道・東京の秋季のように
+  // 1つの都道府県だけの地区大会は、みな同じ都道府県なので出さない。県名は「都・府・県」を除く（トーナメント表の札と同じ）
+  const prefs = (data.catalog.find((c) => c.competition_id === data.filters.competition_id) || {}).prefectures || [];
+  const showPref = data.matrix && prefs.length !== 1;
+  const school = (s) => `<span class="entrant"><button class="link" data-school="${esc(s.school_id)}">${esc(s.name)}</button>${showPref && s.prefecture ? `<small class="muted">${esc(s.prefecture.replace(/[都府県]$/, ""))}</small>` : ""}</span>`;
+  return `<table class="list zebra best8-table"><colgroup><col style="width:180px"><col style="width:11%"><col style="width:11%"><col style="width:23%"><col></colgroup>
     <thead><tr><th>年度</th>${BEST8_COLUMNS.map(([finish, label]) => `<th>${finishBadge(finish, label)}</th>`).join("")}</tr></thead>
     <tbody>${data.rows.map((r) => `<tr><td>${recordYearHead(r, data)}</td>
       ${BEST8_COLUMNS.map(([finish]) => `<td>${r.groups[finish].map(school).join("") || '<span class="muted">−</span>'}</td>`).join("")}</tr>`).join("")}</tbody></table>`;

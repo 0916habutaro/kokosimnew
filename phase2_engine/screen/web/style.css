@@ -326,7 +326,7 @@ table.list.zebra tbody tr:nth-child(odd) td { background: var(--bg); }
 .best8-table { table-layout:fixed; }
 .best8-table td { vertical-align:top; }
 /* 列の幅が決まっているので、長い校名はマスの中で折り返す（狭い窓で隣の列に重ねない） */
-.best8-table .entrant { flex-wrap:wrap; max-width:100%; white-space:normal; }
+.best8-table .entrant { flex-wrap:wrap; max-width:100%; white-space:normal; margin-right:8px; }
 .best8-table .entrant .link { min-width:0; overflow-wrap:anywhere; }
 .entrants-matrix { width:max-content !important; }
 .entrants-matrix th, .entrants-matrix td { min-width:170px; vertical-align:top; }
