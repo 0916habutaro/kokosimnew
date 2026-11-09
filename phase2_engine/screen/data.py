@@ -36,10 +36,11 @@ from ..competition_records import competition_records
 from .koshien_records import (
     KINDS as KOSHIEN_KINDS,
     RECORDS_PATH as KOSHIEN_RECORDS_PATH,
-    appearance_label,
+    actual_history,
     combined as koshien_combined,
     count_label,
     load_actual as load_actual_koshien,
+    nth_label,
 )
 from .player_views import (
     GROWTH_LABELS,
@@ -112,6 +113,8 @@ def _csv_rows(data_dir, name: str) -> list[dict]:
 
 
 PLAYER_FIELDS = tuple(Player.__dataclass_fields__)
+# 甲子園の大会の種類 → 回数を数える単位（夏・春）
+KOSHIEN_SERIES = {"national_championship": "summer", "national_invitational": "spring"}
 
 
 def _prefecture_short(name: str) -> str:
@@ -537,11 +540,8 @@ class GameScreenData:
         competition = self.service.repo.competitions.get(competition_id, {})
         if competition.get("competition_level") != "national" or main is None:
             return []
-        kind = {"national_championship": "summer",
-                "national_invitational": "spring"}.get(competition.get("competition_type"))
-        before = self._koshien_counts(year - 1) if kind else None
-        # この大会の暦の年（選抜は年度の翌年の3月）
-        this_year = year + 1 if kind == "spring" else year
+        kind = KOSHIEN_SERIES.get(competition.get("competition_type"))
+        history = self._game_entries()
         areas = self._summer_areas(year) if kind == "summer" else {}
         basis = self._selection_basis(year, competition_id)
         schools = self.service.repo.schools
@@ -562,19 +562,9 @@ class GameScreenData:
                 ),
                 # 選抜の21世紀枠・神宮枠
                 "basis_label": BASIS_LABELS.get(basis.get(school_id, ""), ""),
-                "appearance": None,
-                "appearance_label": "",
+                # 「2年連続15回目」。明治神宮大会はゲームの中の回数だけ（「ゲームで3回目」）
+                "appearance_label": self.entry_label(competition_id, year, school_id, history),
             }
-            if kind:
-                actual = self.actual_koshien.get(school_id, {}).get(kind, {})
-                row["appearance"] = count_label(
-                    actual.get("appearances", 0),
-                    before[kind]["appearances"].get(school_id, 0) + 1,
-                )
-                row["appearance_label"] = appearance_label(
-                    actual, before[kind]["years"].get(school_id, set()),
-                    this_year, row["appearance"]["total"],
-                )
             rows.append(row)
         return sorted(rows, key=lambda row: (row["prefecture_code"], row["name"]))
 
@@ -1152,6 +1142,7 @@ class GameScreenData:
         stored = {r['school_year']: r for r in reader(cid, first, last)} if cid else {}
         rows = []
         hidden_upcoming = 0
+        history = None  # ゲームの中の出場の年（表に出す行があるときだけ読む）
         # ゲーム開始より前の年度は「記録なし」で並べず、範囲だけを返す（画面で1行にする）
         before_start = (
             {'start': first, 'end': min(last, earliest - 1)} if first < earliest else None
@@ -1171,15 +1162,25 @@ class GameScreenData:
             if row['status'] == '未開催' and not show_upcoming:
                 hidden_upcoming += 1
                 continue
+            if history is None:
+                history = self._game_entries()
+            # 「2年連続15回目」（出場）と、優勝校の「2年ぶり5回目の優勝」
+            def counts(school_id, won):
+                labels = {'count_label': self.entry_label(cid, year, school_id, history)}
+                if won:
+                    labels['champion_label'] = self.entry_label(cid, year, school_id, history, champion=True)
+                return labels
             if entrants:
                 row = {**row, 'entrants': [{**school,
-                    'name': self.names(school['school_id'], school['date'])}
+                    'name': self.names(school['school_id'], school['date']),
+                    **counts(school['school_id'], school.get('finish') == '優勝')}
                     for school in row.get('entrants', [])]}
             else:
                 row = {**row, 'groups': {finish: [
                     {**school, 'name': self.names(school['school_id'], school['date']),
                      'prefecture': self.prefectures.get(self.service.repo.schools.get(
-                         school['school_id'], {}).get('prefecture_code'), '')}
+                         school['school_id'], {}).get('prefecture_code'), ''),
+                     **counts(school['school_id'], finish == '優勝')}
                     for school in row['groups'][finish]] for finish in FINISHES}}
             row['edition'] = record_filters.edition(row.get('competition_name', ''))
             row['can_open'] = (season is not None and cid in season.annual_templates) or year in stored
@@ -1332,6 +1333,54 @@ class GameScreenData:
             "representatives": representatives,
             "senbatsu": senbatsu_rows,
         }
+
+    def _series(self, competition_id: str) -> str:
+        """回数を数える単位：甲子園は夏・春（大会のIDによらず）、ほかは大会ごと。"""
+        ctype = self.service.repo.competitions.get(competition_id, {}).get("competition_type")
+        return KOSHIEN_SERIES.get(ctype) or competition_id
+
+    def _series_year(self, competition_id: str, school_year: int) -> int:
+        """回数を数える年：選抜は暦の年（年度の翌年の3月）、ほかは年度。"""
+        return school_year + 1 if self._series(competition_id) == "spring" else school_year
+
+    def _game_entries(self) -> dict:
+        """ゲームの中の出場（本大会）と優勝の年。回数の単位 → 学校ID → {"appear", "champion"}。
+
+        実際の記録とは混ぜない（表示のときに ``entry_label`` で足す）。"""
+        out: dict[str, dict[str, dict[str, set]]] = {}
+        for each in self._years():
+            for school_id, rows in self._results(each).items():
+                self._add_entries(out, school_id, each, rows)
+        return out
+
+    def _add_entries(self, out: dict, school_id: str, school_year: int, rows: list[dict]) -> None:
+        for row in rows:
+            if row["finish"] == "予選敗退":
+                continue
+            series = self._series(row["competition_id"])
+            year = self._series_year(row["competition_id"], school_year)
+            entry = out.setdefault(series, {}).setdefault(
+                school_id, {"appear": set(), "champion": set()})
+            entry["appear"].add(year)
+            if row["finish"] == "優勝":
+                entry["champion"].add(year)
+
+    def entry_label(self, competition_id: str, school_year: int, school_id: str,
+                    history: dict, *, champion: bool = False) -> str:
+        """その年度のその大会の「2年連続15回目」「2年ぶり5回目の優勝」。
+
+        甲子園（夏・選抜）は実際の記録（historical_data）＋ゲームの中、ほかの大会はゲームの中だけ
+        （「ゲームで3回目」）。"""
+        series = self._series(competition_id)
+        this_year = self._series_year(competition_id, school_year)
+        game = history.get(series, {}).get(school_id, {})
+        game_years = {y for y in game.get("champion" if champion else "appear", ()) if y < this_year}
+        if series in KOSHIEN_KINDS:
+            count, years, uncertain = actual_history(
+                self.actual_koshien.get(school_id, {}).get(series), series, champion=champion)
+            return nth_label(count + len(game_years), years | game_years, this_year,
+                             uncertain_until=uncertain, champion=champion)
+        return nth_label(len(game_years), game_years, this_year, game_only=True, champion=champion)
 
     def _koshien_counts(self, year: int, current: dict | None = None) -> dict:
         """その年度までのゲーム内の甲子園（夏・春）の出場・優勝の回数。
@@ -1718,6 +1767,23 @@ class GameScreenData:
                 }
             yearly.append(row)
         game_koshien = koshien_summary(by_year)
+        # ゲームの中の甲子園の出場ごとの「2年連続15回目」（新しい順）
+        history: dict = {}
+        for each, results in by_year.items():
+            self._add_entries(history, school_id, each, results)
+        koshien_entries = {kind: [] for kind in KOSHIEN_KINDS}
+        for each, results in sorted(by_year.items(), reverse=True):
+            for r in results:
+                kind = KOSHIEN_SERIES.get(r["type"])
+                if not kind:
+                    continue
+                koshien_entries[kind].append({
+                    "school_year": each, "year": self._series_year(r["competition_id"], each),
+                    "competition_id": r["competition_id"], "finish": r["finish"],
+                    "label": self.entry_label(r["competition_id"], each, school_id, history),
+                    "champion_label": self.entry_label(r["competition_id"], each, school_id, history,
+                                                       champion=True) if r["finish"] == "優勝" else "",
+                })
         coaches = self.state.coaches if isinstance(self.state, CareerState) else None
         coach = coaches.for_school(school_id, on=self.state.current_date) if coaches is not None else None
         return {
@@ -1743,10 +1809,10 @@ class GameScreenData:
             # 甲子園：ゲーム開始前の実際の記録（historical_data）とゲーム内の
             # 記録を混ぜずに持ち、合計と内訳を並べる。実際の記録がない学校は None
             "koshien": {
-                kind: koshien_combined(
+                kind: {**koshien_combined(
                     self.actual_koshien.get(school_id, {}).get(kind),
                     game_koshien[kind],
-                )
+                ), "entries": koshien_entries[kind]}
                 for kind in KOSHIEN_KINDS
             },
             "members": roster,
