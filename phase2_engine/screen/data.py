@@ -113,6 +113,7 @@ def _csv_rows(data_dir, name: str) -> list[dict]:
 
 
 PLAYER_FIELDS = tuple(Player.__dataclass_fields__)
+TILE_MAP_PATH = Path("screen") / "tile_map_v1.json"
 # 甲子園の大会の種類 → 回数を数える単位（夏・春）
 KOSHIEN_SERIES = {"national_championship": "summer", "national_invitational": "spring"}
 
@@ -201,7 +202,28 @@ class GameScreenData:
         return {
             "menu": list(MENU), "header": header,
             "ability_ranks": dict(self.config["ability_ranks"]),
+            "tile_map": self.tile_map(),
         }
+
+    def _competition_prefectures(self) -> dict[str, list[str]]:
+        if getattr(self, "_competition_prefs", None) is None:
+            from .competition_views import _level
+            catalog = record_filters.build_catalog(
+                self.service.repo.competitions,
+                _csv_rows(self.service.repo.data_dir, "prefecture_region_memberships.csv"),
+                _level, lambda cid, name: name)
+            self._competition_prefs = {c["competition_id"]: c["prefectures"] for c in catalog}
+        return self._competition_prefs
+
+    def tile_map(self) -> dict:
+        """都道府県のタイル地図：マスの位置・短い県名・地域（秋の地区）と、地域の並び。"""
+        return record_filters.tile_map(
+            json.loads((self.config_root / TILE_MAP_PATH).read_text(encoding="utf-8")),
+            _csv_rows(self.service.repo.data_dir, "prefecture_region_memberships.csv"),
+            {r["region_id"]: r["region_name"]
+             for r in _csv_rows(self.service.repo.data_dir, "baseball_regions.csv")},
+            self.prefectures,
+        )
 
     def header(self) -> dict:
         today = self.state.current_date
@@ -391,6 +413,10 @@ class GameScreenData:
             self.names, self.competition_names,
             union_name=lambda sid, cid: self.union_name(sid, cid, year),
         ) if season is not None else []
+        # 都道府県で絞るときの、その大会に出られる都道府県（都道府県の大会はその都道府県、
+        # 地区大会は地区の都道府県、全国大会は空。記録の画面の絞り込みと同じ）
+        prefectures = self._competition_prefectures()
+        rows = [{**row, "prefectures": prefectures.get(row["competition_id"], [])} for row in rows]
         return {
             "school_year": year,
             "competitions": rows,

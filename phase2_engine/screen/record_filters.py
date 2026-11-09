@@ -57,6 +57,13 @@ def cascade_filters(catalog: list[dict], filters: dict, region_names: dict,
     regions = [] if national else sorted({r for c in pool for r in c["regions"]})
     if f.get("region") not in regions:
         f["region"] = ""
+    # 地図ではマスを押すと地域を外して都道府県を選ぶので、地域で絞る前の都道府県を選べる
+    map_prefectures = [] if national else sorted({p for c in pool for p in c["prefectures"]})
+    # 地域ごとの都道府県（いまの季節・区分の地区割り。春の関東には東京が入る）。地図で地域を選んだときに
+    # 金色にするマス。地図の色分け（秋の地区）とは別
+    region_prefectures = {} if national else {
+        r: sorted({p for c in pool if r in c["regions"] for p in c["prefectures"]})
+        for r in sorted({r for c in pool for r in c["regions"]})}
     pool = [c for c in pool if not f["region"] or f["region"] in c["regions"]]
     prefectures = [] if national else sorted({p for c in pool for p in c["prefectures"]})
     if f.get("prefecture") not in prefectures:
@@ -68,6 +75,8 @@ def cascade_filters(catalog: list[dict], filters: dict, region_names: dict,
         "level": [list(item) for item in levels],
         "region": [[r, region_names.get(r, r)] for r in regions],
         "prefecture": [[p, prefecture_names.get(p, p)] for p in prefectures],
+        "map_prefecture": map_prefectures,
+        "region_prefectures": region_prefectures,
         "disabled": {"region": not regions, "prefecture": not prefectures},
     }
     return f, options, pool
@@ -131,3 +140,21 @@ def empty_hint(*, rows: int, hidden_upcoming: int, before_start: dict | None, ea
     if before_start:
         return f"ゲーム開始前の年度だけです。開始年度を{earliest}年度以降にすると出ます。"
     return "条件に合う大会がありません。季節・大会区分を「すべて」にすると出ます。"
+
+
+def tile_map(config: dict, memberships: list[dict], region_names: dict, prefecture_names: dict) -> dict:
+    """タイル地図のマス（都道府県コード順）と地域（地区のID順）。
+
+    地域は ``config["region_segment"]``（秋）の地区割り。県名は「都・府・県」を除く（北海道はそのまま）。"""
+    segment = config.get("region_segment", "autumn")
+    region_of = {r["prefecture_code"]: r["region_id"] for r in memberships if r["season_segment"] == segment}
+    tiles = []
+    for code, (col, row) in sorted(config["tiles"].items()):
+        name = prefecture_names.get(code, code)
+        tiles.append({"code": code, "name": name[:-1] if name.endswith(("都", "府", "県")) else name,
+                      "full_name": name, "col": int(col), "row": int(row),
+                      "region_id": region_of.get(code, "")})
+    regions = [{"region_id": r, "name": region_names.get(r, r)} for r in sorted(set(region_of.values()))]
+    return {"tiles": tiles, "regions": regions,
+            "cols": max(t["col"] for t in tiles) + 1, "rows": max(t["row"] for t in tiles) + 1}
+

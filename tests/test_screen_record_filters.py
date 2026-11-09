@@ -36,6 +36,8 @@ class CascadeTests(unittest.TestCase):
         self.assertEqual("", f["prefecture"])  # 地域にない都道府県は外す
         self.assertEqual(["01", "02"], [p for p, _ in options["prefecture"]])
         self.assertEqual({"R1-AUTUMN", "P01-AUTUMN"}, {c["competition_id"] for c in pool})
+        # 地図では地域の外の都道府県も押せる（押すと地域を外す）
+        self.assertEqual(["01", "02", "12", "13"], options["map_prefecture"])
 
     def test_national_disables_region_and_prefecture(self):
         f, options, pool = self.cascade(level="national", region="R1", prefecture="01")
@@ -133,6 +135,64 @@ class CatalogTests(unittest.TestCase):
                             "segment": segment, "level": level, "region": region, "prefecture": pref}, {}, PREFS)
                         self.assertEqual((region, pref), (f["region"], f["prefecture"]))
                         self.assertTrue(pool)
+
+
+class TileMapTests(unittest.TestCase):
+    def test_selected_region_uses_current_season_not_map_colors(self):
+        """地図の色分けは秋の地区（東京は「東京」）でも、春の関東を選んだら東京も選んだことにする。"""
+        import csv
+        repo = DataRepository(ROOT / "data")
+        with (ROOT / "data/competitions/prefecture_region_memberships.csv").open(encoding="utf-8-sig") as h:
+            memberships = list(csv.DictReader(h))
+        catalog = rf.build_catalog(repo.competitions, memberships, _level, lambda cid, name: name)
+        autumn = {r["prefecture_code"]: r["region_id"] for r in memberships if r["season_segment"] == "autumn"}
+        kanto = next(r for r, p in ((m["region_id"], m["prefecture_code"]) for m in memberships
+                                    if m["season_segment"] == "spring") if p == "13")
+        self.assertNotEqual(kanto, autumn["13"])  # 秋は東京だけの地区
+        f, options, _ = rf.cascade_filters(catalog, {"segment": "spring", "region": kanto}, {}, PREFS)
+        selected = options["region_prefectures"][kanto]
+        self.assertIn("13", selected)
+        self.assertEqual([p for p, _ in options["prefecture"]], selected)  # 絞り込みに残る都道府県と同じ
+        _, autumn_options, _ = rf.cascade_filters(catalog, {"segment": "autumn", "region": kanto}, {}, PREFS)
+        self.assertNotIn("13", autumn_options["region_prefectures"][kanto])
+
+    def test_layout_covers_47_prefectures_without_overlap(self):
+        import json
+        config = json.loads((ROOT / "config/screen/tile_map_v1.json").read_text(encoding="utf-8"))
+        tiles = config["tiles"]
+        self.assertEqual(sorted(PREFS), sorted(tiles))
+        self.assertEqual(47, len({tuple(pos) for pos in tiles.values()}))
+        # 北海道は右上、沖縄は左下
+        cols = [c for c, _ in tiles.values()]
+        rows = [r for _, r in tiles.values()]
+        self.assertEqual((max(cols), min(rows)), tuple(tiles["01"]))
+        self.assertEqual((min(cols), max(rows)), tuple(tiles["47"]))
+        # 地図の左上（地域の名前を置く場所）にはマスがない
+        self.assertFalse([code for code, (c, r) in tiles.items() if c < 9 and r < 4])
+
+    def test_regions_follow_autumn_memberships_and_names_are_short(self):
+        import csv
+        from phase2_engine.screen.data import GameScreenData
+        from phase2_engine import LiveGameService
+        repo = DataRepository(ROOT / "data")
+        import tempfile
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        service = LiveGameService(repo, ROOT / "data", save_root=tmp.name)
+        shell = GameScreenData(service, None).shell()
+        self.assertIsNone(shell["header"])  # セーブを選ぶ前でも地図は出せる
+        tiles = {t["code"]: t for t in shell["tile_map"]["tiles"]}
+        with (ROOT / "data/competitions/prefecture_region_memberships.csv").open(encoding="utf-8-sig") as h:
+            autumn = {r["prefecture_code"]: r["region_id"] for r in csv.DictReader(h) if r["season_segment"] == "autumn"}
+        self.assertEqual(autumn, {code: t["region_id"] for code, t in tiles.items()})
+        self.assertEqual(sorted(set(autumn.values())), [r["region_id"] for r in shell["tile_map"]["regions"]])
+        self.assertEqual(sorted(tiles), list(tiles))  # コード順（北海道〜沖縄）
+        # 県名は「都・府・県」を除いた短い名前（京都府 → 京都、北海道はそのまま）
+        self.assertEqual(("北海道", "東京", "京都", "大阪", "香川"),
+                         tuple(tiles[c]["name"] for c in ("01", "13", "26", "27", "37")))
+        for t in tiles.values():
+            self.assertEqual(t["full_name"][:len(t["name"])], t["name"])
+            self.assertLessEqual(len(t["name"]), 3)
 
 
 class TextTests(unittest.TestCase):

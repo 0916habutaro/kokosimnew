@@ -56,6 +56,14 @@
     </form>
   </dialog>
 
+  <!-- 都道府県のタイル地図（tileMap）。押すと選んで閉じる -->
+  <dialog class="dialog map-dialog" id="map-dialog">
+    <div class="map-head"><h2 id="map-title">地図から選ぶ</h2><span class="spacer"></span>
+      <button class="btn small" id="map-clear" type="button">選ばない</button>
+      <button class="btn small" id="map-close" type="button">閉じる</button></div>
+    <div id="map-body"></div>
+  </dialog>
+
   <div class="progress" id="progress" hidden>
     <div class="progress-box">
       <div class="progress-title" id="progress-title">日付を進めています</div>
