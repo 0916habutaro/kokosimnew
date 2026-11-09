@@ -541,7 +541,7 @@ class GameScreenData:
         if competition.get("competition_level") != "national" or main is None:
             return []
         kind = KOSHIEN_SERIES.get(competition.get("competition_type"))
-        history = self._game_entries()
+        history = self._appearance_history(competition_id, main.entrant_school_ids, year)
         areas = self._summer_areas(year) if kind == "summer" else {}
         basis = self._selection_basis(year, competition_id)
         schools = self.service.repo.schools
@@ -1142,7 +1142,7 @@ class GameScreenData:
         stored = {r['school_year']: r for r in reader(cid, first, last)} if cid else {}
         rows = []
         hidden_upcoming = 0
-        history = None  # ゲームの中の出場の年（表に出す行があるときだけ読む）
+        labelled = []
         # ゲーム開始より前の年度は「記録なし」で並べず、範囲だけを返す（画面で1行にする）
         before_start = (
             {'start': first, 'end': min(last, earliest - 1)} if first < earliest else None
@@ -1162,29 +1162,35 @@ class GameScreenData:
             if row['status'] == '未開催' and not show_upcoming:
                 hidden_upcoming += 1
                 continue
-            if history is None:
-                history = self._game_entries()
             # 「2年連続15回目」（出場）と、優勝校の「2年ぶり5回目の優勝」
-            def counts(school_id, won):
-                labels = {'count_label': self.entry_label(cid, year, school_id, history)}
-                if won:
-                    labels['champion_label'] = self.entry_label(cid, year, school_id, history, champion=True)
-                return labels
             if entrants:
                 row = {**row, 'entrants': [{**school,
-                    'name': self.names(school['school_id'], school['date']),
-                    **counts(school['school_id'], school.get('finish') == '優勝')}
+                    'name': self.names(school['school_id'], school['date'])}
                     for school in row.get('entrants', [])]}
             else:
                 row = {**row, 'groups': {finish: [
                     {**school, 'name': self.names(school['school_id'], school['date']),
                      'prefecture': self.prefectures.get(self.service.repo.schools.get(
                          school['school_id'], {}).get('prefecture_code'), ''),
-                     **counts(school['school_id'], finish == '優勝')}
+                     'finish': finish}
                     for school in row['groups'][finish]] for finish in FINISHES}}
             row['edition'] = record_filters.edition(row.get('competition_name', ''))
+            labelled.append(row)
             row['can_open'] = (season is not None and cid in season.annual_templates) or year in stored
             rows.append(row)
+        # 「2年連続15回目」（出場）と、優勝校の「2年ぶり5回目の優勝」。表に出す学校だけ、索引から1回で引く
+        def schools_of(row):
+            return row.get('entrants') or [s for group in row.get('groups', {}).values() for s in group]
+        if labelled:
+            history = self._appearance_history(
+                cid, {s['school_id'] for row in labelled for s in schools_of(row)},
+                max(row['school_year'] for row in labelled))
+            for row in labelled:
+                for school in schools_of(row):
+                    school['count_label'] = self.entry_label(cid, row['school_year'], school['school_id'], history)
+                    if school.get('finish') == '優勝':
+                        school['champion_label'] = self.entry_label(
+                            cid, row['school_year'], school['school_id'], history, champion=True)
         competition = competitions.get(cid, {})
         summer = competition.get('competition_type') == 'national_championship'
         summer_areas = sorted(
@@ -1334,50 +1340,60 @@ class GameScreenData:
             "senbatsu": senbatsu_rows,
         }
 
-    def _series(self, competition_id: str) -> str:
-        """回数を数える単位：甲子園は夏・春（大会のIDによらず）、ほかは大会ごと。"""
+    def _kind(self, competition_id: str) -> str:
+        """甲子園なら夏・春（summer・spring）、ほかの大会は空。"""
         ctype = self.service.repo.competitions.get(competition_id, {}).get("competition_type")
-        return KOSHIEN_SERIES.get(ctype) or competition_id
+        return KOSHIEN_SERIES.get(ctype, "")
 
     def _series_year(self, competition_id: str, school_year: int) -> int:
-        """回数を数える年：選抜は暦の年（年度の翌年の3月）、ほかは年度。"""
-        return school_year + 1 if self._series(competition_id) == "spring" else school_year
+        """回数を数える年：選抜は暦の年（年度の翌年の3月。実際の記録と同じ）、ほかは年度。"""
+        return school_year + 1 if self._kind(competition_id) == "spring" else school_year
 
-    def _game_entries(self) -> dict:
-        """ゲームの中の出場（本大会）と優勝の年。回数の単位 → 学校ID → {"appear", "champion"}。
+    def _appearance_history(self, competition_id: str, school_ids, before: int) -> dict:
+        """ゲームの中で、その大会に本大会で出た年と優勝した年（年度 ``before`` より前）。
+        学校ID → {"appear", "champion"}（年は ``_series_year``）。
 
+        閉じた年度は出場の最小索引（``competition_appearances``）を大会・学校で引き、
+        進行中の年度は大会の状態から読む。全年度の試合や大会の状態は読まない。
         実際の記録とは混ぜない（表示のときに ``entry_label`` で足す）。"""
-        out: dict[str, dict[str, dict[str, set]]] = {}
-        for each in self._years():
-            for school_id, rows in self._results(each).items():
-                self._add_entries(out, school_id, each, rows)
-        return out
+        from ..competition_history import entrants_record
 
-    def _add_entries(self, out: dict, school_id: str, school_year: int, rows: list[dict]) -> None:
-        for row in rows:
-            if row["finish"] == "予選敗退":
-                continue
-            series = self._series(row["competition_id"])
-            year = self._series_year(row["competition_id"], school_year)
-            entry = out.setdefault(series, {}).setdefault(
-                school_id, {"appear": set(), "champion": set()})
+        school_ids = set(school_ids)
+        archive = self.service._history_archive(self.session.slot_id)
+        stored = archive.competition_appearances(competition_id, school_ids, before)
+        out: dict[str, dict[str, set]] = {}
+
+        def add(school_id, school_year, champion):
+            entry = out.setdefault(school_id, {"appear": set(), "champion": set()})
+            year = self._series_year(competition_id, school_year)
             entry["appear"].add(year)
-            if row["finish"] == "優勝":
+            if champion:
                 entry["champion"].add(year)
+
+        for school_id, entry in stored.items():
+            for year in entry["appear"]:
+                add(school_id, year, year in entry["champion"])
+        for year, season in _seasons(self.state).items():
+            if year >= before or competition_id not in season.annual_templates:
+                continue
+            for school in entrants_record(season, competition_id, self.service.repo)["entrants"]:
+                if school["school_id"] in school_ids:
+                    add(school["school_id"], year, school["finish"] == "優勝")
+        return out
 
     def entry_label(self, competition_id: str, school_year: int, school_id: str,
                     history: dict, *, champion: bool = False) -> str:
         """その年度のその大会の「2年連続15回目」「2年ぶり5回目の優勝」。
 
-        甲子園（夏・選抜）は実際の記録（historical_data）＋ゲームの中、ほかの大会はゲームの中だけ
-        （「ゲームで3回目」）。"""
-        series = self._series(competition_id)
+        ``history`` は ``_appearance_history`` の結果（この大会の分）。甲子園（夏・選抜）は
+        実際の記録（historical_data）＋ゲームの中、ほかの大会はゲームの中だけ（「ゲームで3回目」）。"""
+        kind = self._kind(competition_id)
         this_year = self._series_year(competition_id, school_year)
-        game = history.get(series, {}).get(school_id, {})
+        game = history.get(school_id, {})
         game_years = {y for y in game.get("champion" if champion else "appear", ()) if y < this_year}
-        if series in KOSHIEN_KINDS:
+        if kind:
             count, years, uncertain = actual_history(
-                self.actual_koshien.get(school_id, {}).get(series), series, champion=champion)
+                self.actual_koshien.get(school_id, {}).get(kind), kind, champion=champion)
             return nth_label(count + len(game_years), years | game_years, this_year,
                              uncertain_until=uncertain, champion=champion)
         return nth_label(len(game_years), game_years, this_year, game_only=True, champion=champion)
@@ -1768,9 +1784,16 @@ class GameScreenData:
             yearly.append(row)
         game_koshien = koshien_summary(by_year)
         # ゲームの中の甲子園の出場ごとの「2年連続15回目」（新しい順）
-        history: dict = {}
+        history: dict = {}  # 大会ID → {学校ID: 出場・優勝の年}
         for each, results in by_year.items():
-            self._add_entries(history, school_id, each, results)
+            for r in results:
+                if r["finish"] == "予選敗退":
+                    continue
+                entry = history.setdefault(r["competition_id"], {}).setdefault(
+                    school_id, {"appear": set(), "champion": set()})
+                entry["appear"].add(self._series_year(r["competition_id"], each))
+                if r["finish"] == "優勝":
+                    entry["champion"].add(self._series_year(r["competition_id"], each))
         koshien_entries = {kind: [] for kind in KOSHIEN_KINDS}
         for each, results in sorted(by_year.items(), reverse=True):
             for r in results:
@@ -1780,9 +1803,11 @@ class GameScreenData:
                 koshien_entries[kind].append({
                     "school_year": each, "year": self._series_year(r["competition_id"], each),
                     "competition_id": r["competition_id"], "finish": r["finish"],
-                    "label": self.entry_label(r["competition_id"], each, school_id, history),
-                    "champion_label": self.entry_label(r["competition_id"], each, school_id, history,
-                                                       champion=True) if r["finish"] == "優勝" else "",
+                    "label": self.entry_label(r["competition_id"], each, school_id,
+                                              history.get(r["competition_id"], {})),
+                    "champion_label": self.entry_label(
+                        r["competition_id"], each, school_id, history.get(r["competition_id"], {}),
+                        champion=True) if r["finish"] == "優勝" else "",
                 })
         coaches = self.state.coaches if isinstance(self.state, CareerState) else None
         coach = coaches.for_school(school_id, on=self.state.current_date) if coaches is not None else None

@@ -66,14 +66,14 @@ class EntryLabelTests(unittest.TestCase):
             "spring": {"appearances": 2, "entrant_years": [2015, 2026], "last_year": 2026,
                        "championships": 0},
         }}
-        # ゲームの中：2026年夏に出場・優勝、2027年夏に出場、神宮は2026・2027年度
+        # ゲームの中（大会ごと）：2026年夏に出場・優勝、2027年夏に出場、神宮は2026・2027年度
         self.history = {
-            "summer": {"FAKE-A": {"appear": {2026, 2027}, "champion": {2026}}},
+            "FAKE-SUMMER": {"FAKE-A": {"appear": {2026, 2027}, "champion": {2026}}},
             "FAKE-JINGU": {"FAKE-A": {"appear": {2026, 2027}, "champion": set()}},
         }
 
     def label(self, cid, year, school="FAKE-A", champion=False):
-        return self.data.entry_label(cid, year, school, self.history, champion=champion)
+        return self.data.entry_label(cid, year, school, self.history.get(cid, {}), champion=champion)
 
     def test_koshien_adds_actual_and_game(self):
         self.assertEqual("15年連続15回目", self.label("FAKE-SUMMER", 2026))
@@ -89,6 +89,16 @@ class EntryLabelTests(unittest.TestCase):
         self.assertEqual("ゲームで2年連続2回目", self.label("FAKE-JINGU", 2027))
         self.assertEqual("ゲームで2年ぶり3回目", self.label("FAKE-JINGU", 2029))
         self.assertEqual("ゲームで初優勝", self.label("FAKE-JINGU", 2028, champion=True))
+
+
+class BundleTests(unittest.TestCase):
+    def test_exe_bundles_files_read_for_counts(self):
+        """EXE（kokosimnew.spec）に、回数を数えるために読む historical_data のファイルが入っている。"""
+        from pathlib import Path
+        from phase2_engine.screen import koshien_records as kr
+        spec = (Path(__file__).resolve().parents[1] / "kokosimnew.spec").read_text(encoding="utf-8")
+        for name in (kr.RECORDS_PATH.name, kr.ENTRANTS_NAME, kr.APPEARANCES_NAME):
+            self.assertIn(f'"historical_data" / "{name}"', spec, name)
 
 
 if __name__ == "__main__":
