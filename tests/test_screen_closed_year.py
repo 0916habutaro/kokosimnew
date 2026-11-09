@@ -68,7 +68,8 @@ class ClosedYearTests(unittest.TestCase):
         for year in (2026, 2027):
             season = self.data._season_of(year)
             for cid in self.service.repo.competitions:
-                data = self.data.records_entrants({'competition_id': cid, 'start': year, 'end': year})
+                data = self.data.records_entrants({'competition_id': cid, 'start': year, 'end': year,
+                                                   'show_upcoming': True})
                 row = data['rows'][0]
                 scheduled = season.competitions.get(cid)
                 main = result_main(scheduled) if scheduled else None
@@ -78,6 +79,9 @@ class ClosedYearTests(unittest.TestCase):
         entries = summer['rows'][0]['entrants']
         self.assertEqual(49, len(entries))
         self.assertEqual(49, len({e['routes'][0]['competition_id'] for e in entries}))
+        # 夏の甲子園の行は49の代表地区だけ（どこにも置けない学校はいない）
+        self.assertEqual(49, len(summer['axes']))
+        self.assertEqual(49, len({e['axis'] for e in entries}))
         self.assertEqual({e['school_id'] for e in entries},
                          {e['school_id'] for e in self.data.bracket(2026, self.koshien)['entrants']})
         senbatsu = self.data.records_entrants({'competition_id':'CMP000001', 'start':2026, 'end':2026})['rows'][0]

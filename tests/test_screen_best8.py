@@ -173,7 +173,10 @@ class Best8ScreenTests(unittest.TestCase):
                 self.assertEqual(c['competition_id'], result['filters']['competition_id'])
                 self.assertEqual((2130, 2140), (result['start'], result['end']))
         self.assertEqual(49, sum(c['segment'] == 'summer' and c['level'] == 'local' for c in catalog))
-        self.assertEqual([], self.data.records_best8({'region': 'invalid'})['rows'])
+        # 選べない地域は外して（すべてに戻して）表を出す
+        invalid = self.data.records_best8({'region': 'invalid'})
+        self.assertEqual('', invalid['filters']['region'])
+        self.assertTrue(invalid['filters']['competition_id'])
 
     def test_historical_names_missing_year_and_reopen(self):
         self.store(2144)
@@ -208,6 +211,24 @@ class Best8ScreenTests(unittest.TestCase):
                                       'start': 2144, 'end': 2144})['rows'][0]
         self.assertEqual(main.champion_school_id, row['groups']['優勝'][0]['school_id'])
         self.assertNotEqual('FAKE-A', row['groups']['優勝'][0]['school_id'])
+
+    def test_upcoming_years_hidden_until_toggled_and_prefectures_in_code_order(self):
+        _, scheduled, calendar = tournament()
+        live = season(scheduled, calendar, 2146)
+        live.current_date = date(2146, 4, 1)
+        live.competitions = {}
+        live.annual_templates = {self.cid: None}
+        self.data.state.seasons = {2146: live}
+        self.data.state.plans = {2146: SimpleNamespace(entries={})}
+        self.data.prefectures = {'13': '架空県13', '01': '架空県01', '47': '架空県47'}
+        hidden = self.data.records_best8({'competition_id': self.cid})
+        self.assertEqual([], hidden['rows'])
+        self.assertEqual(1, hidden['hidden_upcoming'])
+        self.assertIn('未開催の年度も出す', hidden['empty_hint'])
+        self.assertEqual(['01', '13', '47'], [code for code, _ in hidden['prefectures']])
+        shown = self.data.records_best8({'competition_id': self.cid, 'show_upcoming': True})
+        self.assertEqual(['未開催'], [r['status'] for r in shown['rows']])
+        self.assertEqual('', shown['empty_hint'])
 
     def test_sealing_replaces_index_and_duplicate_rolls_back(self):
         old = self.store(2145)

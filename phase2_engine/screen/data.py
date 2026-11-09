@@ -56,6 +56,7 @@ from .player_views import (
     snapshot_values,
     trend_keys,
 )
+from . import record_filters
 from .save_views import next_slot_id, recovery_rows, slot_rows
 from .school_names import EditedNames, SchoolNames, prefecture_names
 from .school_views import (
@@ -1140,33 +1141,17 @@ class GameScreenData:
         memberships = _csv_rows(self.service.repo.data_dir, 'prefecture_region_memberships.csv')
         region_names = {r['region_id']: r['region_name']
                         for r in _csv_rows(self.service.repo.data_dir, 'baseball_regions.csv')}
-        catalog = []
-        for cid, c in self.service.repo.competitions.items():
-            pref = c.get('prefecture_code', '')
-            regions = sorted({r['region_id'] for r in memberships
-                              if r['prefecture_code'] == pref
-                              and r['season_segment'] == c.get('season_segment')})
-            if c.get('region_id'):
-                regions = [c['region_id']]
-            # 夏は春・秋で共通の地域区分を候補に使う（東京は両方から選べる）。
-            if pref and not regions:
-                regions = sorted({r['region_id'] for r in memberships if r['prefecture_code'] == pref})
-            catalog.append({'competition_id': cid,
-                            'name': self.competition_names(cid, c.get('competition_name', cid)),
-                            'segment': c.get('season_segment', ''), 'level': _level(c),
-                            'prefecture': pref, 'regions': regions})
-        eligible = [c for c in catalog
-                    if (not f.get('segment') or c['segment'] == f['segment'])
-                    and (not f.get('level') or c['level'] == f['level'])
-                    and (not f.get('region') or f['region'] in c['regions'])
-                    and (not f.get('prefecture') or c['prefecture'] == f['prefecture'])]
-        cid = f.get('competition_id', '')
-        if cid not in {c['competition_id'] for c in eligible}:
-            cid = eligible[0]['competition_id'] if eligible else ''
-        f.update(competition_id=cid, count=count)
+        competitions = self.service.repo.competitions
+        catalog = record_filters.build_catalog(competitions, memberships, _level, self.competition_names)
+        f, options, eligible = record_filters.cascade_filters(catalog, f, region_names, self.prefectures)
+        cid = f['competition_id']
+        show_upcoming = bool(f.get('show_upcoming'))
+        only_entered = bool(f.get('only_entered'))
+        f.update(count=count, show_upcoming=show_upcoming, only_entered=only_entered)
         reader = archive.competition_entrants if entrants else archive.competition_best8
         stored = {r['school_year']: r for r in reader(cid, first, last)} if cid else {}
         rows = []
+        hidden_upcoming = 0
         # ゲーム開始より前の年度は「記録なし」で並べず、範囲だけを返す（画面で1行にする）
         before_start = (
             {'start': first, 'end': min(last, earliest - 1)} if first < earliest else None
@@ -1182,6 +1167,10 @@ class GameScreenData:
                 row = stored.get(year, {'school_year': year, 'competition_id': cid,
                     'competition_name': '', 'status': '記録なし',
                     'groups': {finish: [] for finish in FINISHES}})
+            # まだ行われていない年度は既定で隠す（切り替えで出す）
+            if row['status'] == '未開催' and not show_upcoming:
+                hidden_upcoming += 1
+                continue
             if entrants:
                 row = {**row, 'entrants': [{**school,
                     'name': self.names(school['school_id'], school['date'])}
@@ -1192,17 +1181,34 @@ class GameScreenData:
                      'prefecture': self.prefectures.get(self.service.repo.schools.get(
                          school['school_id'], {}).get('prefecture_code'), '')}
                     for school in row['groups'][finish]] for finish in FINISHES}}
+            row['edition'] = record_filters.edition(row.get('competition_name', ''))
             row['can_open'] = (season is not None and cid in season.annual_templates) or year in stored
             rows.append(row)
+        competition = competitions.get(cid, {})
+        summer = competition.get('competition_type') == 'national_championship'
+        summer_areas = sorted(
+            ([c['competition_id'], c['name'].replace('夏・', '')] for c in catalog
+             if competitions[c['competition_id']].get('competition_type') == 'summer_local_qualifier'),
+            key=lambda area: (competitions[area[0]].get('prefecture_code', ''), area[0]))
+        matrix = competition.get('competition_level') in ('national', 'regional')
+        axes = None
+        if entrants and matrix:
+            entry = next((c for c in catalog if c['competition_id'] == cid), None)
+            axes = record_filters.place_entrants(
+                rows, record_filters.entrant_axes(entry, _level(competition), summer, summer_areas,
+                                                  self.prefectures),
+                summer, only_entered)
         return {'filters': f, 'start': first, 'end': last, 'earliest': earliest, 'latest': latest,
-                'before_start': before_start,
-                'catalog': catalog, 'competitions': eligible, 'rows': rows,
-                'regions': region_names, 'prefectures': self.prefectures,
-                'summer_areas': {c['competition_id']: c['name'].replace('夏・', '')
-                                 for c in catalog if self.service.repo.competitions[c['competition_id']].get(
-                                     'competition_type') == 'summer_local_qualifier'},
-                'summer': self.service.repo.competitions.get(cid, {}).get('competition_type') == 'national_championship',
-                'matrix': self.service.repo.competitions.get(cid, {}).get('competition_level') in ('national', 'regional')}
+                'years': list(range(latest, earliest - 1, -1)),
+                'before_start': before_start, 'hidden_upcoming': hidden_upcoming,
+                'catalog': catalog, 'competitions': eligible, 'options': options, 'rows': rows,
+                'prefectures': sorted(self.prefectures.items()),
+                'competition_name': next((c['name'] for c in eligible if c['competition_id'] == cid), ''),
+                'summer': summer, 'matrix': matrix, 'axes': axes,
+                'empty_hint': record_filters.empty_hint(
+                    rows=len(rows), hidden_upcoming=hidden_upcoming, before_start=before_start,
+                    earliest=earliest, axes=None if axes is None else len(axes),
+                    only_entered=only_entered)}
 
     def records(self, school_year=None) -> dict:
         """年度ごとの甲子園・選抜・神宮の上位校と、都道府県の代表校。"""

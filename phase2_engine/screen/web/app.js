@@ -288,24 +288,62 @@ function bindRecordsTabs(content) {
   }));
 }
 
-function entrantsTable(data, title) {
-  const school = (e, r) => {
-    const routes = e.routes.map((route) => data.catalog.find((c) => c.competition_id === route.competition_id)?.name || route.competition_id).join("・");
-    return `<div class="entrant-entry"><button class="link" data-school="${esc(e.school_id)}">${esc(e.name)}</button>
-      <small class="muted">${esc(data.prefectures[e.prefecture_code] || "所属不明")}${e.finish ? "／" + esc(e.finish) : ""}${routes ? "／進出元：" + esc(routes) : ""}</small></div>`;
+// 成績の札。学校一覧の最高成績の札と同じ決まり（優勝は金、準優勝は銀、ベスト4は緑）
+const FINISH_CLASS = { "優勝": "b-top", "準優勝": "b-silver", "ベスト4": "b-mid" };
+function finishBadge(finish, label = finish) {
+  return finish ? `<span class="badge ${FINISH_CLASS[finish] || ""}">${esc(label)}</span>` : "";
+}
+// 大会の状態の札（大会の一覧と同じ色）
+const RECORD_STATUS_CLASS = { "完了": "completed", "進行中": "active" };
+function statusBadge(status) {
+  return `<span class="badge ${RECORD_STATUS_CLASS[status] || ""}">${esc(status)}</span>`;
+}
+// 大会別ベスト8の列。「ベスト8」の列は準々決勝で負けた学校なので見出しは「準々決勝敗退」
+const BEST8_COLUMNS = [["優勝", "優勝"], ["準優勝", "準優勝"], ["ベスト4", "ベスト4"], ["ベスト8", "準々決勝敗退"]];
+
+// 年度の見出し：「2027年度」と回数・状態の札。正式名と日付はマウスを当てたときに出す
+function recordYearHead(r, data) {
+  const name = r.competition_name || data.competition_name;
+  const dates = r.start_date ? `\n${fmtDate(r.start_date, { year: true })}〜${fmtDate(r.end_date, { year: true })}` : "";
+  const label = `${r.school_year}年度${r.edition ? ` <small>${esc(r.edition)}</small>` : ""}`;
+  const year = r.can_open
+    ? `<button class="link" data-record-year="${r.school_year}" data-record-cid="${esc(r.competition_id)}">${label}</button>`
+    : label;
+  return `<span class="record-year" title="${esc(name + dates)}">${year} ${statusBadge(r.status)}${r.main_confirmed === false && r.status !== "未開催" ? ' <span class="badge">出場校未確定</span>' : ""}</span>`;
+}
+
+function entrantsTable(data) {
+  const routeName = (route) => data.catalog.find((c) => c.competition_id === route.competition_id)?.name || route.competition_id;
+  // 校名と成績の札を1行に。県名は行の見出しにあるので省き、進出元はマウスを当てたときに出す
+  const school = (e, withPref) => {
+    const routes = e.routes.map(routeName).join("・");
+    const pref = withPref ? `<small class="muted">${esc(prefName(data, e.prefecture_code))}</small>` : "";
+    return `<span class="entrant"${routes ? ` title="進出元：${esc(routes)}"` : ""}><button class="link" data-school="${esc(e.school_id)}">${esc(e.name)}</button>${pref}${finishBadge(e.finish)}</span>`;
   };
-  const heading = (r) => title(r, `${r.school_year}年度`) + `<br>` + title(r, r.competition_name || data.competitions.find((c) => c.competition_id === r.competition_id)?.name || "")
-    + `<div class="muted">${fmtDate(r.start_date, { year: true })}〜${fmtDate(r.end_date, { year: true })}／${esc(r.status)}${r.main_confirmed ? "" : "／出場校未確定"}</div>`;
-  if (!data.matrix) return `<table class="list entrants-years"><thead><tr><th>年度・大会・開催期間</th><th>出場校</th></tr></thead><tbody>${data.rows.map((r) => `<tr><td>${heading(r)}</td><td><details open><summary>${(r.entrants || []).length}校</summary>${(r.entrants || []).map((e) => school(e, r)).join("")}</details></td></tr>`).join("")}</tbody></table>`;
-  const axes = data.summer ? data.summer_areas : data.prefectures;
-  const group = (e) => data.summer ? e.routes.find((route) => route.competition_id in data.summer_areas)?.competition_id || "unknown"
-    : e.routes.find((route) => route.prefecture_code)?.prefecture_code || e.prefecture_code || "unknown";
-  const axisRows = Object.entries(axes);
-  if (data.rows.some((r) => (r.entrants || []).some((e) => !(group(e) in axes)))) axisRows.push(["unknown", "所属・進出元未確認"]);
-  return `<table class="list entrants-matrix"><thead><tr><th>${data.summer ? "代表地区" : "都道府県"}</th>${data.rows.map((r) => `<th>${heading(r)}</th>`).join("")}</tr></thead><tbody>${axisRows.map(([id, label]) => `<tr><td>${esc(label)}</td>${data.rows.map((r) => {
-    const entries = (r.entrants || []).filter((e) => group(e) === id);
-    return `<td>${entries.map((e) => school(e, r)).join("") || `<small class="muted">${r.main_confirmed ? "−" : esc(r.status) + "／未確定"}</small>`}</td>`;
+  if (!data.matrix) {
+    return `<table class="list zebra entrants-years"><thead><tr><th>年度</th><th>出場校</th></tr></thead><tbody>${data.rows.map((r) =>
+      `<tr><td>${recordYearHead(r, data)}</td><td><details open><summary>${(r.entrants || []).length}校</summary><div class="entrant-list">${(r.entrants || []).map((e) => school(e, false)).join("")}</div></details></td></tr>`).join("")}</tbody></table>`;
+  }
+  return `<table class="list zebra entrants-matrix"><thead><tr><th>${data.summer ? "代表地区" : "都道府県"}</th>${data.rows.map((r) => `<th>${recordYearHead(r, data)}</th>`).join("")}</tr></thead><tbody>${data.axes.map(([id, label]) => `<tr><td>${esc(label)}</td>${data.rows.map((r) => {
+    const entries = (r.entrants || []).filter((e) => e.axis === id);
+    return `<td>${entries.map((e) => school(e, id === "unknown")).join("") || `<small class="muted">${r.main_confirmed ? "−" : "未確定"}</small>`}</td>`;
   }).join("")}</tr>`).join("")}</tbody></table>`;
+}
+
+function prefName(data, code) {
+  return (data.prefectures.find(([c]) => c === code) || [])[1] || "所属不明";
+}
+
+function best8Table(data) {
+  // 都道府県は全国・地区大会だけ。都道府県の大会・夏の地方大会と、北海道・東京の秋季のように
+  // 1つの都道府県だけの地区大会は、みな同じ都道府県なので出さない。県名は「都・府・県」を除く（トーナメント表の札と同じ）
+  const prefs = (data.catalog.find((c) => c.competition_id === data.filters.competition_id) || {}).prefectures || [];
+  const showPref = data.matrix && prefs.length !== 1;
+  const school = (s) => `<span class="entrant"><button class="link" data-school="${esc(s.school_id)}">${esc(s.name)}</button>${showPref && s.prefecture ? `<small class="muted">${esc(s.prefecture.replace(/[都府県]$/, ""))}</small>` : ""}</span>`;
+  return `<table class="list zebra best8-table"><colgroup><col style="width:180px"><col style="width:11%"><col style="width:11%"><col style="width:23%"><col></colgroup>
+    <thead><tr><th>年度</th>${BEST8_COLUMNS.map(([finish, label]) => `<th>${finishBadge(finish, label)}</th>`).join("")}</tr></thead>
+    <tbody>${data.rows.map((r) => `<tr><td>${recordYearHead(r, data)}</td>
+      ${BEST8_COLUMNS.map(([finish]) => `<td>${r.groups[finish].map(school).join("") || '<span class="muted">−</span>'}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
 }
 
 async function renderBest8(content) {
@@ -318,29 +356,38 @@ async function renderBest8(content) {
   if (!data || state.page !== "records" || state.recordsTab !== tab) return;
   state[filterStateKey] = data.filters;
   refreshLocation();
-  const f = data.filters;
-  const select = (key, label, items) => `<label>${label} <select id="rb-${key}">${items.map(([value, text]) =>
-    `<option value="${esc(value)}" ${String(f[key] || "") === String(value) ? "selected" : ""}>${esc(text)}</option>`).join("")}</select></label>`;
-  const school = (s) => `<div><button class="link" data-school="${esc(s.school_id)}">${esc(s.name)}</button>${s.prefecture ? `<small class="muted">（${esc(s.prefecture)}）</small>` : ""}</div>`;
-  const title = (r, text) => r.can_open ? `<button class="link" data-record-year="${r.school_year}" data-record-cid="${esc(r.competition_id)}">${esc(text)}</button>` : esc(text);
+  const f = data.filters, o = data.options;
+  const select = (key, label, items, disabled = false) => `<label${disabled ? ' class="off"' : ""}>${label}<select id="rb-${key}"${disabled ? " disabled" : ""}>${items.map(([value, text]) =>
+    `<option value="${esc(value)}" ${String(f[key] ?? "") === String(value) ? "selected" : ""}>${esc(text)}</option>`).join("")}</select></label>`;
+  const years = data.years.map((y) => [y, `${y}年度`]);
+  const yearSelect = (id, value) => `<select id="${id}">${(years.some(([y]) => y === value) ? years : [[value, `${value}年度`], ...years])
+    .map(([y, text]) => `<option value="${y}" ${y === value ? "selected" : ""}>${text}</option>`).join("")}</select>`;
+  const toggle = (key, label) => `<label class="toggle"><input type="checkbox" id="rb-${key}" ${f[key] ? "checked" : ""}>${label}</label>`;
+  const hidden = data.hidden_upcoming ? `（未開催${data.hidden_upcoming}年度を隠しています）` : "";
+  let table = "";
+  if (data.rows.length) table = entrants ? entrantsTable(data) : best8Table(data);
   content.innerHTML = `<div class="head"><h2>記録</h2>${recordsTabs()}</div>
     <div class="best8-filters">
-      ${select("segment", "季節", SEGMENTS)} ${select("level", "大会区分", LEVELS)}
-      ${select("region", "地域", [["", "すべて"], ...Object.entries(data.regions)])}
-      ${select("prefecture", "都道府県", [["", "すべて"], ...Object.entries(data.prefectures)])}
-      ${select("competition_id", "大会名", data.competitions.map((c) => [c.competition_id, c.name]))}
-      ${select("count", "表示年数", [[5, "5年"], [10, "10年"], [20, "20年"]])}
-      <form id="rb-range"><label>開始年度 <input id="rb-start" type="number" min="1" max="${data.latest}" placeholder="${data.start}" value="${esc(f.start || "")}"></label>
-        <label>終了年度 <input id="rb-end" type="number" min="1" max="${data.latest}" placeholder="${data.end}" value="${esc(f.end || "")}"></label>
-        <button class="btn" type="submit">表示</button><button class="btn" type="button" id="rb-latest">最新年度に戻す</button></form>
+      ${select("segment", "季節", SEGMENTS)}
+      ${select("level", "区分", [["", "すべて"], ...o.level])}
+      ${select("region", "地域", [["", "すべて"], ...o.region], o.disabled.region)}
+      ${select("prefecture", "都道府県", [["", "すべて"], ...o.prefecture], o.disabled.prefecture)}
+      ${select("competition_id", "大会", data.competitions.map((c) => [c.competition_id, c.name]))}
+      <span class="sep"></span>
+      ${select("count", "年数", [[5, "5年"], [10, "10年"], [20, "20年"]])}
+      <form id="rb-range"><label>年度${yearSelect("rb-start", data.start)}〜${yearSelect("rb-end", data.end)}</label>
+        <button class="btn small" type="submit">表示</button><button class="btn small" type="button" id="rb-latest">最新年度</button></form>
+      <span class="spacer"></span><!-- 2本目で「地図から選ぶ」をここに置く -->
     </div>
-    <div class="scroll best8-scroll"><p class="muted">${data.start}〜${data.end}年度。${entrants ? "本大会に登録された学校を表示します。最終成績は大会完了後に表示します。" : "順位は本大会の完了後に表示します。"}校名は大会当時の名前です。</p>
-      ${data.before_start ? `<p class="muted before-start">${data.before_start.start === data.before_start.end ? data.before_start.start : `${data.before_start.start}〜${data.before_start.end}`}年度はゲーム開始前のため記録がありません（ゲーム開始は${data.earliest}年度）。</p>` : ""}
-      ${!data.rows.length ? "" : entrants ? entrantsTable(data, title) : `<table class="list best8-table"><colgroup><col style="width:95px"><col style="width:210px"><col><col><col style="width:220px"><col style="width:250px"><col style="width:100px"></colgroup>
-        <thead><tr><th>年度</th><th>大会名</th><th>優勝</th><th>準優勝</th><th>ベスト4</th><th>ベスト8</th><th>状態</th></tr></thead>
-        <tbody>${data.rows.map((r) => `<tr><td>${title(r, `${r.school_year}年度`)}</td><td>${title(r, r.competition_name || data.competitions.find((c) => c.competition_id === r.competition_id)?.name || r.competition_id)}</td>
-          ${["優勝", "準優勝", "ベスト4", "ベスト8"].map((finish) => `<td>${r.groups[finish].map(school).join("") || '<span class="muted">−</span>'}</td>`).join("")}<td>${esc(r.status)}</td></tr>`).join("")}</tbody></table>`}
-      ${data.rows.length || data.before_start ? "" : '<p class="muted">条件に合う大会はありません。</p>'}</div>`;
+    <div class="scroll best8-scroll">
+      <div class="record-caption"><h3>${esc(data.competition_name)}</h3>
+        <span class="muted">${data.start}〜${data.end}年度${hidden}。校名は大会当時の名前です。</span>
+        <span class="spacer"></span>
+        ${entrants && data.matrix ? toggle("only_entered", "出場のあった都道府県だけ") : ""}
+        ${toggle("show_upcoming", "未開催の年度も出す")}</div>
+      ${data.before_start && data.rows.length ? `<p class="muted before-start">${data.before_start.start === data.before_start.end ? data.before_start.start : `${data.before_start.start}〜${data.before_start.end}`}年度はゲーム開始前のため記録がありません（ゲーム開始は${data.earliest}年度）。</p>` : ""}
+      ${table}
+      ${data.empty_hint ? `<p class="muted empty-hint">${esc(data.empty_hint)}</p>` : ""}</div>`;
   bindRecordsTabs(content);
   for (const key of ["segment", "level", "region", "prefecture", "competition_id", "count"]) {
     $("rb-" + key).addEventListener("change", (e) => {
@@ -350,10 +397,14 @@ async function renderBest8(content) {
       renderPage();
     });
   }
+  for (const key of ["only_entered", "show_upcoming"]) {
+    const box = $("rb-" + key);
+    if (box) box.addEventListener("change", (e) => { state[filterStateKey][key] = e.target.checked; renderPage(); });
+  }
   $("rb-range").addEventListener("submit", (e) => {
     e.preventDefault();
     const start = $("rb-start").value, end = $("rb-end").value;
-    if (start && end && Number(start) > Number(end)) return showToast("開始年度・終了年度を確認してください", true);
+    if (Number(start) > Number(end)) return showToast("開始年度・終了年度を確認してください", true);
     Object.assign(state[filterStateKey], { start, end });
     renderPage();
   });
@@ -377,14 +428,14 @@ async function renderRecords(content) {
   const breakdown = (c) => c.actual ? `（実際${c.actual}＋ゲーム${c.game}）` : "";
   const nth = (c) => c ? `<span class="num">${c.total}回目</span><span class="muted">${breakdown(c)}</span>` : "";
   const nationals = data.nationals.map((n) => `<div class="panel"><h3>${esc(n.competition_name)}${n.started && !n.finished ? '　<span class="badge active">開催中</span>' : ""}</h3>
-    ${n.played ? `<table class="list">${["優勝", "準優勝", "ベスト4", "ベスト8"].map((f) => `<tr><td style="width:80px">${badge(f === "優勝" ? 3000 : f === "準優勝" ? 2000 : 0, f)}</td>
+    ${n.played ? `<table class="list">${BEST8_COLUMNS.map(([f, label]) => `<tr><td style="width:100px">${finishBadge(f, label)}</td>
       <td>${(n.groups[f] || []).map(school).join("　") || '<span class="muted">−</span>'}</td></tr>`).join("")}</table>`
       : `<div class="muted">${n.started ? "始まったばかりです" : "まだ行われていません"}</div>`}</div>`).join("");
   const reps = data.representatives.map((r) => `<tr><td>${esc(r.area)}</td>
     <td>${r.school_id ? `<span class="link" data-school="${esc(r.school_id)}">${esc(r.name)}</span>` : '<span class="muted">未定</span>'}</td>
     <td>${nth(r.appearance)}</td>
-    <td>${r.koshien ? badge(r.koshien === "優勝" ? 3000 : 0, r.koshien) : ""}</td></tr>`).join("");
-  const senbatsu = data.senbatsu.map((r) => `<tr><td>${esc(r.prefecture)}</td><td><span class="link" data-school="${esc(r.school_id)}">${esc(r.name)}</span></td><td>${nth(r.appearance)}</td><td>${badge(r.finish === "優勝" ? 3000 : 0, r.finish)}</td></tr>`).join("");
+    <td>${finishBadge(r.koshien)}</td></tr>`).join("");
+  const senbatsu = data.senbatsu.map((r) => `<tr><td>${esc(r.prefecture)}</td><td><span class="link" data-school="${esc(r.school_id)}">${esc(r.name)}</span></td><td>${nth(r.appearance)}</td><td>${finishBadge(r.finish)}</td></tr>`).join("");
   content.innerHTML = `<div class="head"><h2>記録</h2>${recordsTabs()}
       <select id="r-year">${data.years.map((y) => `<option value="${y}" ${y === data.school_year ? "selected" : ""}>${y}年度</option>`).join("")}</select></div>
     <div class="scroll">
