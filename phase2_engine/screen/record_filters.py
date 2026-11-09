@@ -59,6 +59,11 @@ def cascade_filters(catalog: list[dict], filters: dict, region_names: dict,
         f["region"] = ""
     # 地図ではマスを押すと地域を外して都道府県を選ぶので、地域で絞る前の都道府県を選べる
     map_prefectures = [] if national else sorted({p for c in pool for p in c["prefectures"]})
+    # 地域ごとの都道府県（いまの季節・区分の地区割り。春の関東には東京が入る）。地図で地域を選んだときに
+    # 金色にするマス。地図の色分け（秋の地区）とは別
+    region_prefectures = {} if national else {
+        r: sorted({p for c in pool if r in c["regions"] for p in c["prefectures"]})
+        for r in sorted({r for c in pool for r in c["regions"]})}
     pool = [c for c in pool if not f["region"] or f["region"] in c["regions"]]
     prefectures = [] if national else sorted({p for c in pool for p in c["prefectures"]})
     if f.get("prefecture") not in prefectures:
@@ -71,6 +76,7 @@ def cascade_filters(catalog: list[dict], filters: dict, region_names: dict,
         "region": [[r, region_names.get(r, r)] for r in regions],
         "prefecture": [[p, prefecture_names.get(p, p)] for p in prefectures],
         "map_prefecture": map_prefectures,
+        "region_prefectures": region_prefectures,
         "disabled": {"region": not regions, "prefecture": not prefectures},
     }
     return f, options, pool

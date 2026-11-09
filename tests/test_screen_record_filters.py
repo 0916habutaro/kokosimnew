@@ -138,6 +138,24 @@ class CatalogTests(unittest.TestCase):
 
 
 class TileMapTests(unittest.TestCase):
+    def test_selected_region_uses_current_season_not_map_colors(self):
+        """地図の色分けは秋の地区（東京は「東京」）でも、春の関東を選んだら東京も選んだことにする。"""
+        import csv
+        repo = DataRepository(ROOT / "data")
+        with (ROOT / "data/competitions/prefecture_region_memberships.csv").open(encoding="utf-8-sig") as h:
+            memberships = list(csv.DictReader(h))
+        catalog = rf.build_catalog(repo.competitions, memberships, _level, lambda cid, name: name)
+        autumn = {r["prefecture_code"]: r["region_id"] for r in memberships if r["season_segment"] == "autumn"}
+        kanto = next(r for r, p in ((m["region_id"], m["prefecture_code"]) for m in memberships
+                                    if m["season_segment"] == "spring") if p == "13")
+        self.assertNotEqual(kanto, autumn["13"])  # 秋は東京だけの地区
+        f, options, _ = rf.cascade_filters(catalog, {"segment": "spring", "region": kanto}, {}, PREFS)
+        selected = options["region_prefectures"][kanto]
+        self.assertIn("13", selected)
+        self.assertEqual([p for p, _ in options["prefecture"]], selected)  # 絞り込みに残る都道府県と同じ
+        _, autumn_options, _ = rf.cascade_filters(catalog, {"segment": "autumn", "region": kanto}, {}, PREFS)
+        self.assertNotIn("13", autumn_options["region_prefectures"][kanto])
+
     def test_layout_covers_47_prefectures_without_overlap(self):
         import json
         config = json.loads((ROOT / "config/screen/tile_map_v1.json").read_text(encoding="utf-8"))

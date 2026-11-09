@@ -281,6 +281,8 @@ function openCompetition(year, competitionId) {
 //   prefecture, region   いま選んでいるもの（選んだマス・地域は金の色）
 //   pickRegion           地域の名前を押して地域を選べるか
 //   prefectures, regions 選べるもの（Set。省くとすべて）。選べないマスは薄くする
+//   regionPrefectures    地域ID → 都道府県コードの配列。地域を選んだときに金色にするマス（いまの季節の
+//                        地区割り。春の関東には東京が入る）。省くと色分け（秋の地区）のとおり
 //   colors               都道府県コード → 色（将来の勢力図。渡すと地域の色の代わりに塗る）
 //   values               都道府県コード → マスの下に出す小さな文字（数など）
 function tileMapHtml(opts = {}) {
@@ -294,7 +296,9 @@ function tileMapHtml(opts = {}) {
       ${can ? `data-map-region="${esc(r.region_id)}"` : "disabled"}>${esc(r.name)}</button>`;
   }).join("");
   const tiles = map.tiles.map((t) => {
-    const on = opts.prefecture === t.code || regionOn(t.region_id);
+    const inRegion = opts.region && (opts.regionPrefectures
+      ? (opts.regionPrefectures[opts.region] || []).includes(t.code) : t.region_id === opts.region);
+    const on = opts.prefecture === t.code || inRegion;
     const can = ok(opts.prefectures, t.code);
     const color = (opts.colors || {})[t.code];
     const value = (opts.values || {})[t.code];
@@ -466,6 +470,7 @@ async function renderBest8(content) {
       title: "地図から選ぶ（地域・都道府県）", pickRegion: !o.disabled.region,
       region: f.region, prefecture: f.prefecture,
       regions: new Set(o.region.map(([id]) => id)), prefectures: new Set(o.map_prefecture),
+      regionPrefectures: o.region_prefectures,
     });
     if (!picked) return;
     Object.assign(state[filterStateKey], picked);
