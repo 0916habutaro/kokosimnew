@@ -300,26 +300,39 @@ nav button[disabled] { opacity: .35; cursor: default; }
 
 button.link { background: none; border: 0; padding: 0; font: inherit; text-align: inherit; }
 
-/* 複数年度の大会成績。縦横スクロール中も見出しと年度を追える。 */
-.best8-filters { display:flex; flex-wrap:wrap; gap:10px; padding:12px 20px; border-bottom:1px solid var(--line); }
-.best8-filters label { display:inline-flex; align-items:center; gap:5px; }
-.best8-filters form { display:flex; flex-wrap:wrap; gap:10px; }
-.best8-filters input { width:90px; padding:6px 8px; color:var(--text); background:var(--panel); border:1px solid var(--line); border-radius:5px; }
-.best8-table { min-width:1200px; table-layout:fixed; }
-.best8-table td { vertical-align:top; overflow-wrap:anywhere; }
-.best8-table td div + div { margin-top:5px; }
-.best8-table td:first-child { position:sticky; left:0; background:var(--panel); z-index:1; }
-.best8-table th:first-child { left:0; z-index:2; }
-
+/* 複数年度の大会成績。絞り込みは1段（右の空きは2本目の「地図から選ぶ」の場所） */
+.best8-filters { display:flex; flex-wrap:nowrap; align-items:center; gap:8px; padding:10px 18px; border-bottom:1px solid var(--line); overflow-x:auto; }
+.best8-filters label { display:inline-flex; align-items:center; gap:4px; white-space:nowrap; color:var(--muted); font-size:12px; }
+.best8-filters label.off { opacity:.45; }
+.best8-filters select { height:30px; padding:0 6px; }
+.best8-filters #rb-competition_id { max-width:260px; }
+.best8-filters form { display:flex; align-items:center; gap:6px; margin:0; }
+.best8-filters .sep { width:1px; height:22px; background:var(--line); flex:none; }
+.best8-filters .spacer { min-width:120px; }
+.record-caption { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+.record-caption h3 { margin:0; font-size:15px; color:var(--accent); }
+.record-caption .toggle { display:inline-flex; align-items:center; gap:4px; color:var(--muted); font-size:12.5px; cursor:pointer; }
+.empty-hint { margin:10px 0; }
+.badge.b-silver { background: var(--muted); color: var(--bg); font-weight: 700; }
+/* 表は1行おきに薄い色。見出しはスクロールしても上に残る（table.list th の sticky） */
+table.list.zebra tbody tr:nth-child(even) td { background: var(--panel); }
+table.list.zebra tbody tr:nth-child(odd) td { background: var(--bg); }
+.record-year { white-space:nowrap; }
+.record-year small { color:var(--muted); margin-left:2px; }
+/* マスの学校：校名と成績の札を1行に（収まらなければ学校ごとに折り返す） */
+.entrant { display:inline-flex; align-items:center; gap:4px; margin:2px 10px 2px 0; white-space:nowrap; }
+.entrant small { font-size:11px; }
+.best8-table { table-layout:fixed; }
+.best8-table td { vertical-align:top; }
 .entrants-matrix { width:max-content !important; min-width:100%; }
-.entrants-matrix th, .entrants-matrix td { min-width:240px; max-width:300px; vertical-align:top; }
+.entrants-matrix th, .entrants-matrix td { min-width:170px; vertical-align:top; }
 /* 年度の列が多いときは横に動かし、都道府県の列は .scroll の左の余白（18px）ごと固定する */
-.entrants-matrix th:first-child, .entrants-matrix td:first-child { position:sticky; left:-18px; min-width:130px; background:var(--panel); z-index:1; box-shadow: -18px 0 0 var(--panel); }
+.entrants-matrix th:first-child, .entrants-matrix td:first-child { position:sticky; left:-18px; min-width:110px; z-index:1; box-shadow: -18px 0 0 var(--bg); }
+.entrants-matrix tbody tr:nth-child(even) td:first-child { box-shadow: -18px 0 0 var(--panel); }
 .entrants-matrix th:first-child { z-index:2; background:var(--panel2); box-shadow: -18px 0 0 var(--panel2); }
-.entrant-entry { margin:6px 0; }
-.entrant-entry small { display:block; }
+.entrants-matrix .entrant { display:flex; margin:2px 0; }
 .entrants-years td { vertical-align:top; }
-.entrants-years td:first-child { width:270px; }
+.entrants-years td:first-child { width:220px; }
 .entrants-years details[open] { max-height:440px; overflow:auto; }
 
 /* 学校の詳細の部員：見出しを押すと並べ替え */
