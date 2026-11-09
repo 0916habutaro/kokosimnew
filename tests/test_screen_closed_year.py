@@ -88,6 +88,10 @@ class ClosedYearTests(unittest.TestCase):
         self.assertTrue(senbatsu['start_date'].startswith('2027-'))
         prefs = [e['prefecture_code'] for e in senbatsu['entrants']]
         self.assertLess(len(set(prefs)), len(prefs))
+        # 年度を閉じたとき、出場の最小索引も同時に書いた（夏の49校。優勝は1校）
+        index = archive.competition_appearances(self.koshien, {e['school_id'] for e in entries}, 2027)
+        self.assertEqual({e['school_id'] for e in entries}, set(index))
+        self.assertEqual(1, sum(bool(v['champion']) for v in index.values()))
         self.assertEqual(before, archive.db_path.read_bytes())
         self.service.save_game(self.session)
         loaded = GameScreenData(self.service, self.service.load_game(self.session.slot_id))

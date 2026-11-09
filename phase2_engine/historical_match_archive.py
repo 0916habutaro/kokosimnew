@@ -76,6 +76,14 @@ CREATE TABLE IF NOT EXISTS competition_entrants (
     record_json TEXT NOT NULL,
     PRIMARY KEY (competition_id, year)
 );
+-- 出場・優勝の回数（「2年連続15回目」）のための最小索引。competition_entrants と同時に書く。
+CREATE TABLE IF NOT EXISTS competition_appearances (
+    competition_id TEXT NOT NULL,
+    school_id TEXT NOT NULL,
+    year INTEGER NOT NULL,
+    champion INTEGER NOT NULL,
+    PRIMARY KEY (competition_id, school_id, year)
+);
 -- 大会の確定結果への学校別索引。人物・監督IDや大会全体のコピーは保存しない。
 CREATE TABLE IF NOT EXISTS school_competition_records (
     year INTEGER NOT NULL,
@@ -992,10 +1000,14 @@ class HistoricalMatchArchive:
                 raise ValueError('invalid best8 record identity')
             best8.append((record['competition_id'], year, _canonical(dict(record))))
         entrants = []
+        appearances = {}
         for record in entrant_records:
             if record.get('school_year') != year or not record.get('competition_id'):
                 raise ValueError('invalid entrant record identity')
             entrants.append((record['competition_id'], year, _canonical(dict(record))))
+            for school in record.get('entrants', ()):
+                key = (record['competition_id'], school['school_id'], year)
+                appearances[key] = max(appearances.get(key, 0), int(school.get('finish') == '優勝'))
         with self._connection() as conn:
             conn.executescript(_SCHEMA)
             with conn:
@@ -1005,6 +1017,9 @@ class HistoricalMatchArchive:
                 )
                 conn.execute('DELETE FROM competition_entrants WHERE year=?', (year,))
                 conn.executemany('INSERT INTO competition_entrants VALUES (?, ?, ?)', entrants)
+                conn.execute('DELETE FROM competition_appearances WHERE year=?', (year,))
+                conn.executemany('INSERT INTO competition_appearances VALUES (?, ?, ?, ?)',
+                                 [(*key, champion) for key, champion in appearances.items()])
                 conn.execute('DELETE FROM competition_best8 WHERE year=?', (year,))
                 conn.executemany('INSERT INTO competition_best8 VALUES (?, ?, ?)', best8)
                 conn.execute('DELETE FROM school_competition_records WHERE year=?', (year,))
@@ -1024,6 +1039,31 @@ class HistoricalMatchArchive:
 
     def competition_entrants(self, cid: str, first: int, last: int) -> list[dict]:
         return self._competition_history('competition_entrants', cid, first, last)
+
+    def competition_appearances(self, cid: str, school_ids, before: int) -> dict[str, dict]:
+        """その大会に学校が本大会で出た年度と優勝した年度（``before`` より前）。
+
+        出場の最小索引だけを読む。試合・名簿・年度スナップショット・出場校の一覧は読まない。"""
+        out: dict[str, dict] = {}
+        school_ids = sorted(set(school_ids))
+        if not school_ids or not self.db_path.is_file():
+            return out
+        with closing(sqlite3.connect(self.db_path.resolve().as_uri() + '?mode=ro',
+                                    uri=True, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
+            if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='competition_appearances'").fetchone():
+                return out
+            for start in range(0, len(school_ids), 500):
+                chunk = school_ids[start:start + 500]
+                rows = conn.execute(
+                    'SELECT school_id, year, champion FROM competition_appearances '
+                    f'WHERE competition_id=? AND school_id IN ({",".join("?" * len(chunk))}) AND year<?',
+                    (cid, *chunk, before)).fetchall()
+                for school_id, year, champion in rows:
+                    entry = out.setdefault(school_id, {'appear': set(), 'champion': set()})
+                    entry['appear'].add(year)
+                    if champion:
+                        entry['champion'].add(year)
+        return out
 
     def competition_best8(self, cid: str, first: int, last: int) -> list[dict]:
         return self._competition_history('competition_best8', cid, first, last)

@@ -88,7 +88,7 @@ table.list td.n, table.list th.n { text-align: right; font-family: var(--num); }
 .erow:hover, .erow.on { background: var(--panel); }
 .erow.on { outline: 1px solid var(--accent); }
 .ename { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
-.ecount { flex: none; width: 8.5em; color: var(--muted); font-size: 12px; text-align: center; white-space: nowrap; }
+.ecount { flex: none; min-width: 8.5em; max-width: 13em; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 12px; text-align: center; white-space: nowrap; }
 .ecount.first { color: var(--accent); }
 .basis { flex: none; font-size: 11px; padding: 0 4px; border-radius: 3px; background: #7a3cc2; color: #fff; white-space: nowrap; }
 .area-tag { flex: none; width: 4.6em; text-align: center; font-size: 12px; font-weight: 700; border-radius: 3px; color: #10161d; background: #9aa5b1; white-space: nowrap; }
@@ -375,3 +375,9 @@ p.decisions { margin: 8px 0 4px; }
 
 /* 連合チームで出た大会の印 */
 .union { color: var(--muted); font-weight: normal; }
+
+/* 回数の添え書き（「2年連続15回目」「2年ぶり5回目の優勝」）。初出場・初優勝は金の文字 */
+small.count { color: var(--muted); font-size: 11px; white-space: nowrap; }
+small.count.first { color: var(--accent); }
+.koshien-entries { margin-top: 4px; }
+.koshien-entries td:first-child { width: 6em; }

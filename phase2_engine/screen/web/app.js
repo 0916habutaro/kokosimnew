@@ -301,6 +301,11 @@ function statusBadge(status) {
 // 大会別ベスト8の列。「ベスト8」の列は準々決勝で負けた学校なので見出しは「準々決勝敗退」
 const BEST8_COLUMNS = [["優勝", "優勝"], ["準優勝", "準優勝"], ["ベスト4", "ベスト4"], ["ベスト8", "準々決勝敗退"]];
 
+// 「2年連続15回目」「2年ぶり5回目の優勝」の小さな添え書き。初出場・初優勝は金の文字（出場校一覧と同じ）
+function countTag(label) {
+  return label ? `<small class="count${/初(出場|優勝)$/.test(label) ? " first" : ""}">${esc(label)}</small>` : "";
+}
+
 // 年度の見出し：「2027年度」と回数・状態の札。正式名と日付はマウスを当てたときに出す
 function recordYearHead(r, data) {
   const name = r.competition_name || data.competition_name;
@@ -318,7 +323,8 @@ function entrantsTable(data) {
   const school = (e, withPref) => {
     const routes = e.routes.map(routeName).join("・");
     const pref = withPref ? `<small class="muted">${esc(prefName(data, e.prefecture_code))}</small>` : "";
-    return `<span class="entrant"${routes ? ` title="進出元：${esc(routes)}"` : ""}><button class="link" data-school="${esc(e.school_id)}">${esc(e.name)}</button>${pref}${finishBadge(e.finish)}</span>`;
+    const tip = [e.champion_label, routes ? `進出元：${routes}` : ""].filter(Boolean).join("\n");
+    return `<span class="entrant"${tip ? ` title="${esc(tip)}"` : ""}><button class="link" data-school="${esc(e.school_id)}">${esc(e.name)}</button>${pref}${finishBadge(e.finish)}${countTag(e.count_label)}</span>`;
   };
   if (!data.matrix) {
     return `<table class="list zebra entrants-years"><thead><tr><th>年度</th><th>出場校</th></tr></thead><tbody>${data.rows.map((r) =>
@@ -339,7 +345,7 @@ function best8Table(data) {
   // 1つの都道府県だけの地区大会は、みな同じ都道府県なので出さない。県名は「都・府・県」を除く（トーナメント表の札と同じ）
   const prefs = (data.catalog.find((c) => c.competition_id === data.filters.competition_id) || {}).prefectures || [];
   const showPref = data.matrix && prefs.length !== 1;
-  const school = (s) => `<span class="entrant"><button class="link" data-school="${esc(s.school_id)}">${esc(s.name)}</button>${showPref && s.prefecture ? `<small class="muted">${esc(s.prefecture.replace(/[都府県]$/, ""))}</small>` : ""}</span>`;
+  const school = (s) => `<span class="entrant" title="${esc(s.count_label || "")}"><button class="link" data-school="${esc(s.school_id)}">${esc(s.name)}</button>${showPref && s.prefecture ? `<small class="muted">${esc(s.prefecture.replace(/[都府県]$/, ""))}</small>` : ""}${countTag(s.champion_label)}</span>`;
   return `<table class="list zebra best8-table"><colgroup><col style="width:180px"><col style="width:11%"><col style="width:11%"><col style="width:23%"><col></colgroup>
     <thead><tr><th>年度</th>${BEST8_COLUMNS.map(([finish, label]) => `<th>${finishBadge(finish, label)}</th>`).join("")}</tr></thead>
     <tbody>${data.rows.map((r) => `<tr><td>${recordYearHead(r, data)}</td>
@@ -548,7 +554,7 @@ function entrantsView(rows) {
       ${rows.map((r) => `<div class="erow" data-entrant="${esc(r.school_id)}">
         <span class="ename" title="${esc(r.name)}">${esc(r.name)}</span>
         ${r.basis_label ? `<span class="basis">${esc(r.basis_label)}</span>` : ""}
-        <span class="ecount${r.appearance_label === "初出場" ? " first" : ""}">${esc(r.appearance_label)}</span>
+        <span class="ecount${r.appearance_label.endsWith("初出場") ? " first" : ""}" title="${esc(r.appearance_label)}">${esc(r.appearance_label)}</span>
         <span class="area-tag ${esc(r.region_id)}">${esc(r.area)}</span>
       </div>`).join("")}
     </div>
@@ -1089,7 +1095,12 @@ async function renderSchoolDetail(content, schoolId) {
   const body = $("sd-body");
   if (st.tab === "overview") body.innerHTML = schoolOverview(d);
   if (st.tab === "yearly") body.innerHTML = schoolYearly(d);
-  if (st.tab === "koshien") body.innerHTML = schoolKoshien(d);
+  if (st.tab === "koshien") {
+    body.innerHTML = schoolKoshien(d);
+    // 出場した年を押すと、その大会のトーナメント表へ
+    body.querySelectorAll("[data-koshien-cid]").forEach((a) => a.addEventListener("click", () =>
+      openCompetition(Number(a.dataset.koshienYear), a.dataset.koshienCid)));
+  }
   if (st.tab === "members") drawMembers(body, d);
   if (st.tab === "games") await schoolGames(body, d);
   if (st.tab === "coaches") await schoolCoaches(body, schoolId);
@@ -1333,7 +1344,10 @@ function schoolKoshien(d) {
       <table class="list"><tr><th>内訳</th><th class="n">出場</th><th class="n">勝敗</th><th class="n">優勝</th><th>最高成績</th><th>出場した年</th></tr>
         ${row(`実際の記録（${until}まで）`, k.actual)}
         ${row("ゲーム内の記録", k.game)}
-      </table></div>`;
+      </table>
+      ${k.entries.length ? `<h4>ゲームの中の出場</h4><table class="list zebra koshien-entries"><thead><tr><th>年</th><th>回数（実際の記録＋ゲーム）</th><th>成績</th></tr></thead><tbody>
+        ${k.entries.map((e) => `<tr><td class="num"><button class="link" data-koshien-year="${e.school_year}" data-koshien-cid="${esc(e.competition_id)}">${e.year}年</button></td>
+          <td>${countTag(e.label)}${e.champion_label ? ` ${countTag(e.champion_label)}` : ""}</td><td>${finishBadge(e.finish)}</td></tr>`).join("")}</tbody></table>` : ""}</div>`;
   };
   return block("夏の甲子園", "2025年", d.koshien.summer) + block("春の選抜", "2026年", d.koshien.spring);
 }

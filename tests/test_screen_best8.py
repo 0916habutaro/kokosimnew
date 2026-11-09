@@ -120,6 +120,9 @@ class Best8ScreenTests(unittest.TestCase):
         self.data.session = SimpleNamespace(state=current, slot_id='fake')
         self.data.service = SimpleNamespace(repo=self.repo, _history_archive=lambda slot: self.archive)
         self.data.prefectures = {'01': '架空県'}
+        # 回数の文言：ゲームの中の出場と実際の記録（このテストでは空）
+        self.data.actual_koshien = {}
+        self.data._appearance_history = lambda *args: {}
         self.data.competition_names = CompetitionNames(ROOT / 'config')
         self.data.names = EditedNames(lambda sid: '架空校' + sid, SchoolEdits())
         self.cid = next(iter(self.repo.competitions))
