@@ -421,3 +421,16 @@ table.list.leaders th:first-child, table.list.leaders td:first-child { width: 3e
 table.list.feats .entrant { margin-right: 14px; }
 /* 同じ記録の選手が何人もいるときは、選手ごとに折り返す */
 table.list.feats td.holders { white-space: normal; }
+
+/* 記録：ランキング。見出しを押すと並べ替え。都道府県別は表と勢力図を並べる */
+table.list.rankings th.sortable { cursor: pointer; white-space: nowrap; }
+table.list.rankings th.sortable:hover { color: var(--text); }
+table.list.rankings th.sorted { color: var(--accent); }
+table.list.rankings th small { margin-left: 3px; font-size: 10.5px; }
+table.list.rankings td { white-space: nowrap; }
+table.list.rankings td.strong { font-weight: 700; color: var(--text); }
+.rank-split { display: grid; grid-template-columns: minmax(420px, 1fr) auto; gap: 14px; align-items: start; }
+.rank-map { margin: 0; }
+.rank-key { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; margin-right: 8px; white-space: nowrap; }
+.rank-key i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+label.toggle.off { opacity: .45; }
