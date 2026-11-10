@@ -12,7 +12,7 @@
     "all_ready": false,
     "source_field_presence_only": "present_fieldsは文字列があることだけを表す。正式な抽選ルールの証明ではない。",
     "blank_not_zero": "未記録のseed_count=nullは正式シード0校を意味しない。",
-    "school_id_notice": "seed_examples_2026.csvの219件中、県大会215件＋地区大会4件。全school_id空欄で学校マスターへの照合は別工程。",
+    "school_id_notice": "seed_examples_2026.csvの220件中、県大会216件＋地区大会4件。全school_id空欄で学校マスターへの照合は別工程。",
     "selection_rule_provenance": "シード数値は公式確定と暫定値が混在。暫定ならseed_count_statusで区別。",
     "runtime_warning": "県大会の段階・抽選配置・BYE・途中再抽選を確定させるまではゲーム側ルールとして直接読み込まない。"
   },
@@ -23,17 +23,17 @@
     "numeric_seed_counts": 62,
     "unknown_seed_counts": 32,
     "participants_field_recorded": 79,
-    "selection_source_field_recorded": 81,
-    "placement_field_recorded": 50,
-    "first_round_field_recorded": 46,
+    "selection_source_field_recorded": 82,
+    "placement_field_recorded": 52,
+    "first_round_field_recorded": 47,
     "bye_field_recorded": 52,
     "redraw_field_recorded": 2,
     "official_rule_links": 20,
     "official_bracket_links": 26,
     "p0_topology_or_exception_count": 25,
     "recorded_with_5_fields": 24,
-    "school_examples_total_file": 219,
-    "school_examples_prefectural": 215,
+    "school_examples_total_file": 220,
+    "school_examples_prefectural": 216,
     "school_examples_regional": 4,
     "school_ids_linked_prefectural": 0
   },
@@ -69,6 +69,10 @@
     "MATCH_SCHOOL_IDS": {
       "priority": "P2",
       "meaning": "学校例と学校マスターのID照合"
+    },
+    "CONFIRM_FORMAL_SEED_TOTAL_AND_CATEGORIES": {
+      "priority": "P1",
+      "meaning": "甲子園出場シードの実在は確認。ほかの正式シード区分と全校数・配置規則を調査"
     }
   },
   "priority_policy": {
@@ -783,24 +787,56 @@
       "source_csv_row": 30,
       "priority": "P1",
       "seed_count": null,
-      "seed_count_status": "unknown_not_zero",
+      "seed_count_status": "existence_confirmed_total_unknown",
       "participant_count_leading_integer": 32,
       "present_fields": [
         "main_participants",
-        "bye"
+        "bye",
+        "selection_source",
+        "placement",
+        "seed_first_round"
       ],
       "open_issue_codes": [
-        "CONFIRM_FORMAL_SEED_STATUS",
-        "TRACE_SEED_SELECTION",
+        "CONFIRM_FORMAL_SEED_TOTAL_AND_CATEGORIES",
         "MAP_BRACKET_POSITIONS",
         "VERIFY_SEEDED_FIRST_ROUND",
         "VERIFY_REDRAW_PRESENCE"
       ],
       "audit_43_status": "参加チーム数・試合構造のみ、本大会シード数未確定",
-      "school_examples": 0,
+      "school_examples": 1,
       "school_id_links": 0,
-      "bracket_position_examples": 0,
-      "targeted_research_hint": null
+      "bracket_position_examples": 1,
+      "targeted_research_hint": "2026秋の原図に『○甲子園出場シード』の凡例と枠32天理の丸囲み。甲子園シードの存在は確定。ただし総数・他シード区分は未確定。32校16初戦・BYE0、天理も1回戦から。",
+      "bracket_observation_2026": {
+        "participants": 32,
+        "first_round_matches": 16,
+        "first_round_byes": 0,
+        "first_round_match_slots": "(1,2), (3,4), …, (31,32)",
+        "identified_seed_type": "summer_koshien_participant_seed",
+        "identified_seed_schools": [
+          {
+            "school": "天理",
+            "bracket_slot": 32,
+            "mark": "○",
+            "source_qualification": "2026 summer Koshien Nara representative",
+            "first_round_opponent": "畝傍",
+            "first_round_score": "天理11-0畝傍",
+            "first_round_bye": false
+          }
+        ],
+        "evidence": "User-provided official prefectural federation bracket image 2026aki-kekka.jpg",
+        "main_formal_seed_total": null,
+        "third_place": "郡山8-6天理",
+        "warning": "Only summer Koshien seed existence confirmed; no other seed totals or future mandatory bracket-slot rule verified."
+      },
+      "historical_comparison_2025": {
+        "participants": 34,
+        "first_round_matches": 2,
+        "first_round_byes": 30,
+        "source": "https://www.hb-nippon.com/tournaments/834",
+        "official_pdf_url_provided_but_not_fetched": "http://www1.kcn.ne.jp/~nhsbbf/and/2025aki-shiaikekka.pdf",
+        "seed_marks_verified": false
+      }
     },
     {
       "key": "2026|秋季|和歌山",
@@ -2245,7 +2281,8 @@
       "present_fields": [
         "main_participants",
         "selection_source",
-        "bye"
+        "bye",
+        "placement"
       ],
       "open_issue_codes": [
         "CONFIRM_FORMAL_SEED_STATUS",
@@ -2257,7 +2294,32 @@
       "school_examples": 0,
       "school_id_links": 0,
       "bracket_position_examples": 0,
-      "targeted_research_hint": null
+      "targeted_research_hint": "2026春33校の開幕1試合（宇陀0-10王寺工）・残り31BYEを原図で確認。33校のBYE31を正式シード31としない。春のシード制度有無は未確定。",
+      "bracket_observation_2026": {
+        "participants": 33,
+        "first_round_matches": 1,
+        "first_round_match": {
+          "school1": "宇陀",
+          "school2": "王寺工業",
+          "score": "宇陀0-10王寺工業",
+          "next_round_opponent": "高田商業",
+          "next_round_result": "王寺工業2-5高田商業"
+        },
+        "first_round_byes": 31,
+        "second_round_matches": 16,
+        "third_place": "奈良北8-5高田商業",
+        "formal_seed_existence": null,
+        "formal_seed_total": null,
+        "evidence": "User-provided official prefectural federation bracket image 2026haru-kekka.jpg"
+      },
+      "historical_comparison_2025": {
+        "participants": 34,
+        "first_round_matches": 2,
+        "first_round_byes": 30,
+        "source": "https://www.hb-nippon.com/index.php/tournaments/192",
+        "official_pdf_url_provided_but_not_fetched": "http://www1.kcn.ne.jp/~nhsbbf/and/2025haru-shiaikekka.pdf",
+        "seed_marks_verified": false
+      }
     },
     {
       "key": "2026|春季|和歌山",
