@@ -133,5 +133,31 @@ class BracketTests(unittest.TestCase):
         self.assertEqual(Counter(), Counter(s for s in a if s) - Counter(entrants))
 
 
+class ScreenRankTests(unittest.TestCase):
+    """画面の「島根2位」の札は、その年度の開催県の追加枠を足したルールから出す。"""
+
+    def test_host_bonus_schools_get_their_rank(self):
+        from types import SimpleNamespace
+        from phase2_engine.screen.data import GameScreenData
+
+        ranking = [f"SCHX91{i}" for i in range(6)]
+        source = SimpleNamespace(
+            is_complete=True,
+            to_competition_run=lambda: SimpleNamespace(
+                outcome=SimpleNamespace(final_ranking_school_ids=ranking)))
+        raw = [feeder("91", 1) | {"source_competition_id": "CMPS"}]
+        season = SimpleNamespace(
+            competitions={"CMPS": source},
+            regional_feeder_rules={"CMPR": apply_host_quotas(raw, {"host_2026": "91", "rotation": "91",
+                                                                   "host_bonus": "3"}, 2026)},
+        )
+        fake = SimpleNamespace(_season_of=lambda year: season, _feeder_rules={"CMPR": raw},
+                               prefectures={"91": "架空県"})
+        tags = GameScreenData._feeder_ranks(fake, 2026, "CMPR")
+        self.assertEqual(["架空1位", "架空2位", "架空3位", "架空4位"],
+                         [tags[s] for s in ranking[:4]])
+        self.assertNotIn(ranking[4], tags)
+
+
 if __name__ == "__main__":
     unittest.main()

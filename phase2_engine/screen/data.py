@@ -804,7 +804,9 @@ class GameScreenData:
         if season is None:
             return {}
         out: dict[str, str] = {}
-        for rule in self._feeder_rules.get(competition_id, ()):
+        # その年度の開催県の追加枠を足したルール（regional_draw.apply_host_quotas）
+        rules = (getattr(season, "regional_feeder_rules", None) or {}).get(competition_id)
+        for rule in rules or self._feeder_rules.get(competition_id, ()):
             scheduled = season.competitions.get(rule["source_competition_id"])
             if scheduled is None or not scheduled.is_complete:
                 continue
