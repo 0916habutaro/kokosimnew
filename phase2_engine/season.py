@@ -11,6 +11,7 @@ from .models import AnnualCompetitionInput, CompetitionRun
 from .randomness import shuffled
 from .repository import DataRepository
 from .paths import resolve_data_file
+from .regional_draw import apply_host_quotas
 from .season_catalog import rules_year
 
 
@@ -648,6 +649,10 @@ class SeasonOrchestrator:
                 if r.get("destination_competition_id") == destination_competition_id
                 and r.get("effective_year") == str(year)]
         rows.sort(key=lambda r: (int(r.get("priority") or 0), r["feeder_rule_id"]))
+        # 開催県の追加枠（regional_draw.py。このひな形の年の開催県）
+        host_row = next((r for r in self._read("regional_hosts.csv")
+                         if r.get("competition_id") == destination_competition_id), None)
+        rows = apply_host_quotas(rows, host_row, year)
         selected: List[str] = []
         selected_set = set()
         candidate_by_rule: Dict[str, str] = {}
