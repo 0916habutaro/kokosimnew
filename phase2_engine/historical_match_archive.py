@@ -108,6 +108,12 @@ CREATE TABLE IF NOT EXISTS player_records (
     year INTEGER PRIMARY KEY,
     record BLOB NOT NULL
 );
+-- 記録の画面の「ランキング」の年度の集計（phase2_engine/screen/rankings.py の year_tally を
+-- zlib で圧縮したもの）。閉じた年度を初めて開いたときに一度だけ作る。ゲームの記録だけ
+CREATE TABLE IF NOT EXISTS school_rankings (
+    year INTEGER PRIMARY KEY,
+    record BLOB NOT NULL
+);
 -- 終わった大会の試合の記録をまとめて圧縮したもの（match_id → payload_json の
 -- JSON を zlib）。まとめた試合の historical_matches.payload_json は空にする
 CREATE TABLE IF NOT EXISTS packed_competitions (
@@ -1130,6 +1136,26 @@ class HistoricalMatchArchive:
             conn.executescript(_SCHEMA)
             row = conn.execute("SELECT record FROM player_records WHERE year = ?", (year,)).fetchone()
         return bytes(row[0]) if row else None
+
+    def store_school_rankings(self, year: int, record: bytes) -> None:
+        """閉じた年度のランキングの集計（``rankings.to_blob``）。"""
+        with self._connection() as conn:
+            conn.executescript(_SCHEMA)
+            with conn:
+                conn.execute("INSERT OR REPLACE INTO school_rankings VALUES (?, ?)", (year, record))
+
+    def school_rankings(self, years) -> dict[int, bytes]:
+        """年度 → ランキングの集計（残っている年度だけ）。"""
+        years = list(years)
+        if not years or not self.db_path.is_file():
+            return {}
+        with closing(sqlite3.connect(self.db_path, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
+            conn.executescript(_SCHEMA)
+            rows = conn.execute(
+                f"SELECT year, record FROM school_rankings WHERE year IN ({','.join('?' * len(years))})",
+                years,
+            ).fetchall()
+        return {int(year): bytes(record) for year, record in rows}
 
     def year_matches(self, year: int, skip=frozenset()):
         """その年度の試合の記録を、1つの接続で大会ごとに続けて読む（(大会ID, 試合ID, 記録)）。

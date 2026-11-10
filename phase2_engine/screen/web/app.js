@@ -30,6 +30,7 @@ const state = {
   recordsBest8: {},
   recordsEntrants: {},
   recordsPlayers: {}, // 個人の記録の絞り込み（view は「部門の上位」か「達成の記録」）
+  recordsRankings: {}, // ランキングの絞り込みと並べ方（view は「学校別」か「都道府県別」）
   bracket: null,
   zoom: 1,
 };
@@ -129,7 +130,7 @@ function location_() {
     school: state.schools.detail, tab: state.schools.tab, player: state.schools.player, coach: state.schools.coach,
     recordsYear: state.recordsYear || null,
     recordsTab: state.recordsTab, recordsBest8: state.recordsBest8, recordsEntrants: state.recordsEntrants,
-    recordsPlayers: state.recordsPlayers,
+    recordsPlayers: state.recordsPlayers, recordsRankings: state.recordsRankings,
   });
 }
 
@@ -167,6 +168,7 @@ function goHistory(from, to) {
   state.recordsBest8 = saved.recordsBest8 || {};
   state.recordsEntrants = saved.recordsEntrants || {};
   state.recordsPlayers = saved.recordsPlayers || {};
+  state.recordsRankings = saved.recordsRankings || {};
   nav.restoring = true;
   try {
     renderMenu();
@@ -288,6 +290,7 @@ function openCompetition(year, competitionId) {
 //                        地区割り。春の関東には東京が入る）。省くと色分け（秋の地区）のとおり
 //   colors               都道府県コード → 色（将来の勢力図。渡すと地域の色の代わりに塗る）
 //   values               都道府県コード → マスの下に出す小さな文字（数など）
+//   legend               左上に地域の代わりに出す HTML（勢力図の凡例）
 function tileMapHtml(opts = {}) {
   const map = state.tileMap;
   if (!map) return "";
@@ -303,15 +306,18 @@ function tileMapHtml(opts = {}) {
       ? (opts.regionPrefectures[opts.region] || []).includes(t.code) : t.region_id === opts.region);
     const on = opts.prefecture === t.code || inRegion;
     const can = ok(opts.prefectures, t.code);
-    const color = (opts.colors || {})[t.code];
+    const paint = (opts.colors || {})[t.code];
+    // 色は文字列か {bg, ink}（勢力図の濃い色では文字を白くする）
+    const color = paint && typeof paint === "object" ? paint.bg : paint;
+    const ink = paint && typeof paint === "object" ? paint.ink : "";
     const value = (opts.values || {})[t.code];
     return `<button type="button" class="tile ${esc(t.region_id)}${on ? " on" : ""}${can ? "" : " off"}"
-      style="grid-column:${t.col + 1};grid-row:${t.row + 1}${color && !on ? `;background:${esc(color)}` : ""}"
+      style="grid-column:${t.col + 1};grid-row:${t.row + 1}${color && !on ? `;background:${esc(color)}` : ""}${ink && !on ? `;color:${esc(ink)}` : ""}"
       title="${esc(t.full_name)}" ${can ? `data-map-pref="${esc(t.code)}"` : "disabled"}>${esc(t.name)}${value !== undefined ? `<small>${esc(value)}</small>` : ""}</button>`;
   }).join("");
   const picked = opts.prefecture || opts.region ? " picked" : "";
   return `<div class="tile-map${picked}" style="grid-template-columns:repeat(${map.cols},var(--tile));grid-template-rows:repeat(${map.rows},var(--tile))">
-    <div class="tile-legend${opts.pickRegion ? " pick" : ""}">${opts.pickRegion ? '<span class="muted">地域を選ぶ</span>' : ""}${legend}</div>${tiles}</div>`;
+    <div class="tile-legend${opts.pickRegion ? " pick" : ""}">${opts.legend !== undefined ? opts.legend : `${opts.pickRegion ? '<span class="muted">地域を選ぶ</span>' : ""}${legend}`}</div>${tiles}</div>`;
 }
 
 // 地図を開いて選ばせる。選ぶと {region, prefecture} で終わる（同じマス・地域をもう一度押すと解除＝空）。
@@ -340,7 +346,7 @@ function pickFromMap(opts = {}) {
 // ---- 記録 ----
 
 function recordsTabs() {
-  return `<div class="tabs">${[["year", "年度別記録"], ["best8", "大会別ベスト8"], ["entrants", "複数年度の出場校"], ["players", "個人の記録"]].map(([key, label]) =>
+  return `<div class="tabs">${[["year", "年度別記録"], ["best8", "大会別ベスト8"], ["entrants", "複数年度の出場校"], ["players", "個人の記録"], ["rankings", "ランキング"]].map(([key, label]) =>
     `<button class="tab ${state.recordsTab === key ? "on" : ""}" data-records-tab="${key}">${label}</button>`).join("")}</div>`;
 }
 
@@ -602,9 +608,173 @@ async function renderPlayerRecords(content) {
   bindPlayerLinks(content);
 }
 
+// ---- 記録：ランキング ----
+
+// 勢力図の色：1系統（青）の濃さ5段階。薄い段は黒い文字、濃い段は白い文字。値のない県は灰色
+const RANK_COLORS = [
+  { bg: "#d6e6f5", ink: "#10161d" }, { bg: "#9cc3e8", ink: "#10161d" }, { bg: "#5e9bd6", ink: "#10161d" },
+  { bg: "#2f6fb3", ink: "#ffffff" }, { bg: "#1b4377", ink: "#ffffff" },
+];
+const RANK_EMPTY = { bg: "#3a4652", ink: "#9aa8b4" };
+const RANK_KINDS = [["koshien", "夏＋選抜"], ["summer", "夏の甲子園"], ["spring", "選抜"]];
+const RANK_METRICS = [["appearances", "出場"], ["wins", "勝利"], ["rate", "勝率"], ["championships", "優勝"]];
+// 学校別の列：[キー, 見出し, 小さな添え書き]。キーは「種類.項目」か大会の優勝（ゲームだけ）
+const RANK_SCHOOL_COLUMNS = [
+  ["K.appearances", "出場"], ["K.wins", "勝"], ["K.losses", "敗"], ["K.rate", "勝率"], ["K.championships", "優勝"],
+  ["jingu", "神宮優勝", "ゲームで"], ["regional", "地区優勝", "ゲームで"], ["prefectural", "県大会優勝", "ゲームで"],
+];
+
+function rankRate(v) {
+  return v == null ? "−" : (v >= 1 ? "1.000" : v.toFixed(3).replace(/^0/, ""));
+}
+
+function rankValue(row, key, kind) {
+  if (key === "name") return row.name;
+  if (key === "prefecture") return row.prefecture_code;
+  const [part, field] = key.split(".");
+  return field ? row[part === "K" ? kind : part][field] : row[part];
+}
+
+// 並べた行に順位（同じ値は同じ順位）を付ける
+function rankedRows(rows, sort, kind) {
+  const dir = sort.dir || -1;
+  const keyOf = (r) => rankValue(r, sort.key, kind);
+  const sorted = [...rows].sort((a, b) => {
+    const x = keyOf(a), y = keyOf(b);
+    // 同じ値なら甲子園の出場の多い順、次に都道府県・校名の順
+    if (x === y) return (b[kind].appearances - a[kind].appearances)
+      || (a.prefecture_code || "").localeCompare(b.prefecture_code || "") || (a.name || "").localeCompare(b.name || "");
+    if (x == null) return 1;
+    if (y == null) return -1;
+    return (x < y ? -1 : 1) * dir;
+  });
+  let rank = 0, last;
+  return sorted.map((r, i) => {
+    const v = keyOf(r);
+    if (i === 0 || v !== last) { rank = i + 1; last = v; }
+    return { ...r, rank };
+  });
+}
+
+function rankHead(key, label, sort, note = "") {
+  const on = sort.key === key;
+  const text = ["name", "prefecture"].includes(key);
+  return `<th class="sortable${text ? "" : " n"}${on ? " sorted" : ""}" data-rank-sort="${esc(key)}">${esc(label)}${note ? `<small>${esc(note)}</small>` : ""}${on ? (sort.dir > 0 ? " ▲" : " ▼") : ""}</th>`;
+}
+
+function rankMapLegend(map, metric) {
+  const fmt = (v) => metric === "rate" ? rankRate(v) : String(v);
+  const label = RANK_METRICS.find(([k]) => k === metric)[1];
+  if (!map.bounds.length) return `<span class="muted">${esc(label)}：まだ記録がありません</span>`;
+  return `<span class="muted">${esc(label)}</span>${map.bounds.map(([lo, hi], i) =>
+    `<span class="rank-key"><i style="background:${RANK_COLORS[i].bg}"></i>${map.integer ? (lo === hi ? lo : `${lo}〜${hi}`) : `${fmt(lo)}〜${fmt(hi)}`}</span>`).join("")}
+    <span class="rank-key"><i style="background:${RANK_EMPTY.bg}"></i>${metric === "rate" ? "試合なし・0" : "0"}</span>`;
+}
+
+async function renderRankings(content) {
+  const requested = JSON.stringify(state.recordsRankings);
+  const data = await call("records_rankings", state.recordsRankings);
+  if (requested !== JSON.stringify(state.recordsRankings)) return;
+  if (!data || state.page !== "records" || state.recordsTab !== "rankings") return;
+  const sort = state.recordsRankings.sort || { key: "K.appearances", dir: -1 };
+  state.recordsRankings = { ...data.filters, sort };
+  refreshLocation();
+  const f = data.filters, kind = f.kind;
+  const opt = (value, text, on) => `<option value="${esc(value)}" ${String(on ?? "") === String(value) ? "selected" : ""}>${esc(text)}</option>`;
+  const select = (key, label, items, extra = "") => `<label>${label}<select id="rk-${key}" ${extra}>${items.map(([v, t]) => opt(v, t, f[key])).join("")}</select></label>`;
+  const schoolsView = f.view === "schools";
+  const sourceNote = data.use_actual
+    ? "甲子園は実際の記録（ゲーム開始前）とゲームの記録の合計です。神宮・地区・県大会の優勝はゲームの記録だけです。"
+    : (f.actual && f.period !== "all" ? "期間を区切ったときは、ゲームの記録だけを数えます（実際の記録には年ごとの勝敗がないため）。" : "ゲームの記録だけを数えています。");
+  const period = data.years.length ? `ゲームの記録：${data.years[0]}〜${data.years[1]}年度。` : "";
+  let body;
+  if (schoolsView) {
+    const rows = rankedRows(data.schools, sort, kind);
+    body = `<table class="list zebra rankings"><thead><tr><th class="n">順位</th>${rankHead("name", "学校", sort)}${rankHead("prefecture", "都道府県", sort)}<th>設置者</th>
+      ${RANK_SCHOOL_COLUMNS.map(([k, label, note]) => rankHead(k, label, sort, note)).join("")}</tr></thead>
+      <tbody>${rows.map((r) => `<tr><td class="n">${r.rank}</td><td><span class="link" data-school="${esc(r.school_id)}">${esc(r.name)}</span></td>
+        <td>${esc(r.prefecture)}</td><td class="muted">${esc(r.ownership)}</td>
+        ${RANK_SCHOOL_COLUMNS.map(([k]) => {
+          const v = rankValue(r, k, kind);
+          return `<td class="n${sort.key === k ? " strong" : ""}">${k.endsWith(".rate") ? rankRate(v) : (v || '<span class="muted">0</span>')}</td>`;
+        }).join("")}</tr>`).join("")}</tbody></table>
+      ${rows.length ? "" : '<p class="muted empty-hint">条件に合う学校がありません。</p>'}`;
+  } else {
+    const rows = rankedRows(data.prefecture_rows, sort.key.startsWith("K.") || sort.key === "prefecture" ? sort : { key: "K.appearances", dir: -1 }, kind);
+    const colors = Object.fromEntries(Object.entries(data.map.classes).map(([code, c]) => [code, c == null ? RANK_EMPTY : RANK_COLORS[c]]));
+    const values = Object.fromEntries(Object.entries(data.map.values).map(([code, v]) => [code, f.metric === "rate" ? rankRate(v) : v]));
+    body = `<div class="rank-split">
+      <table class="list zebra rankings"><thead><tr><th class="n">順位</th>${rankHead("prefecture", "都道府県", sort)}
+        ${RANK_SCHOOL_COLUMNS.slice(0, 5).map(([k, label]) => rankHead(k, label, sort)).join("")}</tr></thead>
+        <tbody>${rows.map((r) => `<tr><td class="n">${r.rank}</td><td><span class="link" data-rank-pref="${esc(r.prefecture_code)}">${esc(r.prefecture)}</span></td>
+          ${RANK_SCHOOL_COLUMNS.slice(0, 5).map(([k]) => {
+            const v = rankValue(r, k, kind);
+            return `<td class="n">${k.endsWith(".rate") ? rankRate(v) : v}</td>`;
+          }).join("")}</tr>`).join("")}</tbody></table>
+      <div class="panel rank-map"><h3>勢力図（${esc(RANK_KINDS.find(([k]) => k === kind)[1])}の${esc(RANK_METRICS.find(([k]) => k === f.metric)[1])}）</h3>
+        ${tileMapHtml({ colors, values, legend: rankMapLegend(data.map, f.metric) })}
+        <p class="muted record-note">マスを押すと、その都道府県の学校別に移ります。</p></div></div>`;
+  }
+  content.innerHTML = `<div class="head"><h2>記録</h2>${recordsTabs()}</div>
+    <div class="best8-filters">
+      <button class="chip ${schoolsView ? "on" : ""}" data-rk-view="schools">学校別</button>
+      <button class="chip ${schoolsView ? "" : "on"}" data-rk-view="prefectures">都道府県別</button>
+      <span class="sep"></span>
+      ${select("kind", "甲子園", RANK_KINDS)}
+      <label class="toggle${f.period !== "all" ? " off" : ""}"><input type="checkbox" id="rk-actual" ${f.actual ? "checked" : ""} ${f.period !== "all" ? "disabled" : ""}>実際の記録も足す</label>
+      ${select("period", "期間", data.periods)}
+      ${schoolsView ? `<span class="sep"></span>
+        ${select("region", "地域", [["", "すべて"], ...data.regions])}
+        ${select("prefecture", "都道府県", [["", "すべて"], ...data.prefectures])}
+        <button class="btn small" type="button" id="rk-map">地図から選ぶ</button>
+        ${select("owner", "設置者", [["", "すべて"], ["private", "私立"], ["public", "公立"]])}`
+        : `${select("metric", "地図の色", RANK_METRICS)}`}
+    </div>
+    <div class="scroll">
+      <p class="muted record-note">${esc(period + sourceNote)}見出しを押すと並べ替えます。</p>
+      ${body}
+    </div>`;
+  bindRecordsTabs(content);
+  for (const key of ["kind", "period", "region", "prefecture", "owner", "metric"]) {
+    const el = $("rk-" + key);
+    if (el) el.addEventListener("change", (e) => {
+      state.recordsRankings[key] = e.target.value;
+      if (key === "region") state.recordsRankings.prefecture = "";
+      renderPage();
+    });
+  }
+  $("rk-actual").addEventListener("change", (e) => { state.recordsRankings.actual = e.target.checked; renderPage(); });
+  content.querySelectorAll("[data-rk-view]").forEach((b) => b.addEventListener("click", () => {
+    state.recordsRankings.view = b.dataset.rkView;
+    renderPage();
+  }));
+  content.querySelectorAll("[data-rank-sort]").forEach((th) => th.addEventListener("click", () => {
+    const key = th.dataset.rankSort;
+    // 数は多い順から、校名・都道府県は並びの順から
+    const first = ["name", "prefecture"].includes(key) ? 1 : -1;
+    state.recordsRankings.sort = { key, dir: sort.key === key ? -sort.dir : first };
+    renderPage();
+  }));
+  const toPrefecture = (code) => {
+    Object.assign(state.recordsRankings, { view: "schools", prefecture: code, region: "" });
+    renderPage();
+  };
+  content.querySelectorAll("[data-rank-pref]").forEach((a) => a.addEventListener("click", () => toPrefecture(a.dataset.rankPref)));
+  content.querySelectorAll(".rank-map [data-map-pref]").forEach((b) => b.addEventListener("click", () => toPrefecture(b.dataset.mapPref)));
+  content.querySelectorAll(".link[data-school]").forEach((a) => a.addEventListener("click", () => openSchool(a.dataset.school)));
+  const map = $("rk-map");
+  if (map) map.addEventListener("click", async () => {
+    const picked = await pickFromMap({ title: "地図から選ぶ（地域・都道府県）", pickRegion: true, region: f.region, prefecture: f.prefecture });
+    if (!picked) return;
+    Object.assign(state.recordsRankings, picked);
+    renderPage();
+  });
+}
+
 async function renderRecords(content) {
   if (["best8", "entrants"].includes(state.recordsTab)) return renderBest8(content);
   if (state.recordsTab === "players") return renderPlayerRecords(content);
+  if (state.recordsTab === "rankings") return renderRankings(content);
   const data = await call("records", state.recordsYear || null);
   if (!data) return;
   state.recordsYear = data.school_year;
@@ -1964,6 +2134,7 @@ async function switchSave(name, ...args) {
   state.recordsBest8 = {};
   state.recordsEntrants = {};
   state.recordsPlayers = {};
+  state.recordsRankings = {};
   state.matches = { date: "", detail: null };
   state.schools = { ...state.schools, data: null, view: [], selected: null, detail: null, tab: "overview", player: null, coach: null };
   state.bracket = null;

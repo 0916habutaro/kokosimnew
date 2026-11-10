@@ -57,7 +57,7 @@ from .player_views import (
     snapshot_values,
     trend_keys,
 )
-from . import player_records, record_filters
+from . import player_records, rankings, record_filters
 from .save_views import next_slot_id, recovery_rows, slot_rows
 from .school_names import EditedNames, SchoolNames, prefecture_names
 from .school_views import (
@@ -188,6 +188,8 @@ class GameScreenData:
         # 進行中の年度として足している集計（閉じたら履歴の集計に入れ替える）
         self._live_tallies: set[int] = set()
         self._records_players_memo: dict[tuple, dict] = {}
+        # 閉じた年度 → ランキングの集計（rankings.year_tally）
+        self._ranking_years: dict[int, dict] = {}
         self._coach_history = None
         # コールドの規則（[回, 点差]）。試合の行に「7回コールド」を付けるのに使う
         self._mercy = json.loads(
@@ -1495,6 +1497,112 @@ class GameScreenData:
         self._records_players_memo[memo] = result
         return result
 
+    # ---- 記録：ランキング ----
+
+    RANKING_PERIODS = (("all", "全期間"), ("5", "直近5年"), ("10", "直近10年"), ("20", "直近20年"))
+
+    def ranking_tallies(self) -> dict[int, dict]:
+        """年度 → ランキングの集計（ゲームの記録だけ）。
+
+        閉じた年度は試合の履歴に残した集計を読む（なければ年度の成績から一度だけ作って残す）。
+        進行中の年度は、終わった大会だけを毎回数える（その年度の成績は読み直さない）。"""
+        archive = self.service._history_archive(self.session.slot_id)
+        live = _seasons(self.state)
+        closed = [y for y in self._years() if y not in live and y not in self._ranking_years]
+        stored = archive.school_rankings(closed) if closed else {}
+        for year in closed:
+            try:
+                tally = rankings.from_blob(stored[year]) if year in stored else None
+            except ValueError:
+                tally = None  # 集計の形が古い（作り直す）
+            if tally is None:
+                tally = rankings.year_tally(self._results(year))
+                archive.store_school_rankings(year, rankings.to_blob(tally))
+            self._ranking_years[year] = tally
+        out = {y: t for y, t in self._ranking_years.items() if y not in live}
+        for year, season in live.items():
+            out[year] = rankings.year_tally(
+                self._results(year),
+                lambda cid, season=season: cid in season.competitions and season.competitions[cid].is_complete,
+            )
+        return out
+
+    def records_rankings(self, filters=None) -> dict:
+        """記録の画面の「ランキング」：学校別と都道府県別の回数。
+
+        甲子園は「実際＋ゲーム」（``actual``）と「ゲームだけ」を切り替える。実際の記録は表示の
+        ときだけ足し、期間を区切ったときは足さない（年ごとの勝敗がないため）。"""
+        f = dict(filters or {})
+        tallies = self.ranking_tallies()
+        current = self._current_year()
+        periods = [key for key, _ in self.RANKING_PERIODS]
+        if str(f.get("period")) not in periods:
+            f["period"] = "all"
+        f["period"] = str(f["period"])
+        years = None if f["period"] == "all" else set(range(current - int(f["period"]) + 1, current + 1))
+        f["actual"] = bool(f.get("actual", True))
+        # 期間を区切ったときは実際の記録を足さない（年ごとの勝敗がないため）
+        use_actual = f["actual"] and years is None
+        f["view"] = f.get("view") if f.get("view") in ("schools", "prefectures") else "schools"
+        if f.get("owner") not in ("", "private", "public"):
+            f["owner"] = ""
+        regions = sorted(set(self._regions.values()))
+        if f.get("region") not in regions:
+            f["region"] = ""
+        prefectures = sorted(code for code, region in self._regions.items()
+                             if not f["region"] or region == f["region"])
+        if f.get("prefecture") not in prefectures:
+            f["prefecture"] = ""
+        kinds = ("koshien", "summer", "spring")
+        if f.get("kind") not in kinds:
+            f["kind"] = "koshien"
+        metrics = ("appearances", "wins", "rate", "championships")
+        if f.get("metric") not in metrics:
+            f["metric"] = "appearances"
+        schools = self.service.repo.schools
+
+        def prefecture_of(school_id):
+            return schools.get(school_id, {}).get("prefecture_code", "")
+
+        totals = rankings.school_totals(tallies, years, self.actual_koshien if use_actual else None)
+        # 学校別：地域・都道府県・私立／公立で絞る（都道府県別は全国の47都道府県）
+        rows = []
+        for school_id, total in totals.items():
+            pref = prefecture_of(school_id)
+            if f["prefecture"] and pref != f["prefecture"]:
+                continue
+            if f["region"] and self._regions.get(pref) != f["region"]:
+                continue
+            owner = self._ownership(school_id)
+            if f["owner"] and (owner == "私立") != (f["owner"] == "private"):
+                continue
+            rows.append({"school_id": school_id, "name": self.names(school_id),
+                         "prefecture_code": pref, "prefecture": self.prefectures.get(pref, ""),
+                         "ownership": owner, **total})
+        by_prefecture = rankings.prefecture_totals(totals, prefecture_of)
+        prefecture_rows = [
+            {"prefecture_code": code, "prefecture": name,
+             **by_prefecture.get(code, rankings.finish(rankings.empty()))}
+            for code, name in sorted(self.prefectures.items())
+        ]
+        value = {row["prefecture_code"]: row[f["kind"]][f["metric"]] for row in prefecture_rows}
+        steps = rankings.color_steps(value)
+        region_names = {r["region_id"]: r["region_name"]
+                        for r in _csv_rows(self.service.repo.data_dir, "baseball_regions.csv")}
+        game_years = sorted(tallies)
+        return {
+            "filters": f,
+            "use_actual": use_actual,
+            "periods": [list(p) for p in self.RANKING_PERIODS],
+            "years": [min(years), max(years)] if years else ([game_years[0], game_years[-1]] if game_years else []),
+            "regions": [[r, region_names.get(r, r)] for r in regions],
+            "prefectures": [[p, self.prefectures.get(p, p)] for p in prefectures],
+            "schools": rows,
+            "prefecture_rows": prefecture_rows,
+            "map": {"values": value, "classes": steps["classes"], "bounds": steps["bounds"],
+                    "integer": steps["integer"]},
+        }
+
     def records(self, school_year=None) -> dict:
         """年度ごとの甲子園・選抜・神宮の上位校と、都道府県の代表校。"""
         years = self._years()
@@ -2547,6 +2655,7 @@ class GameScreenData:
         self._tallies = {}
         self._live_tallies = set()
         self._records_players_memo = {}
+        self._ranking_years = {}
         self._coach_history = None
         self.service.forget_closed_seasons()
         self.names.edits = self._load_edits()
