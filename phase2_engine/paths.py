@@ -34,6 +34,8 @@ FILE_SUBDIR = {
     'qualification_rules.csv': "competitions",
     'regional_feeder_rules.csv': "competitions",
     'regional_qualification_playoffs.csv': "competitions",
+    'regional_hosts.csv': "competitions",
+    'regional_draw_rules.csv': "competitions",
     'selection_rules.csv': "competitions",
     'stage12c3_structured_competition_execution.csv': "competitions",
     'tokyo_autumn_preliminary_policies.csv': "competitions",
