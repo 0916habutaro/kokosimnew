@@ -7,12 +7,12 @@
     "unresolved_43_audit_2026.csv",
     "seed_examples_2026.csv"
   ],
-  "source_lookup": "records[].source_csv_rowはprefectural_seed_rules_2026.csvのヘッダーを含む1始まり行番号。詳細事実・出典・未確定事項は元CSVを正本とする。",
+  "source_lookup": "records[].source_csv_rowはprefectural_seed_rules_2026.csvのヘッダーを含む1始まり行番号。詳細事実・出典・未確定事項は元CSVを正本とする。 学校別例には地区大会4件も含まれるが県大会レコードの集計対象から除外する。",
   "interpretation": {
     "all_ready": false,
     "source_field_presence_only": "present_fieldsは文字列があることだけを表す。正式な抽選ルールの証明ではない。",
     "blank_not_zero": "未記録のseed_count=nullは正式シード0校を意味しない。",
-    "school_id_notice": "学校例183件のschool_idがすべて空欄のため、学校マスターとの対応は別作業。",
+    "school_id_notice": "seed_examples_2026.csvの183件中、県大会179件＋地区大会4件。いずれもschool_id空欄。県大会の参照は179件に限定。",
     "selection_rule_provenance": "シード数値は公式確定と暫定値が混在。暫定ならseed_count_statusで区別。",
     "runtime_warning": "県大会の段階・抽選配置・BYE・途中再抽選を確定させるまではゲーム側ルールとして直接読み込まない。"
   },
@@ -31,9 +31,11 @@
     "official_rule_links": 20,
     "official_bracket_links": 26,
     "p0_topology_or_exception_count": 25,
-    "school_examples": 183,
-    "school_ids_linked": 0,
-    "recorded_with_5_fields": 24
+    "recorded_with_5_fields": 24,
+    "school_examples_total_file": 183,
+    "school_examples_prefectural": 179,
+    "school_examples_regional": 4,
+    "school_ids_linked_prefectural": 0
   },
   "issue_codes": {
     "DOCUMENT_MAIN_FIELD_SIZE": {
