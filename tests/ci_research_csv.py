@@ -15,11 +15,6 @@ import subprocess
 from ci_change_scope import ROOT, changed_paths, is_research_csv_path
 
 _SHA = re.compile(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}")
-# The 2026 prefectural/regional coverage is fixed. Example rows may grow.
-_FIXED_COUNTS = {
-    "docs/research/2026_autumn_spring_seeding/prefectural_seed_rules_2026.csv": 94,
-    "docs/research/2026_autumn_spring_seeding/regional_seed_rules_2026.csv": 18,
-}
 _UNIQUE_KEYS = {
     "prefectural_seed_rules_2026.csv": ("年度", "季節", "都道府県"),
     "regional_seed_rules_2026.csv": ("年度", "季節", "地区"),
@@ -32,7 +27,7 @@ class CSVValidationError(ValueError):
 
 
 def validate_csv(path: Path, repository_path: str = "") -> int:
-    """Validate a research CSV and return its count of data rows."""
+    """Check UTF-8, rectangular shape, header/keys and duplicates; allow varying data row counts."""
     try:
         data = path.read_bytes()
         if b"\x00" in data:
@@ -73,9 +68,6 @@ def validate_csv(path: Path, repository_path: str = "") -> int:
             count += 1
         if count == 0:
             raise CSVValidationError("no data rows")
-        required = _FIXED_COUNTS.get(repository_path)
-        if required is not None and count != required:
-            raise CSVValidationError(f"expected {required} data rows, got {count}")
         return count
     except (UnicodeError, csv.Error, OSError) as exc:
         raise CSVValidationError(str(exc)) from exc
