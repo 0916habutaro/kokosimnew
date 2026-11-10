@@ -17,7 +17,9 @@ from .models import AnnualCompetitionInput
 from .paths import resolve_data_file
 from .randomness import shuffled
 from .repository import DataRepository
-from .seed_draw import choose_seeds, seed_sources, summer_seed_rules
+from .seed_draw import (
+    chooses_after_prelim, choose_seeds, game_seed_rules, merge_rankings, seed_sources,
+)
 from .senbatsu_selection import (
     actual_last_koshien_years,
     load_selection_config,
@@ -1082,13 +1084,28 @@ class LiveSeasonDependencyRuntimeState:
             rebuilt.append(cid)
         return rebuilt
 
-    # ---- 夏の地方大会の成績シード（game_definition.md §8） ----
+    # ---- 成績シード（game_definition.md §8「夏の地方大会のシード」「秋季・春季の県大会のシード」） ----
 
-    def _summer_seed_rankings(self, competition_id: str) -> dict | None:
+    def _seed_prefecture(self, competition_id: str) -> str:
+        """大会の都道府県。北海道・東京の秋季大会のように地区の大会でも1都道府県なら、その都道府県。"""
+        competition = self.repo.competition(competition_id)
+        if competition.get("prefecture_code"):
+            return competition["prefecture_code"]
+        region = competition.get("region_id", "")
+        prefectures = {
+            row["prefecture_code"]
+            for row in self._read_csv(self.repo.data_dir, "prefecture_region_memberships.csv")
+            if row.get("region_id") == region
+            and row.get("season_segment") == competition.get("season_segment")
+        }
+        return next(iter(prefectures)) if len(prefectures) == 1 else ""
+
+    def _seed_rankings(self, competition_id: str) -> dict | None:
         """シードを選ぶ元の大会の順位（大会の種類 → 順位の並び）。
-        当年の元の大会がまだ終わっていなければ None。前年の秋の結果がなければ使わない。"""
-        rules = summer_seed_rules(self.repo, competition_id)
-        prefecture = self.repo.competition(competition_id).get("prefecture_code", "")
+        当年の元の大会がまだ終わっていなければ None。前年の秋の結果がなければ使わない。
+        同じ種類の大会が2つある都道府県（北・南北海道、東・西東京の夏）は2つを合わせる。"""
+        rules = game_seed_rules(self.repo, competition_id)
+        prefecture = self._seed_prefecture(competition_id)
         rankings: dict[str, tuple[str, ...]] = {}
         for kind, offset in seed_sources(rules):
             if offset < 0:
@@ -1098,34 +1115,47 @@ class LiveSeasonDependencyRuntimeState:
                 continue
             sources = [
                 cid for cid in self.annual_templates
-                if self.repo.competition(cid).get("competition_type") == kind
-                and self.repo.competition(cid).get("prefecture_code") == prefecture
+                if cid != competition_id
+                and self.repo.competition(cid).get("competition_type") == kind
+                and self._seed_prefecture(cid) == prefecture
             ]
-            for cid in sources:
+            found = []
+            for cid in sorted(sources):
                 scheduled = self.competitions.get(cid)
                 if scheduled is None or not scheduled.is_complete:
                     return None
                 outcome = scheduled.to_competition_run().outcome
-                rankings[kind] = tuple(outcome.final_ranking_school_ids if outcome else ())
+                found.append(tuple(outcome.final_ranking_school_ids if outcome else ()))
+            if found:
+                rankings[kind] = found[0] if len(found) == 1 else tuple(merge_rankings(found))
         return rankings
 
-    def _with_summer_seeds(
+    def _with_result_seeds(
         self, competition_id: str, annual: AnnualCompetitionInput, *, refresh: bool = False,
     ) -> AnnualCompetitionInput:
-        """春季県大会（と前年の秋季県大会）の結果から、その年のシード校を選ぶ。
-        元の大会が終わっていなければシードなしでつくり、終わったら組み直す（seed_pending）。
-        連合チームは代表校の枠でシードになる（春に連合で勝ち上がった代表校も同じ）。"""
-        rules = summer_seed_rules(self.repo, competition_id)
+        """前の大会の結果から、その年のシード校を選ぶ（夏：春季県大会と前年の秋季県大会、
+        秋：夏の地方大会、春：前年の秋季県大会）。元の大会が終わっていなければシードなしで
+        つくり、終わったら組み直す（seed_pending）。支部・地区予選のある大会は、予選が終わって
+        本大会を組むときに選ぶ（元の大会の順位だけここで入れる）。
+        連合チームは代表校の枠でシードになる（前の大会に連合で出た代表校も同じ）。"""
+        rules = game_seed_rules(self.repo, competition_id)
         if not rules or annual.main_bracket_slots:
             return annual
         if annual.main_seed_school_ids and not refresh:
             return annual  # 入力で決めてあるシード
-        rankings = self._summer_seed_rankings(competition_id)
+        rankings = self._seed_rankings(competition_id)
         if rankings is None:
             self.seed_pending.add(competition_id)
-            return annual
-        self.seed_pending.discard(competition_id)
+            rankings = {}
+        else:
+            self.seed_pending.discard(competition_id)
         annual = deepcopy(annual)
+        if chooses_after_prelim(self.repo, competition_id, rules):
+            annual.main_seed_after_prelim = True
+            annual.main_seed_rankings = {kind: list(ids) for kind, ids in rankings.items()}
+            return annual
+        if competition_id in self.seed_pending:
+            return annual
         annual.main_seed_school_ids = choose_seeds(
             rules, rankings, annual.entrant_school_ids,
             base_seed=annual.rng_seed, namespace=competition_id,
@@ -1133,8 +1163,8 @@ class LiveSeasonDependencyRuntimeState:
         return annual
 
     def rebuild_pending_seeds(self, today: str) -> list[str]:
-        """シードを選ぶ元の大会が終わったら、まだ試合をしていない夏の地方大会を
-        シードつきで組み直す。組み直した大会を返す。"""
+        """シードを選ぶ元の大会が終わったら、まだ試合をしていない大会をシードつきで組み直す。
+        予選のある大会は、本大会をまだ組んでいなければ元の大会の順位を入れる。組み直した大会を返す。"""
         rebuilt = []
         for cid in sorted(self.seed_pending):
             scheduled = self.competitions.get(cid)
@@ -1142,14 +1172,27 @@ class LiveSeasonDependencyRuntimeState:
             if scheduled is None or annual is None or scheduled.is_complete:
                 self.seed_pending.discard(cid)
                 continue
-            if self._summer_seed_rankings(cid) is None:
+            rankings = self._seed_rankings(cid)
+            if rankings is None:
+                continue
+            runtime = scheduled.runtime
+            if getattr(getattr(runtime, "annual", None), "main_seed_after_prelim", False):
+                self.seed_pending.discard(cid)
+                if getattr(runtime, "main_runtime", None) is None:
+                    runtime.annual.main_seed_rankings = {
+                        kind: list(ids) for kind, ids in rankings.items()
+                    }
+                else:
+                    self.history.append({
+                        "action": "seed_source_late", "competition_id": cid, "date": today,
+                    })
                 continue
             if any(match.status != SCHEDULE_PENDING or match.match_date <= today
                    for match in scheduled.matches.values()):
-                # 元の大会が夏の大会の始まりまでに終わらなかった：シードなしのまま
+                # 元の大会が大会の始まりまでに終わらなかった：シードなしのまま
                 self.seed_pending.discard(cid)
                 self.history.append({
-                    "action": "summer_seed_source_late",
+                    "action": "seed_source_late",
                     "competition_id": cid,
                     "date": today,
                 })
@@ -1171,12 +1214,12 @@ class LiveSeasonDependencyRuntimeState:
     ) -> bool:
         base_annual = deepcopy(annual)
         annual = self._with_koshien_exemption(competition_id, annual)
-        annual = self._with_summer_seeds(competition_id, annual)
+        annual = self._with_result_seeds(competition_id, annual)
         seeded = annual
         annual = self._with_unions(competition_id, annual)
         if annual is not seeded and seeded.main_seed_school_ids:
             # 連合の代表校でなくなった・出ない学校の代わりに、次の順位の学校を繰り上げる
-            annual = self._with_summer_seeds(competition_id, annual, refresh=True)
+            annual = self._with_result_seeds(competition_id, annual, refresh=True)
         self._refresh_koshien_holds()
         scheduled = (
             self.engine

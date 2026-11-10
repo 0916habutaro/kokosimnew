@@ -122,6 +122,11 @@ class AnnualCompetitionInput:
     # is useful when a prefecture has a main-tournament seed rule not yet modeled as a
     # Stage 11 seed event. Order is strongest seed first.
     main_seed_school_ids: List[str] = field(default_factory=list)
+    # 支部・地区予選のある大会の成績シード（seed_draw.main_seeds_after_prelim）。
+    # 予選が終わって本大会を組むときに、予選の成績とこの順位（大会の種類 → 順位の並び。
+    # 秋は夏の地方大会、春は前年の秋季県大会）からシード校を選ぶ
+    main_seed_after_prelim: bool = False
+    main_seed_rankings: Dict[str, List[str]] = field(default_factory=dict)
     # Optional exact annual MAIN draw. One item per power-of-two bracket slot; use an
     # empty string for a first-round bye. If omitted, a reproducible standard draw is
     # generated with seed spreading.
