@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, fields, replace
 import math
+from datetime import date
 from pathlib import Path
 from typing import Iterable, Iterator
 
@@ -430,11 +431,14 @@ class SchoolAwarePlayerAbilityGenerator:
         base_seed: int,
         *,
         cohort: Iterable[int] | None = None,
+        day: date | None = None,
     ) -> PlayerAbilitySnapshot:
         """``cohort`` は同じ学校・入学年度の部員番号（有望な新入生を割り当てる）。
-        渡さなければその選手1人の学年として扱う。"""
+        渡さなければその選手1人の学年として扱う。``day`` は名簿の能力を見る日
+        （試合の日。省くと名簿の今日）。"""
         if self.source is not None:
-            snapshot = self.source.ability(player)
+            snapshot = (self.source.ability(player, day) if day is not None
+                        else self.source.ability(player))
             # 3月に始まる大会は前の年度の名簿の能力で、大会の年度として戦う
             if snapshot.reference_year != reference_year:
                 snapshot = replace(snapshot, reference_year=reference_year)

@@ -643,13 +643,21 @@ class RosterBook:
             self.version += 1
             self._abilities.clear()
 
-    def ability(self, player: Player) -> PlayerAbilitySnapshot:
-        """その選手の今の能力（復帰直後は少し下がる）。"""
+    def recovery(self, player: Player, day: date | None) -> tuple[Injury | None, int]:
+        """その日の復帰直後の (治った怪我, 段階)。段階が0なら (None, 0)。"""
+        recent = self.state(player).recovering(day) if day is not None else None
+        step = injury_model().recovery_step(recent, day) if recent else 0
+        return (recent, step) if step else (None, 0)
+
+    def ability(self, player: Player, day: date | None = None) -> PlayerAbilitySnapshot:
+        """その選手のその日（省くと今日）の能力（復帰直後は少し下がる）。
+
+        試合は試合の日を渡す。新規開始前の試合のように ``today`` がまだない時にも、
+        続けて遊んだときとロードしたときで同じ能力になるように。"""
         with self._lock:
             state = self.state(player)
-            recent = state.recovering(self.today) if self.today is not None else None
-            step = injury_model().recovery_step(recent, self.today) if recent else 0
-            key = (player.player_id, player.academic_year, step)
+            recent, step = self.recovery(player, day if day is not None else self.today)
+            key = (player.player_id, player.academic_year, step, recent)
             cached = self._abilities.get(key)
             if cached is None:
                 if self._fields is None:
