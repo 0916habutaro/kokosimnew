@@ -24,7 +24,7 @@
     "unknown_seed_counts": 32,
     "participants_field_recorded": 79,
     "selection_source_field_recorded": 82,
-    "placement_field_recorded": 52,
+    "placement_field_recorded": 53,
     "first_round_field_recorded": 47,
     "bye_field_recorded": 52,
     "redraw_field_recorded": 2,
@@ -366,7 +366,8 @@
         "main_participants",
         "bye",
         "official_drawing",
-        "official_rules"
+        "official_rules",
+        "placement"
       ],
       "open_issue_codes": [
         "CONFIRM_FORMAL_SEED_STATUS",
@@ -375,11 +376,278 @@
         "VERIFY_SEEDED_FIRST_ROUND",
         "VERIFY_REDRAW_PRESENCE"
       ],
-      "audit_43_status": "公式原図は存在、本大会のシード定義未確定",
+      "audit_43_status": "一次28＋敗者復活19＋夏甲子園免除1、県大会48校・BYE16を公式原図で確認。本大会の正式シード有無は未確定",
       "school_examples": 0,
       "school_id_links": 0,
       "bracket_position_examples": 0,
-      "targeted_research_hint": "48校の公式原図のBYE・シード位置・地区予選からの進出条件を学校単位で照合。"
+      "targeted_research_hint": "【2026原図で解決済】一次140→代表28、敗者復活112→代表19、夏甲子園出場の拓大紅陵が予選免除1、計48。48校のBYE16枠を学校名・番号で復元、8つの6校QF区画ごとに2BYE。『本大会正式シード』の有無・人数、BYE選定・抽選位置保護は引き続き不明。",
+      "prefectural_bracket_observation_2026": {
+        "stages": [
+          {
+            "stage": "primary_preliminary",
+            "participants_teams": 140,
+            "participants_schools": 161,
+            "qualifiers": 28,
+            "first_held": "2026-08-16",
+            "last_held": "2026-08-21",
+            "source": "https://chbf.or.jp/wp-content/uploads/2026/09/%E2%91%A5%EF%BC%B2%EF%BC%98%E7%A7%8B%E5%AD%A3%E4%BA%88%E9%81%B8%E7%B5%84%E5%90%88%E3%81%9B%EF%BC%88%EF%BC%98%E6%9C%8821%E6%97%A5%EF%BC%89-%E8%A8%82%E6%AD%A3.pdf"
+          },
+          {
+            "stage": "repechage",
+            "participants_teams": 112,
+            "participants_schools": 133,
+            "qualifiers": 19,
+            "draw_date": "2026-08-25",
+            "first_held": "2026-08-29",
+            "last_held": "2026-09-04",
+            "source": "https://chbf.or.jp/wp-content/uploads/2026/09/%E2%91%A4%EF%BC%B2%EF%BC%98%E7%A7%8B%E5%AD%A3%E4%BA%88%E9%81%B8%E6%95%97%E8%80%85%E5%BE%A9%E6%B4%BB%E6%88%A6%E7%B5%84%E5%90%88%E3%81%9B%EF%BC%88%EF%BC%99%E6%9C%88%EF%BC%94%E6%97%A5%EF%BC%89-%E8%A8%82%E6%AD%A3.pdf"
+          },
+          {
+            "stage": "koshien_exemption",
+            "participants": 1,
+            "team": "拓殖大紅陵",
+            "source_qualification": "2026 summer Koshien Chiba representative",
+            "exempted_from": "primary prelim and repechage",
+            "not_equivalent_to": [
+              "main_tournament_formal_seed",
+              "main_first_round_bye"
+            ],
+            "main_bracket_slot": 35,
+            "main_first_round_opponent": "千葉経大付",
+            "score": "拓大紅陵3-0千葉経大付"
+          },
+          {
+            "stage": "prefectural_main",
+            "participants": 48,
+            "draw_date": "2026-09-09",
+            "first_round_matches": 16,
+            "first_round_byes": 16,
+            "all_qualifiers": {
+              "primary_preliminary": 28,
+              "repechage": 19,
+              "koshien_exemption": 1
+            },
+            "regional_qualifiers": 2
+          }
+        ],
+        "main_bracket": {
+          "qualifying_round_name": "1回戦",
+          "quarterfinal_sections": [
+            {
+              "slots": [
+                1,
+                6
+              ],
+              "first": 1,
+              "last": 6
+            },
+            {
+              "slots": [
+                7,
+                12
+              ],
+              "first": 7,
+              "last": 12
+            },
+            {
+              "slots": [
+                13,
+                18
+              ],
+              "first": 13,
+              "last": 18
+            },
+            {
+              "slots": [
+                19,
+                24
+              ],
+              "first": 19,
+              "last": 24
+            },
+            {
+              "slots": [
+                25,
+                30
+              ],
+              "first": 25,
+              "last": 30
+            },
+            {
+              "slots": [
+                31,
+                36
+              ],
+              "first": 31,
+              "last": 36
+            },
+            {
+              "slots": [
+                37,
+                42
+              ],
+              "first": 37,
+              "last": 42
+            },
+            {
+              "slots": [
+                43,
+                48
+              ],
+              "first": 43,
+              "last": 48
+            }
+          ],
+          "round1_pairs": [
+            [
+              2,
+              3
+            ],
+            [
+              4,
+              5
+            ],
+            [
+              8,
+              9
+            ],
+            [
+              10,
+              11
+            ],
+            [
+              14,
+              15
+            ],
+            [
+              16,
+              17
+            ],
+            [
+              20,
+              21
+            ],
+            [
+              22,
+              23
+            ],
+            [
+              26,
+              27
+            ],
+            [
+              28,
+              29
+            ],
+            [
+              32,
+              33
+            ],
+            [
+              34,
+              35
+            ],
+            [
+              38,
+              39
+            ],
+            [
+              40,
+              41
+            ],
+            [
+              44,
+              45
+            ],
+            [
+              46,
+              47
+            ]
+          ],
+          "first_round_byes": [
+            {
+              "slot": 1,
+              "school": "専修大松戸"
+            },
+            {
+              "slot": 6,
+              "school": "銚子商業"
+            },
+            {
+              "slot": 7,
+              "school": "市原中央"
+            },
+            {
+              "slot": 12,
+              "school": "千葉商大付"
+            },
+            {
+              "slot": 13,
+              "school": "我孫子東"
+            },
+            {
+              "slot": 18,
+              "school": "成美学園"
+            },
+            {
+              "slot": 19,
+              "school": "日体大柏"
+            },
+            {
+              "slot": 24,
+              "school": "検見川"
+            },
+            {
+              "slot": 25,
+              "school": "東海大浦安"
+            },
+            {
+              "slot": 30,
+              "school": "千城台"
+            },
+            {
+              "slot": 31,
+              "school": "幕張総合"
+            },
+            {
+              "slot": 36,
+              "school": "東海大市原望洋"
+            },
+            {
+              "slot": 37,
+              "school": "市立松戸"
+            },
+            {
+              "slot": 42,
+              "school": "船橋"
+            },
+            {
+              "slot": 43,
+              "school": "千葉黎明"
+            },
+            {
+              "slot": 48,
+              "school": "中央学院"
+            }
+          ],
+          "first_round_bye_selection_criteria": null,
+          "formal_seed_presence": null,
+          "formal_seed_count": null,
+          "results": {
+            "champion": "専修大松戸",
+            "runner_up": "習志野",
+            "championship_result": "専修大松戸5-4習志野"
+          }
+        },
+        "source_images_and_docs": [
+          "User-provided 2026 official Chiba prefectural main bracket screenshot",
+          "千葉県高野連 2026秋季予選・敗者復活結果PDF（上記 stages の source）",
+          "https://chbf.or.jp/wp-content/uploads/2026/10/%E2%91%A8R%EF%BC%98%E7%A7%8B%E5%AD%A3%E7%9C%8C%E5%A4%A7%E4%BC%9A%EF%BC%88%EF%BC%91%EF%BC%90%E6%9C%88%EF%BC%95%E6%97%A5%EF%BC%89.pdf",
+          "https://kisacon.com/report/352185/"
+        ],
+        "confirmed_by_match": "28 primary winners + 19 repechage winners + 1 summer tournament representative = 48",
+        "caution": "予選の勝ち上がり原図で赤枠は試合勝者であり、正式成績シードのマークとは確認できない。BYE16は成績シード16校を意味しない。8/25・9/9の抽選は別段階の抽選で、本大会中の再抽選確認ではない。"
+      }
     },
     {
       "key": "2026|秋季|神奈川",
