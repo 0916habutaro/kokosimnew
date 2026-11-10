@@ -1,4 +1,4 @@
-"""調査CSVの軽量検証（UTF-8・列数・行数・重複・削除）。"""
+"""調査CSVの軽量検証（UTF-8・列数の一貫性・重複・削除。固定行数なし）。"""
 from pathlib import Path
 import tempfile
 import unittest
@@ -52,14 +52,19 @@ class ResearchCSVTests(unittest.TestCase):
         with self.assertRaisesRegex(csvcheck.CSVValidationError, "duplicate document key"):
             csvcheck.validate_csv(path)
 
-    def test_known_2026_coverage_counts(self):
-        target = "docs/research/2026_autumn_spring_seeding/prefectural_seed_rules_2026.csv"
-        records = "年度,季節,都道府県\n" + "".join(
-            f"2026,秋季,県{i}\n" for i in range(94))
-        path = self.csv_file(records, "prefectural_seed_rules_2026.csv")
-        self.assertEqual(94, csvcheck.validate_csv(path, target))
-        with self.assertRaisesRegex(csvcheck.CSVValidationError, "expected 94"):
-            csvcheck.validate_csv(self.csv_file(records.rsplit("\n", 2)[0] + "\n", path.name), target)
+    def test_research_document_record_counts_are_not_fixed(self):
+        cases = (
+            ("prefectural_seed_rules_2026.csv", "年度,季節,都道府県", "県", (1, 93, 94, 95)),
+            ("regional_seed_rules_2026.csv", "年度,季節,地区", "地区", (1, 17, 18, 19)),
+        )
+        for filename, header, value_prefix, counts in cases:
+            target = "docs/research/2026_autumn_spring_seeding/" + filename
+            for count in counts:
+                with self.subTest(filename=filename, count=count):
+                    contents = header + "\n" + "".join(
+                        f"2026,秋季,{value_prefix}{i}\n" for i in range(count))
+                    path = self.csv_file(contents, filename)
+                    self.assertEqual(count, csvcheck.validate_csv(path, target))
 
     def test_main_only_checks_changed_existing_csv(self):
         changed = "docs/research/example.csv"

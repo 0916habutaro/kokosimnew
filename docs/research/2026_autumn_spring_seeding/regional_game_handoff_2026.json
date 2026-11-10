@@ -1,0 +1,803 @@
+{
+  "schema_version": 1,
+  "reference_year": 2026,
+  "material_type": "research_handoff_not_runtime_configuration",
+  "provenance": {
+    "current_season": "2026",
+    "primary_official_sources": {
+      "autumn": "https://jhbf.or.jp/topics/detail/621",
+      "spring": "https://jhbf.or.jp/topics/info/260406_1.html"
+    },
+    "companion_files": [
+      "regional_seed_rules_2026.csv",
+      "regional_host_history_2023_2026.csv",
+      "regional_host_history_2021_2022.csv",
+      "prefectural_seed_rules_2026.csv"
+    ],
+    "precision": "2026参加枠・試合構造と複数年実例。抽選細則未確認のものは正式義務と断定しない。"
+  },
+  "application": {
+    "game_definition": "docs/design/game_definition.md (2026年制度を将来年度の基本形とする現行方針)",
+    "host_resolution": "2026はhost_2026。2027以降は開催県を年度別に決める方針が別途必要。観測した輪番は史実未来の証明にしない。",
+    "entry_deduplication": "通常代表・センバツ推薦・出場決定戦勝者の資格を別管理し、同じ学校を二重登録しない。",
+    "seeding": "draw.official_seed_count=null は未確定であり0ではない。first_round_byesと別扱い。",
+    "draw_constraints": "placement_constraintsは指定年の配置実例。将来年度の厳密な必須条件として採用するには根拠またはゲーム上の方針決定が必要。",
+    "alias_competition": "shared_prefectural_and_regional と alias_prefectural_only は県大会/道大会から参照し大会の二重生成禁止",
+    "randomness": "同じ年度・地区・学校集合・乱数シードで同一の抽選結果を再現する。"
+  },
+  "rules": [
+    {
+      "season": "autumn",
+      "region": "北海道",
+      "host_2026": "北海道",
+      "competition_kind": "shared_prefectural_and_regional",
+      "prefectures": [
+        "北海道"
+      ],
+      "entry": {
+        "model": "branch_fixed",
+        "branches": {
+          "札幌": 7,
+          "函館": 2,
+          "室蘭": 2,
+          "旭川": 2,
+          "十勝": 2,
+          "小樽": 1,
+          "空知": 1,
+          "名寄": 1,
+          "北見": 1,
+          "釧根": 1
+        }
+      },
+      "participants_2026": 20,
+      "draw": {
+        "opening_round_matches": 4,
+        "first_round_byes": 12,
+        "official_seed_count": null,
+        "placement_constraints": []
+      },
+      "note": "全道大会と地区大会は同一実体。出場資格は10支部の代表。BYE12の選定規則は未確定。"
+    },
+    {
+      "season": "autumn",
+      "region": "東北",
+      "host_2026": "宮城",
+      "competition_kind": "regional",
+      "prefectures": [
+        "青森",
+        "岩手",
+        "宮城",
+        "秋田",
+        "山形",
+        "福島"
+      ],
+      "entry": {
+        "model": "uniform",
+        "per_prefecture": 3
+      },
+      "participants_2026": 18,
+      "draw": {
+        "opening_round_matches": 2,
+        "first_round_byes": 14,
+        "official_seed_count": null,
+        "placement_constraints": [
+          {
+            "id": "rank3_only_in_opening_round",
+            "detail": "1回戦2試合の4校はいずれも各県3位。1・2位12校と3位2校は2回戦から。",
+            "observed_years": "2021-2026",
+            "evidence_level": "observed_repeated"
+          },
+          {
+            "id": "no_guaranteed_qf_same_prefecture_avoidance",
+            "detail": "2024年山形中央と日大山形が準々決勝対戦。準々決勝同県禁止を設けない。",
+            "observed_years": "2024",
+            "evidence_level": "observed_counterexample"
+          }
+        ]
+      },
+      "note": "県3位6校のうち4校を1回戦へ選ぶ具体的な方式は未確定。"
+    },
+    {
+      "season": "autumn",
+      "region": "関東",
+      "host_2026": "群馬",
+      "competition_kind": "regional",
+      "prefectures": [
+        "茨城",
+        "栃木",
+        "群馬",
+        "埼玉",
+        "千葉",
+        "神奈川",
+        "山梨"
+      ],
+      "entry": {
+        "model": "host_bonus",
+        "default": 2,
+        "host_bonus": 1
+      },
+      "participants_2026": 15,
+      "draw": {
+        "opening_round_matches": 7,
+        "first_round_byes": 1,
+        "official_seed_count": 1,
+        "placement_constraints": [
+          {
+            "id": "host_champion_qf_bye",
+            "detail": "開催県1位1校が1回戦免除となり準々決勝から。",
+            "observed_years": "2021-2026",
+            "evidence_level": "observed_repeated"
+          },
+          {
+            "id": "qf_blocks_unique_prefectures",
+            "detail": "準々決勝に至る4区画は各県が重複しない。",
+            "observed_years": "2023-2026",
+            "evidence_level": "observed_repeated"
+          },
+          {
+            "id": "prefectural_rank1_rank2_opposite_halves",
+            "detail": "同県1位と2位は決勝まで対戦しない左右配置。",
+            "observed_years": "2023-2026",
+            "evidence_level": "observed_repeated"
+          }
+        ]
+      },
+      "note": "東京は秋季関東大会に参加せず独立地区扱い。成績シードが1校と分かっているのは2026年。"
+    },
+    {
+      "season": "autumn",
+      "region": "東京",
+      "host_2026": "東京",
+      "competition_kind": "shared_prefectural_and_regional",
+      "prefectures": [
+        "東京"
+      ],
+      "entry": {
+        "model": "prefectural_main",
+        "teams": 64
+      },
+      "participants_2026": 64,
+      "draw": {
+        "opening_round_matches": 32,
+        "first_round_byes": 0,
+        "official_seed_count": null,
+        "placement_constraints": []
+      },
+      "note": "秋季東京都本大会と地区大会は同一実体。予選・正式シードは県大会側で管理。"
+    },
+    {
+      "season": "autumn",
+      "region": "北信越",
+      "host_2026": "新潟",
+      "competition_kind": "regional",
+      "prefectures": [
+        "新潟",
+        "富山",
+        "石川",
+        "福井",
+        "長野"
+      ],
+      "entry": {
+        "model": "host_bonus",
+        "default": 3,
+        "host_bonus": 1
+      },
+      "participants_2026": 16,
+      "draw": {
+        "opening_round_matches": 8,
+        "first_round_byes": 0,
+        "official_seed_count": null,
+        "placement_constraints": [
+          {
+            "id": "qf_blocks_unique_prefectures",
+            "detail": "4つの準々決勝区画の各4校はすべて別県。",
+            "observed_years": "2021-2026",
+            "evidence_level": "observed_repeated"
+          },
+          {
+            "id": "rank1_faces_foreign_rank3_or_4",
+            "detail": "県1位5校の初戦は異県3・4位（残る3試合は2位対2位2、2位対3位1）。",
+            "observed_years": "2022-2026",
+            "evidence_level": "observed_repeated"
+          },
+          {
+            "id": "rank1_rank2_opposite_halves",
+            "detail": "同県1位と2位は左右の半区画に分かれる。",
+            "observed_years": "2026",
+            "evidence_level": "observed_repeated"
+          }
+        ]
+      },
+      "note": "2012・2021の主催者原則原本あり。2026年の強制細則は未取得。正式成績シード校数は未確定。"
+    },
+    {
+      "season": "autumn",
+      "region": "東海",
+      "host_2026": "三重",
+      "competition_kind": "regional",
+      "prefectures": [
+        "岐阜",
+        "静岡",
+        "愛知",
+        "三重"
+      ],
+      "entry": {
+        "model": "uniform",
+        "per_prefecture": 3
+      },
+      "participants_2026": 12,
+      "draw": {
+        "opening_round_matches": 4,
+        "first_round_byes": 4,
+        "official_seed_count": 4,
+        "placement_constraints": [
+          {
+            "id": "rank1_qf_bye",
+            "detail": "4県の優勝校がそれぞれ準々決勝から。",
+            "observed_years": "2022-2026",
+            "evidence_level": "observed_repeated"
+          },
+          {
+            "id": "qf_blocks_three_different_prefectures",
+            "detail": "1位BYE1校と他の2県の下位代表2校から成る3県の区画に分離。",
+            "observed_years": "2022-2026",
+            "evidence_level": "observed_repeated"
+          },
+          {
+            "id": "same_prefecture_semifinal_allowed",
+            "detail": "2024年同県準決勝の実例があり、決勝までの同県回避は強制しない。",
+            "observed_years": "2024",
+            "evidence_level": "observed_counterexample"
+          }
+        ]
+      },
+      "note": "県1位BYE4と2026正式シード4は区別して記録。"
+    },
+    {
+      "season": "autumn",
+      "region": "近畿",
+      "host_2026": "京都",
+      "competition_kind": "regional",
+      "prefectures": [
+        "滋賀",
+        "京都",
+        "大阪",
+        "兵庫",
+        "奈良",
+        "和歌山"
+      ],
+      "entry": {
+        "model": "direct_plus_play_in",
+        "direct_quotas": {
+          "大阪": 3,
+          "兵庫": 3,
+          "京都": 2,
+          "滋賀": 2,
+          "奈良": 2,
+          "和歌山": 2
+        },
+        "play_in_eligible_rank": 3,
+        "play_in_eligible_prefectures": [
+          "京都",
+          "滋賀",
+          "奈良",
+          "和歌山"
+        ],
+        "play_in_winners": 2
+      },
+      "participants_2026": 16,
+      "draw": {
+        "opening_round_matches": 8,
+        "first_round_byes": 0,
+        "official_seed_count": null,
+        "placement_constraints": [
+          {
+            "id": "opening_no_same_prefecture",
+            "detail": "1回戦の8カードは全て異府県。",
+            "observed_years": "2023-2026",
+            "evidence_level": "observed_repeated"
+          },
+          {
+            "id": "rank1_rank2_opposite_halves",
+            "detail": "各府県1・2位は反対の準決勝半区画。",
+            "observed_years": "2023-2026",
+            "evidence_level": "observed_repeated"
+          },
+          {
+            "id": "qf_same_prefecture_possible",
+            "detail": "3位を含め同府県校がQFで対戦し得る。2025年滋賀学園対近江が実際に対戦。",
+            "observed_years": "2025",
+            "evidence_level": "observed_counterexample"
+          }
+        ]
+      },
+      "note": "2026年は4府県3位校の地区出場決定戦2試合を先に実施。開催京都の3位が必ず進出するわけではない。"
+    },
+    {
+      "season": "autumn",
+      "region": "中国",
+      "host_2026": "鳥取",
+      "competition_kind": "regional",
+      "prefectures": [
+        "鳥取",
+        "島根",
+        "岡山",
+        "広島",
+        "山口"
+      ],
+      "entry": {
+        "model": "host_bonus",
+        "default": 3,
+        "host_bonus": 1
+      },
+      "participants_2026": 16,
+      "draw": {
+        "opening_round_matches": 8,
+        "first_round_byes": 0,
+        "official_seed_count": null,
+        "placement_constraints": [
+          {
+            "id": "qf_blocks_unique_prefectures",
+            "detail": "各準々決勝区画は異なる4県の学校で構成。開催県4代表を4区画へ各1校。",
+            "observed_years": "2021-2026",
+            "evidence_level": "observed_repeated"
+          },
+          {
+            "id": "rank1_faces_foreign_rank3_or_4",
+            "detail": "県1位5校は他県3位・4位と初戦（残る3試合は2位対2位2、2位対3位1）。",
+            "observed_years": "2024-2026",
+            "evidence_level": "observed_repeated"
+          }
+        ]
+      },
+      "note": "正式な成績シード校数は未確定。"
+    },
+    {
+      "season": "autumn",
+      "region": "四国",
+      "host_2026": "香川",
+      "competition_kind": "regional",
+      "prefectures": [
+        "徳島",
+        "香川",
+        "愛媛",
+        "高知"
+      ],
+      "entry": {
+        "model": "uniform",
+        "per_prefecture": 3
+      },
+      "participants_2026": 12,
+      "draw": {
+        "opening_round_matches": 4,
+        "first_round_byes": 4,
+        "official_seed_count": 4,
+        "placement_constraints": [
+          {
+            "id": "rank1_qf_bye",
+            "detail": "4県優勝校は準々決勝から。",
+            "observed_years": "2021-2026",
+            "evidence_level": "observed_repeated"
+          },
+          {
+            "id": "qf_blocks_three_different_prefectures",
+            "detail": "4区画それぞれに1位BYE1校と他県2・3位2校、計異なる3県。",
+            "observed_years": "2021-2026",
+            "evidence_level": "observed_repeated"
+          }
+        ]
+      },
+      "note": "2026年の正式シード4校、県優勝校4校。"
+    },
+    {
+      "season": "autumn",
+      "region": "九州",
+      "host_2026": "熊本",
+      "competition_kind": "regional",
+      "prefectures": [
+        "福岡",
+        "佐賀",
+        "長崎",
+        "熊本",
+        "大分",
+        "宮崎",
+        "鹿児島",
+        "沖縄"
+      ],
+      "entry": {
+        "model": "uniform",
+        "per_prefecture": 2
+      },
+      "participants_2026": 16,
+      "draw": {
+        "opening_round_matches": 8,
+        "first_round_byes": 0,
+        "official_seed_count": null,
+        "placement_constraints": [
+          {
+            "id": "rank1_vs_foreign_rank2_opening",
+            "detail": "初戦8カードはすべて県1位対異県2位。",
+            "observed_years": "2021-2026",
+            "evidence_level": "observed_repeated"
+          },
+          {
+            "id": "same_prefecture_opposite_halves",
+            "detail": "各県の2代表は左右半区画に分かれ、同県対戦は決勝まで発生しない配置。",
+            "observed_years": "2021-2026",
+            "evidence_level": "observed_repeated"
+          }
+        ]
+      },
+      "note": "県1位8校が正式な成績シード校とされているかは不明。"
+    },
+    {
+      "season": "spring",
+      "region": "北海道",
+      "host_2026": "北海道",
+      "competition_kind": "alias_prefectural_only",
+      "prefectures": [
+        "北海道"
+      ],
+      "entry": {
+        "model": "branch_plus_senbatsu",
+        "branch_qualifiers": 15,
+        "senbatsu_invited": 1
+      },
+      "participants_2026": 16,
+      "draw": {
+        "opening_round_matches": 8,
+        "first_round_byes": 0,
+        "official_seed_count": null,
+        "placement_constraints": []
+      },
+      "note": "春季北海道大会は県大会データの参照のみ。地区大会を新規生成しない。2026推薦北照は初戦から。"
+    },
+    {
+      "season": "spring",
+      "region": "東北",
+      "host_2026": "青森",
+      "competition_kind": "regional",
+      "prefectures": [
+        "青森",
+        "岩手",
+        "宮城",
+        "秋田",
+        "山形",
+        "福島"
+      ],
+      "entry": {
+        "model": "host_and_next_host_bonus",
+        "default": 2,
+        "host_bonus": 1,
+        "next_host_prefecture_2026": "秋田",
+        "next_host_bonus": 1
+      },
+      "participants_2026": 14,
+      "draw": {
+        "opening_round_matches": 6,
+        "first_round_byes": 2,
+        "official_seed_count": null,
+        "placement_constraints": [
+          {
+            "id": "bye_rank1_only",
+            "detail": "BYE2校は県1位で、毎年のBYE校2校を県1位6校から選ぶ。",
+            "observed_years": "2022-2026",
+            "evidence_level": "observed_repeated"
+          },
+          {
+            "id": "rank1_positions",
+            "detail": "県1位6校の枠番号は1・4・7・8・11・14。BYE枠は1・14。",
+            "observed_years": "2023-2026",
+            "evidence_level": "observed_repeated"
+          },
+          {
+            "id": "no_proven_host_champion_bye",
+            "detail": "開催県1位のBYEは2022〜26に0件だが、正式な除外条件と断定しない。",
+            "observed_years": "2022-2026",
+            "evidence_level": "observed_not_mandatory"
+          }
+        ]
+      },
+      "note": "2021春は感染症で中止。2022年の枠番号は未照合。"
+    },
+    {
+      "season": "spring",
+      "region": "関東",
+      "host_2026": "千葉",
+      "competition_kind": "regional",
+      "prefectures": [
+        "茨城",
+        "栃木",
+        "群馬",
+        "埼玉",
+        "千葉",
+        "神奈川",
+        "山梨",
+        "東京"
+      ],
+      "entry": {
+        "model": "host_bonus",
+        "default": 2,
+        "host_bonus": 1
+      },
+      "participants_2026": 17,
+      "draw": {
+        "opening_round_matches": 1,
+        "first_round_byes": 15,
+        "official_seed_count": null,
+        "placement_constraints": [
+          {
+            "id": "play_in_host_rank3_vs_foreign_rank2",
+            "detail": "唯一の1回戦は開催都県3位対別の都県2位。その他15校は2回戦開始。",
+            "observed_years": "2023-2026",
+            "evidence_level": "observed_repeated"
+          }
+        ]
+      },
+      "note": "春季は東京が参加。BYE15は正式シード15ではない。"
+    },
+    {
+      "season": "spring",
+      "region": "北信越",
+      "host_2026": "長野",
+      "competition_kind": "regional",
+      "prefectures": [
+        "新潟",
+        "富山",
+        "石川",
+        "福井",
+        "長野"
+      ],
+      "entry": {
+        "model": "host_bonus",
+        "default": 1,
+        "host_bonus": 3
+      },
+      "participants_2026": 8,
+      "draw": {
+        "opening_round_matches": 4,
+        "first_round_byes": 0,
+        "official_seed_count": null,
+        "placement_constraints": [
+          {
+            "id": "host_vs_nonhost_champions_opening",
+            "detail": "開催県4代表対他4県の県1位が一対一で初戦対戦。",
+            "observed_years": "2022-2026",
+            "evidence_level": "observed_repeated"
+          }
+        ]
+      },
+      "note": "開催県4代表の初戦免除はない。"
+    },
+    {
+      "season": "spring",
+      "region": "東海",
+      "host_2026": "愛知",
+      "competition_kind": "regional",
+      "prefectures": [
+        "岐阜",
+        "静岡",
+        "愛知",
+        "三重"
+      ],
+      "entry": {
+        "model": "uniform",
+        "per_prefecture": 2
+      },
+      "participants_2026": 8,
+      "draw": {
+        "opening_round_matches": 4,
+        "first_round_byes": 0,
+        "official_seed_count": null,
+        "placement_constraints": [
+          {
+            "id": "rank1_vs_foreign_rank2_opening",
+            "detail": "県1位対他県2位を4試合。",
+            "observed_years": "2023-2026",
+            "evidence_level": "observed_repeated"
+          }
+        ]
+      },
+      "note": "2025・2026年には1回戦敗退4校の5位決定戦特例があり、1回戦順延の場合は実施しない。別大会の扱いをゲーム側で設計する。"
+    },
+    {
+      "season": "spring",
+      "region": "近畿",
+      "host_2026": "京都",
+      "competition_kind": "regional",
+      "prefectures": [
+        "滋賀",
+        "京都",
+        "大阪",
+        "兵庫",
+        "奈良",
+        "和歌山"
+      ],
+      "entry": {
+        "model": "host_bonus",
+        "default": 1,
+        "host_bonus": 2
+      },
+      "participants_2026": 8,
+      "draw": {
+        "opening_round_matches": 4,
+        "first_round_byes": 0,
+        "official_seed_count": null,
+        "placement_constraints": [
+          {
+            "id": "host_three_separate_opening_matches",
+            "detail": "開催府県3校はそれぞれ別カードで他府県校と初戦。",
+            "observed_years": "2024-2026",
+            "evidence_level": "observed_repeated"
+          }
+        ]
+      },
+      "note": "開催府3校は正式シード3校という意味ではない。"
+    },
+    {
+      "season": "spring",
+      "region": "中国",
+      "host_2026": "島根",
+      "competition_kind": "regional",
+      "prefectures": [
+        "鳥取",
+        "島根",
+        "岡山",
+        "広島",
+        "山口"
+      ],
+      "entry": {
+        "model": "host_bonus",
+        "default": 1,
+        "host_bonus": 3
+      },
+      "participants_2026": 8,
+      "draw": {
+        "opening_round_matches": 4,
+        "first_round_byes": 0,
+        "official_seed_count": null,
+        "placement_constraints": [
+          {
+            "id": "host_four_vs_other_four_champions",
+            "detail": "開催県4代表が他4県の優勝校と各1試合。",
+            "observed_years": "2023-2026",
+            "evidence_level": "observed_repeated"
+          }
+        ]
+      },
+      "note": "2026年は主管県が組み合わせを発表し抽選会なしと記録。"
+    },
+    {
+      "season": "spring",
+      "region": "四国",
+      "host_2026": "徳島",
+      "competition_kind": "regional",
+      "prefectures": [
+        "徳島",
+        "香川",
+        "愛媛",
+        "高知"
+      ],
+      "entry": {
+        "model": "uniform",
+        "per_prefecture": 2
+      },
+      "participants_2026": 8,
+      "draw": {
+        "opening_round_matches": 4,
+        "first_round_byes": 0,
+        "official_seed_count": null,
+        "placement_constraints": [
+          {
+            "id": "rank1_vs_foreign_rank2_opening",
+            "detail": "4試合は他県1位対2位。",
+            "observed_years": "2024-2026",
+            "evidence_level": "observed_repeated"
+          },
+          {
+            "id": "same_prefecture_opposite_halves",
+            "detail": "同県1・2位は反対側の半区画で決勝まで対戦しない配置。",
+            "observed_years": "2024-2026",
+            "evidence_level": "observed_repeated"
+          }
+        ]
+      },
+      "note": "県1・2位の対戦を決勝まで回避する取材記録あり。"
+    },
+    {
+      "season": "spring",
+      "region": "九州",
+      "host_2026": "鹿児島",
+      "competition_kind": "regional",
+      "prefectures": [
+        "福岡",
+        "佐賀",
+        "長崎",
+        "熊本",
+        "大分",
+        "宮崎",
+        "鹿児島",
+        "沖縄"
+      ],
+      "entry": {
+        "model": "regular_plus_senbatsu",
+        "host_regular": 3,
+        "other_regular": 1,
+        "senbatsu_invited_2026": 6
+      },
+      "participants_2026": 16,
+      "draw": {
+        "opening_round_matches": 8,
+        "first_round_byes": 0,
+        "official_seed_count": null,
+        "placement_constraints": [
+          {
+            "id": "qf_blocks_unique_prefectures_including_invited",
+            "detail": "センバツ推薦校を含む4校QF区画の出身県が全て異なる。",
+            "observed_years": "2022-2026",
+            "evidence_level": "observed_repeated"
+          }
+        ]
+      },
+      "note": "2026年は鹿児島の通常代表3＋他7県各1＋推薦6。推薦神村学園が加わり鹿児島勢は計4。2021春九州は19校・BYE13の特例。推薦数に応じて通常枠がどう変わるかの一般式は未確定。"
+    }
+  ],
+  "historical_overrides": [
+    {
+      "season": "spring",
+      "year": 2021,
+      "region": "九州",
+      "status": "held",
+      "host": "大分",
+      "participants": 19,
+      "entry": {
+        "model": "historical_override",
+        "regular_quotas": {
+          "大分": 4,
+          "福岡": 3,
+          "鹿児島": 2,
+          "他5県各1": 5
+        },
+        "senbatsu_invited": 5
+      },
+      "draw": {
+        "opening_round_matches": 3,
+        "first_round_byes": 13
+      },
+      "note": "2026基準の16校方式を適用しない。"
+    },
+    {
+      "season": "spring",
+      "year": 2021,
+      "region": "東北",
+      "status": "canceled",
+      "planned_host": "秋田",
+      "participants": null,
+      "note": "大会・試合を生成しない。"
+    },
+    {
+      "season": "autumn",
+      "year": 2021,
+      "region": "九州",
+      "status": "held",
+      "planned_host": "沖縄",
+      "actual_host": "鹿児島",
+      "note": "予定地と実開催地の相違を保持。"
+    },
+    {
+      "season": "autumn",
+      "year": 2026,
+      "region": "近畿",
+      "status": "held",
+      "entry_model": "direct_plus_play_in",
+      "note": "3位校の出場決定戦を2026年に導入。過年度の持ち回り方式と混同しない。"
+    }
+  ],
+  "open_decisions": [
+    "2027年以降の開催県決定（固定輪番・乱数・予め決める年間計画のどれをゲーム仕様とするか）",
+    "春季九州の選抜推薦人数が2026年と異なる時の通常枠配分方針",
+    "秋季近畿2026年導入の3位校決定戦を2027年以降も引き継ぐか（現行ゲーム定義は2026制度継続）",
+    "秋季北海道のBYE12校選定・各支部の枠配分を毎年固定とするか",
+    "未確認の正式シード数・抽選くじ順・途中再抽選の条件"
+  ]
+}

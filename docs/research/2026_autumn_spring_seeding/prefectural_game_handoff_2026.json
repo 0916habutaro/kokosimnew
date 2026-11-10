@@ -1,0 +1,3965 @@
+{
+  "schema_version": 1,
+  "reference_year": 2026,
+  "material_type": "handoff_gap_inventory_not_runtime_configuration",
+  "source_files": [
+    "prefectural_seed_rules_2026.csv",
+    "unresolved_43_audit_2026.csv",
+    "seed_examples_2026.csv"
+  ],
+  "source_lookup": "records[].source_csv_rowはprefectural_seed_rules_2026.csvのヘッダーを含む1始まり行番号。詳細事実・出典・未確定事項は元CSVを正本とする。 学校別例には地区大会4件も含まれるが県大会レコードの集計対象から除外する。",
+  "interpretation": {
+    "all_ready": false,
+    "source_field_presence_only": "present_fieldsは文字列があることだけを表す。正式な抽選ルールの証明ではない。",
+    "blank_not_zero": "未記録のseed_count=nullは正式シード0校を意味しない。",
+    "school_id_notice": "seed_examples_2026.csvの284件中、県大会280件＋地区大会4件。全school_id空欄で学校マスターへの照合は別工程。",
+    "selection_rule_provenance": "シード数値は公式確定と暫定値が混在。暫定ならseed_count_statusで区別。",
+    "runtime_warning": "県大会の段階・抽選配置・BYE・途中再抽選を確定させるまではゲーム側ルールとして直接読み込まない。"
+  },
+  "summary": {
+    "records": 94,
+    "autumn": 47,
+    "spring": 47,
+    "numeric_seed_counts": 62,
+    "unknown_seed_counts": 32,
+    "participants_field_recorded": 79,
+    "selection_source_field_recorded": 82,
+    "placement_field_recorded": 55,
+    "first_round_field_recorded": 49,
+    "bye_field_recorded": 53,
+    "redraw_field_recorded": 2,
+    "official_rule_links": 20,
+    "official_bracket_links": 26,
+    "p0_topology_or_exception_count": 25,
+    "recorded_with_5_fields": 24,
+    "school_examples_total_file": 284,
+    "school_examples_prefectural": 280,
+    "school_examples_regional": 4,
+    "school_ids_linked_prefectural": 0
+  },
+  "issue_codes": {
+    "DOCUMENT_MAIN_FIELD_SIZE": {
+      "priority": "P0",
+      "meaning": "本大会の参加校・チーム数と対象段階の検証"
+    },
+    "CONFIRM_FORMAL_SEED_STATUS": {
+      "priority": "P1",
+      "meaning": "正式な本大会成績シードの有無・人数（0も要実証）"
+    },
+    "TRACE_SEED_SELECTION": {
+      "priority": "P1",
+      "meaning": "シード選定元・順位・同順位時の処理"
+    },
+    "MAP_BRACKET_POSITIONS": {
+      "priority": "P1",
+      "meaning": "学校別配置・山分け・初戦同地区回避"
+    },
+    "VERIFY_SEEDED_FIRST_ROUND": {
+      "priority": "P1",
+      "meaning": "シード校の初戦開始回戦"
+    },
+    "IDENTIFY_BYE_ALLOCATION": {
+      "priority": "P1",
+      "meaning": "BYEの数・対象・選定条件"
+    },
+    "VERIFY_REDRAW_PRESENCE": {
+      "priority": "P2",
+      "meaning": "途中再抽選の有無と前後の接続（空欄はなしを意味しない）"
+    },
+    "MATCH_SCHOOL_IDS": {
+      "priority": "P2",
+      "meaning": "学校例と学校マスターのID照合"
+    },
+    "CONFIRM_FORMAL_SEED_TOTAL_AND_CATEGORIES": {
+      "priority": "P1",
+      "meaning": "甲子園出場シードの実在は確認。ほかの正式シード区分と全校数・配置規則を調査"
+    },
+    "VERIFY_BYE_SELECTION_CRITERIA": {
+      "priority": "P1",
+      "meaning": "BYEの学校・位置は判明したが、成績・地区順位による割当や抽選時の保護が未確定"
+    }
+  },
+  "priority_policy": {
+    "P0": "複数段階・連合・特殊推薦・組み合わせ途中接続等がある県大会の方式を先に確認",
+    "P1": "正式シード校数、配置、BYE、初戦回戦など通常大会の必須構造を補完",
+    "P2": "再抽選の実施/なしの記録と学校ID照合・根拠の精査"
+  },
+  "records": [
+    {
+      "key": "2026|秋季|北海道",
+      "source_csv_row": 2,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 20,
+      "present_fields": [
+        "main_participants",
+        "bye",
+        "official_rules"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "TRACE_SEED_SELECTION",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "参加チーム数・試合構造のみ、本大会シード数未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": "支部別代表20校のBYE12をどの支部・順位に与えるか、正式シード指定を分離。"
+    },
+    {
+      "key": "2026|秋季|青森",
+      "source_csv_row": 3,
+      "priority": "P0",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 43,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye",
+        "official_drawing"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 2,
+      "school_id_links": 0,
+      "bracket_position_examples": 2,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|岩手",
+      "source_csv_row": 4,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 22,
+      "present_fields": [
+        "main_participants",
+        "selection_source",
+        "placement",
+        "bye",
+        "official_drawing"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": "参加チーム数・試合構造のみ、本大会シード数未確定",
+      "school_examples": 10,
+      "school_id_links": 0,
+      "bracket_position_examples": 10,
+      "targeted_research_hint": "5地区1・2代表の決勝までの山分けと、正式シード指定有無・BYE配分を分離。"
+    },
+    {
+      "key": "2026|秋季|宮城",
+      "source_csv_row": 5,
+      "priority": "P1",
+      "seed_count": 4,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 28,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": "校数確認（当年抽選報道・原図等；細則は未完了）",
+      "school_examples": 4,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|秋田",
+      "source_csv_row": 6,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 16,
+      "present_fields": [
+        "main_participants",
+        "selection_source",
+        "placement",
+        "bye"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "参加チーム数・試合構造のみ、本大会シード数未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": "一次8＋敗者復活8の対戦を正式成績シードと混同せず、県大会入口条件を記録。"
+    },
+    {
+      "key": "2026|秋季|山形",
+      "source_csv_row": 7,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 34,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source"
+      ],
+      "open_issue_codes": [
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 2,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|福島",
+      "source_csv_row": 8,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 32,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "bye"
+      ],
+      "open_issue_codes": [
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": null,
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|茨城",
+      "source_csv_row": 9,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 34,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement"
+      ],
+      "open_issue_codes": [
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 3,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|栃木",
+      "source_csv_row": 10,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 49,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye",
+        "official_drawing"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 4,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|群馬",
+      "source_csv_row": 11,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": null,
+      "present_fields": [
+        "seed_count",
+        "selection_source"
+      ],
+      "open_issue_codes": [
+        "DOCUMENT_MAIN_FIELD_SIZE",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": null,
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|埼玉",
+      "source_csv_row": 12,
+      "priority": "P1",
+      "seed_count": 4,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 40,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source"
+      ],
+      "open_issue_codes": [
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": null,
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|千葉",
+      "source_csv_row": 13,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 48,
+      "present_fields": [
+        "main_participants",
+        "bye",
+        "official_drawing",
+        "official_rules",
+        "placement"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "TRACE_SEED_SELECTION",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "一次28＋敗者復活19＋夏甲子園免除1、県大会48校・BYE16を公式原図で確認。本大会の正式シード有無は未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": "【2026原図で解決済】一次140→代表28、敗者復活112→代表19、夏甲子園出場の拓大紅陵が予選免除1、計48。48校のBYE16枠を学校名・番号で復元、8つの6校QF区画ごとに2BYE。『本大会正式シード』の有無・人数、BYE選定・抽選位置保護は引き続き不明。",
+      "prefectural_bracket_observation_2026": {
+        "stages": [
+          {
+            "stage": "primary_preliminary",
+            "participants_teams": 140,
+            "participants_schools": 161,
+            "qualifiers": 28,
+            "first_held": "2026-08-16",
+            "last_held": "2026-08-21",
+            "source": "https://chbf.or.jp/wp-content/uploads/2026/09/%E2%91%A5%EF%BC%B2%EF%BC%98%E7%A7%8B%E5%AD%A3%E4%BA%88%E9%81%B8%E7%B5%84%E5%90%88%E3%81%9B%EF%BC%88%EF%BC%98%E6%9C%8821%E6%97%A5%EF%BC%89-%E8%A8%82%E6%AD%A3.pdf"
+          },
+          {
+            "stage": "repechage",
+            "participants_teams": 112,
+            "participants_schools": 133,
+            "qualifiers": 19,
+            "draw_date": "2026-08-25",
+            "first_held": "2026-08-29",
+            "last_held": "2026-09-04",
+            "source": "https://chbf.or.jp/wp-content/uploads/2026/09/%E2%91%A4%EF%BC%B2%EF%BC%98%E7%A7%8B%E5%AD%A3%E4%BA%88%E9%81%B8%E6%95%97%E8%80%85%E5%BE%A9%E6%B4%BB%E6%88%A6%E7%B5%84%E5%90%88%E3%81%9B%EF%BC%88%EF%BC%99%E6%9C%88%EF%BC%94%E6%97%A5%EF%BC%89-%E8%A8%82%E6%AD%A3.pdf"
+          },
+          {
+            "stage": "koshien_exemption",
+            "participants": 1,
+            "team": "拓殖大紅陵",
+            "source_qualification": "2026 summer Koshien Chiba representative",
+            "exempted_from": "primary prelim and repechage",
+            "not_equivalent_to": [
+              "main_tournament_formal_seed",
+              "main_first_round_bye"
+            ],
+            "main_bracket_slot": 35,
+            "main_first_round_opponent": "千葉経大付",
+            "score": "拓大紅陵3-0千葉経大付"
+          },
+          {
+            "stage": "prefectural_main",
+            "participants": 48,
+            "draw_date": "2026-09-09",
+            "first_round_matches": 16,
+            "first_round_byes": 16,
+            "all_qualifiers": {
+              "primary_preliminary": 28,
+              "repechage": 19,
+              "koshien_exemption": 1
+            },
+            "regional_qualifiers": 2
+          }
+        ],
+        "main_bracket": {
+          "qualifying_round_name": "1回戦",
+          "quarterfinal_sections": [
+            {
+              "slots": [
+                1,
+                6
+              ],
+              "first": 1,
+              "last": 6
+            },
+            {
+              "slots": [
+                7,
+                12
+              ],
+              "first": 7,
+              "last": 12
+            },
+            {
+              "slots": [
+                13,
+                18
+              ],
+              "first": 13,
+              "last": 18
+            },
+            {
+              "slots": [
+                19,
+                24
+              ],
+              "first": 19,
+              "last": 24
+            },
+            {
+              "slots": [
+                25,
+                30
+              ],
+              "first": 25,
+              "last": 30
+            },
+            {
+              "slots": [
+                31,
+                36
+              ],
+              "first": 31,
+              "last": 36
+            },
+            {
+              "slots": [
+                37,
+                42
+              ],
+              "first": 37,
+              "last": 42
+            },
+            {
+              "slots": [
+                43,
+                48
+              ],
+              "first": 43,
+              "last": 48
+            }
+          ],
+          "round1_pairs": [
+            [
+              2,
+              3
+            ],
+            [
+              4,
+              5
+            ],
+            [
+              8,
+              9
+            ],
+            [
+              10,
+              11
+            ],
+            [
+              14,
+              15
+            ],
+            [
+              16,
+              17
+            ],
+            [
+              20,
+              21
+            ],
+            [
+              22,
+              23
+            ],
+            [
+              26,
+              27
+            ],
+            [
+              28,
+              29
+            ],
+            [
+              32,
+              33
+            ],
+            [
+              34,
+              35
+            ],
+            [
+              38,
+              39
+            ],
+            [
+              40,
+              41
+            ],
+            [
+              44,
+              45
+            ],
+            [
+              46,
+              47
+            ]
+          ],
+          "first_round_byes": [
+            {
+              "slot": 1,
+              "school": "専修大松戸"
+            },
+            {
+              "slot": 6,
+              "school": "銚子商業"
+            },
+            {
+              "slot": 7,
+              "school": "市原中央"
+            },
+            {
+              "slot": 12,
+              "school": "千葉商大付"
+            },
+            {
+              "slot": 13,
+              "school": "我孫子東"
+            },
+            {
+              "slot": 18,
+              "school": "成美学園"
+            },
+            {
+              "slot": 19,
+              "school": "日体大柏"
+            },
+            {
+              "slot": 24,
+              "school": "検見川"
+            },
+            {
+              "slot": 25,
+              "school": "東海大浦安"
+            },
+            {
+              "slot": 30,
+              "school": "千城台"
+            },
+            {
+              "slot": 31,
+              "school": "幕張総合"
+            },
+            {
+              "slot": 36,
+              "school": "東海大市原望洋"
+            },
+            {
+              "slot": 37,
+              "school": "市立松戸"
+            },
+            {
+              "slot": 42,
+              "school": "船橋"
+            },
+            {
+              "slot": 43,
+              "school": "千葉黎明"
+            },
+            {
+              "slot": 48,
+              "school": "中央学院"
+            }
+          ],
+          "first_round_bye_selection_criteria": null,
+          "formal_seed_presence": null,
+          "formal_seed_count": null,
+          "results": {
+            "champion": "専修大松戸",
+            "runner_up": "習志野",
+            "championship_result": "専修大松戸5-4習志野"
+          }
+        },
+        "source_images_and_docs": [
+          "User-provided 2026 official Chiba prefectural main bracket screenshot",
+          "千葉県高野連 2026秋季予選・敗者復活結果PDF（上記 stages の source）",
+          "https://chbf.or.jp/wp-content/uploads/2026/10/%E2%91%A8R%EF%BC%98%E7%A7%8B%E5%AD%A3%E7%9C%8C%E5%A4%A7%E4%BC%9A%EF%BC%88%EF%BC%91%EF%BC%90%E6%9C%88%EF%BC%95%E6%97%A5%EF%BC%89.pdf",
+          "https://kisacon.com/report/352185/"
+        ],
+        "confirmed_by_match": "28 primary winners + 19 repechage winners + 1 summer tournament representative = 48",
+        "caution": "予選の勝ち上がり原図で赤枠は試合勝者であり、正式成績シードのマークとは確認できない。BYE16は成績シード16校を意味しない。8/25・9/9の抽選は別段階の抽選で、本大会中の再抽選確認ではない。"
+      }
+    },
+    {
+      "key": "2026|秋季|神奈川",
+      "source_csv_row": 14,
+      "priority": "P1",
+      "seed_count": 7,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 81,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "seed_first_round"
+      ],
+      "open_issue_codes": [
+        "MAP_BRACKET_POSITIONS",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 2,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|山梨",
+      "source_csv_row": 15,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": null,
+      "present_fields": [
+        "seed_count",
+        "selection_source"
+      ],
+      "open_issue_codes": [
+        "DOCUMENT_MAIN_FIELD_SIZE",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": null,
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|東京",
+      "source_csv_row": 16,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 64,
+      "present_fields": [
+        "main_participants",
+        "bye"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "TRACE_SEED_SELECTION",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "予選免除・別枠は確認、本大会のシード数未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": "都本大会64校と一次予選の免除・シード・抽選方式の別段階を照合。"
+    },
+    {
+      "key": "2026|秋季|新潟",
+      "source_csv_row": 17,
+      "priority": "P1",
+      "seed_count": 4,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 63,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye",
+        "official_drawing",
+        "official_rules"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 4,
+      "school_id_links": 0,
+      "bracket_position_examples": 4,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|富山",
+      "source_csv_row": 18,
+      "priority": "P1",
+      "seed_count": 4,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 36,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 1,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|石川",
+      "source_csv_row": 19,
+      "priority": "P1",
+      "seed_count": 4,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 40,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye",
+        "official_drawing"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": "校数確認（当年抽選報道・原図等；細則は未完了）",
+      "school_examples": 4,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|福井",
+      "source_csv_row": 20,
+      "priority": "P1",
+      "seed_count": 4,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 26,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 4,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|長野",
+      "source_csv_row": 21,
+      "priority": "P1",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 24,
+      "present_fields": [
+        "main_participants",
+        "selection_source",
+        "placement",
+        "bye",
+        "official_drawing",
+        "seed_first_round"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "支部1・2位8校BYEと3～6位の初戦8カード、QF4区画での地区別分散を原図確定。正式シード指定は未確認",
+      "school_examples": 24,
+      "school_id_links": 0,
+      "bracket_position_examples": 24,
+      "targeted_research_hint": "【2026原図：校別配置確定】四支部各6＝24校。1・2位計8校はBYE、3～6位16校は1回戦（初戦3位対6位4試合＋4位対5位4試合）。BYE8の枠と24校の支部順位・配置番号を全て実装引き継ぎJSONへ記録。正式シード名義と2027年以降の強制性は未確定。",
+      "autumn_bracket_observation_2026": {
+        "stage_kind": "prefectural_main",
+        "participating_prefectural_schools": 24,
+        "district_preliminary_stages": [
+          {
+            "district": "北信",
+            "participants_2026": 18,
+            "main_qualifiers": 6,
+            "main_ranks": "1-6"
+          },
+          {
+            "district": "東信",
+            "participants_2026": 14,
+            "main_qualifiers": 6,
+            "main_ranks": "1-6"
+          },
+          {
+            "district": "南信",
+            "participants_2026": 21,
+            "main_qualifiers": 6,
+            "main_ranks": "1-6"
+          },
+          {
+            "district": "中信",
+            "participants_2026": 14,
+            "main_qualifiers": 6,
+            "main_ranks": "1-6"
+          }
+        ],
+        "qualification_total": 24,
+        "prelim_participation_sum_2026": 67,
+        "main_bracket_slots": [
+          {
+            "slot": 1,
+            "school": "岡谷南",
+            "district": "南信",
+            "district_rank": 1,
+            "first_round_bye": true,
+            "quarterfinal_section": 1
+          },
+          {
+            "slot": 2,
+            "school": "岩村田",
+            "district": "東信",
+            "district_rank": 4,
+            "first_round_bye": false,
+            "quarterfinal_section": 1
+          },
+          {
+            "slot": 3,
+            "school": "篠ノ井",
+            "district": "北信",
+            "district_rank": 5,
+            "first_round_bye": false,
+            "quarterfinal_section": 1
+          },
+          {
+            "slot": 4,
+            "school": "長野俊英",
+            "district": "北信",
+            "district_rank": 3,
+            "first_round_bye": false,
+            "quarterfinal_section": 1
+          },
+          {
+            "slot": 5,
+            "school": "蓼科",
+            "district": "東信",
+            "district_rank": 6,
+            "first_round_bye": false,
+            "quarterfinal_section": 1
+          },
+          {
+            "slot": 6,
+            "school": "松商学園",
+            "district": "中信",
+            "district_rank": 2,
+            "first_round_bye": true,
+            "quarterfinal_section": 1
+          },
+          {
+            "slot": 7,
+            "school": "長野商業",
+            "district": "北信",
+            "district_rank": 2,
+            "first_round_bye": true,
+            "quarterfinal_section": 2
+          },
+          {
+            "slot": 8,
+            "school": "都市大塩尻",
+            "district": "中信",
+            "district_rank": 3,
+            "first_round_bye": false,
+            "quarterfinal_section": 2
+          },
+          {
+            "slot": 9,
+            "school": "赤穂",
+            "district": "南信",
+            "district_rank": 6,
+            "first_round_bye": false,
+            "quarterfinal_section": 2
+          },
+          {
+            "slot": 10,
+            "school": "松本県ケ丘",
+            "district": "中信",
+            "district_rank": 5,
+            "first_round_bye": false,
+            "quarterfinal_section": 2
+          },
+          {
+            "slot": 11,
+            "school": "阿智",
+            "district": "南信",
+            "district_rank": 4,
+            "first_round_bye": false,
+            "quarterfinal_section": 2
+          },
+          {
+            "slot": 12,
+            "school": "佐久長聖",
+            "district": "東信",
+            "district_rank": 1,
+            "first_round_bye": true,
+            "quarterfinal_section": 2
+          },
+          {
+            "slot": 13,
+            "school": "松本第一",
+            "district": "中信",
+            "district_rank": 1,
+            "first_round_bye": true,
+            "quarterfinal_section": 3
+          },
+          {
+            "slot": 14,
+            "school": "須坂",
+            "district": "北信",
+            "district_rank": 4,
+            "first_round_bye": false,
+            "quarterfinal_section": 3
+          },
+          {
+            "slot": 15,
+            "school": "飯田OIDE長姫",
+            "district": "南信",
+            "district_rank": 5,
+            "first_round_bye": false,
+            "quarterfinal_section": 3
+          },
+          {
+            "slot": 16,
+            "school": "東海大諏訪",
+            "district": "南信",
+            "district_rank": 3,
+            "first_round_bye": false,
+            "quarterfinal_section": 3
+          },
+          {
+            "slot": 17,
+            "school": "飯山",
+            "district": "北信",
+            "district_rank": 6,
+            "first_round_bye": false,
+            "quarterfinal_section": 3
+          },
+          {
+            "slot": 18,
+            "school": "小諸義塾",
+            "district": "東信",
+            "district_rank": 2,
+            "first_round_bye": true,
+            "quarterfinal_section": 3
+          },
+          {
+            "slot": 19,
+            "school": "伊那弥生ケ丘",
+            "district": "南信",
+            "district_rank": 2,
+            "first_round_bye": true,
+            "quarterfinal_section": 4
+          },
+          {
+            "slot": 20,
+            "school": "松本深志",
+            "district": "中信",
+            "district_rank": 6,
+            "first_round_bye": false,
+            "quarterfinal_section": 4
+          },
+          {
+            "slot": 21,
+            "school": "上田東",
+            "district": "東信",
+            "district_rank": 3,
+            "first_round_bye": false,
+            "quarterfinal_section": 4
+          },
+          {
+            "slot": 22,
+            "school": "上田西",
+            "district": "東信",
+            "district_rank": 5,
+            "first_round_bye": false,
+            "quarterfinal_section": 4
+          },
+          {
+            "slot": 23,
+            "school": "松本国際",
+            "district": "中信",
+            "district_rank": 4,
+            "first_round_bye": false,
+            "quarterfinal_section": 4
+          },
+          {
+            "slot": 24,
+            "school": "長野日大",
+            "district": "北信",
+            "district_rank": 1,
+            "first_round_bye": true,
+            "quarterfinal_section": 4
+          }
+        ],
+        "opening_round_matches": 8,
+        "first_round_byes": 8,
+        "bye_school_slots": [
+          {
+            "slot": 1,
+            "school": "岡谷南",
+            "district": "南信",
+            "district_rank": 1
+          },
+          {
+            "slot": 6,
+            "school": "松商学園",
+            "district": "中信",
+            "district_rank": 2
+          },
+          {
+            "slot": 7,
+            "school": "長野商業",
+            "district": "北信",
+            "district_rank": 2
+          },
+          {
+            "slot": 12,
+            "school": "佐久長聖",
+            "district": "東信",
+            "district_rank": 1
+          },
+          {
+            "slot": 13,
+            "school": "松本第一",
+            "district": "中信",
+            "district_rank": 1
+          },
+          {
+            "slot": 18,
+            "school": "小諸義塾",
+            "district": "東信",
+            "district_rank": 2
+          },
+          {
+            "slot": 19,
+            "school": "伊那弥生ケ丘",
+            "district": "南信",
+            "district_rank": 2
+          },
+          {
+            "slot": 24,
+            "school": "長野日大",
+            "district": "北信",
+            "district_rank": 1
+          }
+        ],
+        "quarterfinal_sections": [
+          {
+            "id": "A",
+            "from_slot": 1,
+            "to_slot": 6
+          },
+          {
+            "id": "B",
+            "from_slot": 7,
+            "to_slot": 12
+          },
+          {
+            "id": "C",
+            "from_slot": 13,
+            "to_slot": 18
+          },
+          {
+            "id": "D",
+            "from_slot": 19,
+            "to_slot": 24
+          }
+        ],
+        "first_round_pairs": [
+          {
+            "slots": [
+              2,
+              3
+            ],
+            "schools": [
+              "岩村田",
+              "篠ノ井"
+            ],
+            "district_rank_match": [
+              4,
+              5
+            ]
+          },
+          {
+            "slots": [
+              4,
+              5
+            ],
+            "schools": [
+              "長野俊英",
+              "蓼科"
+            ],
+            "district_rank_match": [
+              3,
+              6
+            ]
+          },
+          {
+            "slots": [
+              8,
+              9
+            ],
+            "schools": [
+              "都市大塩尻",
+              "赤穂"
+            ],
+            "district_rank_match": [
+              3,
+              6
+            ]
+          },
+          {
+            "slots": [
+              10,
+              11
+            ],
+            "schools": [
+              "松本県ケ丘",
+              "阿智"
+            ],
+            "district_rank_match": [
+              5,
+              4
+            ]
+          },
+          {
+            "slots": [
+              14,
+              15
+            ],
+            "schools": [
+              "須坂",
+              "飯田OIDE長姫"
+            ],
+            "district_rank_match": [
+              4,
+              5
+            ]
+          },
+          {
+            "slots": [
+              16,
+              17
+            ],
+            "schools": [
+              "東海大諏訪",
+              "飯山"
+            ],
+            "district_rank_match": [
+              3,
+              6
+            ]
+          },
+          {
+            "slots": [
+              20,
+              21
+            ],
+            "schools": [
+              "松本深志",
+              "上田東"
+            ],
+            "district_rank_match": [
+              6,
+              3
+            ]
+          },
+          {
+            "slots": [
+              22,
+              23
+            ],
+            "schools": [
+              "上田西",
+              "松本国際"
+            ],
+            "district_rank_match": [
+              5,
+              4
+            ]
+          }
+        ],
+        "observed_rules": [
+          {
+            "rule": "each_district_1st_and_2nd_bye",
+            "fact": "全4支部の1位・2位はBYEで2回戦から参加",
+            "source": "user-provided 2026 main-bracket image"
+          },
+          {
+            "rule": "opening_rank_3v6_and_4v5",
+            "fact": "初戦8カードは3位対他支部6位4試合・4位対他支部5位4試合、同支部初戦なし",
+            "source": "user-provided 2026 main-bracket image"
+          },
+          {
+            "rule": "district_champions_distributed_qf",
+            "fact": "4支部の1位校を4つのQF6校区画へ1校ずつ分散",
+            "source": "user-provided 2026 main-bracket image"
+          },
+          {
+            "rule": "district_rank1_rank2_opposite_final_halves",
+            "fact": "同支部の1位と2位は上下で別の決勝進出側、決勝まで対戦なし",
+            "source": "user-provided 2026 main-bracket image"
+          },
+          {
+            "rule": "cross_district_opening",
+            "fact": "1回戦8試合はすべて異支部対戦",
+            "source": "user-provided 2026 main-bracket image"
+          }
+        ],
+        "results": {
+          "champion": "上田西",
+          "runner_up": "松商学園",
+          "third": "佐久長聖",
+          "third_place_result": "佐久長聖2-0松本第一"
+        },
+        "evidence": [
+          "User-provided five 2026 Nagano federation brackets",
+          "https://www.nagano-hbf.jp/wp_hbf/wp-content/uploads/2026/09/155_k_katiagari.pdf",
+          "https://www.hb-nippon.com/articles/17248"
+        ],
+        "formal_seed_presence": null,
+        "formal_seed_count": null,
+        "caution": "県2026の校別初戦・BYE保護は直接確認済み。形式的な『シード』呼称と毎年度の抽選必須規則については未確認。"
+      }
+    },
+    {
+      "key": "2026|秋季|岐阜",
+      "source_csv_row": 22,
+      "priority": "P1",
+      "seed_count": 16,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 58,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "official_rules"
+      ],
+      "open_issue_codes": [
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 3,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|静岡",
+      "source_csv_row": 23,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 40,
+      "present_fields": [
+        "main_participants",
+        "selection_source",
+        "placement",
+        "bye",
+        "seed_first_round"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE",
+        "VERIFY_BYE_SELECTION_CRITERIA"
+      ],
+      "audit_43_status": "2025・2026とも県本大会40校・初戦8試合・BYE24（2026は校別全枠）、2025予選102校は別段階。正式シード未確定。",
+      "school_examples": 40,
+      "school_id_links": 0,
+      "bracket_position_examples": 40,
+      "targeted_research_hint": "【2026原図＋試合記録】県本大会40校の全掲載枠と初戦8試合の16校・BYE24校の校名/位置を復元。別途2025県本大会も40校・1回戦8試合・BYE24を確認。ユーザー提供2025 SVGの予選102枠・上位決定戦26・敗者復活戦26は県本大会ではない。正式成績シードの有無・BYE保護条件は未確認。",
+      "autumn_bracket_observation_2026": {
+        "stage_kind": "prefectural_main",
+        "participants": 40,
+        "qualifying_sources": {
+          "upper_decider_winners": 13,
+          "upper_decider_losers": 13,
+          "repechage_winners": 13,
+          "summer_koshien_exemption": 1
+        },
+        "exempted_koshien_school": "聖隷クリストファー",
+        "main_bracket_slots": [
+          {
+            "slot": 1,
+            "school": "藤枝明誠",
+            "first_round_bye": true
+          },
+          {
+            "slot": 2,
+            "school": "韮山",
+            "first_round_bye": false
+          },
+          {
+            "slot": 3,
+            "school": "浜松工",
+            "first_round_bye": false
+          },
+          {
+            "slot": 4,
+            "school": "磐田農",
+            "first_round_bye": true
+          },
+          {
+            "slot": 5,
+            "school": "吉原",
+            "first_round_bye": true
+          },
+          {
+            "slot": 6,
+            "school": "常葉大菊川",
+            "first_round_bye": true
+          },
+          {
+            "slot": 7,
+            "school": "静岡商",
+            "first_round_bye": true
+          },
+          {
+            "slot": 8,
+            "school": "掛川東",
+            "first_round_bye": false
+          },
+          {
+            "slot": 9,
+            "school": "島田樟誠",
+            "first_round_bye": false
+          },
+          {
+            "slot": 10,
+            "school": "加藤学園",
+            "first_round_bye": true
+          },
+          {
+            "slot": 11,
+            "school": "浜松城北工",
+            "first_round_bye": true
+          },
+          {
+            "slot": 12,
+            "school": "東海大翔洋",
+            "first_round_bye": false
+          },
+          {
+            "slot": 13,
+            "school": "富士宮西",
+            "first_round_bye": false
+          },
+          {
+            "slot": 14,
+            "school": "島田工",
+            "first_round_bye": true
+          },
+          {
+            "slot": 15,
+            "school": "浜松学院興誠",
+            "first_round_bye": true
+          },
+          {
+            "slot": 16,
+            "school": "三島北",
+            "first_round_bye": true
+          },
+          {
+            "slot": 17,
+            "school": "磐田東",
+            "first_round_bye": true
+          },
+          {
+            "slot": 18,
+            "school": "袋井",
+            "first_round_bye": false
+          },
+          {
+            "slot": 19,
+            "school": "相良",
+            "first_round_bye": false
+          },
+          {
+            "slot": 20,
+            "school": "飛龍",
+            "first_round_bye": true
+          },
+          {
+            "slot": 21,
+            "school": "静岡市立",
+            "first_round_bye": true
+          },
+          {
+            "slot": 22,
+            "school": "沼津東",
+            "first_round_bye": false
+          },
+          {
+            "slot": 23,
+            "school": "遠江総合",
+            "first_round_bye": false
+          },
+          {
+            "slot": 24,
+            "school": "御殿場南",
+            "first_round_bye": true
+          },
+          {
+            "slot": 25,
+            "school": "浜松湖北",
+            "first_round_bye": true
+          },
+          {
+            "slot": 26,
+            "school": "沼津商",
+            "first_round_bye": true
+          },
+          {
+            "slot": 27,
+            "school": "浜松日体",
+            "first_round_bye": true
+          },
+          {
+            "slot": 28,
+            "school": "知徳",
+            "first_round_bye": false
+          },
+          {
+            "slot": 29,
+            "school": "駿河総合",
+            "first_round_bye": false
+          },
+          {
+            "slot": 30,
+            "school": "掛川西",
+            "first_round_bye": true
+          },
+          {
+            "slot": 31,
+            "school": "日大三島",
+            "first_round_bye": true
+          },
+          {
+            "slot": 32,
+            "school": "浜松湖南",
+            "first_round_bye": false
+          },
+          {
+            "slot": 33,
+            "school": "静清",
+            "first_round_bye": false
+          },
+          {
+            "slot": 34,
+            "school": "三島南",
+            "first_round_bye": true
+          },
+          {
+            "slot": 35,
+            "school": "浜松商",
+            "first_round_bye": true
+          },
+          {
+            "slot": 36,
+            "school": "聖隷クリストファー",
+            "first_round_bye": true
+          },
+          {
+            "slot": 37,
+            "school": "静岡西",
+            "first_round_bye": true
+          },
+          {
+            "slot": 38,
+            "school": "桐陽",
+            "first_round_bye": false
+          },
+          {
+            "slot": 39,
+            "school": "浜松修学舎",
+            "first_round_bye": false
+          },
+          {
+            "slot": 40,
+            "school": "静岡",
+            "first_round_bye": true
+          }
+        ],
+        "opening_round_matches": 8,
+        "first_round_byes": 24,
+        "second_round_teams": 32,
+        "first_round_bye_selection_criteria": null,
+        "formal_seed_presence": null,
+        "formal_seed_count": null,
+        "third_place_match": true,
+        "third_place_result": "掛川西6-3東海大静岡翔洋",
+        "results": {
+          "champion": "日大三島",
+          "runner_up": "常葉大菊川",
+          "third": "掛川西"
+        },
+        "sources": [
+          "User-uploaded Tournament_20260001223_135850_996.svg, XML text parsed",
+          "https://www.spoban.com/baseball/tour/series-2695/2026/"
+        ],
+        "warning": "BYE24とは正式成績シード24校ではない。シードとBYEを校別に同一視しない。",
+        "opening_round_pairs": [
+          {
+            "slots": [
+              2,
+              3
+            ],
+            "schools": [
+              "韮山",
+              "浜松工"
+            ]
+          },
+          {
+            "slots": [
+              8,
+              9
+            ],
+            "schools": [
+              "掛川東",
+              "島田樟誠"
+            ]
+          },
+          {
+            "slots": [
+              12,
+              13
+            ],
+            "schools": [
+              "東海大翔洋",
+              "富士宮西"
+            ]
+          },
+          {
+            "slots": [
+              18,
+              19
+            ],
+            "schools": [
+              "袋井",
+              "相良"
+            ]
+          },
+          {
+            "slots": [
+              22,
+              23
+            ],
+            "schools": [
+              "沼津東",
+              "遠江総合"
+            ]
+          },
+          {
+            "slots": [
+              28,
+              29
+            ],
+            "schools": [
+              "知徳",
+              "駿河総合"
+            ]
+          },
+          {
+            "slots": [
+              32,
+              33
+            ],
+            "schools": [
+              "浜松湖南",
+              "静清"
+            ]
+          },
+          {
+            "slots": [
+              38,
+              39
+            ],
+            "schools": [
+              "桐陽",
+              "浜松修学舎"
+            ]
+          }
+        ],
+        "first_round_bye_school_slots": [
+          {
+            "slot": 1,
+            "school": "藤枝明誠"
+          },
+          {
+            "slot": 4,
+            "school": "磐田農"
+          },
+          {
+            "slot": 5,
+            "school": "吉原"
+          },
+          {
+            "slot": 6,
+            "school": "常葉大菊川"
+          },
+          {
+            "slot": 7,
+            "school": "静岡商"
+          },
+          {
+            "slot": 10,
+            "school": "加藤学園"
+          },
+          {
+            "slot": 11,
+            "school": "浜松城北工"
+          },
+          {
+            "slot": 14,
+            "school": "島田工"
+          },
+          {
+            "slot": 15,
+            "school": "浜松学院興誠"
+          },
+          {
+            "slot": 16,
+            "school": "三島北"
+          },
+          {
+            "slot": 17,
+            "school": "磐田東"
+          },
+          {
+            "slot": 20,
+            "school": "飛龍"
+          },
+          {
+            "slot": 21,
+            "school": "静岡市立"
+          },
+          {
+            "slot": 24,
+            "school": "御殿場南"
+          },
+          {
+            "slot": 25,
+            "school": "浜松湖北"
+          },
+          {
+            "slot": 26,
+            "school": "沼津商"
+          },
+          {
+            "slot": 27,
+            "school": "浜松日体"
+          },
+          {
+            "slot": 30,
+            "school": "掛川西"
+          },
+          {
+            "slot": 31,
+            "school": "日大三島"
+          },
+          {
+            "slot": 34,
+            "school": "三島南"
+          },
+          {
+            "slot": 35,
+            "school": "浜松商"
+          },
+          {
+            "slot": 36,
+            "school": "聖隷クリストファー"
+          },
+          {
+            "slot": 37,
+            "school": "静岡西"
+          },
+          {
+            "slot": 40,
+            "school": "静岡"
+          }
+        ],
+        "opening_match_source": "https://www.spoban.com/baseball/tour/series-2695/2026/ (2026秋1回戦8試合)"
+      },
+      "autumn_bracket_observation_2025_preliminary": {
+        "source": "User-uploaded Tournament_20250003697_164232_722.svg, XML text parsed",
+        "stage_kind": "preliminary_not_main",
+        "primary_bracket_slots": 102,
+        "upper_rank_decider_bracket_slots": 26,
+        "repechage_bracket_slots": 26,
+        "note": "2025年の県本大会参加校数・BYE人数・成績シード校数はこの予選SVGから求めない。2026の県本大会とは異なる段階。"
+      },
+      "autumn_bracket_observation_2025_main": {
+        "stage_kind": "prefectural_main",
+        "participants": 40,
+        "opening_round_matches": 8,
+        "first_round_byes": 24,
+        "second_round_teams": 32,
+        "source": "https://www.spoban.com/baseball/tour/series-2695/2025/",
+        "note": "これは2025の本大会試合記録による追加証拠。ユーザー提供の2025 SVGは別段階であり県本大会とは混同しない。シード・BYE24校の選定規則は未確認。"
+      }
+    },
+    {
+      "key": "2026|秋季|愛知",
+      "source_csv_row": 24,
+      "priority": "P1",
+      "seed_count": 12,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 49,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "official_rules"
+      ],
+      "open_issue_codes": [
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 4,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|三重",
+      "source_csv_row": 25,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 53,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye",
+        "official_drawing"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 4,
+      "school_id_links": 0,
+      "bracket_position_examples": 4,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|滋賀",
+      "source_csv_row": 26,
+      "priority": "P1",
+      "seed_count": 4,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": null,
+      "present_fields": [
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round"
+      ],
+      "open_issue_codes": [
+        "DOCUMENT_MAIN_FIELD_SIZE",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 2,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|京都",
+      "source_csv_row": 27,
+      "priority": "P0",
+      "seed_count": 16,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": null,
+      "present_fields": [
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye"
+      ],
+      "open_issue_codes": [
+        "DOCUMENT_MAIN_FIELD_SIZE",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": "実例確認（当年記事・原図等。主催者のシード指定条文は未取得）",
+      "school_examples": 16,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": "新人戦15＋甲子園出場校1というシード記載16と、3回戦開始・本大会枠の対応を具体化。"
+    },
+    {
+      "key": "2026|秋季|大阪",
+      "source_csv_row": 28,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": null,
+      "present_fields": [
+        "placement",
+        "redraw"
+      ],
+      "open_issue_codes": [
+        "DOCUMENT_MAIN_FIELD_SIZE",
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "TRACE_SEED_SELECTION",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION"
+      ],
+      "audit_43_status": "公式抽選細則・本大会シード数を未取得",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": "A～D原図と5回戦以降の接続・予選方式を記録。別原図だけで再抽選ありとしない。"
+    },
+    {
+      "key": "2026|秋季|兵庫",
+      "source_csv_row": 29,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 54,
+      "present_fields": [
+        "main_participants",
+        "selection_source",
+        "placement",
+        "bye"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "予選免除・別枠は確認、本大会のシード数未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": "支部代表53＋夏甲子園出場1、54校のBYE10を追跡し、正式シードと区別。"
+    },
+    {
+      "key": "2026|秋季|奈良",
+      "source_csv_row": 30,
+      "priority": "P1",
+      "seed_count": null,
+      "seed_count_status": "existence_confirmed_total_unknown",
+      "participant_count_leading_integer": 32,
+      "present_fields": [
+        "main_participants",
+        "bye",
+        "selection_source",
+        "placement",
+        "seed_first_round"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_TOTAL_AND_CATEGORIES",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "参加チーム数・試合構造のみ、本大会シード数未確定",
+      "school_examples": 1,
+      "school_id_links": 0,
+      "bracket_position_examples": 1,
+      "targeted_research_hint": "2026秋の原図に『○甲子園出場シード』の凡例と枠32天理の丸囲み。甲子園シードの存在は確定。ただし総数・他シード区分は未確定。32校16初戦・BYE0、天理も1回戦から。",
+      "bracket_observation_2026": {
+        "participants": 32,
+        "first_round_matches": 16,
+        "first_round_byes": 0,
+        "first_round_match_slots": "(1,2), (3,4), …, (31,32)",
+        "identified_seed_type": "summer_koshien_participant_seed",
+        "identified_seed_schools": [
+          {
+            "school": "天理",
+            "bracket_slot": 32,
+            "mark": "○",
+            "source_qualification": "2026 summer Koshien Nara representative",
+            "first_round_opponent": "畝傍",
+            "first_round_score": "天理11-0畝傍",
+            "first_round_bye": false
+          }
+        ],
+        "evidence": "User-provided official prefectural federation bracket image 2026aki-kekka.jpg",
+        "main_formal_seed_total": null,
+        "third_place": "郡山8-6天理",
+        "warning": "Only summer Koshien seed existence confirmed; no other seed totals or future mandatory bracket-slot rule verified."
+      },
+      "historical_comparison_2025": {
+        "participants": 34,
+        "first_round_matches": 2,
+        "first_round_byes": 30,
+        "source": "https://www.hb-nippon.com/tournaments/834",
+        "official_pdf_url_provided_but_not_fetched": "http://www1.kcn.ne.jp/~nhsbbf/and/2025aki-shiaikekka.pdf",
+        "seed_marks_verified": false
+      }
+    },
+    {
+      "key": "2026|秋季|和歌山",
+      "source_csv_row": 31,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 8,
+      "present_fields": [
+        "main_participants",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye",
+        "official_drawing"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "一次予選4区画の記号付き4校・BYE3と二次8校の接続を原図で確認。二次正式シードは未確定",
+      "school_examples": 4,
+      "school_id_links": 0,
+      "bracket_position_examples": 4,
+      "targeted_research_hint": "【原図実態を補完】一次29校/4ゾーンA7・B7・C7・D8。記号付きA和歌山工◎・B田辺○・C近大新宮☆・D和歌山東□（A/C/Dは当年報道でシードと明記、Bの○は凡例未確認）。一次BYE3校＝和歌山工・田辺・近大新宮。新人戦4強4校は一次免除で二次8校の奇数枠①③⑤⑦へ、一次代表4校は②④⑥⑧へ。二次の独立成績シード有無は未確定。",
+      "preliminary_bracket_observation_2026": {
+        "stage": "県一次予選",
+        "participants": 29,
+        "zone_sizes": {
+          "A": 7,
+          "B": 7,
+          "C": 7,
+          "D": 8
+        },
+        "opening_matches": 13,
+        "first_round_byes": 3,
+        "marked_schools": [
+          {
+            "zone": "A",
+            "bracket_slot": 1,
+            "school": "和歌山工",
+            "mark": "◎",
+            "opens": "second_round",
+            "seed_explicitly_described_in_article": true
+          },
+          {
+            "zone": "B",
+            "bracket_slot": 8,
+            "school": "田辺",
+            "mark": "○",
+            "opens": "second_round",
+            "seed_explicitly_described_in_article": false
+          },
+          {
+            "zone": "C",
+            "bracket_slot": 15,
+            "school": "近大新宮",
+            "mark": "☆",
+            "opens": "second_round",
+            "seed_explicitly_described_in_article": true
+          },
+          {
+            "zone": "D",
+            "bracket_slot": 25,
+            "school": "和歌山東",
+            "mark": "□",
+            "opens": "first_round",
+            "seed_explicitly_described_in_article": true
+          }
+        ],
+        "bye_schools": [
+          "和歌山工",
+          "田辺",
+          "近大新宮"
+        ],
+        "qualifier_winners_by_zone": {
+          "A": "智辯和歌山",
+          "B": "田辺",
+          "C": "那賀",
+          "D": "和歌山東"
+        },
+        "referenced_pdf": "User-uploaded original Wakayama federation 2026 autumn primary bracket 20260924093758_rOjg.pdf",
+        "official_first_draw_url": "https://www.whbf.jp/uploads/20260920134600_eGJi.pdf",
+        "note": "別記号が必ず別シード階級を意味するかは未確認。A/C/Dは報道でseed校と確認、B田辺は○の正式意味不明。一次BYEと一次シードを同一視しない。"
+      },
+      "secondary_bracket_observation_2026": {
+        "stage": "県二次予選",
+        "participants": 8,
+        "opening_matches": 4,
+        "first_round_byes": 0,
+        "first_round_slot_mapping": [
+          {
+            "position": 1,
+            "school": "日高",
+            "source": "新人戦ベスト4"
+          },
+          {
+            "position": 2,
+            "school": "和歌山東",
+            "source": "一次Dゾーン"
+          },
+          {
+            "position": 3,
+            "school": "神島",
+            "source": "新人戦ベスト4"
+          },
+          {
+            "position": 4,
+            "school": "那賀",
+            "source": "一次Cゾーン"
+          },
+          {
+            "position": 5,
+            "school": "市和歌山",
+            "source": "新人戦ベスト4"
+          },
+          {
+            "position": 6,
+            "school": "智辯和歌山",
+            "source": "一次Aゾーン"
+          },
+          {
+            "position": 7,
+            "school": "桐蔭",
+            "source": "新人戦ベスト4"
+          },
+          {
+            "position": 8,
+            "school": "田辺",
+            "source": "一次Bゾーン"
+          }
+        ],
+        "newcomer_top_four_bypass_first_stage": true,
+        "first_round_connections": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ],
+          [
+            7,
+            8
+          ]
+        ],
+        "champion": "和歌山東",
+        "runner_up": "智辯和歌山",
+        "third": "田辺",
+        "third_score": "田辺 2-0 那賀",
+        "source": "User-uploaded 2026 fall Wakayama prefectural federation secondary tournament result image",
+        "open_questions": [
+          "新人戦4強を奇数位置にするのは年度を超えた固定規則か",
+          "一次代表のA→6/B→8/C→4/D→2の配置抽選方式",
+          "一次と二次の間で再抽選があるか",
+          "県二次大会の独立正式シード有無"
+        ]
+      }
+    },
+    {
+      "key": "2026|秋季|鳥取",
+      "source_csv_row": 32,
+      "priority": "P1",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 19,
+      "present_fields": [
+        "main_participants",
+        "placement",
+        "bye",
+        "official_drawing"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "TRACE_SEED_SELECTION",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "公式原図は存在、本大会のシード定義未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": " 【2026添付図を照合】19校の初戦3カード位置と13BYEを追加。",
+      "bracket_observation_2026": {
+        "entry": "19 teams one continuous tournament",
+        "first_round_matches": 3,
+        "opening_match_slots": [
+          [
+            2,
+            3
+          ],
+          [
+            11,
+            12
+          ],
+          [
+            17,
+            18
+          ]
+        ],
+        "first_round_byes": 13,
+        "third_place_match": true,
+        "formal_main_seed_count": null,
+        "source": "User-provided 2026-09-29 Tottori federation tournament result image",
+        "pending": [
+          "公式シード有無の確認",
+          "BYEの割当理由",
+          "途中再抽選の有無"
+        ]
+      }
+    },
+    {
+      "key": "2026|秋季|島根",
+      "source_csv_row": 33,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 35,
+      "present_fields": [
+        "main_participants",
+        "selection_source",
+        "placement",
+        "bye",
+        "redraw",
+        "official_drawing",
+        "official_rules"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "VERIFY_SEEDED_FIRST_ROUND"
+      ],
+      "audit_43_status": "開幕後再抽選は確定、本大会のシード数未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": "一次→二次16校で9/13再抽選あり。再抽選での配列・同地区回避・シード有無を確認。 【2026添付図を照合】一次→二次16校の再抽選、三次の3位決定戦を追加。",
+      "bracket_observation_2026": {
+        "entry": "35 teams preliminary → 16 second stage",
+        "stages": [
+          "一次大会：複数会場の予選",
+          "二次大会：16校・1回戦8試合・BYE0",
+          "三次大会：準決勝・決勝・3位決定戦"
+        ],
+        "interstage_redraw": "confirmed_by_prefectural_federation_2026_09_13",
+        "third_place_match": "益田東 3-1 大田",
+        "formal_main_seed_count": null,
+        "source": "User-provided Shimane federation preliminary and second/third bracket images",
+        "pending": [
+          "一次BYE",
+          "正式シード有無",
+          "二次再抽選の配置条件"
+        ]
+      }
+    },
+    {
+      "key": "2026|秋季|岡山",
+      "source_csv_row": 34,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 20,
+      "present_fields": [
+        "main_participants",
+        "selection_source",
+        "placement",
+        "bye",
+        "official_drawing"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "公式原図は存在、本大会のシード定義未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": "地区1位12校BYE、地区2位8校初戦の方法を維持し、正式成績シードを保留。"
+    },
+    {
+      "key": "2026|秋季|広島",
+      "source_csv_row": 35,
+      "priority": "P1",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 32,
+      "present_fields": [
+        "main_participants",
+        "official_rules"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "TRACE_SEED_SELECTION",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "参加チーム数・試合構造のみ、本大会シード数未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|山口",
+      "source_csv_row": 36,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 8,
+      "present_fields": [
+        "main_participants",
+        "selection_source",
+        "placement",
+        "bye"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": "予選段階のシードは確認、本大会の校数未確定",
+      "school_examples": 1,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": "地区予選8シードと県決勝大会8代表の出場・抽選を分離。 【2026添付図を照合】4会場各2勝者→県決勝8校、県スポーツ大会が秋季中国予選と同一大会であることを確認。",
+      "bracket_observation_2026": {
+        "entry": "49 teams across 4 district venues → 8 prefectural finals representatives",
+        "district_venues": [
+          "岩国",
+          "周南",
+          "宇部",
+          "下関"
+        ],
+        "qualifiers_each_venue": 2,
+        "prefectural_final_teams": 8,
+        "final_round_opening": "quarterfinals (4 matches)",
+        "first_round_byes_in_final": 0,
+        "prefectural_first_round_pairs": [
+          [
+            "宇部鴻城",
+            "高川学園"
+          ],
+          [
+            "下関工科",
+            "南陽工"
+          ],
+          [
+            "岩国",
+            "下関国際"
+          ],
+          [
+            "桜ケ丘",
+            "宇部工"
+          ]
+        ],
+        "chugoku_autumn_qualifiers": 3,
+        "third_place_match": true,
+        "formal_main_seed_count": null,
+        "confirmed_same_event": "山口県スポーツ大会高校野球競技（硬式）兼第147回秋季中国地区高校野球大会山口県予選",
+        "sources": [
+          "User-provided original SVG",
+          "https://www.pref.yamaguchi.lg.jp/uploaded/attachment/242207.pdf",
+          "https://baseball.omyutech.com/CupHomePageTop.action?cupId=20260003506"
+        ],
+        "pending": [
+          "予選シードの明文と正式配置条件",
+          "県決勝の独立シード有無",
+          "県決勝の配置決定時期・再抽選"
+        ]
+      }
+    },
+    {
+      "key": "2026|秋季|徳島",
+      "source_csv_row": 37,
+      "priority": "P1",
+      "seed_count": 4,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 27,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye",
+        "official_drawing"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 4,
+      "school_id_links": 0,
+      "bracket_position_examples": 4,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|香川",
+      "source_csv_row": 38,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 34,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye",
+        "official_rules"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 1,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|愛媛",
+      "source_csv_row": 39,
+      "priority": "P1",
+      "seed_count": 13,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": null,
+      "present_fields": [
+        "seed_count",
+        "selection_source"
+      ],
+      "open_issue_codes": [
+        "DOCUMENT_MAIN_FIELD_SIZE",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 1,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|高知",
+      "source_csv_row": 40,
+      "priority": "P1",
+      "seed_count": 4,
+      "seed_count_status": "provisional_number_needs_official_validation",
+      "participant_count_leading_integer": 21,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye",
+        "official_rules"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 4,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|福岡",
+      "source_csv_row": 41,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 16,
+      "present_fields": [
+        "main_participants",
+        "selection_source",
+        "placement",
+        "bye"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "南北予選のシード指定・校数・学校別配置は原図確定、県決勝大会の独立シードは未確定",
+      "school_examples": 24,
+      "school_id_links": 0,
+      "bracket_position_examples": 24,
+      "targeted_research_hint": "県決勝16校（南北A～H各8代表・5回戦8試合）の『成績シード』と、南北予選24校（北8・南16）のシード○を分離。2025秋の県決勝は8校（南北A～D）、予選シード4+4で方式が異なる。",
+      "preliminary_seed_observation": {
+        "season": "autumn",
+        "year": 2026,
+        "seed_count_north": 8,
+        "seed_count_south": 16,
+        "north_seed_bracket_positions": [
+          1,
+          9,
+          17,
+          25,
+          32,
+          39,
+          46,
+          53
+        ],
+        "south_seed_bracket_positions": [
+          1,
+          6,
+          11,
+          16,
+          20,
+          24,
+          28,
+          32,
+          36,
+          40,
+          44,
+          48,
+          52,
+          56,
+          60,
+          64
+        ],
+        "qualification_groups": "A-H for each of north and south",
+        "qualified_north": 8,
+        "qualified_south": 8,
+        "main_first_match_connections": "South A vs North A; South B vs North B; ... South H vs North H",
+        "main_first_match_round_label": "5回戦",
+        "main_first_match_count": 8,
+        "main_byes_at_this_stage": 0,
+        "comparison_2025": {
+          "seed_count_north": 4,
+          "seed_count_south": 4,
+          "qualification_groups": "A-D",
+          "qualified_north": 4,
+          "qualified_south": 4,
+          "main_first_match_round_label": "準々決勝",
+          "main_first_match_count": 4
+        },
+        "evidence": "User-supplied 2025/2026 official Fukuoka prefectural federation bracket images plus https://www.bukatsuganba.com/hard_baseball/baseball/fukuoka/12260 and /12261",
+        "caveat": "preliminary seeds are not formal main-final-stage seeds. Future-draw-mandatory status unknown."
+      }
+    },
+    {
+      "key": "2026|秋季|佐賀",
+      "source_csv_row": 42,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": null,
+      "present_fields": [
+        "seed_count",
+        "selection_source",
+        "seed_first_round"
+      ],
+      "open_issue_codes": [
+        "DOCUMENT_MAIN_FIELD_SIZE",
+        "MAP_BRACKET_POSITIONS",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 1,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|長崎",
+      "source_csv_row": 43,
+      "priority": "P1",
+      "seed_count": 7,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 45,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source"
+      ],
+      "open_issue_codes": [
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 1,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|熊本",
+      "source_csv_row": 44,
+      "priority": "P1",
+      "seed_count": 0,
+      "seed_count_status": "zero_recorded_with_context_check",
+      "participant_count_leading_integer": 51,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement"
+      ],
+      "open_issue_codes": [
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": null,
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|大分",
+      "source_csv_row": 45,
+      "priority": "P1",
+      "seed_count": 4,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": null,
+      "present_fields": [
+        "seed_count",
+        "selection_source",
+        "seed_first_round"
+      ],
+      "open_issue_codes": [
+        "DOCUMENT_MAIN_FIELD_SIZE",
+        "MAP_BRACKET_POSITIONS",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 1,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|宮崎",
+      "source_csv_row": 46,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 45,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source"
+      ],
+      "open_issue_codes": [
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": null,
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|鹿児島",
+      "source_csv_row": 47,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": null,
+      "present_fields": [
+        "seed_count",
+        "selection_source",
+        "official_rules"
+      ],
+      "open_issue_codes": [
+        "DOCUMENT_MAIN_FIELD_SIZE",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": null,
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|秋季|沖縄",
+      "source_csv_row": 48,
+      "priority": "P1",
+      "seed_count": 4,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 51,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "seed_first_round",
+        "bye",
+        "official_rules"
+      ],
+      "open_issue_codes": [
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 2,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|北海道",
+      "source_csv_row": 49,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 16,
+      "present_fields": [
+        "main_participants",
+        "selection_source",
+        "seed_first_round",
+        "bye"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "予選免除・別枠は確認、本大会のシード数未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": "支部代表15＋センバツ推薦1、道大会16校でBYE0。推薦校IDの整合を確認。"
+    },
+    {
+      "key": "2026|春季|青森",
+      "source_csv_row": 50,
+      "priority": "P1",
+      "seed_count": 16,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 45,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye",
+        "official_drawing"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": "実例確認（当年記事・原図等。主催者のシード指定条文は未取得）",
+      "school_examples": 4,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|岩手",
+      "source_csv_row": 51,
+      "priority": "P1",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 24,
+      "present_fields": [
+        "main_participants",
+        "bye",
+        "official_drawing"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "TRACE_SEED_SELECTION",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "公式原図は存在、本大会のシード定義未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|宮城",
+      "source_csv_row": 52,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 25,
+      "present_fields": [
+        "main_participants",
+        "selection_source",
+        "placement",
+        "bye",
+        "official_drawing"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": "参加チーム数・試合構造のみ、本大会シード数未確定",
+      "school_examples": 2,
+      "school_id_links": 0,
+      "bracket_position_examples": 2,
+      "targeted_research_hint": "25校・BYE7と第1/2シードの正式指定数を分離。"
+    },
+    {
+      "key": "2026|春季|秋田",
+      "source_csv_row": 53,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": null,
+      "present_fields": [
+        "seed_count",
+        "selection_source",
+        "seed_first_round"
+      ],
+      "open_issue_codes": [
+        "DOCUMENT_MAIN_FIELD_SIZE",
+        "MAP_BRACKET_POSITIONS",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 2,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|山形",
+      "source_csv_row": 54,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": null,
+      "present_fields": [
+        "seed_count",
+        "selection_source"
+      ],
+      "open_issue_codes": [
+        "DOCUMENT_MAIN_FIELD_SIZE",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": null,
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|福島",
+      "source_csv_row": 55,
+      "priority": "P1",
+      "seed_count": 6,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 28,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "seed_first_round",
+        "bye"
+      ],
+      "open_issue_codes": [
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 2,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|茨城",
+      "source_csv_row": 56,
+      "priority": "P1",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 35,
+      "present_fields": [
+        "main_participants",
+        "selection_source"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "予選免除・別枠は確認、本大会のシード数未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|栃木",
+      "source_csv_row": 57,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 50,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye",
+        "official_drawing"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 8,
+      "school_id_links": 0,
+      "bracket_position_examples": 8,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|群馬",
+      "source_csv_row": 58,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 59,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "seed_first_round"
+      ],
+      "open_issue_codes": [
+        "MAP_BRACKET_POSITIONS",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 1,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|埼玉",
+      "source_csv_row": 59,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": null,
+      "present_fields": [
+        "seed_count",
+        "selection_source"
+      ],
+      "open_issue_codes": [
+        "DOCUMENT_MAIN_FIELD_SIZE",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": null,
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|千葉",
+      "source_csv_row": 60,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 48,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "seed_first_round",
+        "bye",
+        "official_rules"
+      ],
+      "open_issue_codes": [
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 3,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|神奈川",
+      "source_csv_row": 61,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 82,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye",
+        "official_drawing"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 2,
+      "school_id_links": 0,
+      "bracket_position_examples": 2,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|山梨",
+      "source_csv_row": 62,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 31,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 2,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|東京",
+      "source_csv_row": 63,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 111,
+      "present_fields": [
+        "main_participants"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "TRACE_SEED_SELECTION",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "参加チーム数・試合構造のみ、本大会シード数未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": "都本大会111校の資格・BYE・シード・出場時段階を確認。"
+    },
+    {
+      "key": "2026|春季|新潟",
+      "source_csv_row": 64,
+      "priority": "P1",
+      "seed_count": 16,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 62,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye",
+        "official_drawing",
+        "official_rules"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 4,
+      "school_id_links": 0,
+      "bracket_position_examples": 4,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|富山",
+      "source_csv_row": 65,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 37,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye",
+        "official_drawing"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 2,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|石川",
+      "source_csv_row": 66,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 41,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "official_drawing"
+      ],
+      "open_issue_codes": [
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": "校数確認（当年抽選報道・原図等；細則は未完了）",
+      "school_examples": 8,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|福井",
+      "source_csv_row": 67,
+      "priority": "P1",
+      "seed_count": 4,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 27,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "seed_first_round",
+        "bye"
+      ],
+      "open_issue_codes": [
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 2,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|長野",
+      "source_csv_row": 68,
+      "priority": "P1",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 16,
+      "present_fields": [
+        "main_participants",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye",
+        "same_district",
+        "official_rules"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "参加チーム数・試合構造のみ、本大会シード数未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|岐阜",
+      "source_csv_row": 69,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 24,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "same_district",
+        "official_rules"
+      ],
+      "open_issue_codes": [
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": null,
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|静岡",
+      "source_csv_row": 70,
+      "priority": "P1",
+      "seed_count": 13,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 39,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": "実例確認（当年記事・原図等。主催者のシード指定条文は未取得）",
+      "school_examples": 1,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|愛知",
+      "source_csv_row": 71,
+      "priority": "P1",
+      "seed_count": 12,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 49,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round"
+      ],
+      "open_issue_codes": [
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": "校数確認（当年抽選報道・原図等；細則は未完了）",
+      "school_examples": 12,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|三重",
+      "source_csv_row": 72,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 26,
+      "present_fields": [
+        "main_participants",
+        "selection_source"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "予選段階のシードは確認、本大会の校数未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": "26校＝地区25＋選抜推薦1、地区シードと県本大会シードを別管理。"
+    },
+    {
+      "key": "2026|春季|滋賀",
+      "source_csv_row": 73,
+      "priority": "P1",
+      "seed_count": 4,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 46,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round"
+      ],
+      "open_issue_codes": [
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 2,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|京都",
+      "source_csv_row": 74,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 16,
+      "present_fields": [
+        "main_participants",
+        "placement",
+        "official_rules"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "TRACE_SEED_SELECTION",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "参加チーム数・試合構造のみ、本大会シード数未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": "一次戦と二次戦の同時抽選は途中再抽選とは異なる。16校二次戦の資格と配置を確認。"
+    },
+    {
+      "key": "2026|春季|大阪",
+      "source_csv_row": 75,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": null,
+      "present_fields": [],
+      "open_issue_codes": [
+        "DOCUMENT_MAIN_FIELD_SIZE",
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "TRACE_SEED_SELECTION",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "公式抽選細則・本大会シード数を未取得",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": "参加校数から未記録。抽選原図・大会段階・出場枠・正式シードを再調査。"
+    },
+    {
+      "key": "2026|春季|兵庫",
+      "source_csv_row": 76,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 36,
+      "present_fields": [
+        "main_participants",
+        "selection_source"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "予選免除・別枠は確認、本大会のシード数未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": "地区33＋前年秋近畿出場3の別枠36、BYE・配置・正式シードを分離。"
+    },
+    {
+      "key": "2026|春季|奈良",
+      "source_csv_row": 77,
+      "priority": "P1",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 33,
+      "present_fields": [
+        "main_participants",
+        "selection_source",
+        "bye",
+        "placement"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "参加チーム数・試合構造のみ、本大会シード数未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": "2026春33校の開幕1試合（宇陀0-10王寺工）・残り31BYEを原図で確認。33校のBYE31を正式シード31としない。春のシード制度有無は未確定。",
+      "bracket_observation_2026": {
+        "participants": 33,
+        "first_round_matches": 1,
+        "first_round_match": {
+          "school1": "宇陀",
+          "school2": "王寺工業",
+          "score": "宇陀0-10王寺工業",
+          "next_round_opponent": "高田商業",
+          "next_round_result": "王寺工業2-5高田商業"
+        },
+        "first_round_byes": 31,
+        "second_round_matches": 16,
+        "third_place": "奈良北8-5高田商業",
+        "formal_seed_existence": null,
+        "formal_seed_total": null,
+        "evidence": "User-provided official prefectural federation bracket image 2026haru-kekka.jpg"
+      },
+      "historical_comparison_2025": {
+        "participants": 34,
+        "first_round_matches": 2,
+        "first_round_byes": 30,
+        "source": "https://www.hb-nippon.com/index.php/tournaments/192",
+        "official_pdf_url_provided_but_not_fetched": "http://www1.kcn.ne.jp/~nhsbbf/and/2025haru-shiaikekka.pdf",
+        "seed_marks_verified": false
+      }
+    },
+    {
+      "key": "2026|春季|和歌山",
+      "source_csv_row": 78,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": null,
+      "present_fields": [],
+      "open_issue_codes": [
+        "DOCUMENT_MAIN_FIELD_SIZE",
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "TRACE_SEED_SELECTION",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "公式抽選細則・本大会シード数を未取得",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": "本大会参加校数から不明。一次・二次予選の進出と配置を収集。"
+    },
+    {
+      "key": "2026|春季|鳥取",
+      "source_csv_row": 79,
+      "priority": "P1",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": null,
+      "present_fields": [
+        "placement",
+        "official_drawing"
+      ],
+      "open_issue_codes": [
+        "DOCUMENT_MAIN_FIELD_SIZE",
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "TRACE_SEED_SELECTION",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "公式原図は存在、本大会のシード定義未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|島根",
+      "source_csv_row": 80,
+      "priority": "P1",
+      "seed_count": 4,
+      "seed_count_status": "provisional_number_needs_official_validation",
+      "participant_count_leading_integer": 36,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye",
+        "official_drawing",
+        "official_rules"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": "当年の県内専門記録で4校確認・主催者の正式シード細則未取得",
+      "school_examples": 4,
+      "school_id_links": 0,
+      "bracket_position_examples": 4,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|岡山",
+      "source_csv_row": 81,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 24,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 2,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|広島",
+      "source_csv_row": 82,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 32,
+      "present_fields": [
+        "main_participants",
+        "selection_source",
+        "official_rules"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "参加チーム数・試合構造のみ、本大会シード数未確定",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": "地区予選19シードと県本大会32校を分離。選抜出場崇徳の免除資格を確認。"
+    },
+    {
+      "key": "2026|春季|山口",
+      "source_csv_row": 83,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 49,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "seed_first_round"
+      ],
+      "open_issue_codes": [
+        "MAP_BRACKET_POSITIONS",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 1,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|徳島",
+      "source_csv_row": 84,
+      "priority": "P1",
+      "seed_count": 4,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 27,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye",
+        "official_drawing"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 4,
+      "school_id_links": 0,
+      "bracket_position_examples": 4,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|香川",
+      "source_csv_row": 85,
+      "priority": "P1",
+      "seed_count": 7,
+      "seed_count_status": "provisional_number_needs_official_validation",
+      "participant_count_leading_integer": 34,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye",
+        "official_drawing",
+        "official_rules"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": "公式原図・前年秋8強・当年報道の突合で7校、正式総数条文未取得",
+      "school_examples": 7,
+      "school_id_links": 0,
+      "bracket_position_examples": 7,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|愛媛",
+      "source_csv_row": 86,
+      "priority": "P1",
+      "seed_count": 8,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 43,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement"
+      ],
+      "open_issue_codes": [
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 1,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|高知",
+      "source_csv_row": 87,
+      "priority": "P1",
+      "seed_count": 0,
+      "seed_count_status": "provisional_number_needs_official_validation",
+      "participant_count_leading_integer": 21,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "bye"
+      ],
+      "open_issue_codes": [
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "当年の非公式資料による暫定値（公式未確認）",
+      "school_examples": 0,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|福岡",
+      "source_csv_row": 88,
+      "priority": "P0",
+      "seed_count": null,
+      "seed_count_status": "unknown_not_zero",
+      "participant_count_leading_integer": 8,
+      "present_fields": [
+        "main_participants",
+        "selection_source",
+        "placement",
+        "bye"
+      ],
+      "open_issue_codes": [
+        "CONFIRM_FORMAL_SEED_STATUS",
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE"
+      ],
+      "audit_43_status": "南北予選各4シード指定・学校別配置は原図確定、県決勝大会の独立シードは未確定",
+      "school_examples": 8,
+      "school_id_links": 0,
+      "bracket_position_examples": 8,
+      "targeted_research_hint": "県決勝8校の正式成績シード有無は未確認。北部・南部予選各4校が原図○シード、各A-Dから1校代表。県決勝は北A対南A～北D対南DのQF4試合。",
+      "preliminary_seed_observation": {
+        "season": "spring",
+        "year": 2026,
+        "seed_count_north": 4,
+        "seed_count_south": 4,
+        "north_seed_bracket_positions": [
+          1,
+          16,
+          31,
+          46
+        ],
+        "south_seed_bracket_positions": [
+          1,
+          18,
+          35,
+          52
+        ],
+        "qualification_groups": "A-D for each north and south",
+        "qualified_north": 4,
+        "qualified_south": 4,
+        "main_first_match_connections": "North A vs South A; North B vs South B; North C vs South C; North D vs South D",
+        "main_first_match_round_label": "準々決勝",
+        "main_first_match_count": 4,
+        "main_byes_at_this_stage": 0,
+        "evidence": "User-supplied 2026/3/30 and 4/6 official Fukuoka prefectural federation bracket images plus https://www.bukatsuganba.com/hard_baseball/baseball/fukuoka/11600 and /11601",
+        "caveat": "preliminary seeds are not formal main-final-stage seeds."
+      }
+    },
+    {
+      "key": "2026|春季|佐賀",
+      "source_csv_row": 89,
+      "priority": "P1",
+      "seed_count": 4,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 35,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round"
+      ],
+      "open_issue_codes": [
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 1,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|長崎",
+      "source_csv_row": 90,
+      "priority": "P1",
+      "seed_count": 6,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 42,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "seed_first_round"
+      ],
+      "open_issue_codes": [
+        "MAP_BRACKET_POSITIONS",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 1,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|熊本",
+      "source_csv_row": 91,
+      "priority": "P1",
+      "seed_count": 7,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 50,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "seed_first_round"
+      ],
+      "open_issue_codes": [
+        "MAP_BRACKET_POSITIONS",
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 1,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|大分",
+      "source_csv_row": 92,
+      "priority": "P1",
+      "seed_count": 4,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 39,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "seed_first_round",
+        "bye"
+      ],
+      "open_issue_codes": [
+        "MAP_BRACKET_POSITIONS",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": "校数確認（当年抽選報道・原図等；細則は未完了）",
+      "school_examples": 4,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|宮崎",
+      "source_csv_row": 93,
+      "priority": "P1",
+      "seed_count": 4,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 43,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round"
+      ],
+      "open_issue_codes": [
+        "IDENTIFY_BYE_ALLOCATION",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 2,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|鹿児島",
+      "source_csv_row": 94,
+      "priority": "P1",
+      "seed_count": 7,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": null,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "seed_first_round",
+        "bye",
+        "official_drawing"
+      ],
+      "open_issue_codes": [
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 7,
+      "school_id_links": 0,
+      "bracket_position_examples": 7,
+      "targeted_research_hint": null
+    },
+    {
+      "key": "2026|春季|沖縄",
+      "source_csv_row": 95,
+      "priority": "P1",
+      "seed_count": 4,
+      "seed_count_status": "number_recorded_evidence_requires_review",
+      "participant_count_leading_integer": 55,
+      "present_fields": [
+        "main_participants",
+        "seed_count",
+        "selection_source",
+        "placement",
+        "bye",
+        "official_rules"
+      ],
+      "open_issue_codes": [
+        "VERIFY_SEEDED_FIRST_ROUND",
+        "VERIFY_REDRAW_PRESENCE",
+        "MATCH_SCHOOL_IDS"
+      ],
+      "audit_43_status": null,
+      "school_examples": 2,
+      "school_id_links": 0,
+      "bracket_position_examples": 0,
+      "targeted_research_hint": null
+    }
+  ]
+}
