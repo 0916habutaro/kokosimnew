@@ -31,10 +31,13 @@
 - 部員の人数（4月1日の名簿）：全国の1校あたりの学年ごとの人数、1校の部員数の分布、私立・公立と
   評判の帯（z）ごとの平均、新入部員を最低人数まで増やした学校の数、退部した人数
 - 連合チーム（11月1日の年度の状態）：大会の種類ごとの連合チームの数・構成校の数・出なかった学校の数
-- 夏の地方大会のシード（8月31日の年度の状態）：シードのある大会の数・シード校の数、シード校どうしが
-  準々決勝より前に当たった数（16校・32校のシードはベスト16・32で当たるので、
-  ブロックを分けた回戦より前に当たった数も）、シード校のベスト8・ベスト4に残った割合。シードを入れていない版で
-  比べるときは、同じ決まり（``competition_seed_rules.csv``）で選んだはずの学校を数える（``applied``＝0）
+- 成績シード（夏の地方大会と春季県大会は8月31日、秋季県大会は12月1日の年度の状態）：大会の種類ごとに、
+  シードのある大会の数・シード校の数、シード校どうしが準々決勝より前に当たった数（16校・32校のシードは
+  ベスト16・32で当たるので、ブロックを分けた回戦より前に当たった数も）、シード校のベスト8・ベスト4に
+  残った割合。シードを入れていない版で比べるときは、同じ決まり（``competition_seed_rules.csv``）で
+  選んだはずの学校を数える（``applied``＝0）
+- 選抜の選考（12月1日）：秋季地区大会の出場校と選抜の出場校の数、そのうち秋季県大会のシード校
+  （入れていない版では選んだはずの学校）だった割合
 - ``--ability-table``：打者・守備・投手が全部50の相手に、能力を30・80・95にしたときの三振・四球・打率・長打率・本塁打
   （打席の結果の重みから計算する。試合は進めない）
 """
@@ -111,7 +114,8 @@ class BalanceTally:
         self.rosters = {}                        # 年度 → 名簿の集計
         self.sizes = {}                          # 年度 → 部員の人数の集計（4月1日）
         self.unions = {}                         # 年度 → 大会の種類 → 連合チームの集計
-        self.summer_seeds = {}                   # 年度 → 夏の地方大会のシードの集計
+        self.seeds = defaultdict(dict)           # 季節 → 年度 → 成績シードの集計
+        self.selection = {}                      # 年度 → 選抜の選考の顔ぶれ
         self.tactics = defaultdict(Counter)      # 年度 → 作戦の数（全試合）
         self.tactics_koshien = defaultdict(Counter)  # 年度 → 作戦の数（夏の甲子園）
         self.substitutions = defaultdict(Counter)   # 年度 → 交代の数・代打の成績
@@ -338,11 +342,11 @@ class BalanceTally:
             row["absent"] += len(plan.absent)
         self.unions[year] = {kind: dict(row) for kind, row in sorted(out.items())}
 
-    def add_summer_seeds(self, year: int, season) -> None:
-        """その年度の夏の地方大会のシード校と勝ち上がり（``summer_seed_rows``）。"""
-        rows = summer_seed_rows(season)
+    def add_seeds(self, year: int, season, segment: str) -> list[dict]:
+        """その年度の成績シードの大会のシード校と勝ち上がり（``seed_rows``）。"""
+        rows = seed_rows(season, SEED_KINDS[segment])
         if not rows:
-            return
+            return rows
         seeds = sum(r["seeds"] for r in rows)
         out = {
             "competitions": len(rows),
@@ -355,7 +359,26 @@ class BalanceTally:
         if seeds:
             out["best8_share"] = round(sum(r["best8"] for r in rows) / seeds, 3)
             out["best4_share"] = round(sum(r["best4"] for r in rows) / seeds, 3)
-        self.summer_seeds[year] = out
+        self.seeds[segment][year] = out
+        return rows
+
+    def add_selection(self, year: int, season, autumn_rows: list[dict]) -> None:
+        """秋季地区大会の出場校と選抜の出場校のうち、秋季県大会のシード校だった割合。"""
+        from .prior_season import invitational_entrants
+
+        seeded = {school_id for row in autumn_rows for school_id in row["seed_ids"]}
+        regional = set()
+        for cid, scheduled in season.competitions.items():
+            kind = season.repo.competitions.get(cid, {}).get("competition_type")
+            if kind == "autumn_regional" and cid not in {r["competition_id"] for r in autumn_rows}:
+                regional |= set(scheduled.to_competition_run().entrant_school_ids)
+        senbatsu = set(invitational_entrants(season))
+        out = {"regional_entrants": len(regional), "senbatsu_entrants": len(senbatsu)}
+        if regional:
+            out["regional_seed_share"] = round(len(regional & seeded) / len(regional), 3)
+        if senbatsu:
+            out["senbatsu_seed_share"] = round(len(senbatsu & seeded) / len(senbatsu), 3)
+        self.selection[year] = out
 
     def add_sizes(self, year: int, schools, floor_hits: int = 0) -> None:
         """``schools`` は (設置者, 評判のランク S〜E, 学年ごとの人数 {1: 人, 2: 人, 3: 人}) の並び。"""
@@ -463,7 +486,7 @@ class BalanceTally:
 
     def summary(self) -> dict:
         years = sorted({y for y, _ in self.games} | set(self.rosters) | set(self.sizes)
-                       | set(self.unions) | set(self.summer_seeds))
+                       | set(self.unions) | {y for by in self.seeds.values() for y in by})
         out = {}
         for year in years:
             local = self.games.get((year, LOCAL), [])
@@ -541,8 +564,11 @@ class BalanceTally:
                 row["sizes"] = self.sizes[year]
             if year in self.unions:
                 row["unions"] = self.unions[year]
-            if year in self.summer_seeds:
-                row["summer_seeds"] = self.summer_seeds[year]
+            for segment, by_year in sorted(self.seeds.items()):
+                if year in by_year:
+                    row[f"{segment}_seeds"] = by_year[year]
+            if year in self.selection:
+                row["selection"] = self.selection[year]
             out[year] = row
         return out
 
@@ -563,37 +589,44 @@ def _game_metrics(games) -> dict:
     }
 
 
-def summer_seed_rows(season) -> list[dict]:
-    """夏の地方大会ごとのシード校と勝ち上がり。シードを入れていない大会は、
+SEED_KINDS = {
+    "summer": (LOCAL,),
+    "spring": ("spring_prefectural", "spring_regional"),
+    "autumn": ("autumn_prefectural", "autumn_regional"),
+}
+SEED_LABELS = {"summer": "夏の地方大会", "spring": "春季県大会", "autumn": "秋季県大会"}
+
+
+def seed_rows(season, kinds) -> list[dict]:
+    """成績シードのある大会ごとのシード校と勝ち上がり。シードを入れていない大会は、
     ``competition_seed_rules.csv`` の決まりで選んだはずの学校を数える（比べるため）。"""
-    from .seed_draw import choose_seeds, seed_sources, summer_seed_rules
+    from copy import deepcopy
+
+    from .seed_draw import chooses_after_prelim, choose_seeds, game_seed_rules, main_seeds_after_prelim
 
     repo = season.repo
     out = []
     for cid, scheduled in sorted(season.competitions.items()):
         competition = repo.competitions.get(cid, {})
-        rules = summer_seed_rules(repo, cid)
-        if competition.get("competition_type") != LOCAL or not rules or not scheduled.is_complete:
+        rules = game_seed_rules(repo, cid)
+        if competition.get("competition_type") not in kinds or not rules or not scheduled.is_complete:
             continue
-        runtime = scheduled.runtime
+        outer = scheduled.runtime
+        runtime = getattr(outer, "main_runtime", None) or outer
         seeds = list(getattr(runtime, "annual_seed_order", ()) or ())
         applied = bool(seeds)
         if not seeds:
-            prefecture = competition.get("prefecture_code", "")
-            rankings = {}
-            for kind, offset in seed_sources(rules):
-                if offset < 0:
-                    ranking = (getattr(season, "prior_autumn_rankings", None) or {}).get(prefecture)
-                    if ranking:
-                        rankings[kind] = ranking
-                    continue
-                for source_id, source in season.competitions.items():
-                    row = repo.competitions.get(source_id, {})
-                    if (row.get("competition_type") == kind and row.get("prefecture_code") == prefecture
-                            and source.is_complete):
-                        rankings[kind] = source.to_competition_run().outcome.final_ranking_school_ids
-            seeds = choose_seeds(rules, rankings, runtime.entrant_school_ids,
-                                 base_seed=season.rng_seed, namespace=cid)
+            rankings = season._seed_rankings(cid) or {}
+            if chooses_after_prelim(repo, cid, rules) and hasattr(outer, "qualifier_groups"):
+                annual = deepcopy(outer.annual)
+                annual.main_seed_rankings = {k: list(v) for k, v in rankings.items()}
+                seeds = main_seeds_after_prelim(
+                    repo, annual, outer.main_entrant_school_ids,
+                    [m for group in outer.qualifier_groups for m in group.to_matches()],
+                )
+            else:
+                seeds = choose_seeds(rules, rankings, runtime.entrant_school_ids,
+                                     base_seed=season.rng_seed, namespace=cid)
         seed_set = set(seeds)
         total = runtime.total_rounds
         # シード校が別々のブロックにいる回戦（それより前に当たれば決まりに反する）。
@@ -614,6 +647,7 @@ def summer_seed_rows(season) -> list[dict]:
             "competition_id": cid,
             "applied": applied,
             "seeds": len(seeds),
+            "seed_ids": list(seeds),
             "meetings_before_qf": meetings,
             "meetings_inside_blocks": inside,
             "best8": len(seed_set & reached.get(total - 2, set())),
@@ -875,8 +909,14 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
                 tally.add_sizes(today.year, sizes, state.rosters.floor_hits.get(today.year, 0))
             if (today.month, today.day) == (11, 1) and today.year in state.seasons:
                 tally.add_unions(today.year, state.seasons[today.year], tally.kind_of)
-            if (today.month, today.day) == (8, 31) and today.year in state.seasons:
-                tally.add_summer_seeds(today.year, state.seasons[today.year])
+            if (today.month, today.day) == (8, 31):
+                # 春季県大会は4月からの年度（8月31日には前の年度の状態が残っていない年もある）
+                for year, segment in ((today.year, "summer"), (today.year, "spring")):
+                    if year in state.seasons:
+                        tally.add_seeds(year, state.seasons[year], segment)
+            if (today.month, today.day) == (12, 1) and today.year in state.seasons:
+                season = state.seasons[today.year]
+                tally.add_selection(today.year, season, tally.add_seeds(today.year, season, "autumn"))
             if (today.month, today.day) == (7, 1):
                 tally.add_rosters(today.year, roster_rows(state.rosters, today.year))
                 last_snapshot = today.year
@@ -1047,14 +1087,20 @@ def format_report(seed_label: str, report: dict) -> str:
             lines.append("  連合チーム（チーム／構成校／出ない学校）: " + " ".join(
                 f"{k}:{v.get('teams', 0)}／{v.get('schools', 0)}／{v.get('absent', 0)}"
                 for k, v in un.items()))
-        ss = row.get("summer_seeds")
-        if ss:
+        for segment in ("spring", "summer", "autumn"):
+            ss = row.get(f"{segment}_seeds")
+            if ss:
+                lines.append(
+                    f"  {SEED_LABELS[segment]}のシード: シードのある大会 {ss.get('seeded_competitions')}"
+                    f"（入れた大会 {ss.get('applied')}）／{ss.get('competitions')}、シード校 {ss.get('seed_schools')}校、"
+                    f"準々決勝より前のシード校どうし {ss.get('seed_meetings_before_qf')}試合"
+                    f"（うちブロックを分けた回戦より前 {ss.get('seed_meetings_inside_blocks')}）、"
+                    f"ベスト8に残った {ss.get('best8_share')}、ベスト4 {ss.get('best4_share')}")
+        se = row.get("selection")
+        if se:
             lines.append(
-                f"  夏の地方大会のシード: シードのある大会 {ss.get('seeded_competitions')}"
-                f"（入れた大会 {ss.get('applied')}）／{ss.get('competitions')}、シード校 {ss.get('seed_schools')}校、"
-                f"準々決勝より前のシード校どうし {ss.get('seed_meetings_before_qf')}試合"
-                f"（うちブロックを分けた回戦より前 {ss.get('seed_meetings_inside_blocks')}）、"
-                f"ベスト8に残った {ss.get('best8_share')}、ベスト4 {ss.get('best4_share')}")
+                f"  選抜の選考: 秋季地区大会 {se.get('regional_entrants')}校（秋季県大会のシード校 "
+                f"{se.get('regional_seed_share')}）、選抜 {se.get('senbatsu_entrants')}校（同 {se.get('senbatsu_seed_share')}）")
         ro = row.get("rosters")
         if ro:
             lines.append(f"  3年の投手 {ro['third_year_pitchers']}人: 平均 {ro['velocity_mean']}km/h / "

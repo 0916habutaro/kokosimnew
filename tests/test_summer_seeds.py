@@ -163,12 +163,14 @@ class LiveSeedTests(unittest.TestCase):
         repo = SimpleNamespace(
             competition=lambda cid: competitions[cid],
             seed_rules=lambda cid: TIERS_8 if cid == "CMPX" else [],
+            stages=lambda cid: [{"stage_code": "MAIN"}],
         )
         fake = SimpleNamespace(
             repo=repo, annual_templates={"CMPS": None, "CMPX": None},
             competitions={"CMPS": spring}, prior_autumn_rankings={}, seed_pending=set(),
         )
-        fake._summer_seed_rankings = lambda cid: LiveSeasonDependencyRuntimeState._summer_seed_rankings(fake, cid)
+        fake._seed_prefecture = lambda cid: competitions[cid]["prefecture_code"]
+        fake._seed_rankings = lambda cid: LiveSeasonDependencyRuntimeState._seed_rankings(fake, cid)
         return fake
 
     def annual(self, entrants=TEAMS):
@@ -177,27 +179,27 @@ class LiveSeedTests(unittest.TestCase):
 
     def test_waits_for_the_spring_result(self):
         fake = self.state(complete=False)
-        annual = LiveSeasonDependencyRuntimeState._with_summer_seeds(fake, "CMPX", self.annual())
+        annual = LiveSeasonDependencyRuntimeState._with_result_seeds(fake, "CMPX", self.annual())
         self.assertEqual([], annual.main_seed_school_ids)
         self.assertEqual({"CMPX"}, fake.seed_pending)
         fake.competitions["CMPS"].is_complete = True
-        annual = LiveSeasonDependencyRuntimeState._with_summer_seeds(fake, "CMPX", self.annual())
+        annual = LiveSeasonDependencyRuntimeState._with_result_seeds(fake, "CMPX", self.annual())
         self.assertEqual(set(TEAMS[:8]), set(annual.main_seed_school_ids))
         self.assertEqual(set(), fake.seed_pending)
 
     def test_seeds_lost_to_unions_are_replaced_by_the_next_rank(self):
         fake = self.state(complete=True)
-        seeded = LiveSeasonDependencyRuntimeState._with_summer_seeds(fake, "CMPX", self.annual())
+        seeded = LiveSeasonDependencyRuntimeState._with_result_seeds(fake, "CMPX", self.annual())
         # 連合の組み直し後（代表校は元の枠のまま。TEAMS[3] は部員がいなくて出ない）
         after_union = self.annual([s for s in TEAMS if s != TEAMS[3]])
         after_union.main_seed_school_ids = [s for s in seeded.main_seed_school_ids if s != TEAMS[3]]
-        refreshed = LiveSeasonDependencyRuntimeState._with_summer_seeds(
+        refreshed = LiveSeasonDependencyRuntimeState._with_result_seeds(
             fake, "CMPX", after_union, refresh=True)
         self.assertEqual(8, len(refreshed.main_seed_school_ids))
         self.assertNotIn(TEAMS[3], refreshed.main_seed_school_ids)
         self.assertIn(TEAMS[8], refreshed.main_seed_school_ids)
         # シード校が残る大会は同じ並び（抽選の結果が変わらない）
-        same = LiveSeasonDependencyRuntimeState._with_summer_seeds(
+        same = LiveSeasonDependencyRuntimeState._with_result_seeds(
             fake, "CMPX", seeded, refresh=True)
         self.assertEqual(seeded.main_seed_school_ids, same.main_seed_school_ids)
 

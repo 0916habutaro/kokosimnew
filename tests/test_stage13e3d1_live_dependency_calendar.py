@@ -387,6 +387,11 @@ class Stage13E3D1LiveDependencyCalendarTests(
             expected_annual.entrant_school_ids.append(
                 champion
             )
+        # 成績シード（予選のあとに選んだ学校）は同じものを入力にする
+        expected_annual.main_seed_school_ids = list(
+            state.competitions["CMP000077"].runtime.annual.main_seed_school_ids
+        )
+        self.assertTrue(expected_annual.main_seed_school_ids)
         legacy = TournamentEngine(
             self.repo
         ).run(expected_annual)

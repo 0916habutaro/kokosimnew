@@ -1,0 +1,9 @@
+{
+  "config_id": "prefectural_seed_fallback_v1",
+  "revision": 1,
+  "status": "user_decision_2026_11_10",
+  "notes_ja": "秋季・春季の県大会で、2026年の調査でシード校の数が分からなかった大会（competition_seed_rules.csv の seed_assignment_method=main_size_fallback）に使うゲームの仮の決まり（ユーザー決定。game_definition.md §8「秋季・春季の県大会のシード」）。本大会の出場校が large_min_main_entrants 校以上なら large_seed_count 校、それより少なければ small_seed_count 校をシードにする。実在の大会の制度ではない。",
+  "large_min_main_entrants": 32,
+  "large_seed_count": 8,
+  "small_seed_count": 4
+}

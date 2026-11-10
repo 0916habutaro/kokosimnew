@@ -13,6 +13,7 @@ from .premain_runtime_composite import (
 )
 from .randomness import shuffled
 from .repository import DataRepository
+from .seed_draw import main_seeds_after_prelim
 from .direct_access_quota import effective_qualifier_group_output_slots
 from .tournament_runtime import MainTournamentRuntimeState
 
@@ -705,6 +706,12 @@ class QualifierMainRuntimeState:
                 )
 
         self.main_entrant_school_ids = main_entrants
+        if self.annual.main_seed_after_prelim and not self.annual.main_seed_school_ids:
+            # 成績シード：予選の成績と前の大会の順位から（seed_draw.py）
+            self.annual.main_seed_school_ids = main_seeds_after_prelim(
+                self.repo, self.annual, main_entrants,
+                [match for group in self.qualifier_groups for match in group.to_matches()],
+            )
         self.main_runtime = MainTournamentRuntimeState.create(
             competition_id=self.annual.competition_id,
             reference_year=self.annual.year,
