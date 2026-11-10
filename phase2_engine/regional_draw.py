@@ -34,7 +34,8 @@ from .season_catalog import TEMPLATE_YEAR
 
 HOSTS_FILE = "regional_hosts.csv"
 DRAW_RULES_FILE = "regional_draw_rules.csv"
-MAX_NODES = 20000
+MAX_NODES = 3000   # 1回の探索で試す数（超えたら1回戦免除の学校から引き直す）
+ATTEMPTS = 40      # 決まりをゆるめる前に引き直す回数
 
 
 # ---- 開催県と出場枠 ----
@@ -195,11 +196,9 @@ def draw_slots(
     total = size.bit_length() - 1
     rng = rng_for(base_seed, f"{namespace}:regional_draw")
     byes = size - len(entrants)
-    recipients = _bye_recipients(entrants, classes, rule.bye_order, byes, rng)
     seed_no = standard_seed_order(size)
     bye_slots = {i for i, no in enumerate(seed_no) if no <= byes}
     empty = {i ^ 1 for i in bye_slots}
-    others = [s for s in entrants if s not in set(recipients)]
 
     def rounds(code: str) -> int:
         return max(1, round_number(code, total)) if code else 1
@@ -213,10 +212,14 @@ def draw_slots(
         same, rank12 = max(1, same - 1), max(1, rank12 - 1)
         levels.append(((), (), same, rank12))
     for relaxed, level in enumerate(levels):
-        slots = _search(size, bye_slots, empty, recipients, others, classes, prefecture_of,
-                        level, rng)
-        if slots is not None:
-            return slots, relaxed
+        for _ in range(ATTEMPTS):
+            # 1回戦免除の学校も引き直す（同じ順位の中の誰が免除になるかで組めないことがある）
+            recipients = _bye_recipients(entrants, classes, rule.bye_order, byes, rng)
+            others = [s for s in entrants if s not in set(recipients)]
+            slots = _search(size, bye_slots, empty, recipients, others, classes, prefecture_of,
+                            level, rng)
+            if slots is not None:
+                return slots, relaxed
     raise AssertionError("regional draw found no bracket")
 
 
