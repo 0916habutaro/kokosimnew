@@ -1,7 +1,7 @@
 """試合の結果の要約：コールド、勝利投手・敗戦投手、本塁打（game_definition.md §9）。
 
 どれも保存済みの試合の記録（``inning_scores``・``highlights``・``pitcher_stats``）から
-求める。保存形式は変えない。
+求める。保存形式は変えない。得点は打席の得点（S）のほか、暴投・捕逸の得点（W）と本盗（B）も数える。
 
 勝利投手・敗戦投手は公認野球規則 9.17 の考え方で決める。
 
@@ -114,7 +114,7 @@ def pitchers_of_record(detail: dict | None) -> dict | None:
 
     for item in highlights:
         kind, inning, half = item[0], item[1], item[2]
-        if kind not in ("P", "S"):
+        if kind not in ("P", "S", "W", "B"):
             continue
         if kind == "P":
             team, pitcher = item[3], item[4]
@@ -131,12 +131,19 @@ def pitchers_of_record(detail: dict | None) -> dict | None:
             if (team, pitcher) not in allowed:
                 return None
             continue
+        # 得点：打席の得点（S）、暴投・捕逸の得点（W）、本盗（B の盗塁成功で本塁へ）
+        if kind == "S" or kind == "W":
+            scored = int(item[5])
+        else:
+            scored = int(item[4] == "sb" and int(item[5]) == 4)
+        if not scored:
+            continue
         offense = team1 if _HALF_BATTING[half] == 1 else team2
         defense = team2 if offense == team1 else team1
         if half_of.get(defense) != (inning, half):
             departed[defense] = []
             half_of[defense] = (inning, half)
-        for _ in range(int(item[5])):
+        for _ in range(scored):
             charged = None
             for pitcher in departed[defense]:
                 key = (defense, pitcher)

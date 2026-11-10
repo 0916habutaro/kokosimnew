@@ -29,6 +29,7 @@ const state = {
   recordsTab: "year",
   recordsBest8: {},
   recordsEntrants: {},
+  recordsPlayers: {}, // 個人の記録の絞り込み（view は「部門の上位」か「達成の記録」）
   bracket: null,
   zoom: 1,
 };
@@ -128,6 +129,7 @@ function location_() {
     school: state.schools.detail, tab: state.schools.tab, player: state.schools.player, coach: state.schools.coach,
     recordsYear: state.recordsYear || null,
     recordsTab: state.recordsTab, recordsBest8: state.recordsBest8, recordsEntrants: state.recordsEntrants,
+    recordsPlayers: state.recordsPlayers,
   });
 }
 
@@ -164,6 +166,7 @@ function goHistory(from, to) {
   state.recordsTab = saved.recordsTab || "year";
   state.recordsBest8 = saved.recordsBest8 || {};
   state.recordsEntrants = saved.recordsEntrants || {};
+  state.recordsPlayers = saved.recordsPlayers || {};
   nav.restoring = true;
   try {
     renderMenu();
@@ -337,7 +340,7 @@ function pickFromMap(opts = {}) {
 // ---- 記録 ----
 
 function recordsTabs() {
-  return `<div class="tabs">${[["year", "年度別記録"], ["best8", "大会別ベスト8"], ["entrants", "複数年度の出場校"]].map(([key, label]) =>
+  return `<div class="tabs">${[["year", "年度別記録"], ["best8", "大会別ベスト8"], ["entrants", "複数年度の出場校"], ["players", "個人の記録"]].map(([key, label]) =>
     `<button class="tab ${state.recordsTab === key ? "on" : ""}" data-records-tab="${key}">${label}</button>`).join("")}</div>`;
 }
 
@@ -495,8 +498,113 @@ async function renderBest8(content) {
   content.querySelectorAll("[data-record-cid]").forEach((a) => a.addEventListener("click", () => openCompetition(Number(a.dataset.recordYear), a.dataset.recordCid)));
 }
 
+// ---- 記録：個人の記録 ----
+
+// 順位の札：1位は金、2位は銀、3位は緑（成績の札と同じ決まり）
+const RANK_CLASS = { 1: "b-top", 2: "b-silver", 3: "b-mid" };
+// 達成の記録の札：完全試合は金、ノーヒットノーランは銀、サイクル安打は緑
+const FEAT_CLASS = { perfect: "b-top", no_hitter: "b-silver", cycle: "b-mid" };
+
+function recordPerson(r) {
+  return playerLink(r.school_id, r.player_id, r.name, r.player_year);
+}
+
+function recordSchool(r) {
+  return `<span class="link" data-school="${esc(r.school_id)}">${esc(r.school_name)}</span><small class="muted">${esc(r.prefecture)}</small>`;
+}
+
+function leaderTable(c) {
+  const rows = c.rows.map((r) => `<tr><td class="n">${r.rank <= 3 ? `<span class="badge ${RANK_CLASS[r.rank]}">${r.rank}</span>` : r.rank}</td>
+    <td>${recordPerson(r)}</td><td>${recordSchool(r)}</td><td class="n">${r.grade ? `${r.grade}年` : ""}</td>
+    <td class="n strong">${esc(r.value)}</td><td class="muted">${esc(r.note)}${r.rest ? `　ほか同率${r.rest}人` : ""}</td></tr>`).join("");
+  return `<div class="panel leader"><h3>${esc(c.label)}${c.qualified ? '<small class="muted">（規定以上）</small>' : ""}</h3>
+    ${rows ? `<table class="list zebra leaders"><thead><tr><th>順位</th><th>選手</th><th>学校</th><th>学年</th><th>${esc(c.label)}</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
+      : '<p class="muted">該当する選手はいません</p>'}</div>`;
+}
+
+function featTables(data) {
+  const yearCell = (r) => `${r.school_year}年度`;
+  const matchCell = (r) => r.match_id ? `<span class="link" data-match="${esc(r.match_id)}" data-match-year="${r.season_year}" data-match-cid="${esc(r.competition_id)}">${fmtDate(r.match_date)}</span>${r.opponent_name ? `<small class="muted">対${esc(r.opponent_name)}</small>` : ""}` : "";
+  const feats = data.feats.map((r) => `<tr><td>${yearCell(r)}</td><td>${esc(r.competition_name)}</td>
+    <td><span class="badge ${FEAT_CLASS[r.kind]}">${esc(r.label)}</span></td><td>${recordPerson(r)}</td><td>${recordSchool(r)}</td>
+    <td>${matchCell(r)}</td><td class="muted">${esc(r.detail)}</td></tr>`).join("");
+  const best = (rows, unit) => rows.map((r) => `<tr><td>${yearCell(r)}</td><td>${esc(r.competition_name)}</td><td class="n strong">${r.value}${unit}</td>
+    <td class="holders">${r.holders.map((h) => `<span class="entrant">${recordPerson(h)}${recordSchool(h)}${matchCell({ ...h, competition_id: r.competition_id })}</span>`).join("")}</td></tr>`).join("");
+  const table = (head, body, empty) => body
+    ? `<table class="list zebra feats"><thead><tr>${head.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table>`
+    : `<p class="muted">${empty}</p>`;
+  return `<div class="panel"><h3>ノーヒットノーラン・完全試合・サイクル安打</h3>
+      ${table(["年度", "大会", "記録", "選手", "学校", "試合", "内容"], feats, "まだ達成した選手はいません")}</div>
+    <div class="panel"><h3>1試合の最多奪三振（大会ごと）</h3>${table(["年度", "大会", "奪三振", "選手"], best(data.strikeouts, ""), "記録がありません")}</div>
+    <div class="panel"><h3>1大会の最多本塁打（大会ごと）</h3>${table(["年度", "大会", "本塁打", "選手"], best(data.home_runs, "本"), "記録がありません")}</div>`;
+}
+
+async function renderPlayerRecords(content) {
+  const requested = JSON.stringify(state.recordsPlayers);
+  const data = await call("records_players", state.recordsPlayers);
+  if (requested !== JSON.stringify(state.recordsPlayers)) return;
+  if (!data || state.page !== "records" || state.recordsTab !== "players") return;
+  const view = state.recordsPlayers.view === "feats" ? "feats" : "leaders";
+  state.recordsPlayers = { ...data.filters, view };
+  refreshLocation();
+  const f = data.filters;
+  const opt = (value, text, on) => `<option value="${esc(value)}" ${String(on ?? "") === String(value) ? "selected" : ""}>${esc(text)}</option>`;
+  const levelName = { national: "全国", regional: "地区", local: "都道府県" };
+  const groups = ["national", "regional", "local"].map((level) => {
+    const items = data.competitions.filter((c) => c.level === level);
+    return items.length ? `<optgroup label="${levelName[level]}">${items.map((c) => opt(c.competition_id, c.name, f.competition_id)).join("")}</optgroup>` : "";
+  }).join("");
+  const rule = data.rule;
+  const batting = data.categories.filter((c) => c.kind === "batting").map(leaderTable).join("");
+  const pitching = data.categories.filter((c) => c.kind === "pitching").map(leaderTable).join("");
+  content.innerHTML = `<div class="head"><h2>記録</h2>${recordsTabs()}</div>
+    <div class="best8-filters">
+      <label>年度<select id="rp-year">${data.years.map(([y, text]) => opt(y, text, f.year)).join("")}</select></label>
+      <label>大会<select id="rp-competition_id">${opt("", f.year === "all" ? "公式戦すべて" : "その年度の公式戦すべて", f.competition_id)}${groups}</select></label>
+      <label>地域<select id="rp-region">${opt("", "すべて", f.region)}${data.regions.map(([id, name]) => opt(id, name, f.region)).join("")}</select></label>
+      <label>都道府県<select id="rp-prefecture">${opt("", "すべて", f.prefecture)}${data.prefectures.map(([code, name]) => opt(code, name, f.prefecture)).join("")}</select></label>
+      <button class="btn small" type="button" id="rp-map">地図から選ぶ</button>
+      <label>学年<select id="rp-grade">${[["", "すべて"], [1, "1年"], [2, "2年"], [3, "3年"]].map(([g, text]) => opt(g, text, f.grade)).join("")}</select></label>
+      <span class="sep"></span>
+      <button class="chip ${view === "leaders" ? "on" : ""}" data-rp-view="leaders">部門の上位</button>
+      <button class="chip ${view === "feats" ? "on" : ""}" data-rp-view="feats">達成の記録</button>
+    </div>
+    <div class="scroll">
+      ${view === "leaders" ? `<p class="muted record-note">各部門${rule.leaders}位まで。打率は打席がチームの試合数×${rule.plate_appearances}以上、防御率は投球回がチームの試合数×${rule.innings}以上の選手だけです。${f.grade ? "学年は、その学年だった年度の記録です。" : ""}</p>
+        <h3 class="record-group">打撃</h3><div class="leaders-grid">${batting}</div>
+        <h3 class="record-group">投手</h3><div class="leaders-grid">${pitching}</div>
+        ${data.undecided ? `<p class="muted record-note">勝利投手を決められなかった試合が${data.undecided}試合あります（勝利に数えていません）。</p>` : ""}`
+      : featTables(data)}
+    </div>`;
+  bindRecordsTabs(content);
+  for (const key of ["year", "competition_id", "region", "prefecture", "grade"]) {
+    $("rp-" + key).addEventListener("change", (e) => {
+      state.recordsPlayers[key] = e.target.value;
+      if (key === "region") state.recordsPlayers.prefecture = "";
+      renderPage();
+    });
+  }
+  $("rp-map").addEventListener("click", async () => {
+    const picked = await pickFromMap({
+      title: "地図から選ぶ（地域・都道府県）", pickRegion: true, region: f.region, prefecture: f.prefecture,
+    });
+    if (!picked) return;
+    Object.assign(state.recordsPlayers, picked);
+    renderPage();
+  });
+  content.querySelectorAll("[data-rp-view]").forEach((b) => b.addEventListener("click", () => {
+    state.recordsPlayers.view = b.dataset.rpView;
+    renderPage();
+  }));
+  content.querySelectorAll(".link[data-school]").forEach((a) => a.addEventListener("click", () => openSchool(a.dataset.school)));
+  content.querySelectorAll(".link[data-match]").forEach((a) => a.addEventListener("click", () =>
+    openMatch(Number(a.dataset.matchYear), a.dataset.matchCid, a.dataset.match)));
+  bindPlayerLinks(content);
+}
+
 async function renderRecords(content) {
   if (["best8", "entrants"].includes(state.recordsTab)) return renderBest8(content);
+  if (state.recordsTab === "players") return renderPlayerRecords(content);
   const data = await call("records", state.recordsYear || null);
   if (!data) return;
   state.recordsYear = data.school_year;
@@ -1855,6 +1963,7 @@ async function switchSave(name, ...args) {
   state.recordsTab = "year";
   state.recordsBest8 = {};
   state.recordsEntrants = {};
+  state.recordsPlayers = {};
   state.matches = { date: "", detail: null };
   state.schools = { ...state.schools, data: null, view: [], selected: null, detail: null, tab: "overview", player: null, coach: null };
   state.bracket = null;
