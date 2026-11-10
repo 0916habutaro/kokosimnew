@@ -146,10 +146,17 @@ class ScreenRankTests(unittest.TestCase):
             to_competition_run=lambda: SimpleNamespace(
                 outcome=SimpleNamespace(final_ranking_school_ids=ranking)))
         raw = [feeder("91", 1) | {"source_competition_id": "CMPS"}]
+        # 選抜の推薦のルール（順位の札にしない。先に並ぶ）
+        invited = {"source_type": "national_invitational_participants", "source_competition_id": "CMPI",
+                   "selector": "participants_from_region", "quota": "6"}
+        senbatsu = SimpleNamespace(
+            is_complete=True,
+            to_competition_run=lambda: SimpleNamespace(
+                outcome=SimpleNamespace(final_ranking_school_ids=[ranking[1], ranking[0]])))
         season = SimpleNamespace(
-            competitions={"CMPS": source},
-            regional_feeder_rules={"CMPR": apply_host_quotas(raw, {"host_2026": "91", "rotation": "91",
-                                                                   "host_bonus": "3"}, 2026)},
+            competitions={"CMPS": source, "CMPI": senbatsu},
+            regional_feeder_rules={"CMPR": [invited] + apply_host_quotas(
+                raw, {"host_2026": "91", "rotation": "91", "host_bonus": "3"}, 2026)},
         )
         fake = SimpleNamespace(_season_of=lambda year: season, _feeder_rules={"CMPR": raw},
                                prefectures={"91": "架空県"})
