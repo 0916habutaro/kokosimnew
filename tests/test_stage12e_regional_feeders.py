@@ -5,6 +5,7 @@ ROOT=Path(__file__).resolve().parents[1]
 DATA_ROOT=ROOT/"data"
 sys.path.insert(0,str(ROOT))
 from phase2_engine import DataRepository, SeasonOrchestrator
+from phase2_engine.regional_draw import apply_host_quotas
 
 class Stage12ERegionalFeederTests(unittest.TestCase):
     @classmethod
@@ -13,7 +14,13 @@ class Stage12ERegionalFeederTests(unittest.TestCase):
         cls.orch=SeasonOrchestrator(cls.repo,DATA_ROOT)
         cls.season=cls.orch.run_structural_season(2026,2026100501)
         with (DATA_ROOT/'competitions'/'regional_feeder_rules.csv').open(encoding='utf-8-sig',newline='') as f:
-            cls.rules=list(csv.DictReader(f))
+            rules=list(csv.DictReader(f))
+        # 2026年の枠（開催県の追加枠を足したもの。regional_draw.apply_host_quotas）
+        with (DATA_ROOT/'competitions'/'regional_hosts.csv').open(encoding='utf-8-sig',newline='') as f:
+            hosts={r['competition_id']:r for r in csv.DictReader(f)}
+        cls.rules=[r for cid in dict.fromkeys(x['destination_competition_id'] for x in rules)
+                   for r in apply_host_quotas([x for x in rules if x['destination_competition_id']==cid],
+                                              hosts.get(cid),2026)]
         with (DATA_ROOT/'competitions'/'regional_qualification_playoffs.csv').open(encoding='utf-8-sig',newline='') as f:
             cls.playoffs=list(csv.DictReader(f))
 

@@ -17,6 +17,7 @@ from .models import AnnualCompetitionInput
 from .paths import resolve_data_file
 from .randomness import shuffled
 from .repository import DataRepository
+from .regional_draw import DrawRule, apply_host_quotas, draw_slots, entrant_classes, host_of
 from .seed_draw import (
     chooses_after_prelim, choose_seeds, game_seed_rules, merge_rankings, seed_sources,
 )
@@ -261,6 +262,9 @@ class LiveSeasonDependencyRuntimeState:
         default_factory=dict,
         repr=False,
     )
+    # 地区大会の開催県（大会 → 都道府県。regional_draw.py）と組み合わせの決まり
+    regional_hosts: dict[str, str] = field(default_factory=dict, repr=False)
+    regional_draw_rules: dict[str, dict] = field(default_factory=dict, repr=False)
     # 選抜の選考の枠（selection_rules.csv）。選考は秋季地区大会の結果から行う。
     selection_rules: dict[str, list[dict]] = field(
         default_factory=dict,
@@ -541,6 +545,22 @@ class LiveSeasonDependencyRuntimeState:
             regional_feeder_rules[
                 destination
             ].append(dict(row))
+        # 開催県（2027年以降はゲームの仮の順番）と、その年の開催県の追加枠
+        host_rows = {
+            row["competition_id"]: row
+            for row in cls._read_csv(repo.data_dir, "regional_hosts.csv")
+            if row.get("competition_id") in templates
+        }
+        for destination, host_row in host_rows.items():
+            regional_feeder_rules[destination] = apply_host_quotas(
+                regional_feeder_rules.get(destination, []), host_row, year,
+            )
+        regional_hosts = {cid: host_of(row, year) for cid, row in host_rows.items()}
+        regional_draw_rules = {
+            row["competition_id"]: dict(row)
+            for row in cls._read_csv(repo.data_dir, "regional_draw_rules.csv")
+            if row.get("competition_id") in templates
+        }
         for rows in regional_feeder_rules.values():
             rows.sort(
                 key=lambda row: (
@@ -653,6 +673,8 @@ class LiveSeasonDependencyRuntimeState:
             qualification_rules=qualification_rules,
             regional_feeder_rules=regional_feeder_rules,
             regional_playoffs=regional_playoffs,
+            regional_hosts=regional_hosts,
+            regional_draw_rules=regional_draw_rules,
             selection_rules=selection_rules,
             prior_autumn_rankings={
                 pcode: tuple(ids)
@@ -1205,6 +1227,62 @@ class LiveSeasonDependencyRuntimeState:
             rebuilt.append(cid)
         return rebuilt
 
+    # ---- 地区大会の組み合わせ（game_definition.md §8「地区大会の開催県と組み合わせ」） ----
+
+    def regional_entrant_classes(
+        self, competition_id: str, entrants: Sequence[str],
+    ) -> tuple[dict[str, set[str]], dict[str, str]]:
+        """地区大会の出場校の種類（県大会の順位・開催県・選抜の推薦校）と都道府県。"""
+        rankings: dict[str, list[str]] = {}
+        invited: set[str] = set()
+        for rule in self.regional_feeder_rules.get(competition_id, []):
+            if rule.get("source_type") == "national_invitational_participants":
+                invited |= set(self.prior_invitational_entrant_ids)
+                source = self.competitions.get(rule.get("source_competition_id", ""))
+                if source is not None and source.is_complete:
+                    invited |= set(source.to_competition_run().entrant_school_ids)
+                continue
+            source = self.competitions.get(rule.get("source_competition_id", ""))
+            if source is None or not source.is_complete:
+                continue
+            outcome = source.to_competition_run().outcome
+            pcode = rule.get("source_prefecture_code", "")
+            if outcome and pcode:
+                rankings.setdefault(pcode, list(outcome.final_ranking_school_ids))
+        prefecture_of = {
+            school_id: self.repo.schools.get(school_id, {}).get("prefecture_code", "")
+            for school_id in entrants
+        }
+        classes = entrant_classes(
+            entrants, prefecture_of, rankings,
+            host=self.regional_hosts.get(competition_id, ""),
+            invited=invited & set(entrants),
+        )
+        return classes, prefecture_of
+
+    def _with_regional_draw(
+        self, competition_id: str, annual: AnnualCompetitionInput,
+    ) -> AnnualCompetitionInput:
+        """地区大会の組み合わせを決まり（regional_draw_rules.csv）どおりに抽選する。"""
+        row = self.regional_draw_rules.get(competition_id)
+        if not row or annual.main_bracket_slots or len(annual.entrant_school_ids) < 2:
+            return annual
+        entrants = list(dict.fromkeys(annual.entrant_school_ids))
+        classes, prefecture_of = self.regional_entrant_classes(competition_id, entrants)
+        slots, relaxed = draw_slots(
+            entrants, classes, prefecture_of, DrawRule.from_row(row),
+            base_seed=annual.rng_seed, namespace=competition_id,
+        )
+        annual = deepcopy(annual)
+        annual.main_bracket_slots = slots
+        self.history.append({
+            "action": "regional_draw",
+            "competition_id": competition_id,
+            "host_prefecture_code": self.regional_hosts.get(competition_id, ""),
+            "relaxed": relaxed,
+        })
+        return annual
+
     def _activate_competition(
         self,
         competition_id: str,
@@ -1220,6 +1298,7 @@ class LiveSeasonDependencyRuntimeState:
         if annual is not seeded and seeded.main_seed_school_ids:
             # 連合の代表校でなくなった・出ない学校の代わりに、次の順位の学校を繰り上げる
             annual = self._with_result_seeds(competition_id, annual, refresh=True)
+        annual = self._with_regional_draw(competition_id, annual)
         self._refresh_koshien_holds()
         scheduled = (
             self.engine
