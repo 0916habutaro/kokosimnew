@@ -408,6 +408,10 @@ class Stage13E3D2QualificationRegionalTests(
                 year=self.year,
                 entrant_school_ids=legacy_entrants,
                 rng_seed=regional_seed,
+                # 地区大会の組み合わせ（regional_draw.py で抽選したもの）は同じものを入力にする
+                main_bracket_slots=list(
+                    state.competitions["CMP000011"].runtime.initial_slots
+                ),
             )
         )
         self.assertEqual(
