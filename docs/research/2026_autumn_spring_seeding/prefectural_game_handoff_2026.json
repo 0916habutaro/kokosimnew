@@ -12,7 +12,7 @@
     "all_ready": false,
     "source_field_presence_only": "present_fieldsは文字列があることだけを表す。正式な抽選ルールの証明ではない。",
     "blank_not_zero": "未記録のseed_count=nullは正式シード0校を意味しない。",
-    "school_id_notice": "seed_examples_2026.csvの183件中、県大会179件＋地区大会4件。いずれもschool_id空欄。県大会の参照は179件に限定。",
+    "school_id_notice": "seed_examples_2026.csvの215件中、県大会211件＋地区大会4件。全school_id空欄で学校マスターへの照合は別工程。",
     "selection_rule_provenance": "シード数値は公式確定と暫定値が混在。暫定ならseed_count_statusで区別。",
     "runtime_warning": "県大会の段階・抽選配置・BYE・途中再抽選を確定させるまではゲーム側ルールとして直接読み込まない。"
   },
@@ -32,8 +32,8 @@
     "official_bracket_links": 26,
     "p0_topology_or_exception_count": 25,
     "recorded_with_5_fields": 24,
-    "school_examples_total_file": 183,
-    "school_examples_prefectural": 179,
+    "school_examples_total_file": 215,
+    "school_examples_prefectural": 211,
     "school_examples_regional": 4,
     "school_ids_linked_prefectural": 0
   },
@@ -1074,11 +1074,63 @@
         "VERIFY_SEEDED_FIRST_ROUND",
         "VERIFY_REDRAW_PRESENCE"
       ],
-      "audit_43_status": "予選段階のシードは確認、本大会の校数未確定",
-      "school_examples": 0,
+      "audit_43_status": "南北予選のシード指定・校数・学校別配置は原図確定、県決勝大会の独立シードは未確定",
+      "school_examples": 24,
       "school_id_links": 0,
-      "bracket_position_examples": 0,
-      "targeted_research_hint": "北部8・南部16の予選シードを県本大会16校の正式シードに転記しない。"
+      "bracket_position_examples": 24,
+      "targeted_research_hint": "県決勝16校（南北A～H各8代表・5回戦8試合）の『成績シード』と、南北予選24校（北8・南16）のシード○を分離。2025秋の県決勝は8校（南北A～D）、予選シード4+4で方式が異なる。",
+      "preliminary_seed_observation": {
+        "season": "autumn",
+        "year": 2026,
+        "seed_count_north": 8,
+        "seed_count_south": 16,
+        "north_seed_bracket_positions": [
+          1,
+          9,
+          17,
+          25,
+          32,
+          39,
+          46,
+          53
+        ],
+        "south_seed_bracket_positions": [
+          1,
+          6,
+          11,
+          16,
+          20,
+          24,
+          28,
+          32,
+          36,
+          40,
+          44,
+          48,
+          52,
+          56,
+          60,
+          64
+        ],
+        "qualification_groups": "A-H for each of north and south",
+        "qualified_north": 8,
+        "qualified_south": 8,
+        "main_first_match_connections": "South A vs North A; South B vs North B; ... South H vs North H",
+        "main_first_match_round_label": "5回戦",
+        "main_first_match_count": 8,
+        "main_byes_at_this_stage": 0,
+        "comparison_2025": {
+          "seed_count_north": 4,
+          "seed_count_south": 4,
+          "qualification_groups": "A-D",
+          "qualified_north": 4,
+          "qualified_south": 4,
+          "main_first_match_round_label": "準々決勝",
+          "main_first_match_count": 4
+        },
+        "evidence": "User-supplied 2025/2026 official Fukuoka prefectural federation bracket images plus https://www.bukatsuganba.com/hard_baseball/baseball/fukuoka/12260 and /12261",
+        "caveat": "preliminary seeds are not formal main-final-stage seeds. Future-draw-mandatory status unknown."
+      }
     },
     {
       "key": "2026|秋季|佐賀",
@@ -2250,11 +2302,38 @@
         "VERIFY_SEEDED_FIRST_ROUND",
         "VERIFY_REDRAW_PRESENCE"
       ],
-      "audit_43_status": "予選段階のシードは確認、本大会の校数未確定",
-      "school_examples": 0,
+      "audit_43_status": "南北予選各4シード指定・学校別配置は原図確定、県決勝大会の独立シードは未確定",
+      "school_examples": 8,
       "school_id_links": 0,
-      "bracket_position_examples": 0,
-      "targeted_research_hint": "南北予選8シードと県決勝大会8校の別段階を定義。"
+      "bracket_position_examples": 8,
+      "targeted_research_hint": "県決勝8校の正式成績シード有無は未確認。北部・南部予選各4校が原図○シード、各A-Dから1校代表。県決勝は北A対南A～北D対南DのQF4試合。",
+      "preliminary_seed_observation": {
+        "season": "spring",
+        "year": 2026,
+        "seed_count_north": 4,
+        "seed_count_south": 4,
+        "north_seed_bracket_positions": [
+          1,
+          16,
+          31,
+          46
+        ],
+        "south_seed_bracket_positions": [
+          1,
+          18,
+          35,
+          52
+        ],
+        "qualification_groups": "A-D for each north and south",
+        "qualified_north": 4,
+        "qualified_south": 4,
+        "main_first_match_connections": "North A vs South A; North B vs South B; North C vs South C; North D vs South D",
+        "main_first_match_round_label": "準々決勝",
+        "main_first_match_count": 4,
+        "main_byes_at_this_stage": 0,
+        "evidence": "User-supplied 2026/3/30 and 4/6 official Fukuoka prefectural federation bracket images plus https://www.bukatsuganba.com/hard_baseball/baseball/fukuoka/11600 and /11601",
+        "caveat": "preliminary seeds are not formal main-final-stage seeds."
+      }
     },
     {
       "key": "2026|春季|佐賀",
