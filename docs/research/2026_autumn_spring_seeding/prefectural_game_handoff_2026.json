@@ -12,7 +12,7 @@
     "all_ready": false,
     "source_field_presence_only": "present_fieldsは文字列があることだけを表す。正式な抽選ルールの証明ではない。",
     "blank_not_zero": "未記録のseed_count=nullは正式シード0校を意味しない。",
-    "school_id_notice": "seed_examples_2026.csvの220件中、県大会216件＋地区大会4件。全school_id空欄で学校マスターへの照合は別工程。",
+    "school_id_notice": "seed_examples_2026.csvの284件中、県大会280件＋地区大会4件。全school_id空欄で学校マスターへの照合は別工程。",
     "selection_rule_provenance": "シード数値は公式確定と暫定値が混在。暫定ならseed_count_statusで区別。",
     "runtime_warning": "県大会の段階・抽選配置・BYE・途中再抽選を確定させるまではゲーム側ルールとして直接読み込まない。"
   },
@@ -24,16 +24,16 @@
     "unknown_seed_counts": 32,
     "participants_field_recorded": 79,
     "selection_source_field_recorded": 82,
-    "placement_field_recorded": 53,
-    "first_round_field_recorded": 47,
-    "bye_field_recorded": 52,
+    "placement_field_recorded": 55,
+    "first_round_field_recorded": 49,
+    "bye_field_recorded": 53,
     "redraw_field_recorded": 2,
     "official_rule_links": 20,
     "official_bracket_links": 26,
     "p0_topology_or_exception_count": 25,
     "recorded_with_5_fields": 24,
-    "school_examples_total_file": 220,
-    "school_examples_prefectural": 216,
+    "school_examples_total_file": 284,
+    "school_examples_prefectural": 280,
     "school_examples_regional": 4,
     "school_ids_linked_prefectural": 0
   },
@@ -837,18 +837,474 @@
         "selection_source",
         "placement",
         "bye",
-        "official_drawing"
+        "official_drawing",
+        "seed_first_round"
       ],
       "open_issue_codes": [
         "CONFIRM_FORMAL_SEED_STATUS",
         "VERIFY_SEEDED_FIRST_ROUND",
         "VERIFY_REDRAW_PRESENCE"
       ],
-      "audit_43_status": "公式原図は存在、本大会のシード定義未確定",
-      "school_examples": 0,
+      "audit_43_status": "支部1・2位8校BYEと3～6位の初戦8カード、QF4区画での地区別分散を原図確定。正式シード指定は未確認",
+      "school_examples": 24,
       "school_id_links": 0,
-      "bracket_position_examples": 0,
-      "targeted_research_hint": null
+      "bracket_position_examples": 24,
+      "targeted_research_hint": "【2026原図：校別配置確定】四支部各6＝24校。1・2位計8校はBYE、3～6位16校は1回戦（初戦3位対6位4試合＋4位対5位4試合）。BYE8の枠と24校の支部順位・配置番号を全て実装引き継ぎJSONへ記録。正式シード名義と2027年以降の強制性は未確定。",
+      "autumn_bracket_observation_2026": {
+        "stage_kind": "prefectural_main",
+        "participating_prefectural_schools": 24,
+        "district_preliminary_stages": [
+          {
+            "district": "北信",
+            "participants_2026": 18,
+            "main_qualifiers": 6,
+            "main_ranks": "1-6"
+          },
+          {
+            "district": "東信",
+            "participants_2026": 14,
+            "main_qualifiers": 6,
+            "main_ranks": "1-6"
+          },
+          {
+            "district": "南信",
+            "participants_2026": 21,
+            "main_qualifiers": 6,
+            "main_ranks": "1-6"
+          },
+          {
+            "district": "中信",
+            "participants_2026": 14,
+            "main_qualifiers": 6,
+            "main_ranks": "1-6"
+          }
+        ],
+        "qualification_total": 24,
+        "prelim_participation_sum_2026": 67,
+        "main_bracket_slots": [
+          {
+            "slot": 1,
+            "school": "岡谷南",
+            "district": "南信",
+            "district_rank": 1,
+            "first_round_bye": true,
+            "quarterfinal_section": 1
+          },
+          {
+            "slot": 2,
+            "school": "岩村田",
+            "district": "東信",
+            "district_rank": 4,
+            "first_round_bye": false,
+            "quarterfinal_section": 1
+          },
+          {
+            "slot": 3,
+            "school": "篠ノ井",
+            "district": "北信",
+            "district_rank": 5,
+            "first_round_bye": false,
+            "quarterfinal_section": 1
+          },
+          {
+            "slot": 4,
+            "school": "長野俊英",
+            "district": "北信",
+            "district_rank": 3,
+            "first_round_bye": false,
+            "quarterfinal_section": 1
+          },
+          {
+            "slot": 5,
+            "school": "蓼科",
+            "district": "東信",
+            "district_rank": 6,
+            "first_round_bye": false,
+            "quarterfinal_section": 1
+          },
+          {
+            "slot": 6,
+            "school": "松商学園",
+            "district": "中信",
+            "district_rank": 2,
+            "first_round_bye": true,
+            "quarterfinal_section": 1
+          },
+          {
+            "slot": 7,
+            "school": "長野商業",
+            "district": "北信",
+            "district_rank": 2,
+            "first_round_bye": true,
+            "quarterfinal_section": 2
+          },
+          {
+            "slot": 8,
+            "school": "東京都市大塩尻",
+            "district": "中信",
+            "district_rank": 3,
+            "first_round_bye": false,
+            "quarterfinal_section": 2
+          },
+          {
+            "slot": 9,
+            "school": "赤穂",
+            "district": "南信",
+            "district_rank": 6,
+            "first_round_bye": false,
+            "quarterfinal_section": 2
+          },
+          {
+            "slot": 10,
+            "school": "松本県ケ丘",
+            "district": "中信",
+            "district_rank": 5,
+            "first_round_bye": false,
+            "quarterfinal_section": 2
+          },
+          {
+            "slot": 11,
+            "school": "阿智",
+            "district": "南信",
+            "district_rank": 4,
+            "first_round_bye": false,
+            "quarterfinal_section": 2
+          },
+          {
+            "slot": 12,
+            "school": "佐久長聖",
+            "district": "東信",
+            "district_rank": 1,
+            "first_round_bye": true,
+            "quarterfinal_section": 2
+          },
+          {
+            "slot": 13,
+            "school": "松本第一",
+            "district": "中信",
+            "district_rank": 1,
+            "first_round_bye": true,
+            "quarterfinal_section": 3
+          },
+          {
+            "slot": 14,
+            "school": "須坂",
+            "district": "北信",
+            "district_rank": 4,
+            "first_round_bye": false,
+            "quarterfinal_section": 3
+          },
+          {
+            "slot": 15,
+            "school": "飯田OIDE長姫",
+            "district": "南信",
+            "district_rank": 5,
+            "first_round_bye": false,
+            "quarterfinal_section": 3
+          },
+          {
+            "slot": 16,
+            "school": "東海大諏訪",
+            "district": "南信",
+            "district_rank": 3,
+            "first_round_bye": false,
+            "quarterfinal_section": 3
+          },
+          {
+            "slot": 17,
+            "school": "飯山",
+            "district": "北信",
+            "district_rank": 6,
+            "first_round_bye": false,
+            "quarterfinal_section": 3
+          },
+          {
+            "slot": 18,
+            "school": "小諸義塾",
+            "district": "東信",
+            "district_rank": 2,
+            "first_round_bye": true,
+            "quarterfinal_section": 3
+          },
+          {
+            "slot": 19,
+            "school": "伊那弥生ケ丘",
+            "district": "南信",
+            "district_rank": 2,
+            "first_round_bye": true,
+            "quarterfinal_section": 4
+          },
+          {
+            "slot": 20,
+            "school": "松本深志",
+            "district": "中信",
+            "district_rank": 6,
+            "first_round_bye": false,
+            "quarterfinal_section": 4
+          },
+          {
+            "slot": 21,
+            "school": "上田東",
+            "district": "東信",
+            "district_rank": 3,
+            "first_round_bye": false,
+            "quarterfinal_section": 4
+          },
+          {
+            "slot": 22,
+            "school": "上田西",
+            "district": "東信",
+            "district_rank": 5,
+            "first_round_bye": false,
+            "quarterfinal_section": 4
+          },
+          {
+            "slot": 23,
+            "school": "松本国際",
+            "district": "中信",
+            "district_rank": 4,
+            "first_round_bye": false,
+            "quarterfinal_section": 4
+          },
+          {
+            "slot": 24,
+            "school": "長野日大",
+            "district": "北信",
+            "district_rank": 1,
+            "first_round_bye": true,
+            "quarterfinal_section": 4
+          }
+        ],
+        "opening_round_matches": 8,
+        "first_round_byes": 8,
+        "bye_school_slots": [
+          {
+            "slot": 1,
+            "school": "岡谷南",
+            "district": "南信",
+            "district_rank": 1
+          },
+          {
+            "slot": 6,
+            "school": "松商学園",
+            "district": "中信",
+            "district_rank": 2
+          },
+          {
+            "slot": 7,
+            "school": "長野商業",
+            "district": "北信",
+            "district_rank": 2
+          },
+          {
+            "slot": 12,
+            "school": "佐久長聖",
+            "district": "東信",
+            "district_rank": 1
+          },
+          {
+            "slot": 13,
+            "school": "松本第一",
+            "district": "中信",
+            "district_rank": 1
+          },
+          {
+            "slot": 18,
+            "school": "小諸義塾",
+            "district": "東信",
+            "district_rank": 2
+          },
+          {
+            "slot": 19,
+            "school": "伊那弥生ケ丘",
+            "district": "南信",
+            "district_rank": 2
+          },
+          {
+            "slot": 24,
+            "school": "長野日大",
+            "district": "北信",
+            "district_rank": 1
+          }
+        ],
+        "quarterfinal_sections": [
+          {
+            "id": "A",
+            "from_slot": 1,
+            "to_slot": 6
+          },
+          {
+            "id": "B",
+            "from_slot": 7,
+            "to_slot": 12
+          },
+          {
+            "id": "C",
+            "from_slot": 13,
+            "to_slot": 18
+          },
+          {
+            "id": "D",
+            "from_slot": 19,
+            "to_slot": 24
+          }
+        ],
+        "first_round_pairs": [
+          {
+            "slots": [
+              2,
+              3
+            ],
+            "schools": [
+              "岩村田",
+              "篠ノ井"
+            ],
+            "district_rank_match": [
+              4,
+              5
+            ]
+          },
+          {
+            "slots": [
+              4,
+              5
+            ],
+            "schools": [
+              "長野俊英",
+              "蓼科"
+            ],
+            "district_rank_match": [
+              3,
+              6
+            ]
+          },
+          {
+            "slots": [
+              8,
+              9
+            ],
+            "schools": [
+              "東京都市大塩尻",
+              "赤穂"
+            ],
+            "district_rank_match": [
+              3,
+              6
+            ]
+          },
+          {
+            "slots": [
+              10,
+              11
+            ],
+            "schools": [
+              "松本県ケ丘",
+              "阿智"
+            ],
+            "district_rank_match": [
+              5,
+              4
+            ]
+          },
+          {
+            "slots": [
+              14,
+              15
+            ],
+            "schools": [
+              "須坂",
+              "飯田OIDE長姫"
+            ],
+            "district_rank_match": [
+              4,
+              5
+            ]
+          },
+          {
+            "slots": [
+              16,
+              17
+            ],
+            "schools": [
+              "東海大諏訪",
+              "飯山"
+            ],
+            "district_rank_match": [
+              3,
+              6
+            ]
+          },
+          {
+            "slots": [
+              20,
+              21
+            ],
+            "schools": [
+              "松本深志",
+              "上田東"
+            ],
+            "district_rank_match": [
+              6,
+              3
+            ]
+          },
+          {
+            "slots": [
+              22,
+              23
+            ],
+            "schools": [
+              "上田西",
+              "松本国際"
+            ],
+            "district_rank_match": [
+              5,
+              4
+            ]
+          }
+        ],
+        "observed_rules": [
+          {
+            "rule": "each_district_1st_and_2nd_bye",
+            "fact": "全4支部の1位・2位はBYEで2回戦から参加",
+            "source": "user-provided 2026 main-bracket image"
+          },
+          {
+            "rule": "opening_rank_3v6_and_4v5",
+            "fact": "初戦8カードは3位対他支部6位4試合・4位対他支部5位4試合、同支部初戦なし",
+            "source": "user-provided 2026 main-bracket image"
+          },
+          {
+            "rule": "district_champions_distributed_qf",
+            "fact": "4支部の1位校を4つのQF6校区画へ1校ずつ分散",
+            "source": "user-provided 2026 main-bracket image"
+          },
+          {
+            "rule": "district_rank1_rank2_opposite_final_halves",
+            "fact": "同支部の1位と2位は上下で別の決勝進出側、決勝まで対戦なし",
+            "source": "user-provided 2026 main-bracket image"
+          },
+          {
+            "rule": "cross_district_opening",
+            "fact": "1回戦8試合はすべて異支部対戦",
+            "source": "user-provided 2026 main-bracket image"
+          }
+        ],
+        "results": {
+          "champion": "上田西",
+          "runner_up": "松商学園",
+          "third": "佐久長聖",
+          "third_place_result": "佐久長聖2-0松本第一"
+        },
+        "evidence": [
+          "User-provided five 2026 Nagano federation brackets",
+          "https://www.nagano-hbf.jp/wp_hbf/wp-content/uploads/2026/09/155_k_katiagari.pdf",
+          "https://www.hb-nippon.com/articles/17248"
+        ],
+        "formal_seed_presence": null,
+        "formal_seed_count": null,
+        "caution": "県2026の校別初戦・BYE保護は直接確認済み。形式的な『シード』呼称と毎年度の抽選必須規則については未確認。"
+      }
     },
     {
       "key": "2026|秋季|岐阜",
@@ -885,7 +1341,10 @@
       "participant_count_leading_integer": 40,
       "present_fields": [
         "main_participants",
-        "selection_source"
+        "selection_source",
+        "placement",
+        "bye",
+        "seed_first_round"
       ],
       "open_issue_codes": [
         "CONFIRM_FORMAL_SEED_STATUS",
@@ -894,11 +1353,210 @@
         "IDENTIFY_BYE_ALLOCATION",
         "VERIFY_REDRAW_PRESENCE"
       ],
-      "audit_43_status": "予選免除・別枠は確認、本大会のシード数未確定",
-      "school_examples": 0,
+      "audit_43_status": "2026本大会40校・初戦8試合・BYE24、2025予選102校（上位決定戦26/敗者復活26）を別段階原図として確認。正式シード未確定",
+      "school_examples": 40,
       "school_id_links": 0,
-      "bracket_position_examples": 0,
-      "targeted_research_hint": "地区上位決定戦の13校と甲子園出場校の扱い・配置を区別して検証。"
+      "bracket_position_examples": 40,
+      "targeted_research_hint": "【ユーザー提供SVG】2026本大会40枠の学校名・番号を全校記録、初戦8試合・BYE24。2025は県本大会ではなく『予選102枠・上位決定戦26・敗者復活戦26』なので県本大会40との前年比較禁止。正式シードおよび校別BYE選定は未確定。",
+      "autumn_bracket_observation_2026": {
+        "stage_kind": "prefectural_main",
+        "participants": 40,
+        "qualifying_sources": {
+          "upper_decider_winners": 13,
+          "upper_decider_losers": 13,
+          "repechage_winners": 13,
+          "summer_koshien_exemption": 1
+        },
+        "exempted_koshien_school": "聖隷クリストファー",
+        "main_bracket_slots": [
+          {
+            "slot": 1,
+            "school": "藤枝明誠"
+          },
+          {
+            "slot": 2,
+            "school": "韮山"
+          },
+          {
+            "slot": 3,
+            "school": "浜松工"
+          },
+          {
+            "slot": 4,
+            "school": "磐田農"
+          },
+          {
+            "slot": 5,
+            "school": "吉原"
+          },
+          {
+            "slot": 6,
+            "school": "常葉大菊川"
+          },
+          {
+            "slot": 7,
+            "school": "静岡商"
+          },
+          {
+            "slot": 8,
+            "school": "掛川東"
+          },
+          {
+            "slot": 9,
+            "school": "島田樟誠"
+          },
+          {
+            "slot": 10,
+            "school": "加藤学園"
+          },
+          {
+            "slot": 11,
+            "school": "浜松城北工"
+          },
+          {
+            "slot": 12,
+            "school": "東海大翔洋"
+          },
+          {
+            "slot": 13,
+            "school": "富士宮西"
+          },
+          {
+            "slot": 14,
+            "school": "島田工"
+          },
+          {
+            "slot": 15,
+            "school": "浜松学院興誠"
+          },
+          {
+            "slot": 16,
+            "school": "三島北"
+          },
+          {
+            "slot": 17,
+            "school": "磐田東"
+          },
+          {
+            "slot": 18,
+            "school": "袋井"
+          },
+          {
+            "slot": 19,
+            "school": "相良"
+          },
+          {
+            "slot": 20,
+            "school": "飛龍"
+          },
+          {
+            "slot": 21,
+            "school": "静岡市立"
+          },
+          {
+            "slot": 22,
+            "school": "沼津東"
+          },
+          {
+            "slot": 23,
+            "school": "遠江総合"
+          },
+          {
+            "slot": 24,
+            "school": "御殿場南"
+          },
+          {
+            "slot": 25,
+            "school": "浜松湖北"
+          },
+          {
+            "slot": 26,
+            "school": "沼津商"
+          },
+          {
+            "slot": 27,
+            "school": "浜松日体"
+          },
+          {
+            "slot": 28,
+            "school": "知徳"
+          },
+          {
+            "slot": 29,
+            "school": "駿河総合"
+          },
+          {
+            "slot": 30,
+            "school": "掛川西"
+          },
+          {
+            "slot": 31,
+            "school": "日大三島"
+          },
+          {
+            "slot": 32,
+            "school": "浜松湖南"
+          },
+          {
+            "slot": 33,
+            "school": "静清"
+          },
+          {
+            "slot": 34,
+            "school": "三島南"
+          },
+          {
+            "slot": 35,
+            "school": "浜松商"
+          },
+          {
+            "slot": 36,
+            "school": "聖隷クリストファー"
+          },
+          {
+            "slot": 37,
+            "school": "静岡西"
+          },
+          {
+            "slot": 38,
+            "school": "桐陽"
+          },
+          {
+            "slot": 39,
+            "school": "浜松修学舎"
+          },
+          {
+            "slot": 40,
+            "school": "静岡"
+          }
+        ],
+        "opening_round_matches": 8,
+        "first_round_byes": 24,
+        "second_round_teams": 32,
+        "first_round_bye_selection_criteria": null,
+        "formal_seed_presence": null,
+        "formal_seed_count": null,
+        "third_place_match": true,
+        "third_place_result": "掛川西6-3東海大静岡翔洋",
+        "results": {
+          "champion": "日大三島",
+          "runner_up": "常葉大菊川",
+          "third": "掛川西"
+        },
+        "sources": [
+          "User-uploaded Tournament_20260001223_135850_996.svg, XML text parsed",
+          "https://www.spoban.com/baseball/tour/series-2695/2026/"
+        ],
+        "warning": "BYE24とは正式成績シード24校ではない。シードとBYEを校別に同一視しない。"
+      },
+      "autumn_bracket_observation_2025_preliminary": {
+        "source": "User-uploaded Tournament_20250003697_164232_722.svg, XML text parsed",
+        "stage_kind": "preliminary_not_main",
+        "primary_bracket_slots": 102,
+        "upper_rank_decider_bracket_slots": 26,
+        "repechage_bracket_slots": 26,
+        "note": "2025年の県本大会参加校数・BYE人数・成績シード校数はこの予選SVGから求めない。2026の県本大会とは異なる段階。"
+      }
     },
     {
       "key": "2026|秋季|愛知",
