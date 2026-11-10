@@ -114,6 +114,17 @@ class PitchersOfRecordTests(unittest.TestCase):
         )
         self.assertEqual(("a1", "b1"), self.record(detail))
 
+    def test_wild_pitch_and_home_steal_runs_count(self):
+        # 決勝点は暴投（W）。本盗（B）の得点も数える。点は記録の得点で渡す
+        detail = game([S(1, "b", 1), ["W", 6, "t", "wp", "b1", 1], ["B", 7, "t", "r", "sb", 4]],
+                      [("A", "a1", 27, 1), ("B", "b1", 27, 2)])
+        detail["team1_score"], detail["winner_id"] = 2, "A"
+        self.assertEqual(("a1", "b1"), self.record(detail))
+        # 盗塁死や二盗は得点にしない
+        detail["highlights"].append(["B", 8, "t", "r", "cs", 4])
+        detail["highlights"].append(["B", 8, "t", "r", "sb", 2])
+        self.assertEqual(("a1", "b1"), self.record(detail))
+
     def test_runs_that_do_not_add_up_are_not_decided(self):
         detail = game([S(1, "t", 1)], [("A", "a1", 27, 0), ("B", "b1", 27, 0)])
         self.assertIsNone(pitchers_of_record(detail))

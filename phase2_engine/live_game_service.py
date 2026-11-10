@@ -7,6 +7,7 @@ from typing import Callable
 from contextlib import closing
 import hashlib
 import json
+import logging
 import sqlite3
 
 from .career_option_a_storage_profile import _read_only
@@ -37,6 +38,8 @@ from .save_slots import (
     SAVE_KIND_MANUAL,
     SaveSlotManager,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 
 class LiveGameSession:
@@ -983,6 +986,7 @@ class LiveGameService:
                         for school_id in rosters.schools(year)
                     })
                 rosters.drop_year_end(year)
+            self._store_player_records(session, archive, year)
             if self.career_persistence is None:
                 # 終わった大会の試合の記録はまとめて圧縮したので、その空きを詰める
                 archive.vacuum()
@@ -990,6 +994,23 @@ class LiveGameService:
             closed.append(sealed)
         self._release_rosters(session)
         return closed
+
+    def _store_player_records(self, session, archive, year: int) -> None:
+        """閉じた年度の個人の記録の集計を一度だけつくって履歴に残す（記録の画面が読む）。
+
+        作れなくても年度は閉じる（画面を開いたときに試合の記録から作り直す）。"""
+        from .screen.player_records import RosterLookup, build_tally, union_partners
+
+        lookup = RosterLookup(
+            getattr(session.state, "rosters", None),
+            lambda y, school_id: self.closed_roster(session.slot_id, y, school_id),
+            union_partners(session.state.seasons.get(year)),
+        )
+        try:
+            tally = build_tally(year, archive.year_matches(year), lookup.member)
+            archive.store_player_records(year, tally.to_blob())
+        except (ValueError, KeyError, OSError, sqlite3.Error) as exc:
+            LOGGER.warning("個人の記録の集計を残せませんでした（%s年度）: %s", year, exc)
 
     def _release_rosters(self, session: LiveGameSession) -> None:
         """前の年度の名簿を、その年度に始まった大会（3月に始まる春季県大会など）が

@@ -57,7 +57,7 @@ from .player_views import (
     snapshot_values,
     trend_keys,
 )
-from . import record_filters
+from . import player_records, record_filters
 from .save_views import next_slot_id, recovery_rows, slot_rows
 from .school_names import EditedNames, SchoolNames, prefecture_names
 from .school_views import (
@@ -183,6 +183,11 @@ class GameScreenData:
         }
         self.abilities = self._new_abilities()
         self._closed_years: dict[int, dict] = {}
+        # 年度 → 個人の記録の集計（player_records.PlayerTally）
+        self._tallies: dict[int, player_records.PlayerTally] = {}
+        # 進行中の年度として足している集計（閉じたら履歴の集計に入れ替える）
+        self._live_tallies: set[int] = set()
+        self._records_players_memo: dict[tuple, dict] = {}
         self._coach_history = None
         # コールドの規則（[回, 点差]）。試合の行に「7回コールド」を付けるのに使う
         self._mercy = json.loads(
@@ -1249,6 +1254,247 @@ class GameScreenData:
                     earliest=earliest, axes=None if axes is None else len(axes),
                     only_entered=only_entered)}
 
+    # ---- 記録：個人の記録 ----
+
+    def _roster_lookup(self, season=None) -> player_records.RosterLookup:
+        """名簿から名前・学年を引く。``season`` を渡すと、その年度の連合チームの構成校からも引く。"""
+        return player_records.RosterLookup(
+            getattr(self.state, "rosters", None),
+            lambda year, school_id: self.service.closed_roster(self.session.slot_id, year, school_id),
+            player_records.union_partners(season) if season is not None else None,
+        )
+
+    def player_tallies(self) -> dict[int, player_records.PlayerTally]:
+        """年度 → 個人の記録の集計。
+
+        閉じた年度は年度を閉じるときに履歴に残した集計を読む（なければ試合の記録から一度だけ
+        つくって残す）。進行中の年度は、前に開いたときから増えた試合だけを足す。"""
+        archive = self.service._history_archive(self.session.slot_id)
+        live = _seasons(self.state)
+        for year in self._years():
+            # 進行中に足していた年度が閉じたら、年度を閉じるときに残した最終の集計に入れ替える
+            if year in live or (year in self._tallies and year not in self._live_tallies):
+                continue
+            self._live_tallies.discard(year)
+            blob = archive.player_records(year)
+            try:
+                tally = player_records.PlayerTally.from_blob(blob) if blob is not None else None
+            except ValueError:
+                tally = None  # 集計の形が古い（作り直す）
+            if tally is not None:
+                self._tallies[year] = tally
+            else:
+                lookup = self._roster_lookup(self._season_of(year))
+                tally = player_records.build_tally(year, archive.year_matches(year), lookup.member)
+                archive.store_player_records(year, tally.to_blob())
+                self._tallies[year] = tally
+        for year, season in live.items():
+            self._live_tallies.add(year)
+            lookup = self._roster_lookup(season)
+            tally = self._tallies.setdefault(year, player_records.PlayerTally(year=year))
+            missing = {
+                (cid, row.match_id): row.match_date
+                for cid, scheduled in season.competitions.items()
+                for row in scheduled.matches.values()
+                if row.status == "completed" and f"{cid}|{row.match_id}" not in tally.seen
+            }
+            if not missing:
+                continue
+            pending = season.pending_match_details
+            rest = {}
+            for (cid, match_id), day in missing.items():
+                detail = pending.get(f"{cid}:{match_id}")
+                if detail:
+                    tally.add(cid, match_id, {**detail, "match_date": detail.get("match_date") or day},
+                              lookup.member)
+                else:
+                    rest[cid, match_id] = day
+            if len(rest) > 50:
+                # 初めて開いたときは、履歴の試合を1つの接続でまとめて読む
+                skip = {tuple(key.split("|")) for key in tally.seen}
+                for cid, match_id, detail in archive.year_matches(year, skip):
+                    tally.add(cid, match_id, detail, lookup.member)
+            else:
+                for (cid, match_id), day in rest.items():
+                    detail = self.service.historical_match(self.session.slot_id, year, cid, match_id)
+                    if detail:
+                        tally.add(cid, match_id, detail, lookup.member)
+        return self._tallies
+
+    def records_players(self, filters=None) -> dict:
+        """記録の画面の「個人の記録」：部門ごとの上位と達成の記録。
+
+        絞り込みは年度（1年度・通算）・大会（1つ・その年度の公式戦すべて）・地域・都道府県・学年。
+        打率・防御率は規定（チームの試合数×係数。``config/screen/screen_v1.json`` の
+        ``player_records``）を満たす選手だけ。"""
+        from .competition_views import _level
+
+        rule = self.config["player_records"]
+        limit = int(rule["leaders"])
+        f = dict(filters or {})
+        tallies = self.player_tallies()
+        # 同じ絞り込みは、試合が増えていなければ前に出したものを使う（戻る・切り替え）
+        memo = (json.dumps(f, sort_keys=True, default=str), tuple((y, id(t), len(t.seen), len(t.teams))
+                                                                 for y, t in sorted(tallies.items())))
+        if memo in self._records_players_memo:
+            return self._records_players_memo[memo]
+        years = sorted((y for y, t in tallies.items() if t.seen or t.teams), reverse=True)
+        current = self._current_year()
+        default_year = current if current in years else (years[0] if years else current)
+        year = f.get("year") or default_year
+        if year != "all":
+            year = int(year)
+            if year not in tallies:
+                raise ValueError("その年度の記録はありません")
+        f["year"] = year
+        chosen = None if year == "all" else {year}
+        # 地域・都道府県（学校の所在地。地域は秋の地区割り＝地図の色分け）
+        region_names = {r["region_id"]: r["region_name"]
+                        for r in _csv_rows(self.service.repo.data_dir, "baseball_regions.csv")}
+        regions = sorted(set(self._regions.values()))
+        if f.get("region") not in regions:
+            f["region"] = ""
+        prefectures = sorted(code for code, region in self._regions.items()
+                             if not f["region"] or region == f["region"])
+        if f.get("prefecture") not in prefectures:
+            f["prefecture"] = ""
+        schools = self.service.repo.schools
+
+        def school_ok(school_id):
+            pref = schools.get(school_id, {}).get("prefecture_code", "")
+            if f["prefecture"]:
+                return pref == f["prefecture"]
+            return not f["region"] or self._regions.get(pref) == f["region"]
+
+        place = school_ok if f["prefecture"] or f["region"] else None
+        grade = int(f["grade"]) if str(f.get("grade") or "") in ("1", "2", "3") else None
+        f["grade"] = grade or ""
+        # 大会：選んだ年度に記録のある大会（地域・都道府県を選んだら、そこの学校が出られる大会）
+        memberships = _csv_rows(self.service.repo.data_dir, "prefecture_region_memberships.csv")
+        competitions = self.service.repo.competitions
+        catalog = {c["competition_id"]: c for c in record_filters.build_catalog(
+            competitions, memberships, _level, self.competition_names)}
+        # 大会の並び：全国 → 地区 → 都道府県（都道府県コード順）、同じところは春・夏・秋
+        levels = {"national": 0, "regional": 1, "local": 2}
+        segments = {"spring": 0, "summer": 1, "autumn": 2}
+        order = {
+            c: (levels.get(entry["level"], 3), entry["prefecture"] or (entry["prefectures"] or [""])[0],
+                segments.get(entry["segment"], 3), c)
+            for c, entry in catalog.items()
+        }
+        played = {
+            key.split("|")[1] for y, tally in tallies.items() if chosen is None or y in chosen
+            for key in tally.teams
+        }
+
+        def reachable(entry):
+            if entry["level"] == "national":
+                return True
+            if f["prefecture"]:
+                return f["prefecture"] in entry["prefectures"]
+            if f["region"]:
+                return f["region"] in entry["regions"] or any(
+                    self._regions.get(p) == f["region"] for p in entry["prefectures"])
+            return True
+
+        options = [
+            {"competition_id": cid, "name": catalog[cid]["name"], "level": catalog[cid]["level"]}
+            for cid in sorted(competitions, key=lambda c: order.get(c, (9,)))
+            if cid in played and cid in catalog and reachable(catalog[cid])
+        ]
+        if f.get("competition_id") not in {c["competition_id"] for c in options}:
+            f["competition_id"] = ""
+        cid = f["competition_id"]
+        scope = {"years": chosen, "competition_id": cid, "school_ok": place, "grade": grade}
+        merged = player_records.merge(tallies.values(), **scope)
+        lookup = self._roster_lookup()
+
+        def person(school_id, player_id, years_of):
+            last = max(years_of) if years_of else default_year
+            tally = tallies.get(last)
+            # 3月に始まる大会だけに出た年度は、まだその年度の名簿がない（前の年度の名簿で引く）
+            roster_year = next((y for y in (last, last - 1) if lookup.name(y, school_id, player_id)), last)
+            return {
+                "school_id": school_id, "player_id": player_id, "player_year": roster_year,
+                "name": lookup.name(roster_year, school_id, player_id) or "（名簿なし）",
+                "school_name": self.names(school_id),
+                "prefecture": _prefecture_short(self.prefectures.get(
+                    schools.get(school_id, {}).get("prefecture_code", ""), "")),
+                "grade": tally.grades.get(f"{last}|{player_id}", "") if tally else "",
+            }
+
+        categories = []
+        for key, label, kind, needs_rule, lower in player_records.CATEGORIES:
+            rows = merged["batters" if kind == "batting" else "pitchers"]
+            eligible = (lambda ident, total, kind=kind: player_records.qualifies(total, kind, rule)) \
+                if needs_rule else None
+            out = []
+            for item in player_records.leaders(rows, key, lower_first=lower, limit=limit, eligible=eligible):
+                total = item["total"]
+                ident = (item["school_id"], item["player_id"])
+                value = item["value"]
+                if key == "average":
+                    shown, note = player_records.average_label(value), f"{total['at_bats']}打数{total['hits']}安打"
+                elif key == "era":
+                    shown, note = player_records.era_label(value), \
+                        f"{player_records.innings_label(total['outs_recorded'])}回"
+                else:
+                    shown, note = str(value), f"{total['games']}試合"
+                out.append({**person(*ident, merged["years_of"][ident]), "rank": item["rank"],
+                            "value": shown, "note": note, "rest": item.get("rest", 0)})
+            categories.append({"key": key, "label": label, "kind": kind, "qualified": needs_rule, "rows": out})
+
+        def competition_label(competition_id):
+            return catalog.get(competition_id, {}).get("name", competition_id)
+
+        def holder(row, school_year):
+            return {**person(row["school_id"], row["player_id"], {school_year}),
+                    **({"match_id": row["match_id"], "match_date": row["match_date"],
+                        "season_year": row.get("season_year", school_year),
+                        "opponent_id": row.get("opponent_id", ""),
+                        "opponent_name": self.names(row["opponent_id"]) if row.get("opponent_id") else ""}
+                       if "match_id" in row else {})}
+
+        feats = [
+            {**holder(feat, feat["school_year"]), "school_year": feat["school_year"], "kind": feat["kind"],
+             "label": player_records.FEAT_LABELS[feat["kind"]],
+             "competition_id": feat["competition_id"],
+             "competition_name": competition_label(feat["competition_id"]),
+             "detail": player_records.feat_detail(feat)}
+            for feat in player_records.feats(tallies.values(), **scope)
+        ]
+        bests = []
+        for kind, rows in (("strikeouts", player_records.most_strikeouts(tallies.values(), **scope)),
+                           ("home_runs", player_records.most_home_runs(tallies.values(), **scope))):
+            for row in rows:
+                bests.append({
+                    "kind": kind, "school_year": row["school_year"], "season_year": row["season_year"],
+                    "competition_id": row["competition_id"],
+                    "competition_name": competition_label(row["competition_id"]),
+                    "value": row["value"],
+                    "holders": [holder(h, row["school_year"]) for h in row["holders"]],
+                })
+        bests.sort(key=lambda r: (-r["school_year"], order.get(r["competition_id"], (9,))))
+        result = {
+            "filters": f,
+            "years": [["all", "通算"]] + [[y, f"{y}年度"] for y in years],
+            "competitions": options,
+            "regions": [[r, region_names.get(r, r)] for r in regions],
+            "prefectures": [[p, self.prefectures.get(p, p)] for p in prefectures],
+            "map_prefectures": sorted(self._regions),
+            "rule": {"plate_appearances": rule["plate_appearances_per_team_game"],
+                     "innings": rule["innings_per_team_game"], "leaders": limit},
+            "categories": categories,
+            "feats": feats,
+            "strikeouts": [r for r in bests if r["kind"] == "strikeouts"],
+            "home_runs": [r for r in bests if r["kind"] == "home_runs"],
+            "undecided": sum(t.undecided for y, t in tallies.items() if chosen is None or y in chosen),
+        }
+        if len(self._records_players_memo) >= 8:
+            self._records_players_memo.pop(next(iter(self._records_players_memo)))
+        self._records_players_memo[memo] = result
+        return result
+
     def records(self, school_year=None) -> dict:
         """年度ごとの甲子園・選抜・神宮の上位校と、都道府県の代表校。"""
         years = self._years()
@@ -1628,6 +1874,8 @@ class GameScreenData:
             raise ValueError("遊ぶセーブを選んでください")
         if not isinstance(payload, dict):
             raise ValueError("編集内容が不正です")
+        # 校名・選手名が変わるかもしれないので、個人の記録の出したものは捨てる
+        self._records_players_memo = {}
         operation = payload.get("operation", "info")
         if operation == "team":
             result = self.service.edit_team(self.session, school_id, payload.get("target"))
@@ -1675,6 +1923,7 @@ class GameScreenData:
     def edit_player(self, school_id, player_id, payload):
         self.service.edit_player(self.session, school_id, player_id, payload)
         self.abilities = self._new_abilities()
+        self._records_players_memo = {}
         return self.player(school_id, player_id)
 
     def _player_edit_form(self, rosters, player):
@@ -2295,6 +2544,9 @@ class GameScreenData:
         """別のセーブに切り替える。前のセーブの集計は捨てる。"""
         self.session = session
         self._closed_years = {}
+        self._tallies = {}
+        self._live_tallies = set()
+        self._records_players_memo = {}
         self._coach_history = None
         self.service.forget_closed_seasons()
         self.names.edits = self._load_edits()

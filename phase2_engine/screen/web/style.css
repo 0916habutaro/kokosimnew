@@ -408,3 +408,16 @@ small.count.first { color: var(--accent); }
 .tile-region[disabled] { opacity: .25; }
 .tile-legend:not(.pick) .tile-region[disabled] { opacity: 1; }
 .tile-region.on { background: var(--accent); color: var(--accent-ink); border-color: var(--text); }
+
+/* 記録：個人の記録。部門ごとの表を並べる（打撃・投手で分ける） */
+.leaders-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.leaders-grid .panel { margin: 0; }
+h3.record-group { margin: 6px 0 8px; font-size: 14px; color: var(--accent); }
+p.record-note { font-size: 12px; margin: 0 0 10px; }
+table.list.leaders th, table.list.leaders td, table.list.feats th, table.list.feats td { white-space: nowrap; }
+table.list.leaders td.strong, table.list.feats td.strong { font-weight: 700; color: var(--text); }
+table.list.leaders td small, table.list.feats td small { margin-left: 4px; font-size: 11px; }
+table.list.leaders th:first-child, table.list.leaders td:first-child { width: 3em; }
+table.list.feats .entrant { margin-right: 14px; }
+/* 同じ記録の選手が何人もいるときは、選手ごとに折り返す */
+table.list.feats td.holders { white-space: normal; }

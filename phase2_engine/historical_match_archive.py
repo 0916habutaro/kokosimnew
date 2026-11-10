@@ -102,6 +102,12 @@ CREATE TABLE IF NOT EXISTS closed_rosters (
     record BLOB NOT NULL,
     PRIMARY KEY (year, school_id)
 );
+-- 記録の画面の「個人の記録」の年度の集計（phase2_engine/screen/player_records.py の
+-- PlayerTally を zlib で圧縮したもの）。試合の記録から作り直せる。年度を閉じるときに書く
+CREATE TABLE IF NOT EXISTS player_records (
+    year INTEGER PRIMARY KEY,
+    record BLOB NOT NULL
+);
 -- 終わった大会の試合の記録をまとめて圧縮したもの（match_id → payload_json の
 -- JSON を zlib）。まとめた試合の historical_matches.payload_json は空にする
 CREATE TABLE IF NOT EXISTS packed_competitions (
@@ -214,8 +220,11 @@ def compact_payload(payload: Mapping[str, object]) -> dict:
     return out
 
 
-def expand_payload(payload: Mapping[str, object]) -> dict:
-    """履歴に保存した試合の記録を、行ごとの dict の表に戻す。"""
+def expand_payload(payload: Mapping[str, object], *, validate: bool = True) -> dict:
+    """履歴に保存した試合の記録を、行ごとの dict の表に戻す。
+
+    ``validate=False`` は出場の経過の検証（重い）を省く。中身の改ざんは記録の
+    ハッシュで確かめるので、成績を集めるだけの読み取りに使う。"""
     out = dict(payload)
     for name in _TABLE_FIELDS:
         if name in out:
@@ -225,7 +234,8 @@ def expand_payload(payload: Mapping[str, object]) -> dict:
 
         out['team_participation'] = [_expand_participation(r) for r in out['team_participation']]
         out["highlights"] = expand_pitching_highlights(out.get("highlights"), out["team_participation"], out.get('inning_scores'))
-        _validate_participation_payload(out)
+        if validate:
+            _validate_participation_payload(out)
     return out
 
 
@@ -876,7 +886,7 @@ class HistoricalMatchArchive:
                 }
         return out
 
-    def _read_match_payload(self, conn, year, competition_id, match_id, raw, digest):
+    def _read_match_payload(self, conn, year, competition_id, match_id, raw, digest, *, validate=True):
         if not raw:
             raw = self._packed(conn, year, competition_id).get(match_id)
             if raw is None:
@@ -887,7 +897,7 @@ class HistoricalMatchArchive:
         payload = json.loads(raw)
         if (payload.get('year'), payload.get('competition_id'), payload.get('match_id')) != (year, competition_id, match_id):
             raise HistoricalMatchConflictError('archived match identity differs from index')
-        return expand_payload(payload)
+        return expand_payload(payload, validate=validate)
 
     def _packed(self, conn, year: int, competition_id: str, *, refresh: bool = False) -> dict[str, str]:
         """まとめて圧縮した大会の試合の記録（最近開いた大会はとっておく）。"""
@@ -1105,6 +1115,39 @@ class HistoricalMatchArchive:
                 (year,),
             ).fetchone()
         return (bytes(row[0]), json.loads(row[1])) if row else None
+
+    def store_player_records(self, year: int, record: bytes) -> None:
+        """閉じた年度の個人の記録の集計（``PlayerTally.to_blob``）。"""
+        with self._connection() as conn:
+            conn.executescript(_SCHEMA)
+            with conn:
+                conn.execute("INSERT OR REPLACE INTO player_records VALUES (?, ?)", (year, record))
+
+    def player_records(self, year: int) -> bytes | None:
+        if not self.db_path.is_file():
+            return None
+        with closing(sqlite3.connect(self.db_path, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
+            conn.executescript(_SCHEMA)
+            row = conn.execute("SELECT record FROM player_records WHERE year = ?", (year,)).fetchone()
+        return bytes(row[0]) if row else None
+
+    def year_matches(self, year: int, skip=frozenset()):
+        """その年度の試合の記録を、1つの接続で大会ごとに続けて読む（(大会ID, 試合ID, 記録)）。
+
+        ``skip`` は読まない (大会ID, 試合ID)。個人の記録の集計に使う。記録のハッシュは確かめるが、
+        出場の経過の検証（重い。試合を開くときに行う）は省く。"""
+        if not self.db_path.is_file():
+            return
+        with closing(sqlite3.connect(self.db_path, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
+            rows = conn.execute(
+                """SELECT competition_id, match_id, payload_json, record_sha256
+                   FROM historical_matches WHERE year = ? ORDER BY competition_id, match_id""",
+                (year,),
+            ).fetchall()
+            for cid, mid, raw, digest in rows:
+                if (cid, mid) in skip:
+                    continue
+                yield cid, mid, self._read_match_payload(conn, year, cid, mid, raw, digest, validate=False)
 
     def store_closed_rosters(self, year: int, rosters: Mapping[str, bytes]) -> None:
         """閉じた年度の名簿（学校ID → ``RosterBook.closed_record``）。"""
