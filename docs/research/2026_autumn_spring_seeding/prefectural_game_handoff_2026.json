@@ -850,7 +850,34 @@
       "school_examples": 0,
       "school_id_links": 0,
       "bracket_position_examples": 0,
-      "targeted_research_hint": null
+      "targeted_research_hint": " 【2026添付図を照合】19校の初戦3カード位置と13BYEを追加。",
+      "bracket_observation_2026": {
+        "entry": "19 teams one continuous tournament",
+        "first_round_matches": 3,
+        "opening_match_slots": [
+          [
+            2,
+            3
+          ],
+          [
+            11,
+            12
+          ],
+          [
+            17,
+            18
+          ]
+        ],
+        "first_round_byes": 13,
+        "third_place_match": true,
+        "formal_main_seed_count": null,
+        "source": "User-provided 2026-09-29 Tottori federation tournament result image",
+        "pending": [
+          "公式シード有無の確認",
+          "BYEの割当理由",
+          "途中再抽選の有無"
+        ]
+      }
     },
     {
       "key": "2026|秋季|島根",
@@ -876,7 +903,24 @@
       "school_examples": 0,
       "school_id_links": 0,
       "bracket_position_examples": 0,
-      "targeted_research_hint": "一次→二次16校で9/13再抽選あり。再抽選での配列・同地区回避・シード有無を確認。"
+      "targeted_research_hint": "一次→二次16校で9/13再抽選あり。再抽選での配列・同地区回避・シード有無を確認。 【2026添付図を照合】一次→二次16校の再抽選、三次の3位決定戦を追加。",
+      "bracket_observation_2026": {
+        "entry": "35 teams preliminary → 16 second stage",
+        "stages": [
+          "一次大会：複数会場の予選",
+          "二次大会：16校・1回戦8試合・BYE0",
+          "三次大会：準決勝・決勝・3位決定戦"
+        ],
+        "interstage_redraw": "confirmed_by_prefectural_federation_2026_09_13",
+        "third_place_match": "益田東 3-1 大田",
+        "formal_main_seed_count": null,
+        "source": "User-provided Shimane federation preliminary and second/third bracket images",
+        "pending": [
+          "一次BYE",
+          "正式シード有無",
+          "二次再抽選の配置条件"
+        ]
+      }
     },
     {
       "key": "2026|秋季|岡山",
@@ -951,7 +995,52 @@
       "school_examples": 1,
       "school_id_links": 0,
       "bracket_position_examples": 0,
-      "targeted_research_hint": "地区予選8シードと県決勝大会8代表の出場・抽選を分離。"
+      "targeted_research_hint": "地区予選8シードと県決勝大会8代表の出場・抽選を分離。 【2026添付図を照合】4会場各2勝者→県決勝8校、県スポーツ大会が秋季中国予選と同一大会であることを確認。",
+      "bracket_observation_2026": {
+        "entry": "49 teams across 4 district venues → 8 prefectural finals representatives",
+        "district_venues": [
+          "岩国",
+          "周南",
+          "宇部",
+          "下関"
+        ],
+        "qualifiers_each_venue": 2,
+        "prefectural_final_teams": 8,
+        "final_round_opening": "quarterfinals (4 matches)",
+        "first_round_byes_in_final": 0,
+        "prefectural_first_round_pairs": [
+          [
+            "宇部鴻城",
+            "高川学園"
+          ],
+          [
+            "下関工科",
+            "南陽工"
+          ],
+          [
+            "岩国",
+            "下関国際"
+          ],
+          [
+            "桜ケ丘",
+            "宇部工"
+          ]
+        ],
+        "chugoku_autumn_qualifiers": 3,
+        "third_place_match": true,
+        "formal_main_seed_count": null,
+        "confirmed_same_event": "山口県スポーツ大会高校野球競技（硬式）兼第147回秋季中国地区高校野球大会山口県予選",
+        "sources": [
+          "User-provided original SVG",
+          "https://www.pref.yamaguchi.lg.jp/uploaded/attachment/242207.pdf",
+          "https://baseball.omyutech.com/CupHomePageTop.action?cupId=20260003506"
+        ],
+        "pending": [
+          "予選シードの明文と正式配置条件",
+          "県決勝の独立シード有無",
+          "県決勝の配置決定時期・再抽選"
+        ]
+      }
     },
     {
       "key": "2026|秋季|徳島",
