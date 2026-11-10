@@ -105,7 +105,8 @@ class SchoolReputation:
             if row["school_id"]:
                 points[row["school_id"]] += float(recent["autumn_regional_2025"])
         for row in _rows(data / PRIOR_RESULTS):
-            if row["kind"] == "autumn_prefectural" and row["achievement"] in ("best4", "best8"):
+            if (row["kind"] == "autumn_prefectural" and row["school_id"]
+                    and row["achievement"] in ("champion", "runner_up", "best4", "best8")):
                 points[row["school_id"]] += float(
                     recent[f"autumn_prefectural_{row['achievement']}"]
                 )
