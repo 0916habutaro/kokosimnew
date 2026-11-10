@@ -68,7 +68,8 @@ class ClosedYearTests(unittest.TestCase):
         for year in (2026, 2027):
             season = self.data._season_of(year)
             for cid in self.service.repo.competitions:
-                data = self.data.records_entrants({'competition_id': cid, 'start': year, 'end': year})
+                data = self.data.records_entrants({'competition_id': cid, 'start': year, 'end': year,
+                                                   'show_upcoming': True})
                 row = data['rows'][0]
                 scheduled = season.competitions.get(cid)
                 main = result_main(scheduled) if scheduled else None
@@ -78,12 +79,19 @@ class ClosedYearTests(unittest.TestCase):
         entries = summer['rows'][0]['entrants']
         self.assertEqual(49, len(entries))
         self.assertEqual(49, len({e['routes'][0]['competition_id'] for e in entries}))
+        # 夏の甲子園の行は49の代表地区だけ（どこにも置けない学校はいない）
+        self.assertEqual(49, len(summer['axes']))
+        self.assertEqual(49, len({e['axis'] for e in entries}))
         self.assertEqual({e['school_id'] for e in entries},
                          {e['school_id'] for e in self.data.bracket(2026, self.koshien)['entrants']})
         senbatsu = self.data.records_entrants({'competition_id':'CMP000001', 'start':2026, 'end':2026})['rows'][0]
         self.assertTrue(senbatsu['start_date'].startswith('2027-'))
         prefs = [e['prefecture_code'] for e in senbatsu['entrants']]
         self.assertLess(len(set(prefs)), len(prefs))
+        # 年度を閉じたとき、出場の最小索引も同時に書いた（夏の49校。優勝は1校）
+        index = archive.competition_appearances(self.koshien, {e['school_id'] for e in entries}, 2027)
+        self.assertEqual({e['school_id'] for e in entries}, set(index))
+        self.assertEqual(1, sum(bool(v['champion']) for v in index.values()))
         self.assertEqual(before, archive.db_path.read_bytes())
         self.service.save_game(self.session)
         loaded = GameScreenData(self.service, self.service.load_game(self.session.slot_id))

@@ -18,7 +18,7 @@ const state = {
   menu: [],
   busy: false,
   noSession: false, // 起動時にセーブを選ぶ前
-  competitions: { filter: { year: "", segment: "", level: "", status: "" }, view: null },
+  competitions: { filter: { year: "", segment: "", level: "", status: "", pref: "" }, view: null },
   matches: { date: "", detail: null, tab: "lineups" },
   schools: {
     data: null, view: [], filter: { pref: "", owner: "", result: "", name: "" },
@@ -274,6 +274,66 @@ function openCompetition(year, competitionId) {
   renderPage();
 }
 
+// ---- 都道府県のタイル地図 ----
+// 47都道府県を同じ大きさのマスで日本の形に並べる（並びは config/screen/tile_map_v1.json、
+// 地域は秋の地区）。地図のデータや画像は使わない。
+// opts:
+//   prefecture, region   いま選んでいるもの（選んだマス・地域は金の色）
+//   pickRegion           地域の名前を押して地域を選べるか
+//   prefectures, regions 選べるもの（Set。省くとすべて）。選べないマスは薄くする
+//   regionPrefectures    地域ID → 都道府県コードの配列。地域を選んだときに金色にするマス（いまの季節の
+//                        地区割り。春の関東には東京が入る）。省くと色分け（秋の地区）のとおり
+//   colors               都道府県コード → 色（将来の勢力図。渡すと地域の色の代わりに塗る）
+//   values               都道府県コード → マスの下に出す小さな文字（数など）
+function tileMapHtml(opts = {}) {
+  const map = state.tileMap;
+  if (!map) return "";
+  const ok = (set, id) => !set || set.has(id);
+  const regionOn = (id) => opts.region && opts.region === id;
+  const legend = map.regions.map((r) => {
+    const can = opts.pickRegion && ok(opts.regions, r.region_id);
+    return `<button type="button" class="tile-region ${esc(r.region_id)}${regionOn(r.region_id) ? " on" : ""}"
+      ${can ? `data-map-region="${esc(r.region_id)}"` : "disabled"}>${esc(r.name)}</button>`;
+  }).join("");
+  const tiles = map.tiles.map((t) => {
+    const inRegion = opts.region && (opts.regionPrefectures
+      ? (opts.regionPrefectures[opts.region] || []).includes(t.code) : t.region_id === opts.region);
+    const on = opts.prefecture === t.code || inRegion;
+    const can = ok(opts.prefectures, t.code);
+    const color = (opts.colors || {})[t.code];
+    const value = (opts.values || {})[t.code];
+    return `<button type="button" class="tile ${esc(t.region_id)}${on ? " on" : ""}${can ? "" : " off"}"
+      style="grid-column:${t.col + 1};grid-row:${t.row + 1}${color && !on ? `;background:${esc(color)}` : ""}"
+      title="${esc(t.full_name)}" ${can ? `data-map-pref="${esc(t.code)}"` : "disabled"}>${esc(t.name)}${value !== undefined ? `<small>${esc(value)}</small>` : ""}</button>`;
+  }).join("");
+  const picked = opts.prefecture || opts.region ? " picked" : "";
+  return `<div class="tile-map${picked}" style="grid-template-columns:repeat(${map.cols},var(--tile));grid-template-rows:repeat(${map.rows},var(--tile))">
+    <div class="tile-legend${opts.pickRegion ? " pick" : ""}">${opts.pickRegion ? '<span class="muted">地域を選ぶ</span>' : ""}${legend}</div>${tiles}</div>`;
+}
+
+// 地図を開いて選ばせる。選ぶと {region, prefecture} で終わる（同じマス・地域をもう一度押すと解除＝空）。
+// 閉じたときは null
+function pickFromMap(opts = {}) {
+  const dialog = $("map-dialog");
+  $("map-title").textContent = opts.title || "地図から選ぶ";
+  $("map-body").innerHTML = tileMapHtml(opts);
+  return new Promise((resolve) => {
+    const finish = (value) => { dialog.onclose = null; dialog.close(); resolve(value); };
+    dialog.onclose = () => resolve(null);
+    $("map-body").querySelectorAll("[data-map-pref]").forEach((b) => b.addEventListener("click", () => {
+      const code = b.dataset.mapPref;
+      finish(opts.prefecture === code ? { region: "", prefecture: "" } : { region: "", prefecture: code });
+    }));
+    $("map-body").querySelectorAll("[data-map-region]").forEach((b) => b.addEventListener("click", () => {
+      const id = b.dataset.mapRegion;
+      finish(opts.region === id ? { region: "", prefecture: "" } : { region: id, prefecture: "" });
+    }));
+    $("map-clear").onclick = () => finish({ region: "", prefecture: "" });
+    $("map-close").onclick = () => finish(null);
+    dialog.showModal();
+  });
+}
+
 // ---- 記録 ----
 
 function recordsTabs() {
@@ -288,24 +348,68 @@ function bindRecordsTabs(content) {
   }));
 }
 
-function entrantsTable(data, title) {
-  const school = (e, r) => {
-    const routes = e.routes.map((route) => data.catalog.find((c) => c.competition_id === route.competition_id)?.name || route.competition_id).join("・");
-    return `<div class="entrant-entry"><button class="link" data-school="${esc(e.school_id)}">${esc(e.name)}</button>
-      <small class="muted">${esc(data.prefectures[e.prefecture_code] || "所属不明")}${e.finish ? "／" + esc(e.finish) : ""}${routes ? "／進出元：" + esc(routes) : ""}</small></div>`;
+// 成績の札。学校一覧の最高成績の札と同じ決まり（優勝は金、準優勝は銀、ベスト4は緑）
+const FINISH_CLASS = { "優勝": "b-top", "準優勝": "b-silver", "ベスト4": "b-mid" };
+function finishBadge(finish, label = finish) {
+  return finish ? `<span class="badge ${FINISH_CLASS[finish] || ""}">${esc(label)}</span>` : "";
+}
+// 大会の状態の札（大会の一覧と同じ色）
+const RECORD_STATUS_CLASS = { "完了": "completed", "進行中": "active" };
+function statusBadge(status) {
+  return `<span class="badge ${RECORD_STATUS_CLASS[status] || ""}">${esc(status)}</span>`;
+}
+// 大会別ベスト8の列。「ベスト8」の列は準々決勝で負けた学校なので見出しは「準々決勝敗退」
+const BEST8_COLUMNS = [["優勝", "優勝"], ["準優勝", "準優勝"], ["ベスト4", "ベスト4"], ["ベスト8", "準々決勝敗退"]];
+
+// 「2年連続15回目」「2年ぶり5回目の優勝」の小さな添え書き。初出場・初優勝は金の文字（出場校一覧と同じ）
+function countTag(label) {
+  return label ? `<small class="count${/初(出場|優勝)$/.test(label) ? " first" : ""}">${esc(label)}</small>` : "";
+}
+
+// 年度の見出し：「2027年度」と回数・状態の札。正式名と日付はマウスを当てたときに出す
+function recordYearHead(r, data) {
+  const name = r.competition_name || data.competition_name;
+  const dates = r.start_date ? `\n${fmtDate(r.start_date, { year: true })}〜${fmtDate(r.end_date, { year: true })}` : "";
+  const label = `${r.school_year}年度${r.edition ? ` <small>${esc(r.edition)}</small>` : ""}`;
+  const year = r.can_open
+    ? `<button class="link" data-record-year="${r.school_year}" data-record-cid="${esc(r.competition_id)}">${label}</button>`
+    : label;
+  return `<span class="record-year" title="${esc(name + dates)}">${year} ${statusBadge(r.status)}${r.main_confirmed === false && r.status !== "未開催" ? ' <span class="badge">出場校未確定</span>' : ""}</span>`;
+}
+
+function entrantsTable(data) {
+  const routeName = (route) => data.catalog.find((c) => c.competition_id === route.competition_id)?.name || route.competition_id;
+  // 校名と成績の札を1行に。県名は行の見出しにあるので省き、進出元はマウスを当てたときに出す
+  const school = (e, withPref) => {
+    const routes = e.routes.map(routeName).join("・");
+    const pref = withPref ? `<small class="muted">${esc(prefName(data, e.prefecture_code))}</small>` : "";
+    const tip = [e.champion_label, routes ? `進出元：${routes}` : ""].filter(Boolean).join("\n");
+    return `<span class="entrant"${tip ? ` title="${esc(tip)}"` : ""}><button class="link" data-school="${esc(e.school_id)}">${esc(e.name)}</button>${pref}${finishBadge(e.finish)}${countTag(e.count_label)}</span>`;
   };
-  const heading = (r) => title(r, `${r.school_year}年度`) + `<br>` + title(r, r.competition_name || data.competitions.find((c) => c.competition_id === r.competition_id)?.name || "")
-    + `<div class="muted">${fmtDate(r.start_date, { year: true })}〜${fmtDate(r.end_date, { year: true })}／${esc(r.status)}${r.main_confirmed ? "" : "／出場校未確定"}</div>`;
-  if (!data.matrix) return `<table class="list entrants-years"><thead><tr><th>年度・大会・開催期間</th><th>出場校</th></tr></thead><tbody>${data.rows.map((r) => `<tr><td>${heading(r)}</td><td><details open><summary>${(r.entrants || []).length}校</summary>${(r.entrants || []).map((e) => school(e, r)).join("")}</details></td></tr>`).join("")}</tbody></table>`;
-  const axes = data.summer ? data.summer_areas : data.prefectures;
-  const group = (e) => data.summer ? e.routes.find((route) => route.competition_id in data.summer_areas)?.competition_id || "unknown"
-    : e.routes.find((route) => route.prefecture_code)?.prefecture_code || e.prefecture_code || "unknown";
-  const axisRows = Object.entries(axes);
-  if (data.rows.some((r) => (r.entrants || []).some((e) => !(group(e) in axes)))) axisRows.push(["unknown", "所属・進出元未確認"]);
-  return `<table class="list entrants-matrix"><thead><tr><th>${data.summer ? "代表地区" : "都道府県"}</th>${data.rows.map((r) => `<th>${heading(r)}</th>`).join("")}</tr></thead><tbody>${axisRows.map(([id, label]) => `<tr><td>${esc(label)}</td>${data.rows.map((r) => {
-    const entries = (r.entrants || []).filter((e) => group(e) === id);
-    return `<td>${entries.map((e) => school(e, r)).join("") || `<small class="muted">${r.main_confirmed ? "−" : esc(r.status) + "／未確定"}</small>`}</td>`;
+  if (!data.matrix) {
+    return `<table class="list zebra entrants-years"><thead><tr><th>年度</th><th>出場校</th></tr></thead><tbody>${data.rows.map((r) =>
+      `<tr><td>${recordYearHead(r, data)}</td><td><details open><summary>${(r.entrants || []).length}校</summary><div class="entrant-list">${(r.entrants || []).map((e) => school(e, false)).join("")}</div></details></td></tr>`).join("")}</tbody></table>`;
+  }
+  return `<table class="list zebra entrants-matrix"><thead><tr><th>${data.summer ? "代表地区" : "都道府県"}</th>${data.rows.map((r) => `<th>${recordYearHead(r, data)}</th>`).join("")}</tr></thead><tbody>${data.axes.map(([id, label]) => `<tr><td>${esc(label)}</td>${data.rows.map((r) => {
+    const entries = (r.entrants || []).filter((e) => e.axis === id);
+    return `<td>${entries.map((e) => school(e, id === "unknown")).join("") || `<small class="muted">${r.main_confirmed ? "−" : "未確定"}</small>`}</td>`;
   }).join("")}</tr>`).join("")}</tbody></table>`;
+}
+
+function prefName(data, code) {
+  return (data.prefectures.find(([c]) => c === code) || [])[1] || "所属不明";
+}
+
+function best8Table(data) {
+  // 都道府県は全国・地区大会だけ。都道府県の大会・夏の地方大会と、北海道・東京の秋季のように
+  // 1つの都道府県だけの地区大会は、みな同じ都道府県なので出さない。県名は「都・府・県」を除く（トーナメント表の札と同じ）
+  const prefs = (data.catalog.find((c) => c.competition_id === data.filters.competition_id) || {}).prefectures || [];
+  const showPref = data.matrix && prefs.length !== 1;
+  const school = (s) => `<span class="entrant" title="${esc(s.count_label || "")}"><button class="link" data-school="${esc(s.school_id)}">${esc(s.name)}</button>${showPref && s.prefecture ? `<small class="muted">${esc(s.prefecture.replace(/[都府県]$/, ""))}</small>` : ""}${countTag(s.champion_label)}</span>`;
+  return `<table class="list zebra best8-table"><colgroup><col style="width:180px"><col style="width:11%"><col style="width:11%"><col style="width:23%"><col></colgroup>
+    <thead><tr><th>年度</th>${BEST8_COLUMNS.map(([finish, label]) => `<th>${finishBadge(finish, label)}</th>`).join("")}</tr></thead>
+    <tbody>${data.rows.map((r) => `<tr><td>${recordYearHead(r, data)}</td>
+      ${BEST8_COLUMNS.map(([finish]) => `<td>${r.groups[finish].map(school).join("") || '<span class="muted">−</span>'}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
 }
 
 async function renderBest8(content) {
@@ -318,29 +422,39 @@ async function renderBest8(content) {
   if (!data || state.page !== "records" || state.recordsTab !== tab) return;
   state[filterStateKey] = data.filters;
   refreshLocation();
-  const f = data.filters;
-  const select = (key, label, items) => `<label>${label} <select id="rb-${key}">${items.map(([value, text]) =>
-    `<option value="${esc(value)}" ${String(f[key] || "") === String(value) ? "selected" : ""}>${esc(text)}</option>`).join("")}</select></label>`;
-  const school = (s) => `<div><button class="link" data-school="${esc(s.school_id)}">${esc(s.name)}</button>${s.prefecture ? `<small class="muted">（${esc(s.prefecture)}）</small>` : ""}</div>`;
-  const title = (r, text) => r.can_open ? `<button class="link" data-record-year="${r.school_year}" data-record-cid="${esc(r.competition_id)}">${esc(text)}</button>` : esc(text);
+  const f = data.filters, o = data.options;
+  const select = (key, label, items, disabled = false) => `<label${disabled ? ' class="off"' : ""}>${label}<select id="rb-${key}"${disabled ? " disabled" : ""}>${items.map(([value, text]) =>
+    `<option value="${esc(value)}" ${String(f[key] ?? "") === String(value) ? "selected" : ""}>${esc(text)}</option>`).join("")}</select></label>`;
+  const years = data.years.map((y) => [y, `${y}年度`]);
+  const yearSelect = (id, value) => `<select id="${id}">${(years.some(([y]) => y === value) ? years : [[value, `${value}年度`], ...years])
+    .map(([y, text]) => `<option value="${y}" ${y === value ? "selected" : ""}>${text}</option>`).join("")}</select>`;
+  const toggle = (key, label) => `<label class="toggle"><input type="checkbox" id="rb-${key}" ${f[key] ? "checked" : ""}>${label}</label>`;
+  const hidden = data.hidden_upcoming ? `（未開催${data.hidden_upcoming}年度を隠しています）` : "";
+  let table = "";
+  if (data.rows.length) table = entrants ? entrantsTable(data) : best8Table(data);
   content.innerHTML = `<div class="head"><h2>記録</h2>${recordsTabs()}</div>
     <div class="best8-filters">
-      ${select("segment", "季節", SEGMENTS)} ${select("level", "大会区分", LEVELS)}
-      ${select("region", "地域", [["", "すべて"], ...Object.entries(data.regions)])}
-      ${select("prefecture", "都道府県", [["", "すべて"], ...Object.entries(data.prefectures)])}
-      ${select("competition_id", "大会名", data.competitions.map((c) => [c.competition_id, c.name]))}
-      ${select("count", "表示年数", [[5, "5年"], [10, "10年"], [20, "20年"]])}
-      <form id="rb-range"><label>開始年度 <input id="rb-start" type="number" min="1" max="${data.latest}" placeholder="${data.start}" value="${esc(f.start || "")}"></label>
-        <label>終了年度 <input id="rb-end" type="number" min="1" max="${data.latest}" placeholder="${data.end}" value="${esc(f.end || "")}"></label>
-        <button class="btn" type="submit">表示</button><button class="btn" type="button" id="rb-latest">最新年度に戻す</button></form>
+      ${select("segment", "季節", SEGMENTS)}
+      ${select("level", "区分", [["", "すべて"], ...o.level])}
+      ${select("region", "地域", [["", "すべて"], ...o.region], o.disabled.region)}
+      ${select("prefecture", "都道府県", [["", "すべて"], ...o.prefecture], o.disabled.prefecture)}
+      <button class="btn small" type="button" id="rb-map" ${o.disabled.region && o.disabled.prefecture ? "disabled" : ""}>地図から選ぶ</button>
+      ${select("competition_id", "大会", data.competitions.map((c) => [c.competition_id, c.name]))}
+      <span class="sep"></span>
+      ${select("count", "年数", [[5, "5年"], [10, "10年"], [20, "20年"]])}
+      <form id="rb-range"><label>年度${yearSelect("rb-start", data.start)}〜${yearSelect("rb-end", data.end)}</label>
+        <button class="btn small" type="submit">表示</button><button class="btn small" type="button" id="rb-latest">最新年度</button></form>
+      <span class="spacer"></span>
     </div>
-    <div class="scroll best8-scroll"><p class="muted">${data.start}〜${data.end}年度。${entrants ? "本大会に登録された学校を表示します。最終成績は大会完了後に表示します。" : "順位は本大会の完了後に表示します。"}校名は大会当時の名前です。</p>
-      ${data.before_start ? `<p class="muted before-start">${data.before_start.start === data.before_start.end ? data.before_start.start : `${data.before_start.start}〜${data.before_start.end}`}年度はゲーム開始前のため記録がありません（ゲーム開始は${data.earliest}年度）。</p>` : ""}
-      ${!data.rows.length ? "" : entrants ? entrantsTable(data, title) : `<table class="list best8-table"><colgroup><col style="width:95px"><col style="width:210px"><col><col><col style="width:220px"><col style="width:250px"><col style="width:100px"></colgroup>
-        <thead><tr><th>年度</th><th>大会名</th><th>優勝</th><th>準優勝</th><th>ベスト4</th><th>ベスト8</th><th>状態</th></tr></thead>
-        <tbody>${data.rows.map((r) => `<tr><td>${title(r, `${r.school_year}年度`)}</td><td>${title(r, r.competition_name || data.competitions.find((c) => c.competition_id === r.competition_id)?.name || r.competition_id)}</td>
-          ${["優勝", "準優勝", "ベスト4", "ベスト8"].map((finish) => `<td>${r.groups[finish].map(school).join("") || '<span class="muted">−</span>'}</td>`).join("")}<td>${esc(r.status)}</td></tr>`).join("")}</tbody></table>`}
-      ${data.rows.length || data.before_start ? "" : '<p class="muted">条件に合う大会はありません。</p>'}</div>`;
+    <div class="scroll best8-scroll">
+      <div class="record-caption"><h3>${esc(data.competition_name)}</h3>
+        <span class="muted">${data.start}〜${data.end}年度${hidden}。校名は大会当時の名前です。</span>
+        <span class="spacer"></span>
+        ${entrants && data.matrix ? toggle("only_entered", "出場のあった都道府県だけ") : ""}
+        ${toggle("show_upcoming", "未開催の年度も出す")}</div>
+      ${data.before_start && data.rows.length ? `<p class="muted before-start">${data.before_start.start === data.before_start.end ? data.before_start.start : `${data.before_start.start}〜${data.before_start.end}`}年度はゲーム開始前のため記録がありません（ゲーム開始は${data.earliest}年度）。</p>` : ""}
+      ${table}
+      ${data.empty_hint ? `<p class="muted empty-hint">${esc(data.empty_hint)}</p>` : ""}</div>`;
   bindRecordsTabs(content);
   for (const key of ["segment", "level", "region", "prefecture", "competition_id", "count"]) {
     $("rb-" + key).addEventListener("change", (e) => {
@@ -350,10 +464,26 @@ async function renderBest8(content) {
       renderPage();
     });
   }
+  // 地図から地域・都道府県を選ぶ（選べるものだけ押せる）
+  $("rb-map").addEventListener("click", async () => {
+    const picked = await pickFromMap({
+      title: "地図から選ぶ（地域・都道府県）", pickRegion: !o.disabled.region,
+      region: f.region, prefecture: f.prefecture,
+      regions: new Set(o.region.map(([id]) => id)), prefectures: new Set(o.map_prefecture),
+      regionPrefectures: o.region_prefectures,
+    });
+    if (!picked) return;
+    Object.assign(state[filterStateKey], picked);
+    renderPage();
+  });
+  for (const key of ["only_entered", "show_upcoming"]) {
+    const box = $("rb-" + key);
+    if (box) box.addEventListener("change", (e) => { state[filterStateKey][key] = e.target.checked; renderPage(); });
+  }
   $("rb-range").addEventListener("submit", (e) => {
     e.preventDefault();
     const start = $("rb-start").value, end = $("rb-end").value;
-    if (start && end && Number(start) > Number(end)) return showToast("開始年度・終了年度を確認してください", true);
+    if (Number(start) > Number(end)) return showToast("開始年度・終了年度を確認してください", true);
     Object.assign(state[filterStateKey], { start, end });
     renderPage();
   });
@@ -377,14 +507,14 @@ async function renderRecords(content) {
   const breakdown = (c) => c.actual ? `（実際${c.actual}＋ゲーム${c.game}）` : "";
   const nth = (c) => c ? `<span class="num">${c.total}回目</span><span class="muted">${breakdown(c)}</span>` : "";
   const nationals = data.nationals.map((n) => `<div class="panel"><h3>${esc(n.competition_name)}${n.started && !n.finished ? '　<span class="badge active">開催中</span>' : ""}</h3>
-    ${n.played ? `<table class="list">${["優勝", "準優勝", "ベスト4", "ベスト8"].map((f) => `<tr><td style="width:80px">${badge(f === "優勝" ? 3000 : f === "準優勝" ? 2000 : 0, f)}</td>
+    ${n.played ? `<table class="list">${BEST8_COLUMNS.map(([f, label]) => `<tr><td style="width:100px">${finishBadge(f, label)}</td>
       <td>${(n.groups[f] || []).map(school).join("　") || '<span class="muted">−</span>'}</td></tr>`).join("")}</table>`
       : `<div class="muted">${n.started ? "始まったばかりです" : "まだ行われていません"}</div>`}</div>`).join("");
   const reps = data.representatives.map((r) => `<tr><td>${esc(r.area)}</td>
     <td>${r.school_id ? `<span class="link" data-school="${esc(r.school_id)}">${esc(r.name)}</span>` : '<span class="muted">未定</span>'}</td>
     <td>${nth(r.appearance)}</td>
-    <td>${r.koshien ? badge(r.koshien === "優勝" ? 3000 : 0, r.koshien) : ""}</td></tr>`).join("");
-  const senbatsu = data.senbatsu.map((r) => `<tr><td>${esc(r.prefecture)}</td><td><span class="link" data-school="${esc(r.school_id)}">${esc(r.name)}</span></td><td>${nth(r.appearance)}</td><td>${badge(r.finish === "優勝" ? 3000 : 0, r.finish)}</td></tr>`).join("");
+    <td>${finishBadge(r.koshien)}</td></tr>`).join("");
+  const senbatsu = data.senbatsu.map((r) => `<tr><td>${esc(r.prefecture)}</td><td><span class="link" data-school="${esc(r.school_id)}">${esc(r.name)}</span></td><td>${nth(r.appearance)}</td><td>${finishBadge(r.finish)}</td></tr>`).join("");
   content.innerHTML = `<div class="head"><h2>記録</h2>${recordsTabs()}
       <select id="r-year">${data.years.map((y) => `<option value="${y}" ${y === data.school_year ? "selected" : ""}>${y}年度</option>`).join("")}</select></div>
     <div class="scroll">
@@ -418,11 +548,15 @@ async function renderCompetitions(content) {
   const tabs = (items, key) => items.map(([value, label]) =>
     `<button class="tab ${f[key] === value ? "on" : ""}" data-key="${key}" data-value="${value}">${label}</button>`).join("");
   const rows = data.competitions.filter((c) =>
-    String(c.school_year) === f.year && (!f.segment || c.segment === f.segment) && (!f.level || c.level === f.level));
+    String(c.school_year) === f.year && (!f.segment || c.segment === f.segment) && (!f.level || c.level === f.level)
+    && (!f.pref || c.prefectures.includes(f.pref)));
+  const prefOptions = (state.tileMap ? state.tileMap.tiles : []).map((t) => `<option value="${t.code}" ${t.code === f.pref ? "selected" : ""}>${esc(t.full_name)}</option>`).join("");
   content.innerHTML = `<div class="head"><h2>大会</h2>
       <select id="c-year">${years}</select>
       <div class="tabs">${tabs(SEGMENTS, "segment")}</div>
       <div class="tabs">${tabs(LEVELS, "level")}</div>
+      <select id="c-pref" title="都道府県の大会と、その都道府県が出る地区大会"><option value="">都道府県すべて</option>${prefOptions}</select>
+      <button class="btn small" type="button" id="c-map">地図から選ぶ</button>
       <div class="spacer"></div><span class="muted num">${rows.length} 大会</span></div>
     <div class="scroll"><table class="list">
       <tr><th>大会</th><th>季節</th><th>区分</th><th>期間</th><th>状態</th><th>優勝</th></tr>
@@ -433,6 +567,13 @@ async function renderCompetitions(content) {
         <td class="${c.champion_name ? "w" : ""}">${esc(c.champion_name)}</td></tr>`).join("")}
     </table></div>`;
   $("c-year").addEventListener("change", (e) => { f.year = e.target.value; renderPage(); });
+  $("c-pref").addEventListener("change", (e) => { f.pref = e.target.value; renderPage(); });
+  $("c-map").addEventListener("click", async () => {
+    const picked = await pickFromMap({ title: "地図から都道府県を選ぶ", prefecture: f.pref });
+    if (!picked) return;
+    f.pref = picked.prefecture;
+    renderPage();
+  });
   content.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => {
     f[b.dataset.key] = b.dataset.value;
     renderPage();
@@ -497,7 +638,7 @@ function entrantsView(rows) {
       ${rows.map((r) => `<div class="erow" data-entrant="${esc(r.school_id)}">
         <span class="ename" title="${esc(r.name)}">${esc(r.name)}</span>
         ${r.basis_label ? `<span class="basis">${esc(r.basis_label)}</span>` : ""}
-        <span class="ecount${r.appearance_label === "初出場" ? " first" : ""}">${esc(r.appearance_label)}</span>
+        <span class="ecount${r.appearance_label.endsWith("初出場") ? " first" : ""}" title="${esc(r.appearance_label)}">${esc(r.appearance_label)}</span>
         <span class="area-tag ${esc(r.region_id)}">${esc(r.area)}</span>
       </div>`).join("")}
     </div>
@@ -912,6 +1053,7 @@ async function renderSchools(content) {
   const opt = (value, label, current) => `<option value="${esc(value)}" ${value === current ? "selected" : ""}>${esc(label)}</option>`;
   content.innerHTML = `<div class="head"><h2>学校</h2>
       <select id="s-pref">${opt("", "全国", f.pref)}${prefs.map(([c, n]) => opt(c, n, f.pref)).join("")}</select>
+      <button class="btn small" type="button" id="s-map">地図から選ぶ</button>
       <select id="s-owner">${opt("", "設置者すべて", f.owner)}${owners.map((o) => opt(o, o, f.owner)).join("")}</select>
       <select id="s-result">${RESULT_FILTERS.map(([v, l]) => opt(v, l, f.result)).join("")}</select>
       <input type="search" id="s-name" placeholder="校名で探す" value="${esc(f.name)}">
@@ -925,6 +1067,14 @@ async function renderSchools(content) {
     $(id).addEventListener("change", (e) => { f[key] = e.target.value; applySchoolFilter(); });
   }
   $("s-name").addEventListener("input", (e) => { f.name = e.target.value.trim(); applySchoolFilter(); });
+  $("s-map").addEventListener("click", async () => {
+    const picked = await pickFromMap({ title: "地図から都道府県を選ぶ", prefecture: f.pref,
+      prefectures: new Set(prefs.map(([c]) => c)) });
+    if (!picked) return;
+    f.pref = picked.prefecture;
+    $("s-pref").value = f.pref;
+    applySchoolFilter();
+  });
   $("s-scroll").addEventListener("scroll", () => requestAnimationFrame(renderSchoolRows));
   applySchoolFilter();
   if (st.selected) showSchoolSide(st.selected);
@@ -1038,7 +1188,12 @@ async function renderSchoolDetail(content, schoolId) {
   const body = $("sd-body");
   if (st.tab === "overview") body.innerHTML = schoolOverview(d);
   if (st.tab === "yearly") body.innerHTML = schoolYearly(d);
-  if (st.tab === "koshien") body.innerHTML = schoolKoshien(d);
+  if (st.tab === "koshien") {
+    body.innerHTML = schoolKoshien(d);
+    // 出場した年を押すと、その大会のトーナメント表へ
+    body.querySelectorAll("[data-koshien-cid]").forEach((a) => a.addEventListener("click", () =>
+      openCompetition(Number(a.dataset.koshienYear), a.dataset.koshienCid)));
+  }
   if (st.tab === "members") drawMembers(body, d);
   if (st.tab === "games") await schoolGames(body, d);
   if (st.tab === "coaches") await schoolCoaches(body, schoolId);
@@ -1282,7 +1437,10 @@ function schoolKoshien(d) {
       <table class="list"><tr><th>内訳</th><th class="n">出場</th><th class="n">勝敗</th><th class="n">優勝</th><th>最高成績</th><th>出場した年</th></tr>
         ${row(`実際の記録（${until}まで）`, k.actual)}
         ${row("ゲーム内の記録", k.game)}
-      </table></div>`;
+      </table>
+      ${k.entries.length ? `<h4>ゲームの中の出場</h4><table class="list zebra koshien-entries"><thead><tr><th>年</th><th>回数（実際の記録＋ゲーム）</th><th>成績</th></tr></thead><tbody>
+        ${k.entries.map((e) => `<tr><td class="num"><button class="link" data-koshien-year="${e.school_year}" data-koshien-cid="${esc(e.competition_id)}">${e.year}年</button></td>
+          <td>${countTag(e.label)}${e.champion_label ? ` ${countTag(e.champion_label)}` : ""}</td><td>${finishBadge(e.finish)}</td></tr>`).join("")}</tbody></table>` : ""}</div>`;
   };
   return block("夏の甲子園", "2025年", d.koshien.summer) + block("春の選抜", "2026年", d.koshien.spring);
 }
@@ -1799,6 +1957,7 @@ async function start() {
   if (!shell) return;
   state.menu = shell.menu;
   state.ranks = Object.entries(shell.ability_ranks || {}).sort((a, b) => b[1] - a[1]);
+  state.tileMap = shell.tile_map || null;
   if (shell.header) {
     renderHeader(shell.header);
   } else {

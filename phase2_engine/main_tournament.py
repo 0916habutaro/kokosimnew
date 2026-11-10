@@ -113,6 +113,7 @@ def generate_main_slots(
     slot_override: Sequence[str] | None = None,
     bye_layout: str = BYE_LAYOUT_SPREAD,
     separation: dict | None = None,
+    seed_bye_count: int | None = None,
 ) -> Tuple[List[str], Dict[str, int]]:
     """Build a fixed power-of-two bracket.
 
@@ -126,6 +127,10 @@ def generate_main_slots(
 
     ``separation``（選抜）：同じ都道府県・同じ地区の学校を組み合わせ表の別の
     ゾーン・ブロックに振り分けてから抽選する（``separated_slots``）。
+
+    ``seed_bye_count``：不戦勝を先に付けるのは上位何校のシードまでか（None＝全シード）。
+    それより下のシードは、できるだけ1回戦から出す（1回戦免除はシードと別の決まり。
+    ``bracket_generation_policies.csv`` の ``seed_bye_count``）。
     """
     teams = list(dict.fromkeys(entrants))
     if len(teams) != len(entrants):
@@ -182,7 +187,9 @@ def generate_main_slots(
     bye_slots = set()
 
     # Give byes to the strongest available seeds first, without creating empty-empty pairs.
-    for school_id in seed_ids:
+    bye_seeds = seed_ids if seed_bye_count is None else seed_ids[:max(0, seed_bye_count)]
+    no_bye_seed_slots = {seed_slots[s] - 1 for s in seed_ids if s not in set(bye_seeds)}
+    for school_id in bye_seeds:
         if len(bye_slots) >= bye_count:
             break
         seed_slot_idx = seed_slots[school_id] - 1
@@ -195,18 +202,22 @@ def generate_main_slots(
     if len(bye_slots) < bye_count:
         pair_order = list(range(0, bracket_size, 2))
         pair_order = shuffled(pair_order, base_seed, f"{namespace}:bye_pair_order")
-        for left in pair_order:
-            if len(bye_slots) >= bye_count:
-                break
-            right = left + 1
-            if left in bye_slots or right in bye_slots:
-                continue
-            if slots[left] or slots[right]:
-                # If exactly one side is already occupied, the empty side is safe as a bye.
-                if bool(slots[left]) ^ bool(slots[right]):
-                    bye_slots.add(right if slots[left] else left)
-                continue
-            bye_slots.add(left)
+        # 1回戦から出すシードの相手は、ほかに置き場がないときだけ不戦勝にする
+        for allow_seed_pairs in (False, True):
+            for left in pair_order:
+                if len(bye_slots) >= bye_count:
+                    break
+                right = left + 1
+                if left in bye_slots or right in bye_slots:
+                    continue
+                if not allow_seed_pairs and {left, right} & no_bye_seed_slots:
+                    continue
+                if slots[left] or slots[right]:
+                    # If exactly one side is already occupied, the empty side is safe as a bye.
+                    if bool(slots[left]) ^ bool(slots[right]):
+                        bye_slots.add(right if slots[left] else left)
+                    continue
+                bye_slots.add(left)
 
     if len(bye_slots) != bye_count:
         raise AssertionError(f"could not allocate all byes: {len(bye_slots)}/{bye_count}")
@@ -367,6 +378,7 @@ def run_main_single_elimination(
     bye_layout: str = BYE_LAYOUT_SPREAD,
     redraw: Dict[int, int] | None = None,
     separation: dict | None = None,
+    seed_bye_count: int | None = None,
 ) -> Tuple[StageExecution, CompetitionOutcome]:
     entrants = list(dict.fromkeys(entrants))
     if not entrants:
@@ -388,6 +400,7 @@ def run_main_single_elimination(
         slot_override=slot_override,
         bye_layout=bye_layout,
         separation=separation,
+        seed_bye_count=seed_bye_count,
     )
     bracket_size = len(slots)
     total_rounds = 0 if bracket_size == 1 else int(log2(bracket_size))

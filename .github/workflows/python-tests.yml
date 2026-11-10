@@ -42,6 +42,13 @@ jobs:
         if: steps.scope.outputs.docs_only == 'true'
         run: python -m unittest discover -s tests -p 'test_ci_change_scope.py' -v
 
+      - name: Validate changed research CSV files
+        if: steps.scope.outputs.docs_only == 'true'
+        env:
+          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: python tests/ci_research_csv.py
+
       - name: Restore previous per-test timings
         if: steps.scope.outputs.docs_only != 'true'
         uses: actions/cache/restore@v4

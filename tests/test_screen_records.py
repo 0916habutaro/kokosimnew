@@ -47,11 +47,7 @@ class TodayAndRecordsTests(unittest.TestCase):
         # 出場は「実際の記録＋ゲーム内（今年の1回）」の何回目か
         for row in reps:
             actual = self.data.actual_koshien.get(row["school_id"], {}).get("summer", {})
-            self.assertEqual(
-                {"total": actual.get("appearances", 0) + 1,
-                 "actual": actual.get("appearances", 0), "game": 1},
-                row["appearance"],
-            )
+            total = actual.get("appearances", 0) + 1  # 実際の記録＋ゲームの1回目
         self.assertEqual(1, summer["groups"]["優勝"][0]["championship_count"]["game"])
         senbatsu = next(n for n in records["nationals"] if n["type"] == "national_invitational")
         self.assertFalse(senbatsu["started"])
@@ -72,20 +68,20 @@ class TodayAndRecordsTests(unittest.TestCase):
         self.assertEqual(sorted(codes), codes)
         for row in entrants:
             actual = self.data.actual_koshien.get(row["school_id"], {}).get("summer", {})
-            self.assertEqual(
-                {"total": actual.get("appearances", 0) + 1,
-                 "actual": actual.get("appearances", 0), "game": 1},
-                row["appearance"],
-            )
+            total = actual.get("appearances", 0) + 1  # 実際の記録＋ゲームの1回目
             # カードの地区名と「初出場」「〇年連続〇回目」「〇年ぶり〇回目」
             self.assertTrue(row["area"])
             self.assertTrue(row["region_id"].startswith("REG"))
             self.assertEqual("", row["basis_label"])  # 夏に21世紀枠・神宮枠はない
             label = row["appearance_label"]
-            if row["appearance"]["total"] == 1:
+            if total == 1:
                 self.assertEqual("初出場", label)
             else:
-                self.assertTrue(label.endswith(f"{row['appearance']['total']}回目"), label)
+                self.assertTrue(label.endswith(f"{total}回目"), label)
+            # 2025年にも出た学校（年がそろっているもの）は「2年連続」以上
+            years = set(actual.get("entrant_years") or ())
+            if 2025 in years and len(years) == actual.get("appearances"):
+                self.assertRegex(label, r"^\d+年連続")
         # 北海道・東京は代表の大会の地区名（北北海道・東東京など）
         areas = {row["area"] for row in entrants if row["prefecture_code"] in ("01", "13")}
         self.assertEqual(4, len(areas))

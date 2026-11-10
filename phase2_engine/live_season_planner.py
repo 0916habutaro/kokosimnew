@@ -321,6 +321,11 @@ class LiveSeasonGraphPlan:
                     self.prior_invitational_entrant_ids
                 ),
                 on_created=on_created,
+                prior_autumn_rankings=(
+                    self.prior_results.autumn_prefectural_rankings
+                    if self.prior_results is not None
+                    else None
+                ),
             )
         )
 

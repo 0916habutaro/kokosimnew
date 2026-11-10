@@ -16,6 +16,7 @@ from .main_tournament import (
     ordered_seed_ids,
 )
 from .national_day_plan import draw_separation, plan_for, redraw_rounds
+from .seed_draw import policy_redraw_rounds, policy_seed_bye_count
 from .models import (
     AnnualCompetitionInput,
     CompetitionOutcome,
@@ -121,6 +122,7 @@ class MainTournamentRuntimeState:
         bye_layout: str = BYE_LAYOUT_SPREAD,
         redraw_rounds: Dict[int, int] | None = None,
         separation: dict | None = None,
+        seed_bye_count: int | None = None,
     ) -> "MainTournamentRuntimeState":
         entrants = list(dict.fromkeys(entrants))
         if not entrants:
@@ -141,6 +143,7 @@ class MainTournamentRuntimeState:
             slot_override=slot_override,
             bye_layout=bye_layout,
             separation=separation,
+            seed_bye_count=seed_bye_count,
         )
         bracket_size = len(slots)
         total_rounds = (
@@ -245,12 +248,14 @@ class MainTournamentRuntimeState:
             separation=draw_separation(
                 repo, competition.get("competition_type", ""), entrants,
             ),
+            seed_bye_count=policy_seed_bye_count(repo, annual.competition_id),
         )
-        # 全国大会：準々決勝以降を前の回戦のあとに抽選するか（日ごとの計画の設定）
+        # 全国大会：準々決勝以降を前の回戦のあとに抽選するか（日ごとの計画の設定）。
+        # 地方大会：途中で抽選し直す回戦（bracket_generation_policies.csv）
         state.redraw_rounds = redraw_rounds(
             plan_for(repo.data_dir, competition.get("competition_type", ""), len(entrants)),
             state.total_rounds,
-        )
+        ) or policy_redraw_rounds(repo, annual.competition_id, state.total_rounds)
         if annual.direct_main_entry_school_ids:
             state.warnings.append(
                 "direct_main_entry_school_ids has no bypass effect "

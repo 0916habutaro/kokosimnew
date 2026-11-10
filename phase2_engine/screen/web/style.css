@@ -88,20 +88,20 @@ table.list td.n, table.list th.n { text-align: right; font-family: var(--num); }
 .erow:hover, .erow.on { background: var(--panel); }
 .erow.on { outline: 1px solid var(--accent); }
 .ename { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
-.ecount { flex: none; width: 8.5em; color: var(--muted); font-size: 12px; text-align: center; white-space: nowrap; }
+.ecount { flex: none; min-width: 8.5em; max-width: 13em; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 12px; text-align: center; white-space: nowrap; }
 .ecount.first { color: var(--accent); }
 .basis { flex: none; font-size: 11px; padding: 0 4px; border-radius: 3px; background: #7a3cc2; color: #fff; white-space: nowrap; }
 .area-tag { flex: none; width: 4.6em; text-align: center; font-size: 12px; font-weight: 700; border-radius: 3px; color: #10161d; background: #9aa5b1; white-space: nowrap; }
-.area-tag.REG01 { background: #e9a46b; }
-.area-tag.REG02 { background: #7fd17f; }
-.area-tag.REG03 { background: #6aa8ff; }
-.area-tag.REG04 { background: #f0d264; }
-.area-tag.REG05 { background: #6fd6d6; }
-.area-tag.REG06 { background: #c7a5f0; }
-.area-tag.REG07 { background: #f2e96b; }
-.area-tag.REG08 { background: #f08f8f; }
-.area-tag.REG09 { background: #8fc4e8; }
-.area-tag.REG10 { background: #ff8a5c; }
+.area-tag.REG01, .tile.REG01, .tile-region.REG01 { background: #e9a46b; }
+.area-tag.REG02, .tile.REG02, .tile-region.REG02 { background: #7fd17f; }
+.area-tag.REG03, .tile.REG03, .tile-region.REG03 { background: #6aa8ff; }
+.area-tag.REG04, .tile.REG04, .tile-region.REG04 { background: #f0d264; }
+.area-tag.REG05, .tile.REG05, .tile-region.REG05 { background: #6fd6d6; }
+.area-tag.REG06, .tile.REG06, .tile-region.REG06 { background: #c7a5f0; }
+.area-tag.REG07, .tile.REG07, .tile-region.REG07 { background: #f2e96b; }
+.area-tag.REG08, .tile.REG08, .tile-region.REG08 { background: #f08f8f; }
+.area-tag.REG09, .tile.REG09, .tile-region.REG09 { background: #8fc4e8; }
+.area-tag.REG10, .tile.REG10, .tile-region.REG10 { background: #ff8a5c; }
 .estats { margin: 8px 0 4px; }
 .school-side h4 { margin: 12px 0 4px; font-size: 13px; }
 /* 予選の勝ち上がり：列の幅を決め、長い回戦名・校名は省略して1行に */
@@ -300,26 +300,43 @@ nav button[disabled] { opacity: .35; cursor: default; }
 
 button.link { background: none; border: 0; padding: 0; font: inherit; text-align: inherit; }
 
-/* 複数年度の大会成績。縦横スクロール中も見出しと年度を追える。 */
-.best8-filters { display:flex; flex-wrap:wrap; gap:10px; padding:12px 20px; border-bottom:1px solid var(--line); }
-.best8-filters label { display:inline-flex; align-items:center; gap:5px; }
-.best8-filters form { display:flex; flex-wrap:wrap; gap:10px; }
-.best8-filters input { width:90px; padding:6px 8px; color:var(--text); background:var(--panel); border:1px solid var(--line); border-radius:5px; }
-.best8-table { min-width:1200px; table-layout:fixed; }
-.best8-table td { vertical-align:top; overflow-wrap:anywhere; }
-.best8-table td div + div { margin-top:5px; }
-.best8-table td:first-child { position:sticky; left:0; background:var(--panel); z-index:1; }
-.best8-table th:first-child { left:0; z-index:2; }
-
-.entrants-matrix { width:max-content !important; min-width:100%; }
-.entrants-matrix th, .entrants-matrix td { min-width:240px; max-width:300px; vertical-align:top; }
+/* 複数年度の大会成績。絞り込みは1段（右の空きは2本目の「地図から選ぶ」の場所） */
+/* 初期の幅（1400px）では1段。狭い窓（最小1100px）では隠さずに折り返す */
+.best8-filters { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:10px 18px; border-bottom:1px solid var(--line); }
+.best8-filters label { display:inline-flex; align-items:center; gap:3px; white-space:nowrap; color:var(--muted); font-size:12px; }
+.best8-filters label.off { opacity:.45; }
+.best8-filters select { height:30px; padding:0 2px 0 6px; }
+.best8-filters #rb-competition_id { max-width:180px; }
+.best8-filters form { display:flex; align-items:center; gap:6px; margin:0; }
+.best8-filters .btn { white-space:nowrap; flex:none; padding:0 8px; }
+.best8-filters .sep { width:1px; height:22px; background:var(--line); flex:none; }
+.record-caption { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+.record-caption h3 { margin:0; font-size:15px; color:var(--accent); }
+.record-caption .toggle { display:inline-flex; align-items:center; gap:4px; color:var(--muted); font-size:12.5px; cursor:pointer; }
+.empty-hint { margin:10px 0; }
+.badge.b-silver { background: var(--muted); color: var(--bg); font-weight: 700; }
+/* 表は1行おきに薄い色。見出しはスクロールしても上に残る（table.list th の sticky） */
+table.list.zebra tbody tr:nth-child(even) td { background: var(--panel); }
+table.list.zebra tbody tr:nth-child(odd) td { background: var(--bg); }
+.record-year { white-space:nowrap; }
+.record-year small { color:var(--muted); margin-left:2px; }
+/* マスの学校：校名と成績の札を1行に（収まらなければ学校ごとに折り返す） */
+.entrant { display:inline-flex; align-items:center; gap:4px; margin:2px 10px 2px 0; white-space:nowrap; }
+.entrant small { font-size:11px; }
+.best8-table { table-layout:fixed; }
+.best8-table td { vertical-align:top; }
+/* 列の幅が決まっているので、長い校名はマスの中で折り返す（狭い窓で隣の列に重ねない） */
+.best8-table .entrant { flex-wrap:wrap; max-width:100%; white-space:normal; margin-right:8px; }
+.best8-table .entrant .link { min-width:0; overflow-wrap:anywhere; }
+.entrants-matrix { width:max-content !important; }
+.entrants-matrix th, .entrants-matrix td { min-width:170px; vertical-align:top; }
 /* 年度の列が多いときは横に動かし、都道府県の列は .scroll の左の余白（18px）ごと固定する */
-.entrants-matrix th:first-child, .entrants-matrix td:first-child { position:sticky; left:-18px; min-width:130px; background:var(--panel); z-index:1; box-shadow: -18px 0 0 var(--panel); }
+.entrants-matrix th:first-child, .entrants-matrix td:first-child { position:sticky; left:-18px; min-width:110px; z-index:1; box-shadow: -18px 0 0 var(--bg); }
+.entrants-matrix tbody tr:nth-child(even) td:first-child { box-shadow: -18px 0 0 var(--panel); }
 .entrants-matrix th:first-child { z-index:2; background:var(--panel2); box-shadow: -18px 0 0 var(--panel2); }
-.entrant-entry { margin:6px 0; }
-.entrant-entry small { display:block; }
+.entrants-matrix .entrant { display:flex; margin:2px 0; }
 .entrants-years td { vertical-align:top; }
-.entrants-years td:first-child { width:270px; }
+.entrants-years td:first-child { width:220px; }
 .entrants-years details[open] { max-height:440px; overflow:auto; }
 
 /* 学校の詳細の部員：見出しを押すと並べ替え */
@@ -358,3 +375,36 @@ p.decisions { margin: 8px 0 4px; }
 
 /* 連合チームで出た大会の印 */
 .union { color: var(--muted); font-weight: normal; }
+
+/* 回数の添え書き（「2年連続15回目」「2年ぶり5回目の優勝」）。初出場・初優勝は金の文字 */
+small.count { color: var(--muted); font-size: 11px; white-space: nowrap; }
+small.count.first { color: var(--accent); }
+.koshien-entries { margin-top: 4px; }
+.koshien-entries td:first-child { width: 6em; }
+
+/* 都道府県のタイル地図（tileMap）。マスはみな同じ大きさ。地域の色は地区の札と同じ */
+.map-dialog { padding: 16px 20px; }
+.map-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.map-head h2 { margin: 0; font-size: 16px; }
+.tile-map { --tile: 50px; display: grid; gap: 4px; }
+.tile { width: var(--tile); height: var(--tile); padding: 0; border: 2px solid transparent; border-radius: 5px;
+  background: #9aa5b1; color: #10161d; font-family: var(--ui); font-size: 12.5px; font-weight: 700; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; }
+.tile small { font-size: 10px; font-weight: 400; }
+.tile:hover { border-color: var(--text); }
+.tile.on { background: var(--accent); color: var(--accent-ink); border-color: var(--text); box-shadow: 0 0 0 2px var(--accent); }
+/* 選んでいるときは、ほかのマス・地域を薄くして選んだものを目立たせる */
+.tile-map.picked .tile:not(.on):not(.off), .tile-map.picked .tile-region:not(.on) { opacity: .45; }
+.tile-map.picked .tile:not(.on):hover { opacity: 1; }
+.tile.off { opacity: .25; cursor: default; }
+.tile.off:hover { border-color: transparent; }
+/* 地域の名前：地図の左上の空き（日本海側）に置く */
+.tile-legend { grid-column: 1 / span 9; grid-row: 1 / span 4; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; padding: 4px; }
+.tile-legend .muted { width: 100%; font-size: 12px; }
+.tile-region { height: 28px; padding: 0 12px; border: 2px solid transparent; border-radius: 14px; color: #10161d; font-family: var(--ui); font-size: 12.5px; font-weight: 700; }
+.tile-legend.pick .tile-region:not([disabled]) { cursor: pointer; }
+.tile-legend.pick .tile-region:not([disabled]):hover { border-color: var(--text); }
+.tile-legend:not(.pick) .tile-region { cursor: default; }
+.tile-region[disabled] { opacity: .25; }
+.tile-legend:not(.pick) .tile-region[disabled] { opacity: 1; }
+.tile-region.on { background: var(--accent); color: var(--accent-ink); border-color: var(--text); }

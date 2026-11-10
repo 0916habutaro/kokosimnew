@@ -81,3 +81,31 @@ class EntrantsHistoryTests(unittest.TestCase):
         rows = self.data.records_entrants({'competition_id': self.cid, 'start':2144, 'end':2145})['rows']
         self.assertEqual('記録なし', rows[0]['status'])
         self.assertEqual('架空校A', rows[1]['entrants'][0]['name'])
+
+    def test_appearance_index_written_on_seal_and_read_without_results(self):
+        row, _, _ = self.record()
+        row['competition_id'] = self.cid
+        champion = next(e['school_id'] for e in row['entrants'] if e['finish'] == '優勝')
+        other = next(e['school_id'] for e in row['entrants'] if e['finish'] != '優勝')
+        for year in (2143, 2144):
+            self.archive.store_closed_season(year, b'x', {}, entrant_records=[{**row, 'school_year': year}])
+        # 同じ年度を閉じ直したら置き換える（重ならない）
+        self.archive.store_closed_season(2144, b'x', {}, entrant_records=[{**row, 'school_year': 2144}])
+        found = self.archive.competition_appearances(self.cid, [champion, other, 'FAKE-NONE'], 2145)
+        self.assertEqual({2143, 2144}, found[champion]['appear'])
+        self.assertEqual({2143, 2144}, found[champion]['champion'])
+        self.assertEqual(set(), found[other]['champion'])
+        self.assertNotIn('FAKE-NONE', found)
+        self.assertEqual({2143}, self.archive.competition_appearances(self.cid, [champion], 2144)[champion]['appear'])
+        # 記録の画面は、全年度の試合・大会の状態（_results）を読まずに回数を出す
+        del self.data._appearance_history
+        self.data.actual_koshien = {}
+        self.data._results = lambda year: self.fail('全年度の成績を読んだ')
+        rows = self.data.records_entrants({'competition_id': self.cid, 'start': 2143, 'end': 2144})['rows']
+        latest = {e['school_id']: e for e in rows[0]['entrants']}
+        self.assertEqual('2年連続2回目', latest[other]['count_label'])
+        self.assertEqual('2年連続2回目の優勝', latest[champion]['champion_label'])
+        first = {e['school_id']: e for e in rows[1]['entrants']}
+        self.assertEqual('初出場', first[other]['count_label'])
+        self.assertEqual('初優勝', first[champion]['champion_label'])
+
