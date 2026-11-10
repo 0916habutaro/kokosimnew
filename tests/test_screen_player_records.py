@@ -1,6 +1,12 @@
 """記録の画面の「個人の記録」：規定・上位の並べ方・達成の記録（架空の試合で）。"""
 from fractions import Fraction
+from pathlib import Path
+import tempfile
+from types import SimpleNamespace
 import unittest
+
+from phase2_engine.historical_match_archive import HistoricalMatchArchive
+from phase2_engine.screen.data import GameScreenData
 
 from phase2_engine.screen import player_records as pr
 
@@ -189,6 +195,59 @@ class FeatTests(unittest.TestCase):
         self.assertEqual(3, pr.merge(both, years={2030})["batters"][("S-A", "x")]["hits"])
         self.assertEqual(3, pr.merge(both, grade=3)["batters"][("S-A", "x")]["hits"])
         self.assertNotIn(("S-B", "y"), pr.merge(both, school_ok=lambda s: s == "S-A")["batters"])
+
+
+class FilterTests(unittest.TestCase):
+    """達成の記録・最多記録も、学年・地域の絞り込みの中で求める。"""
+
+    def setUp(self):
+        grades = {"a": 3, "b": 2, "x": 3, "y": 2}
+        self.tally = pr.PlayerTally(year=2030)
+        member = lambda year, school, player, cid: (school, grades[player])
+        # S-A の a（3年）が20奪三振、S-B の b（2年）が10奪三振。サイクルは S-A の x（3年）
+        self.tally.add("CUP", "M1", game(
+            pitchers=[pitcher("S-A", "a", strikeouts=20, outs_recorded=27, batters_faced=30, hits_allowed=2),
+                      pitcher("S-B", "b", strikeouts=10, outs_recorded=24, batters_faced=30, hits_allowed=5)],
+            batters=[batter("S-A", "x", hits=5, doubles=1, triples=1, home_runs=2),
+                     batter("S-B", "y", hits=1, home_runs=1)]), member)
+
+    def test_grade_filters_feats_and_bests(self):
+        self.assertEqual(["x"], [f["player_id"] for f in pr.feats([self.tally], grade=3)])
+        self.assertEqual([], pr.feats([self.tally], grade=2))
+        self.assertEqual(["y"], [h["player_id"] for h in pr.most_home_runs([self.tally], grade=2)[0]["holders"]])
+        self.assertEqual(["b"], [h["player_id"] for h in pr.most_strikeouts([self.tally], grade=2)[0]["holders"]])
+
+    def test_region_keeps_its_own_best_strikeouts(self):
+        best = pr.most_strikeouts([self.tally], school_ok=lambda school: school == "S-B")
+        self.assertEqual([(10, "b", "M1")], [(r["value"], r["holders"][0]["player_id"], r["holders"][0]["match_id"])
+                                             for r in best])
+        overall = pr.most_strikeouts([self.tally])
+        self.assertEqual(20, overall[0]["value"])
+        self.assertEqual("S-B", overall[0]["holders"][0]["opponent_id"])
+
+
+class ClosedYearTests(unittest.TestCase):
+    def test_tally_kept_while_live_is_replaced_by_the_closed_one(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = HistoricalMatchArchive(Path(tmp) / "history.sqlite3")
+            first = game(batters=[batter("S-A", "x", plate_appearances=4, hits=1)])
+            later = game(batters=[batter("S-A", "x", plate_appearances=4, hits=2)], day="2030-07-21")
+            row = SimpleNamespace(match_id="M1", match_date="2030-07-20", status="completed")
+            live = SimpleNamespace(year=2030, competitions={"CUP": SimpleNamespace(matches={"M1": row})},
+                                   pending_match_details={"CUP:M1": first})
+            data = GameScreenData.__new__(GameScreenData)
+            data._tallies, data._live_tallies = {}, set()
+            data.session = SimpleNamespace(slot_id="s", state=live)
+            data.service = SimpleNamespace(_history_archive=lambda slot: archive,
+                                           closed_roster=lambda *args: None)
+            data._years = lambda: [2030]
+            self.assertEqual(1, pr.merge(data.player_tallies().values())["batters"][("S-A", "x")]["hits"])
+            # 年度が閉じた：履歴に残した最終の集計（2試合）を読み直す
+            archive.store_player_records(2030, pr.build_tally(
+                2030, [("CUP", "M1", first), ("CUP", "M2", later)]).to_blob())
+            data.session.state = SimpleNamespace(year=2031, competitions={}, pending_match_details={})
+            data._years = lambda: [2030, 2031]
+            self.assertEqual(3, pr.merge(data.player_tallies().values())["batters"][("S-A", "x")]["hits"])
 
 
 if __name__ == "__main__":

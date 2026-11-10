@@ -185,6 +185,8 @@ class GameScreenData:
         self._closed_years: dict[int, dict] = {}
         # 年度 → 個人の記録の集計（player_records.PlayerTally）
         self._tallies: dict[int, player_records.PlayerTally] = {}
+        # 進行中の年度として足している集計（閉じたら履歴の集計に入れ替える）
+        self._live_tallies: set[int] = set()
         self._records_players_memo: dict[tuple, dict] = {}
         self._coach_history = None
         # コールドの規則（[回, 点差]）。試合の行に「7回コールド」を付けるのに使う
@@ -1270,17 +1272,24 @@ class GameScreenData:
         archive = self.service._history_archive(self.session.slot_id)
         live = _seasons(self.state)
         for year in self._years():
-            if year in live or year in self._tallies:
+            # 進行中に足していた年度が閉じたら、年度を閉じるときに残した最終の集計に入れ替える
+            if year in live or (year in self._tallies and year not in self._live_tallies):
                 continue
+            self._live_tallies.discard(year)
             blob = archive.player_records(year)
-            if blob is not None:
-                self._tallies[year] = player_records.PlayerTally.from_blob(blob)
+            try:
+                tally = player_records.PlayerTally.from_blob(blob) if blob is not None else None
+            except ValueError:
+                tally = None  # 集計の形が古い（作り直す）
+            if tally is not None:
+                self._tallies[year] = tally
             else:
                 lookup = self._roster_lookup(self._season_of(year))
                 tally = player_records.build_tally(year, archive.year_matches(year), lookup.member)
                 archive.store_player_records(year, tally.to_blob())
                 self._tallies[year] = tally
         for year, season in live.items():
+            self._live_tallies.add(year)
             lookup = self._roster_lookup(season)
             tally = self._tallies.setdefault(year, player_records.PlayerTally(year=year))
             missing = {
@@ -1325,7 +1334,7 @@ class GameScreenData:
         f = dict(filters or {})
         tallies = self.player_tallies()
         # 同じ絞り込みは、試合が増えていなければ前に出したものを使う（戻る・切り替え）
-        memo = (json.dumps(f, sort_keys=True, default=str), tuple((y, len(t.seen), len(t.teams))
+        memo = (json.dumps(f, sort_keys=True, default=str), tuple((y, id(t), len(t.seen), len(t.teams))
                                                                  for y, t in sorted(tallies.items())))
         if memo in self._records_players_memo:
             return self._records_players_memo[memo]
@@ -1396,8 +1405,8 @@ class GameScreenData:
         if f.get("competition_id") not in {c["competition_id"] for c in options}:
             f["competition_id"] = ""
         cid = f["competition_id"]
-        scope = {"years": chosen, "competition_id": cid, "school_ok": place}
-        merged = player_records.merge(tallies.values(), grade=grade, **scope)
+        scope = {"years": chosen, "competition_id": cid, "school_ok": place, "grade": grade}
+        merged = player_records.merge(tallies.values(), **scope)
         lookup = self._roster_lookup()
 
         def person(school_id, player_id, years_of):
@@ -2536,6 +2545,7 @@ class GameScreenData:
         self.session = session
         self._closed_years = {}
         self._tallies = {}
+        self._live_tallies = set()
         self._records_players_memo = {}
         self._coach_history = None
         self.service.forget_closed_seasons()

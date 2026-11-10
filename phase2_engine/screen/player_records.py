@@ -28,7 +28,7 @@ import zlib
 
 from .match_summary import pitchers_of_record
 
-TALLY_VERSION = 1
+TALLY_VERSION = 2
 # 合計する打撃・投手の項目（並びは保存する集計の列の順）
 BATTING = ("games", "plate_appearances", "at_bats", "hits", "home_runs", "rbi", "stolen_bases")
 PITCHING = ("games", "outs_recorded", "earned_runs", "strikeouts", "wins")
@@ -81,7 +81,8 @@ class PlayerTally:
         self.teams: dict[str, int] = data.get("teams", {})
         # 達成の記録（ノーヒットノーラン・完全試合・サイクル安打）
         self.feats: list[dict] = data.get("feats", [])
-        # "年度|大会" → [奪三振, [{school_id, player_id, ...}, ...]]（1試合の最多奪三振）
+        # "年度|大会|学校|選手" → [奪三振, [{match_id, match_date, opponent_id}, ...]]
+        # （その選手のその大会での1試合の最多奪三振。地域・学年で絞っても最多を出せるよう選手ごとに持つ）
         self.top_strikeouts: dict[str, list] = data.get("top_strikeouts", {})
         # "年度|選手" → 学年（その年度の名簿から。分からなければ入れない）
         self.grades: dict[str, int] = data.get("grades", {})
@@ -189,13 +190,13 @@ class PlayerTally:
                 values[4] += 1
             strikeouts = int(row.get("strikeouts") or 0)
             if strikeouts:
-                best = self.top_strikeouts.setdefault(base, [0, []])
-                holder = {**self._holder(row, school_of(row), match_id, day, team1, team2),
-                          "season_year": self.year}
+                holder = self._holder(row, school_of(row), match_id, day, team1, team2)
+                game = {k: holder[k] for k in ("match_id", "match_date", "opponent_id")}
+                best = self.top_strikeouts.setdefault(key, [0, []])
                 if strikeouts > best[0]:
-                    self.top_strikeouts[base] = [strikeouts, [holder]]
+                    self.top_strikeouts[key] = [strikeouts, [game]]
                 elif strikeouts == best[0]:
-                    best[1].append(holder)
+                    best[1].append(game)
         errors = {t.get("school_id"): int(t.get("errors") or 0) for t in detail.get("team_stats") or ()}
         for team, rows in by_team.items():
             if len(rows) != 1 or not detail.get("winner_id"):
@@ -342,13 +343,22 @@ def leaders(rows: dict, key: str, *, lower_first: bool, limit: int, eligible=Non
     return out
 
 
-def most_home_runs(tallies, *, years=None, competition_id: str = "", school_ok=None) -> list[dict]:
-    """年度・大会ごとの「1大会の最多本塁打」（いちばん多く打った打者。同じ数なら全員）。"""
+def _grade_ok(tally, year: int, player: str, grade) -> bool:
+    return grade is None or tally.grades.get(_key(year, player)) == grade
+
+
+def _scoped(year, cid, school, *, years, competition_id, school_ok) -> bool:
+    return ((years is None or year in years) and (not competition_id or cid == competition_id)
+            and (school_ok is None or school_ok(school)))
+
+
+def most_home_runs(tallies, *, years=None, competition_id: str = "", school_ok=None, grade=None) -> list[dict]:
+    """年度・大会ごとの「1大会の最多本塁打」（絞り込みの中でいちばん多く打った打者。同じ数なら全員）。"""
     best: dict[tuple, list] = {}
+    scope = {"years": years, "competition_id": competition_id, "school_ok": school_ok}
     for tally in tallies:
         for year, cid, school, player, values in tally.parsed()["batters"]:
-            if ((years is not None and year not in years) or (competition_id and cid != competition_id)
-                    or (school_ok is not None and not school_ok(school))):
+            if not _scoped(year, cid, school, **scope) or not _grade_ok(tally, year, player, grade):
                 continue
             home_runs = values[BATTING.index("home_runs")]
             if not home_runs:
@@ -365,29 +375,36 @@ def most_home_runs(tallies, *, years=None, competition_id: str = "", school_ok=N
     ]
 
 
-def most_strikeouts(tallies, *, years=None, competition_id: str = "", school_ok=None) -> list[dict]:
-    """年度・大会ごとの「1試合の最多奪三振」。"""
-    out = []
+def most_strikeouts(tallies, *, years=None, competition_id: str = "", school_ok=None, grade=None) -> list[dict]:
+    """年度・大会ごとの「1試合の最多奪三振」（絞り込みの中でいちばん多い記録。同じ数なら全員）。"""
+    best: dict[tuple, list] = {}
+    scope = {"years": years, "competition_id": competition_id, "school_ok": school_ok}
     for tally in tallies:
-        for key, (value, holders) in tally.top_strikeouts.items():
-            year, cid = key.split("|")
-            year = int(year)
-            if (years is not None and year not in years) or (competition_id and cid != competition_id):
+        for key, (value, games) in tally.top_strikeouts.items():
+            year, cid, school, player = _parse(key)
+            if not _scoped(year, cid, school, **scope) or not _grade_ok(tally, year, player, grade):
                 continue
-            kept = [h for h in holders if school_ok is None or school_ok(h["school_id"])]
-            if kept:
-                out.append({"season_year": tally.year, "school_year": year, "competition_id": cid,
-                            "value": value, "holders": kept})
-    return out
+            holders = [{"school_id": school, "player_id": player, "season_year": tally.year, **game}
+                       for game in games]
+            cell = best.setdefault((year, cid), [0, [], tally.year])
+            if value > cell[0]:
+                best[(year, cid)] = [value, holders, tally.year]
+            elif value == cell[0]:
+                cell[1].extend(holders)
+    return [
+        {"season_year": season, "school_year": year, "competition_id": cid, "value": value,
+         "holders": sorted(holders, key=lambda h: (h["match_date"], h["school_id"], h["player_id"]))}
+        for (year, cid), (value, holders, season) in best.items()
+    ]
 
 
-def feats(tallies, *, years=None, competition_id: str = "", school_ok=None) -> list[dict]:
+def feats(tallies, *, years=None, competition_id: str = "", school_ok=None, grade=None) -> list[dict]:
     """ノーヒットノーラン・完全試合・サイクル安打（日付の新しい順）。"""
+    scope = {"years": years, "competition_id": competition_id, "school_ok": school_ok}
     out = [
         feat for tally in tallies for feat in tally.feats
-        if (years is None or feat["school_year"] in years)
-        and (not competition_id or feat["competition_id"] == competition_id)
-        and (school_ok is None or school_ok(feat["school_id"]))
+        if _scoped(feat["school_year"], feat["competition_id"], feat["school_id"], **scope)
+        and _grade_ok(tally, feat["school_year"], feat["player_id"], grade)
     ]
     out.sort(key=lambda f: (f["match_date"], f["competition_id"], f["match_id"]), reverse=True)
     return out
