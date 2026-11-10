@@ -73,6 +73,10 @@
     "CONFIRM_FORMAL_SEED_TOTAL_AND_CATEGORIES": {
       "priority": "P1",
       "meaning": "甲子園出場シードの実在は確認。ほかの正式シード区分と全校数・配置規則を調査"
+    },
+    "VERIFY_BYE_SELECTION_CRITERIA": {
+      "priority": "P1",
+      "meaning": "BYEの学校・位置は判明したが、成績・地区順位による割当や抽選時の保護が未確定"
     }
   },
   "priority_policy": {
@@ -940,7 +944,7 @@
           },
           {
             "slot": 8,
-            "school": "東京都市大塩尻",
+            "school": "都市大塩尻",
             "district": "中信",
             "district_rank": 3,
             "first_round_bye": false,
@@ -1184,7 +1188,7 @@
               9
             ],
             "schools": [
-              "東京都市大塩尻",
+              "都市大塩尻",
               "赤穂"
             ],
             "district_rank_match": [
@@ -1350,14 +1354,14 @@
         "CONFIRM_FORMAL_SEED_STATUS",
         "MAP_BRACKET_POSITIONS",
         "VERIFY_SEEDED_FIRST_ROUND",
-        "IDENTIFY_BYE_ALLOCATION",
-        "VERIFY_REDRAW_PRESENCE"
+        "VERIFY_REDRAW_PRESENCE",
+        "VERIFY_BYE_SELECTION_CRITERIA"
       ],
-      "audit_43_status": "2026本大会40校・初戦8試合・BYE24、2025予選102校（上位決定戦26/敗者復活26）を別段階原図として確認。正式シード未確定",
+      "audit_43_status": "2025・2026とも県本大会40校・初戦8試合・BYE24（2026は校別全枠）、2025予選102校は別段階。正式シード未確定。",
       "school_examples": 40,
       "school_id_links": 0,
       "bracket_position_examples": 40,
-      "targeted_research_hint": "【ユーザー提供SVG】2026本大会40枠の学校名・番号を全校記録、初戦8試合・BYE24。2025は県本大会ではなく『予選102枠・上位決定戦26・敗者復活戦26』なので県本大会40との前年比較禁止。正式シードおよび校別BYE選定は未確定。",
+      "targeted_research_hint": "【2026原図＋試合記録】県本大会40校の全掲載枠と初戦8試合の16校・BYE24校の校名/位置を復元。別途2025県本大会も40校・1回戦8試合・BYE24を確認。ユーザー提供2025 SVGの予選102枠・上位決定戦26・敗者復活戦26は県本大会ではない。正式成績シードの有無・BYE保護条件は未確認。",
       "autumn_bracket_observation_2026": {
         "stage_kind": "prefectural_main",
         "participants": 40,
@@ -1371,163 +1375,203 @@
         "main_bracket_slots": [
           {
             "slot": 1,
-            "school": "藤枝明誠"
+            "school": "藤枝明誠",
+            "first_round_bye": true
           },
           {
             "slot": 2,
-            "school": "韮山"
+            "school": "韮山",
+            "first_round_bye": false
           },
           {
             "slot": 3,
-            "school": "浜松工"
+            "school": "浜松工",
+            "first_round_bye": false
           },
           {
             "slot": 4,
-            "school": "磐田農"
+            "school": "磐田農",
+            "first_round_bye": true
           },
           {
             "slot": 5,
-            "school": "吉原"
+            "school": "吉原",
+            "first_round_bye": true
           },
           {
             "slot": 6,
-            "school": "常葉大菊川"
+            "school": "常葉大菊川",
+            "first_round_bye": true
           },
           {
             "slot": 7,
-            "school": "静岡商"
+            "school": "静岡商",
+            "first_round_bye": true
           },
           {
             "slot": 8,
-            "school": "掛川東"
+            "school": "掛川東",
+            "first_round_bye": false
           },
           {
             "slot": 9,
-            "school": "島田樟誠"
+            "school": "島田樟誠",
+            "first_round_bye": false
           },
           {
             "slot": 10,
-            "school": "加藤学園"
+            "school": "加藤学園",
+            "first_round_bye": true
           },
           {
             "slot": 11,
-            "school": "浜松城北工"
+            "school": "浜松城北工",
+            "first_round_bye": true
           },
           {
             "slot": 12,
-            "school": "東海大翔洋"
+            "school": "東海大翔洋",
+            "first_round_bye": false
           },
           {
             "slot": 13,
-            "school": "富士宮西"
+            "school": "富士宮西",
+            "first_round_bye": false
           },
           {
             "slot": 14,
-            "school": "島田工"
+            "school": "島田工",
+            "first_round_bye": true
           },
           {
             "slot": 15,
-            "school": "浜松学院興誠"
+            "school": "浜松学院興誠",
+            "first_round_bye": true
           },
           {
             "slot": 16,
-            "school": "三島北"
+            "school": "三島北",
+            "first_round_bye": true
           },
           {
             "slot": 17,
-            "school": "磐田東"
+            "school": "磐田東",
+            "first_round_bye": true
           },
           {
             "slot": 18,
-            "school": "袋井"
+            "school": "袋井",
+            "first_round_bye": false
           },
           {
             "slot": 19,
-            "school": "相良"
+            "school": "相良",
+            "first_round_bye": false
           },
           {
             "slot": 20,
-            "school": "飛龍"
+            "school": "飛龍",
+            "first_round_bye": true
           },
           {
             "slot": 21,
-            "school": "静岡市立"
+            "school": "静岡市立",
+            "first_round_bye": true
           },
           {
             "slot": 22,
-            "school": "沼津東"
+            "school": "沼津東",
+            "first_round_bye": false
           },
           {
             "slot": 23,
-            "school": "遠江総合"
+            "school": "遠江総合",
+            "first_round_bye": false
           },
           {
             "slot": 24,
-            "school": "御殿場南"
+            "school": "御殿場南",
+            "first_round_bye": true
           },
           {
             "slot": 25,
-            "school": "浜松湖北"
+            "school": "浜松湖北",
+            "first_round_bye": true
           },
           {
             "slot": 26,
-            "school": "沼津商"
+            "school": "沼津商",
+            "first_round_bye": true
           },
           {
             "slot": 27,
-            "school": "浜松日体"
+            "school": "浜松日体",
+            "first_round_bye": true
           },
           {
             "slot": 28,
-            "school": "知徳"
+            "school": "知徳",
+            "first_round_bye": false
           },
           {
             "slot": 29,
-            "school": "駿河総合"
+            "school": "駿河総合",
+            "first_round_bye": false
           },
           {
             "slot": 30,
-            "school": "掛川西"
+            "school": "掛川西",
+            "first_round_bye": true
           },
           {
             "slot": 31,
-            "school": "日大三島"
+            "school": "日大三島",
+            "first_round_bye": true
           },
           {
             "slot": 32,
-            "school": "浜松湖南"
+            "school": "浜松湖南",
+            "first_round_bye": false
           },
           {
             "slot": 33,
-            "school": "静清"
+            "school": "静清",
+            "first_round_bye": false
           },
           {
             "slot": 34,
-            "school": "三島南"
+            "school": "三島南",
+            "first_round_bye": true
           },
           {
             "slot": 35,
-            "school": "浜松商"
+            "school": "浜松商",
+            "first_round_bye": true
           },
           {
             "slot": 36,
-            "school": "聖隷クリストファー"
+            "school": "聖隷クリストファー",
+            "first_round_bye": true
           },
           {
             "slot": 37,
-            "school": "静岡西"
+            "school": "静岡西",
+            "first_round_bye": true
           },
           {
             "slot": 38,
-            "school": "桐陽"
+            "school": "桐陽",
+            "first_round_bye": false
           },
           {
             "slot": 39,
-            "school": "浜松修学舎"
+            "school": "浜松修学舎",
+            "first_round_bye": false
           },
           {
             "slot": 40,
-            "school": "静岡"
+            "school": "静岡",
+            "first_round_bye": true
           }
         ],
         "opening_round_matches": 8,
@@ -1547,7 +1591,188 @@
           "User-uploaded Tournament_20260001223_135850_996.svg, XML text parsed",
           "https://www.spoban.com/baseball/tour/series-2695/2026/"
         ],
-        "warning": "BYE24とは正式成績シード24校ではない。シードとBYEを校別に同一視しない。"
+        "warning": "BYE24とは正式成績シード24校ではない。シードとBYEを校別に同一視しない。",
+        "opening_round_pairs": [
+          {
+            "slots": [
+              2,
+              3
+            ],
+            "schools": [
+              "韮山",
+              "浜松工"
+            ]
+          },
+          {
+            "slots": [
+              8,
+              9
+            ],
+            "schools": [
+              "掛川東",
+              "島田樟誠"
+            ]
+          },
+          {
+            "slots": [
+              12,
+              13
+            ],
+            "schools": [
+              "東海大翔洋",
+              "富士宮西"
+            ]
+          },
+          {
+            "slots": [
+              18,
+              19
+            ],
+            "schools": [
+              "袋井",
+              "相良"
+            ]
+          },
+          {
+            "slots": [
+              22,
+              23
+            ],
+            "schools": [
+              "沼津東",
+              "遠江総合"
+            ]
+          },
+          {
+            "slots": [
+              28,
+              29
+            ],
+            "schools": [
+              "知徳",
+              "駿河総合"
+            ]
+          },
+          {
+            "slots": [
+              32,
+              33
+            ],
+            "schools": [
+              "浜松湖南",
+              "静清"
+            ]
+          },
+          {
+            "slots": [
+              38,
+              39
+            ],
+            "schools": [
+              "桐陽",
+              "浜松修学舎"
+            ]
+          }
+        ],
+        "first_round_bye_school_slots": [
+          {
+            "slot": 1,
+            "school": "藤枝明誠"
+          },
+          {
+            "slot": 4,
+            "school": "磐田農"
+          },
+          {
+            "slot": 5,
+            "school": "吉原"
+          },
+          {
+            "slot": 6,
+            "school": "常葉大菊川"
+          },
+          {
+            "slot": 7,
+            "school": "静岡商"
+          },
+          {
+            "slot": 10,
+            "school": "加藤学園"
+          },
+          {
+            "slot": 11,
+            "school": "浜松城北工"
+          },
+          {
+            "slot": 14,
+            "school": "島田工"
+          },
+          {
+            "slot": 15,
+            "school": "浜松学院興誠"
+          },
+          {
+            "slot": 16,
+            "school": "三島北"
+          },
+          {
+            "slot": 17,
+            "school": "磐田東"
+          },
+          {
+            "slot": 20,
+            "school": "飛龍"
+          },
+          {
+            "slot": 21,
+            "school": "静岡市立"
+          },
+          {
+            "slot": 24,
+            "school": "御殿場南"
+          },
+          {
+            "slot": 25,
+            "school": "浜松湖北"
+          },
+          {
+            "slot": 26,
+            "school": "沼津商"
+          },
+          {
+            "slot": 27,
+            "school": "浜松日体"
+          },
+          {
+            "slot": 30,
+            "school": "掛川西"
+          },
+          {
+            "slot": 31,
+            "school": "日大三島"
+          },
+          {
+            "slot": 34,
+            "school": "三島南"
+          },
+          {
+            "slot": 35,
+            "school": "浜松商"
+          },
+          {
+            "slot": 36,
+            "school": "聖隷クリストファー"
+          },
+          {
+            "slot": 37,
+            "school": "静岡西"
+          },
+          {
+            "slot": 40,
+            "school": "静岡"
+          }
+        ],
+        "opening_match_source": "https://www.spoban.com/baseball/tour/series-2695/2026/ (2026秋1回戦8試合)"
       },
       "autumn_bracket_observation_2025_preliminary": {
         "source": "User-uploaded Tournament_20250003697_164232_722.svg, XML text parsed",
@@ -1556,6 +1781,15 @@
         "upper_rank_decider_bracket_slots": 26,
         "repechage_bracket_slots": 26,
         "note": "2025年の県本大会参加校数・BYE人数・成績シード校数はこの予選SVGから求めない。2026の県本大会とは異なる段階。"
+      },
+      "autumn_bracket_observation_2025_main": {
+        "stage_kind": "prefectural_main",
+        "participants": 40,
+        "opening_round_matches": 8,
+        "first_round_byes": 24,
+        "second_round_teams": 32,
+        "source": "https://www.spoban.com/baseball/tour/series-2695/2025/",
+        "note": "これは2025の本大会試合記録による追加証拠。ユーザー提供の2025 SVGは別段階であり県本大会とは混同しない。シード・BYE24校の選定規則は未確認。"
       }
     },
     {
