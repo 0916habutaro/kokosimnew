@@ -3,11 +3,14 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
+import shutil
 from statistics import mean, pstdev
+import tempfile
 import unittest
 
 from game_core.school_intake import SchoolIntakeModel
-from game_core.school_reputation import reputation_for
+from game_core.school_reputation import SchoolReputation, reputation_for
+from historical_results.summer_local import GAME_COLUMNS, NEW_SCHOOL_COLUMNS, UNION_COLUMNS
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -172,6 +175,99 @@ class SummerLocalTests(unittest.TestCase):
         self.assertEqual(47, len(offsets))
         self.assertGreater(max(offsets.values()), 0)
         self.assertLess(min(offsets.values()), 0)
+
+
+def _write(path: Path, columns, rows) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, columns)
+        writer.writeheader()
+        writer.writerows(dict(zip(columns, row)) if not isinstance(row, dict) else row for row in rows)
+
+
+def _game(top, top_id, bottom, bottom_id, top_score, bottom_score, date):
+    row = dict.fromkeys(GAME_COLUMNS, "")
+    row.update(
+        year="2025", prefecture_code="99", tournament="2025年架空大会", game_date=date,
+        top_team=top, top_school_id=top_id, bottom_team=bottom, bottom_school_id=bottom_id,
+        top_score=str(top_score), bottom_score=str(bottom_score),
+        winner="top" if top_score > bottom_score else "bottom", result_type="decided",
+    )
+    return row
+
+
+class BottomOf2025SummerTests(unittest.TestCase):
+    """2025年夏に連合チームで出た学校・出なかった学校は、評判の最も下にまとめる（架空のデータ）。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        root = Path(cls.tmp.name)
+        for name in ("school_reputation_v1.json", "school_intake_v1.json"):
+            (root / "config" / "abilities").mkdir(parents=True, exist_ok=True)
+            shutil.copy(ROOT / "config" / "abilities" / name, root / "config" / "abilities" / name)
+        schools = [f"SCHX{n}" for n in range(1, 11)]
+        _write(root / "data/master/schools.csv", ("school_id", "prefecture_code"),
+               [(sid, "99") for sid in schools])
+        # SCHX10 は加盟校の表になく、結び付く校名もない
+        _write(root / "data/master/baseball_programs.csv", ("school_id",),
+               [(sid,) for sid in schools[:9]])
+        history = root / "historical_data"
+        _write(history / "summer_local_games.csv", GAME_COLUMNS, [
+            _game("架空1", "SCHX1", "架空2", "SCHX2", 5, 1, "2025-07-01"),
+            _game("架空3", "SCHX3", "架空・サール", "SCHX6", 2, 3, "2025-07-01"),
+            _game("架空4・架空5", "", "架空X", "", 4, 0, "2025-07-01"),
+            _game("架空1", "SCHX1", "架空・サール", "SCHX6", 3, 0, "2025-07-05"),
+            _game("架空1", "SCHX1", "架空4・架空5", "", 6, 1, "2025-07-08"),
+        ])
+        _write(history / "summer_local_union_members.csv", UNION_COLUMNS, [
+            ("99", "架空4・架空5", "架空4", "SCHX4"),
+            ("99", "架空4・架空5", "架空5", "SCHX5"),
+        ])
+        # SCHX8 は2025年の夏のあとにできた学校
+        _write(history / "summer_local_new_schools.csv", NEW_SCHOOL_COLUMNS,
+               [("99", "SCHX8", "2026年に開校", "SRC1")])
+        # 連合チームの構成校 SCHX4 は甲子園の記録が多くても最も下
+        _write(history / "koshien_entrants.csv", ("school_id", "status", "year", "kind"),
+               [("SCHX4", "", str(year), "summer") for year in range(2015, 2026)])
+        cls.reputation = SchoolReputation(root)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_union_members_and_absent_schools_are_at_the_bottom(self):
+        rep = self.reputation
+        self.assertEqual(
+            {"SCHX4": "union", "SCHX5": "union", "SCHX7": "absent", "SCHX9": "absent"},
+            rep.bottom,
+        )
+        self.assertGreater(rep.base["SCHX4"], max(rep.base.get(sid, 0.0) for sid in ("SCHX1", "SCHX2")))
+        for seed in (1, 2, 3):
+            order = sorted(rep.school_ids, key=lambda sid: rep.program_z(sid, seed))
+            self.assertEqual(set(rep.bottom), set(order[:4]))
+            self.assertTrue(all(rep.rank(sid, seed) == "E" for sid in rep.bottom))
+            # 最も下の中は今の点の順
+            inside = order[:4]
+            self.assertEqual(inside, sorted(inside, key=lambda sid: rep.score(sid, seed)))
+
+    def test_single_school_with_middle_dot_and_unlinked_names(self):
+        # 「・」を含む単独校（架空・サール）は連合に数えない。結び付かない校名（架空X）は
+        # どの学校も不参加にしない。そのあとにできた学校・加盟校の表にない学校も数えない
+        for school_id in ("SCHX6", "SCHX8", "SCHX10"):
+            self.assertNotIn(school_id, self.reputation.bottom)
+
+    def test_exe_bundles_the_files_for_the_rule(self):
+        # EXE（kokosimnew.spec）に、最下位を決めるのに読むファイルが入っている
+        from historical_results.summer_local import GAMES_FILE, NEW_SCHOOLS_FILE, UNION_FILE
+        spec = (ROOT / "kokosimnew.spec").read_text(encoding="utf-8")
+        for name in (GAMES_FILE, UNION_FILE, NEW_SCHOOLS_FILE):
+            self.assertIn(f'"historical_data" / "{name}"', spec, name)
+        # baseball_programs.csv は data/ ごと入る
+        self.assertIn('(str(ROOT / "data"), "data")', spec)
+
+    def test_rule_is_in_the_config(self):
+        self.assertEqual(["union", "absent"], self.reputation.config["bottom_if_2025_summer"])
 
 
 if __name__ == "__main__":

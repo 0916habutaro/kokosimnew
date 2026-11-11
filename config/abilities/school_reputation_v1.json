@@ -1,6 +1,6 @@
 {
   "config_id": "school_reputation_v1",
-  "revision": 4,
+  "revision": 5,
   "status": "tuned_2026_11_11",
   "description_ja": "学校の評判の初期値（ゲーム開始時点。game_definition.md §10「初期の勢力図」）。実際の甲子園の出場（historical_data/koshien_entrants.csv、1915年〜）・通算（koshien_records.csv）と直前の結果（2026年選抜・2025年夏・2025年秋）から点を出し、最近ほど重くする。評判の順位を入部品質の学校成分（school_intake_v1 の program_component と同じ平均・広がりの z）に変える。実際の記録は読むだけで、評判はゲームのデータ。",
   "reference_year": 2026,
@@ -43,6 +43,7 @@
     "description_ja": "全校に足す小さな乱数（0〜max の一様分布、ゲームの乱数の種で決まる）。甲子園に出たことのない学校の順位を決め、県の上位校が生まれる余地を残す",
     "max": 0.4
   },
+  "bottom_if_2025_summer": ["union", "absent"],
   "rng_namespace": "school_reputation_v1:noise:{school_id}",
   "rank_labels": [
     ["S", 0.995],
@@ -54,6 +55,7 @@
   ],
   "notes_ja": {
     "recency_half_life_years": "何年前の出場で点が半分になるか（基準は reference_year）",
+    "bottom_if_2025_summer": "2025年夏の地方大会（historical_data/summer_local_games.csv）の出方がこれに当たる学校は、ほかの点にかかわらず評判の全国順位の最も下にまとめて置く（その中は点の順）。union は連合チームの構成校、absent は加盟校（baseball_programs.csv）のうち単独でも連合チームでも試合がない学校。そのあとにできた学校（summer_local_new_schools.csv）と、学校に結び付かない校名は数えない",
     "rank_labels": "画面に出す評判のランク。全校の中の順位（下からの割合）がこの値以上ならそのランク",
     "summer_local.elo": "勝ち負けと点差のレーティング。k は1試合で動く大きさ、year_carry は年度が変わるときに初期値から離れている分を残す割合（最近ほど重く）",
     "summer_local.rating_points_per_400": "レーティングが初期値より400高いときの点（県どうしの差を足したあと）",

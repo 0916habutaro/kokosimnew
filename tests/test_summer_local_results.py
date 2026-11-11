@@ -9,8 +9,10 @@ import unittest
 from historical_results.summer_local import (
     ALIAS_COLUMNS,
     GAME_COLUMNS,
+    NEW_SCHOOL_COLUMNS,
     UNION_COLUMNS,
     finishes,
+    participation,
     read_games,
     validate,
 )
@@ -76,6 +78,27 @@ class RepositoryDataTests(unittest.TestCase):
         self.assertEqual({2021, 2022, 2023, 2024, 2025}, years)
 
 
+class ParticipationTests(unittest.TestCase):
+    def test_single_union_and_unlinked(self):
+        games = [
+            _game("2025年架空大会", "2025-07-01", "架空1", "架空・サール", 3, 1,
+                  top_school_id="SCHX1", bottom_school_id="SCHX6"),
+            _game("2025年架空大会", "2025-07-01", "架空4・架空5", "架空9", 2, 1),
+            _game("2024年架空大会", "2024-07-01", "架空7・架空8", "架空1", 0, 1),
+        ]
+        unions = [
+            dict(prefecture_code="99", team_name="架空4・架空5", member_name="架空4", school_id="SCHX4"),
+            dict(prefecture_code="99", team_name="架空4・架空5", member_name="架空5", school_id="SCHX5"),
+            # 別の年の連合チーム
+            dict(prefecture_code="99", team_name="架空7・架空8", member_name="架空7", school_id="SCHX7"),
+        ]
+        out = participation(games, unions, 2025)
+        # 「・」があっても学校IDの付いた校名は1校。結び付かない校名（架空9）は数えない
+        self.assertEqual(
+            {"SCHX1": "single", "SCHX6": "single", "SCHX4": "union", "SCHX5": "union"}, out,
+        )
+
+
 class ValidateTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -134,6 +157,24 @@ class ValidateTests(unittest.TestCase):
         codes = self._codes(games)
         self.assertIn("MEMBER", codes)
         self.assertIn("UNKNOWN_TEAM", codes)
+
+    def test_new_schools(self):
+        games = _bracket()
+        games[0]["top_school_id"] = "SCHX1"
+        with (self.root / "summer_local_new_schools.csv").open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(NEW_SCHOOL_COLUMNS)
+            writer.writerows([
+                ["99", "SCHX2", "2026年に開校", "SRC1"],
+                ["99", "SCHX1", "", "SRC9"],  # 出典がない
+            ])
+        codes = self._codes(games, [("99", "架空1", "SCHX1", "略称")])
+        self.assertIn("UNKNOWN_SOURCE", codes)
+        # 2024年の大会なので、最後の年（2025年）に出た学校ではない
+        self.assertNotIn("PLAYED", codes)
+        for game in games:
+            game["year"] = "2025"
+        self.assertIn("PLAYED", self._codes(games, [("99", "架空1", "SCHX1", "略称")]))
 
     def test_bracket_errors(self):
         games = _bracket()

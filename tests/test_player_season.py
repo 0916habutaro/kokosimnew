@@ -133,7 +133,11 @@ class PlayerSeasonServiceTests(unittest.TestCase):
             # 読み込んでも名簿（選手名・出身・能力）は同じ。画面の部員一覧・試合の個人成績に出る
             screen = GameScreenData(service, session)
             again = GameScreenData(service, loaded)
-            school_id = archived["batter_stats"][0]["school_id"]
+            # 試合に出た学校のうち部員の多い学校（評判の低い学校は部員が10人に満たないことがある）
+            school_id = max(
+                {row["school_id"] for row in archived["batter_stats"]},
+                key=lambda sid: (len(screen.school(sid)["members"]), sid),
+            )
             members = screen.school(school_id)["members"]
             self.assertEqual(members, again.school(school_id)["members"])
             self.assertEqual(len(members), len({m["name"] for m in members}))
