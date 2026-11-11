@@ -6,6 +6,8 @@
 夏の地方大会の全試合（``historical_data/summer_local_games.csv``、2021〜2025年）からは、
 県の中の強さ（勝ち負けと点差のレーティング）と毎年の勝ち上がり（ベスト8・16など）を
 足す。県どうしの差は、その県の甲子園の通算勝率から付ける。最後に全校に小さな乱数。
+2025年夏の地方大会に連合チームで出た学校・出なかった学校（``bottom_if_2025_summer``）は、
+ほかの点にかかわらず全国の最も下にまとめて置く（その中は点の順）。
 重みは ``config/abilities/school_reputation_v1.json``。
 
 評判の順位を、入部品質の学校成分（``school_intake_v1`` の ``program_component``）と
@@ -22,7 +24,13 @@ import math
 from pathlib import Path
 from statistics import NormalDist
 
-from historical_results.summer_local import finishes, read_union_members, winner_loser
+from historical_results.summer_local import (
+    finishes,
+    participation,
+    read_new_schools,
+    read_union_members,
+    winner_loser,
+)
 from phase2_engine.randomness import rng_for
 
 
@@ -62,6 +70,8 @@ class SchoolReputation:
         self.no_data: set[str] = set()
         self.local_finishes: dict[str, dict[int, int]] = {}
         self._add_summer_local(root / "historical_data")
+        # 学校ID → 最も下に置く理由（"union" 連合チーム、"absent" 出なかった）
+        self.bottom = self._bottom_schools(root)
         self._by_seed: dict[int, tuple[dict[str, float], dict[str, float]]] = {}
 
     def _decay(self, year: int) -> float:
@@ -111,6 +121,28 @@ class SchoolReputation:
                     recent[f"autumn_prefectural_{row['achievement']}"]
                 )
         return dict(points)
+
+    def _bottom_schools(self, root: Path) -> dict[str, str]:
+        """2025年夏の地方大会に連合チームで出た学校・出なかった学校。
+
+        出なかった学校は、加盟校（``baseball_programs.csv``）のうち2025年の試合が単独でも
+        連合チームでもない学校。そのあとにできた学校（``summer_local_new_schools.csv``）と、
+        学校に結び付かない校名は数えない。"""
+        kinds = set(self.config.get("bottom_if_2025_summer", []))
+        history = root / "historical_data"
+        games = _rows(history / "summer_local_games.csv")
+        if not kinds or not games:
+            return {}
+        played = participation(games, read_union_members(history), 2025)
+        out = {sid: kind for sid, kind in played.items() if kind in kinds}
+        if "absent" in kinds:
+            new = read_new_schools(history)
+            for row in _rows(root / "data" / "master" / "baseball_programs.csv"):
+                school_id = row["school_id"]
+                if school_id not in played and school_id not in new:
+                    out[school_id] = "absent"
+        known = set(self.school_ids)
+        return {sid: kind for sid, kind in out.items() if sid in known}
 
     def _add_summer_local(self, history: Path) -> None:
         """夏の地方大会の結果（県の中の強さと毎年の勝ち上がり）を点に足す。"""
@@ -283,7 +315,10 @@ class SchoolReputation:
                 ).uniform(0.0, float(noise["max"]))
                 for school_id in self.school_ids
             }
-            order = sorted(scores, key=lambda school_id: (scores[school_id], school_id))
+            # 連合チーム・出なかった学校は最も下にまとめる（その中は点の順）
+            order = sorted(scores, key=lambda school_id: (
+                school_id not in self.bottom, scores[school_id], school_id,
+            ))
             count = len(order)
             # 順位（下から）の割合 → 正規分布の z
             share = {school_id: (index + 0.5) / count for index, school_id in enumerate(order)}
