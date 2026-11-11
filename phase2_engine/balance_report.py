@@ -30,6 +30,7 @@
   同じ打者の対右・対左の打率の差（起用の偏りを除く）
 - 部員の人数（4月1日の名簿）：全国の1校あたりの学年ごとの人数、1校の部員数の分布、私立・公立と
   評判の帯（z）ごとの平均、新入部員を最低人数まで増やした学校の数、退部した人数
+- 評判の上位50校（4月1日の年度の評判の更新のあと）：前の年・5年前・始めの年の上位50校から入れ替わった学校の数
 - 連合チーム（11月1日の年度の状態）：大会の種類ごとの連合チームの数・構成校の数・出なかった学校の数
 - 成績シード（夏の地方大会と春季県大会は8月31日、秋季県大会は12月1日の年度の状態）：大会の種類ごとに、
   シードのある大会の数・シード校の数、シード校どうしが準々決勝より前に当たった数（16校・32校のシードは
@@ -117,6 +118,7 @@ class BalanceTally:
         self.team_games = defaultdict(Counter)   # 年度 → 学校 → 試合数
         self.rosters = {}                        # 年度 → 名簿の集計
         self.sizes = {}                          # 年度 → 部員の人数の集計（4月1日）
+        self.top_reputation = {}                 # 年度 → 評判の上位50校（4月1日）
         self.unions = {}                         # 年度 → 大会の種類 → 連合チームの集計
         self.seeds = defaultdict(dict)           # 季節 → 年度 → 成績シードの集計
         self.selection = {}                      # 年度 → 選抜の選考の顔ぶれ
@@ -403,6 +405,19 @@ class BalanceTally:
             "relaxed_regions": sum(1 for r in rows if r["relaxed"]),
         }
 
+    def add_top_reputation(self, year: int, values: dict[str, float], count: int = 50) -> None:
+        """その年度の4月1日の評判（学校ID → 評判の値）の上位 ``count`` 校。"""
+        self.top_reputation[year] = set(sorted(values, key=lambda s: (-values[s], s))[:count])
+
+    def _top_turnover(self, year: int) -> dict:
+        top = self.top_reputation[year]
+        out = {}
+        for key, other in (("vs_previous", year - 1), ("vs_5_years", year - 5),
+                           ("vs_start", min(self.top_reputation))):
+            if other != year and other in self.top_reputation:
+                out[key] = len(top - self.top_reputation[other])
+        return out
+
     def add_sizes(self, year: int, schools, floor_hits: int = 0) -> None:
         """``schools`` は (設置者, 評判のランク S〜E, 学年ごとの人数 {1: 人, 2: 人, 3: 人}) の並び。"""
         totals, grades = [], Counter()
@@ -508,7 +523,7 @@ class BalanceTally:
         return out
 
     def summary(self) -> dict:
-        years = sorted({y for y, _ in self.games} | set(self.rosters) | set(self.sizes)
+        years = sorted({y for y, _ in self.games} | set(self.rosters) | set(self.sizes) | set(self.top_reputation)
                        | set(self.unions) | {y for by in self.seeds.values() for y in by}
                        | {y for by in self.regionals.values() for y in by})
         out = {}
@@ -586,6 +601,8 @@ class BalanceTally:
                 row["rosters"] = self.rosters[year]
             if year in self.sizes:
                 row["sizes"] = self.sizes[year]
+            if year in self.top_reputation and self._top_turnover(year):
+                row["reputation_top50"] = self._top_turnover(year)
             if year in self.unions:
                 row["unions"] = self.unions[year]
             for segment, by_year in sorted(self.seeds.items()):
@@ -1006,6 +1023,8 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
             if (today.month, today.day) == (4, 1):
                 sizes = list(size_rows(state.rosters, today.year, repo))
                 tally.add_sizes(today.year, sizes, state.rosters.floor_hits.get(today.year, 0))
+                if getattr(state, "reputation", None) is not None:
+                    tally.add_top_reputation(today.year, state.reputation.values)
             if (today.month, today.day) == (11, 1) and today.year in state.seasons:
                 tally.add_unions(today.year, state.seasons[today.year], tally.kind_of)
             if (today.month, today.day) == (8, 31):
@@ -1170,6 +1189,12 @@ def format_report(seed_label: str, report: dict) -> str:
             lines.append("  本塁打: " + ", ".join(str(r[0]) for r in leaders["home_runs"]))
         if leaders.get("earned_run_average"):
             lines.append("  防御率: " + ", ".join(f"{r[0]:.2f}({r[3] // 3}回)" for r in leaders["earned_run_average"]))
+        top = row.get("reputation_top50")
+        if top:
+            lines.append("  評判の上位50校の入れ替わり: " + " / ".join(
+                f"{label} {top[key]}校" for key, label in (
+                    ("vs_previous", "前の年から"), ("vs_5_years", "5年前から"), ("vs_start", "始めの年から"))
+                if key in top))
         sz = row.get("sizes")
         if sz:
             q = sz["total_quantiles"]
