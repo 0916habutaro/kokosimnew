@@ -1230,6 +1230,17 @@ class GameScreenData:
                     if school.get('finish') == '優勝':
                         school['champion_label'] = self.entry_label(
                             cid, row['school_year'], school['school_id'], history, champion=True)
+        # 「8強以上3回目」：ゲーム開始からその年度までのベスト8以上の回数（実際の記録は足さない）
+        if labelled and not entrants:
+            top = max(row['school_year'] for row in labelled)
+            years_of = record_filters.best8_years(
+                [best8_record(season, cid) for year, season in live.items()
+                 if year <= top and cid in season.annual_templates],
+                archive.competition_best8_years(cid, top))
+            for row in labelled:
+                for school in schools_of(row):
+                    school['best8_label'] = record_filters.best8_label(
+                        years_of.get(school['school_id'], ()), row['school_year'])
         competition = competitions.get(cid, {})
         summer = competition.get('competition_type') == 'national_championship'
         summer_areas = sorted(

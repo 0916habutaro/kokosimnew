@@ -409,16 +409,38 @@ function prefName(data, code) {
   return (data.prefectures.find(([c]) => c === code) || [])[1] || "所属不明";
 }
 
+// 大会別ベスト8の列ごとの枠の数（優勝1・準優勝1・ベスト4は2・準々決勝敗退は4）。年度が違っても同じ位置に並べる
+const BEST8_SLOTS = { "優勝": 1, "準優勝": 1, "ベスト4": 2, "ベスト8": 4 };
+const BEST8_YEAR_WIDTH = 16; // 年度の列（%）。残りを枠の数で分ける
+
 function best8Table(data) {
   // 都道府県は全国・地区大会だけ。都道府県の大会・夏の地方大会と、北海道・東京の秋季のように
   // 1つの都道府県だけの地区大会は、みな同じ都道府県なので出さない。県名は「都・府・県」を除く（トーナメント表の札と同じ）
   const prefs = (data.catalog.find((c) => c.competition_id === data.filters.competition_id) || {}).prefectures || [];
   const showPref = data.matrix && prefs.length !== 1;
-  const school = (s) => `<span class="entrant" title="${esc(s.count_label || "")}"><button class="link" data-school="${esc(s.school_id)}">${esc(s.name)}</button>${showPref && s.prefecture ? `<small class="muted">${esc(s.prefecture.replace(/[都府県]$/, ""))}</small>` : ""}${countTag(s.champion_label)}</span>`;
-  return `<table class="list zebra best8-table"><colgroup><col style="width:180px"><col style="width:11%"><col style="width:11%"><col style="width:23%"><col></colgroup>
+  const total = Object.values(BEST8_SLOTS).reduce((a, b) => a + b, 0);
+  const width = (n) => `${((100 - BEST8_YEAR_WIDTH) * n / total).toFixed(3)}%`;
+  // 1行目に校名、2行目に県名・8強以上の回数・優勝の回数。入らなければ省略し、マウスを当てたら全部出す
+  const school = (s) => {
+    const notes = [showPref && s.prefecture ? s.prefecture.replace(/[都府県]$/, "") : "", s.best8_label, s.champion_label].filter(Boolean);
+    const tip = [s.name, ...notes].join("\n");
+    return `<div class="b8-slot" title="${esc(tip)}"><button class="link b8-name" data-school="${esc(s.school_id)}">${esc(s.name)}</button>
+      <small class="b8-notes">${notes.map((n) => n === s.champion_label ? countTag(n) : `<span class="muted">${esc(n)}</span>`).join("")}</small></div>`;
+  };
+  const cell = (schools, n) => `<div class="b8-slots" style="--slots:${n}">${Array.from({ length: n }, (_, i) =>
+    schools[i] ? school(schools[i]) : '<div class="b8-slot empty"></div>').join("")}</div>`;
+  return `<table class="list zebra best8-table"><colgroup><col style="width:${BEST8_YEAR_WIDTH}%">${BEST8_COLUMNS.map(([finish]) => `<col style="width:${width(BEST8_SLOTS[finish])}">`).join("")}</colgroup>
     <thead><tr><th>年度</th>${BEST8_COLUMNS.map(([finish, label]) => `<th>${finishBadge(finish, label)}</th>`).join("")}</tr></thead>
     <tbody>${data.rows.map((r) => `<tr><td>${recordYearHead(r, data)}</td>
-      ${BEST8_COLUMNS.map(([finish]) => `<td>${r.groups[finish].map(school).join("") || '<span class="muted">−</span>'}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+      ${BEST8_COLUMNS.map(([finish]) => `<td>${cell(r.groups[finish], BEST8_SLOTS[finish])}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+}
+
+// 枠に入らない校名は文字を小さくする（それでも入らなければ「…」で省略。title に全部ある）
+function fitBest8Names(root) {
+  root.querySelectorAll(".best8-table .b8-name").forEach((el) => {
+    el.classList.remove("small");
+    if (el.scrollWidth > el.clientWidth) el.classList.add("small");
+  });
 }
 
 async function renderBest8(content) {
@@ -457,7 +479,7 @@ async function renderBest8(content) {
     </div>
     <div class="scroll best8-scroll">
       <div class="record-caption"><h3>${esc(data.competition_name)}</h3>
-        <span class="muted">${data.start}〜${data.end}年度${hidden}。校名は大会当時の名前です。</span>
+        <span class="muted">${data.start}〜${data.end}年度${hidden}。校名は大会当時の名前です。${entrants ? "" : "8強以上の回数はゲーム開始後の記録だけを数えています。"}</span>
         <span class="spacer"></span>
         ${entrants && data.matrix ? toggle("only_entered", "出場のあった都道府県だけ") : ""}
         ${toggle("show_upcoming", "未開催の年度も出す")}</div>
@@ -500,6 +522,7 @@ async function renderBest8(content) {
     delete state[filterStateKey].start; delete state[filterStateKey].end;
     renderPage();
   });
+  if (!entrants) fitBest8Names(content);
   content.querySelectorAll("[data-school]").forEach((a) => a.addEventListener("click", () => openSchool(a.dataset.school)));
   content.querySelectorAll("[data-record-cid]").forEach((a) => a.addEventListener("click", () => openCompetition(Number(a.dataset.recordYear), a.dataset.recordCid)));
 }
