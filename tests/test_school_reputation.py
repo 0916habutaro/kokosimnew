@@ -37,11 +37,22 @@ class ReputationTests(unittest.TestCase):
         with (ROOT / "historical_data" / "koshien_records.csv").open(encoding="utf-8-sig") as handle:
             ever = {row["school_id"] for row in csv.DictReader(handle)}
         ever |= {row["school_id"] for row in _entrants()}
-        # 甲子園に出たことがなく、地方大会でも県の平均より弱い学校
+        # 甲子園未出場でも前年秋の県大会上位校は「弱い学校」ではない。
+        # 夏の地方大会の過去5年だけで区分すると、新しく収録した47県の
+        # 秋ベスト8入り（県内の直近上位校）を誤って弱小校に含めてしまう。
+        with (ROOT / "data/initial_state/2026/prior_results.csv").open(
+            encoding="utf-8-sig", newline="",
+        ) as handle:
+            autumn_top = {
+                row["school_id"] for row in csv.DictReader(handle)
+                if row["kind"] == "autumn_prefectural"
+                and row["achievement"] in ("champion", "runner_up", "best4", "best8")
+            }
         initial = self.reputation.config["summer_local"]["elo"]["initial"]
         never = [
             sid for sid in self.reputation.school_ids
-            if sid not in ever and self.reputation.local_ratings.get(sid, initial) < initial
+            if sid not in ever and sid not in autumn_top
+            and self.reputation.local_ratings.get(sid, initial) < initial
             and not any(n <= 16 for n in self.reputation.local_finishes.get(sid, {}).values())
         ]
         self.assertGreater(len(never), 500)
@@ -51,6 +62,29 @@ class ReputationTests(unittest.TestCase):
         self.assertTrue(all(self.reputation.rank(sid, 7) in ("C", "D", "E") for sid in never))
         top = max(self.reputation.school_ids, key=z)
         self.assertEqual("S", self.reputation.rank(top, 7))
+
+
+    def test_autumn_prefectural_rank_points_preserve_best4_floor(self):
+        points = self.reputation.config["recent_points"]
+        score = lambda achievement: points[f"autumn_prefectural_{achievement}"]
+        self.assertGreater(score("champion"), score("best4"))
+        self.assertGreater(score("runner_up"), score("best4"))
+        self.assertGreater(score("best4"), score("best8"))
+
+        # 既存の予選免除行をchampion / runner_upに細分化しても評判点が下がらない。
+        with (ROOT / "data/initial_state/2026/prior_results.csv").open(
+            encoding="utf-8-sig", newline="",
+        ) as handle:
+            rows = list(csv.DictReader(handle))
+        for row in rows:
+            if row["kind"] != "autumn_prefectural" or row["achievement"] not in (
+                "champion", "runner_up",
+            ):
+                continue
+            self.assertGreater(
+                score(row["achievement"]), score("best4"),
+                (row["school_id"], row["achievement"]),
+            )
 
     def test_recent_appearances_weigh_more(self):
         # 同じ点の出場でも、最近の出場ほど点が大きい

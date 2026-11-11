@@ -1,7 +1,7 @@
 {
   "config_id": "school_reputation_v1",
-  "revision": 3,
-  "status": "tuned_2026_10_25",
+  "revision": 4,
+  "status": "tuned_2026_11_11",
   "description_ja": "学校の評判の初期値（ゲーム開始時点。game_definition.md §10「初期の勢力図」）。実際の甲子園の出場（historical_data/koshien_entrants.csv、1915年〜）・通算（koshien_records.csv）と直前の結果（2026年選抜・2025年夏・2025年秋）から点を出し、最近ほど重くする。評判の順位を入部品質の学校成分（school_intake_v1 の program_component と同じ平均・広がりの z）に変える。実際の記録は読むだけで、評判はゲームのデータ。",
   "reference_year": 2026,
   "recency_half_life_years": 6.0,
@@ -17,12 +17,14 @@
     "championship_points": 0.6
   },
   "recent_points": {
-    "description_ja": "直前の結果（ゲーム開始の直前の実力）。年ごとの出場の点に足す",
+    "description_ja": "直前の結果（ゲーム開始の直前の実力）。年ごとの出場の点に足す。2025年秋の県大会は最高到達点を1校1回だけ加点（優勝1.2、準優勝0.9、4強0.6、8強0.3）",
     "senbatsu_2026": 1.5,
     "summer_2025": 1.0,
     "autumn_regional_2025": 1.0,
     "autumn_prefectural_best4": 0.6,
-    "autumn_prefectural_best8": 0.3
+    "autumn_prefectural_best8": 0.3,
+    "autumn_prefectural_champion": 1.2,
+    "autumn_prefectural_runner_up": 0.9
   },
   "summer_local": {
     "description_ja": "夏の地方大会の全試合（historical_data/summer_local_games.csv、2021〜2025年）。県の中の強さ（レーティング）と毎年の勝ち上がり",
