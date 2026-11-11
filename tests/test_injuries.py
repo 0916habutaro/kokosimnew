@@ -99,6 +99,37 @@ class RosterInjuryTests(unittest.TestCase):
         self.assertLess(dropped.contact, back.contact)
         self.assertEqual(book.state(player).values[0], back.contact)
 
+    def test_match_ability_follows_the_match_day_not_the_cache(self):
+        """新規開始前の試合（名簿の今日がまだない）で覚えた能力を、復帰直後の後の
+        試合で使い回しても、ロードしたあと（覚えた能力がない）と同じ能力になる。"""
+        from types import SimpleNamespace
+        from game_core.tournament_bridge import AbilityMatchResolver
+
+        book = _book()
+        player = book.roster(2026, "SCH-A").players[0]
+        injury = Injury(date(2026, 3, 24), 6, 1)  # 3/30 に復帰、1週間は少し下がる
+        book.state(player).injuries.append(injury)
+
+        def resolver(day):
+            out = AbilityMatchResolver(None)
+            out.ability_generator.source = book
+            out.season_state = SimpleNamespace(current_date=day)
+            return out
+
+        playing = resolver(date(2026, 3, 31))
+        self.assertIsNone(book.today)
+        before_start = playing._player_ability(player, 2026, 1)
+        later = date(2026, 4, 5)
+        book.set_today(later)
+        playing.season_state.current_date = later
+        continued = playing._player_ability(player, 2026, 1)
+        resumed = resolver(later)._player_ability(player, 2026, 1)
+        self.assertEqual(resumed, continued)
+        self.assertEqual(book.ability(player, later), continued)
+        # 復帰直後なので元の能力より少し下がっている
+        self.assertLess(continued.contact, book.state(player).values[0])
+        self.assertLess(before_start.contact, book.state(player).values[0])
+
     def test_an_earlier_injury_added_later_does_not_hide_a_planned_one(self):
         book = _book()
         player = book.roster(2026, "SCH-A").players[0]

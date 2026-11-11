@@ -352,12 +352,19 @@ class AbilityMatchResolver:
     def _player_ability(self, player, reference_year: int, team_seed: int):
         source = self.ability_generator.source
         day = self._match_day()
-        step = (
-            source.condition(player, day)[1]
-            if source is not None and day is not None and hasattr(source, "condition")
-            else 0
-        )
-        key = (player, reference_year, team_seed, step)
+        if source is not None and day is not None and hasattr(source, "recovery"):
+            # 能力は試合の日の名簿から（キーと同じ日。名簿の今日が試合の日と違っても、
+            # 使い回した能力が続けて遊んだときとロードしたときで変わらない）
+            recovery = source.recovery(player, day)
+            key = (player, reference_year, team_seed, recovery)
+            snapshot = self._abilities.get(key)
+            if snapshot is None:
+                snapshot = self.ability_generator.generate(
+                    player, reference_year, team_seed, day=day,
+                )
+                self._abilities[key] = snapshot
+            return snapshot
+        key = (player, reference_year, team_seed)
         snapshot = self._abilities.get(key)
         if snapshot is None:
             snapshot = self.ability_generator.generate(
