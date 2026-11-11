@@ -165,6 +165,22 @@ class RosterInjuryTests(unittest.TestCase):
         self.assertEqual(0, counts["none"])
         self.assertGreaterEqual(counts["high"], counts["normal"])
 
+    def test_practice_injuries_do_not_depend_on_teammates(self):
+        """練習の怪我は選手ごとの乱数。ほかの部員（新入部員の人数など）が変わっても、
+        その選手の怪我は変わらない。"""
+        def injuries(busy):
+            book = _book("high")
+            players = book.roster(2026, "SCH-A").players
+            for p in players[:busy]:
+                book.state(p).season_games = 255  # 怪我をしやすい部員がいる
+            for month in range(4, 13):
+                book._practice_injuries(date(2026, month, 1))
+            return {p.player_id: list(book.state(p).injuries) for p in players[busy:]}
+
+        calm, busy = injuries(0), injuries(12)
+        self.assertEqual(busy, {pid: calm[pid] for pid in busy})
+        self.assertTrue(any(calm.values()))
+
     def test_heavy_pitching_injures_more_often(self):
         book = _book("high")
         pitchers = [p for p in book.roster(2026, "SCH-A").players if p.primary_position == "P"]

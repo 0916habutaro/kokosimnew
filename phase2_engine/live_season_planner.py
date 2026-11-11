@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Mapping
 
 from .engine import TournamentEngine
-from .initial_state import PriorResults, load_prior_results
+from .initial_state import PriorResults, initial_autumn_ranking, load_prior_results
 from .live_season_dependency import (
     LiveSeasonDependencyRuntimeState,
 )
@@ -163,6 +163,14 @@ class LiveSeasonGraphPlan:
         default=None,
         repr=False,
     )
+    # 春季県大会のシードを選ぶ前年秋の県大会の順位（都道府県 → 順位の並び）。
+    # 2年目からはゲーム内の結果、最初の年度は実際の結果から（``initial_autumn_ranking``）
+    prior_autumn_rankings: dict[str, tuple[str, ...]] = field(
+        default_factory=dict,
+        repr=False,
+    )
+    # 前年秋の順位が実際の結果（一部だけ）なら、残りを抽選で埋める
+    prior_autumn_fill: bool = False
     warnings: list[str] = field(default_factory=list)
 
     def summary(self) -> dict:
@@ -321,11 +329,8 @@ class LiveSeasonGraphPlan:
                     self.prior_invitational_entrant_ids
                 ),
                 on_created=on_created,
-                prior_autumn_rankings=(
-                    self.prior_results.autumn_prefectural_rankings
-                    if self.prior_results is not None
-                    else None
-                ),
+                prior_autumn_rankings=self.prior_autumn_rankings,
+                prior_autumn_fill=self.prior_autumn_fill,
             )
         )
 
@@ -781,6 +786,25 @@ class LiveSeasonGraphPlanner:
             ]
             + national_and_prefectural
             for destination, rows in rules.items()
+        }
+
+    def _prior_autumn_rankings(
+        self,
+        prior: PriorResults | None,
+    ) -> dict[str, tuple[str, ...]]:
+        """春季県大会のシードを選ぶ前年秋の県大会の順位。ゲーム内の結果があればそれ、
+        なければ実際の結果（優勝〜ベスト16の分かっている順位まで。残りはシードを選ぶ
+        ときに抽選で埋める：``prior_autumn_fill``）。"""
+        if prior is None:
+            return {}
+        if prior.from_game:
+            return dict(prior.autumn_prefectural_rankings)
+        return {
+            pcode: tuple(initial_autumn_ranking(
+                finishes, base_seed=self.rng_seed,
+                namespace=f"initial_autumn_ranking:{self.year}:{pcode}",
+            ))
+            for pcode, finishes in sorted(prior.autumn_prefectural_finishes.items())
         }
 
     @staticmethod
@@ -1397,5 +1421,7 @@ class LiveSeasonGraphPlanner:
                 prior_invitational
             ),
             prior_results=self.prior_results,
+            prior_autumn_rankings=self._prior_autumn_rankings(prior),
+            prior_autumn_fill=prior is not None and not prior.from_game,
             warnings=warnings,
         )

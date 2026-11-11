@@ -13,12 +13,13 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import date, timedelta
 import json
+import random
 import threading
 import zlib
 from typing import Callable, Iterable
 
 from phase2_engine.models import Team
-from phase2_engine.randomness import rng_for
+from phase2_engine.randomness import namespaced_seed, rng_for
 from phase2_engine.school_year import school_year_of
 
 from .abilities import (
@@ -745,18 +746,22 @@ class RosterBook:
         days = ((first + timedelta(days=32)).replace(day=1) - first).days
         namespace = model.config["rng_namespaces"]["practice"]
         for school_id in self.schools(year):
-            rng = rng_for(
-                self.career_seed,
-                namespace.format(month=first.strftime("%Y-%m"), school_id=school_id),
-            )
             for player in self.roster(year, school_id).players:
+                # 選手ごとの乱数（新入部員の人数が変わっても、ほかの部員の怪我は変わらない）。
+                # 怪我をしない選手には乱数の列をつくらない（全国の部員の毎月の分で重いため）
+                seed = namespaced_seed(
+                    self.career_seed,
+                    namespace.format(month=first.strftime("%Y-%m"), school_id=school_id,
+                                     entry_year=player.entry_year, roster_no=player.roster_no),
+                )
                 state = self.state(player)
                 chance = model.practice_chance(
                     pitcher=player.primary_position == "P",
                     season_games=state.season_games, level=self.injury_level,
                 )
-                if rng.random() >= chance:
+                if seed / 2 ** 64 >= chance:
                     continue
+                rng = random.Random(seed)
                 start = first + timedelta(days=rng.randrange(days))
                 if state.injured_on(start) is not None:
                     continue

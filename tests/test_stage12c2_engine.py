@@ -118,7 +118,8 @@ class Stage12C2EngineTests(unittest.TestCase):
         ))
         stage = run.stage_executions[0]
         self.assertEqual(53, len(stage.entrant_school_ids))
-        self.assertEqual(16, len(run.seed_assignments))
+        # 資料どおり4地区の第1・第2シード（8校）
+        self.assertEqual(8, len(run.seed_assignments))
         self.assertEqual(53, len(run.main_entrant_school_ids))
         self.assertEqual(set(entrants), set(run.main_entrant_school_ids))
         self.assertEqual(
@@ -130,7 +131,7 @@ class Stage12C2EngineTests(unittest.TestCase):
             tiers[a.seed_tier] = tiers.get(a.seed_tier, 0) + 1
         self.assertEqual(4, tiers.get("seed_rank_1"))
         self.assertEqual(4, tiers.get("seed_rank_2"))
-        self.assertEqual(8, tiers.get("seed_rank_3"))
+        self.assertNotIn("seed_rank_3", tiers)
 
     def test_aomori_contains_knockout_and_league_phases(self):
         entrants, _ = _aomori_autumn_demo(self.repo)

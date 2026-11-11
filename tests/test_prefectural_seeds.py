@@ -7,6 +7,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 import unittest
 
+from phase2_engine.initial_state import fill_by_lot, initial_autumn_ranking
 from phase2_engine.live_season_dependency import LiveSeasonDependencyRuntimeState
 from phase2_engine.models import AnnualCompetitionInput, Match
 from phase2_engine.seed_draw import (
@@ -69,6 +70,118 @@ class FallbackCountTests(unittest.TestCase):
         # 前年秋の結果がない最初の年度はシードなし
         self.assertEqual([], choose_seeds(rules, {}, TEAMS, base_seed=1, namespace="CMPX",
                                           fallback=FALLBACK))
+
+
+class InitialAutumnRankingTests(unittest.TestCase):
+    """最初の年度の春：実際の前年秋の到達点（架空の結果）から順位をつくり、同じ選び方でシードを選ぶ。"""
+
+    def ranking(self, finishes, seed=1):
+        known = initial_autumn_ranking(finishes, base_seed=seed, namespace="X")
+        return fill_by_lot(known, TEAMS, base_seed=seed, namespace="X")
+
+    def test_known_finishes_come_first_then_the_rest_by_lot(self):
+        finishes = ([(TEAMS[10], "champion"), (TEAMS[11], "runner_up")]
+                    + [(TEAMS[i], "best4") for i in (12, 13)]
+                    + [(TEAMS[i], "best8") for i in (14, 15, 16, 17)])
+        ranking = self.ranking(finishes)
+        self.assertEqual(TEAMS[10:12], ranking[:2])
+        self.assertEqual(set(TEAMS[12:14]), set(ranking[2:4]))
+        self.assertEqual(set(TEAMS[14:18]), set(ranking[4:8]))
+        self.assertEqual(set(TEAMS), set(ranking))          # 残りは都道府県のほかの学校
+        self.assertEqual(ranking, self.ranking(finishes))   # 同じ種なら同じ
+        # 16校シード（優勝・準優勝／ベスト4／ベスト8／ベスト16）：ベスト8までは実際の結果、
+        # 残りの8校は抽選で埋める
+        rules = [rule("S1", 1, 2, kinds="autumn_prefectural", offsets="-1", season="spring"),
+                 rule("S2", 3, 4, kinds="autumn_prefectural", offsets="-1", season="spring"),
+                 rule("S3", 5, 8, kinds="autumn_prefectural", offsets="-1", season="spring"),
+                 rule("S4", 9, 16, kinds="autumn_prefectural", offsets="-1", season="spring")]
+        seeds = choose_seeds(rules, {"autumn_prefectural": ranking}, TEAMS,
+                             base_seed=1, namespace="CMPX")
+        self.assertEqual(16, len(seeds))
+        self.assertEqual(set(TEAMS[10:12]), set(seeds[:2]))
+        self.assertEqual(set(TEAMS[14:18]), set(seeds[4:8]))
+        self.assertEqual(set(ranking[8:16]), set(seeds[8:]))
+
+    def test_an_incomplete_finish_stops_the_known_order(self):
+        # ベスト4が1校しか分からない：その学校までを使い、残り（ベスト8の学校も）は抽選
+        finishes = [(TEAMS[0], "champion"), (TEAMS[1], "runner_up"), (TEAMS[2], "best4"),
+                    (TEAMS[3], "best8")]
+        self.assertEqual(TEAMS[:3], initial_autumn_ranking(finishes, base_seed=1, namespace="X"))
+        ranking = self.ranking(finishes)
+        self.assertEqual(TEAMS[:3], ranking[:3])
+        self.assertEqual(set(TEAMS[3:]), set(ranking[3:]))
+
+    def test_game_results_win_over_the_actual_results(self):
+        from phase2_engine.initial_state import PriorResults
+        from phase2_engine.live_season_planner import LiveSeasonGraphPlanner
+
+        planner = SimpleNamespace(rng_seed=5, year=2026)
+        actual = PriorResults(year=2026, autumn_prefectural_finishes={
+            "99": ((TEAMS[3], "champion"), (TEAMS[4], "runner_up"))})
+        # 最初の年度：分かっている順位だけ持つ（残りはシードを選ぶときに抽選）
+        self.assertEqual({"99": tuple(TEAMS[3:5])},
+                         LiveSeasonGraphPlanner._prior_autumn_rankings(planner, actual))
+        # 2年目からはゲーム内の秋の結果（実際の結果は使わない）
+        game = PriorResults(year=2027, autumn_prefectural_rankings={"99": tuple(TEAMS[:20])},
+                            autumn_prefectural_finishes=actual.autumn_prefectural_finishes)
+        self.assertEqual({"99": tuple(TEAMS[:20])},
+                         LiveSeasonGraphPlanner._prior_autumn_rankings(planner, game))
+        self.assertEqual({}, LiveSeasonGraphPlanner._prior_autumn_rankings(planner, None))
+
+    def test_season_fills_the_rest_only_for_the_actual_results(self):
+        spring = [rule("S1", 1, 2, kinds="autumn_prefectural", offsets="-1", season="spring"),
+                  rule("S2", 3, 4, kinds="autumn_prefectural", offsets="-1", season="spring")]
+        repo = SimpleNamespace(
+            seed_rules=lambda cid: spring,
+            competition=lambda cid: {"competition_type": "spring_prefectural", "prefecture_code": "99"},
+            schools={sid: {"prefecture_code": "99"} for sid in TEAMS},
+        )
+
+        def fake(fill):
+            out = SimpleNamespace(repo=repo, annual_templates={}, competitions={}, rng_seed=5,
+                                  year=2026, prior_autumn_rankings={"99": tuple(TEAMS[3:5])},
+                                  prior_autumn_fill=fill)
+            out._seed_prefecture = lambda cid: "99"
+            return out
+
+        filled = LiveSeasonDependencyRuntimeState._seed_rankings(fake(True), "CMPX")["autumn_prefectural"]
+        self.assertEqual(TEAMS[3:5], list(filled[:2]))
+        self.assertEqual(set(TEAMS), set(filled))
+        self.assertEqual(filled, LiveSeasonDependencyRuntimeState._seed_rankings(fake(True), "CMPX")["autumn_prefectural"])
+        seeds = choose_seeds(spring, {"autumn_prefectural": filled}, TEAMS, base_seed=1, namespace="CMPX")
+        self.assertEqual(set(TEAMS[3:5]), set(seeds[:2]))
+        self.assertEqual(4, len(seeds))  # 足りない2校は抽選で埋める
+        # ゲーム内の結果（2年目から）は埋めない
+        self.assertEqual(TEAMS[3:5], list(LiveSeasonDependencyRuntimeState._seed_rankings(
+            fake(False), "CMPX")["autumn_prefectural"]))
+
+    def test_csv_finishes_are_read_by_prefecture(self):
+        import csv
+        import tempfile
+        from pathlib import Path
+        from phase2_engine.initial_state import PriorResults, load_prior_results
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "initial_state" / "2030" / "prior_results.csv"
+            path.parent.mkdir(parents=True)
+            fields = ["record_id", "kind", "rule_id", "prefecture_code", "school_id", "achievement"]
+            rows = [
+                ("autumn_prefectural", "", "99", TEAMS[0], "champion"),
+                ("autumn_prefectural", "R1", "99", TEAMS[1], "best4"),
+                ("autumn_prefectural", "", "99", TEAMS[1], "runner_up"),   # 良い方を使う
+                ("autumn_prefectural", "", "99", "", "best8"),             # 学校IDがない行は使わない
+                ("autumn_regional", "", "99", TEAMS[2], "regional_entrant"),
+            ]
+            with path.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(handle, fields)
+                writer.writeheader()
+                for n, (kind, rule_id, pcode, sid, ach) in enumerate(rows):
+                    writer.writerow(dict(zip(fields, (f"ISR{n}", kind, rule_id, pcode, sid, ach))))
+            prior = load_prior_results(tmp, 2030)
+        self.assertEqual({"99": ((TEAMS[0], "champion"), (TEAMS[1], "runner_up"))},
+                         prior.autumn_prefectural_finishes)
+        self.assertFalse(prior.from_game)  # ゲーム内の結果としては扱わない
+        self.assertEqual(prior, PriorResults.from_dict(prior.to_dict()))
 
 
 class PrelimOrderTests(unittest.TestCase):
