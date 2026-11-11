@@ -325,9 +325,14 @@ table.list.zebra tbody tr:nth-child(odd) td { background: var(--bg); }
 .entrant small { font-size:11px; }
 .best8-table { table-layout:fixed; }
 .best8-table td { vertical-align:top; }
-/* 列の幅が決まっているので、長い校名はマスの中で折り返す（狭い窓で隣の列に重ねない） */
-.best8-table .entrant { flex-wrap:wrap; max-width:100%; white-space:normal; margin-right:8px; }
-.best8-table .entrant .link { min-width:0; overflow-wrap:anywhere; }
+/* 1校ごとに同じ幅の枠（列の枠の数は BEST8_SLOTS）。1行目に校名、2行目に小さく県名・回数 */
+.b8-slots { display:grid; grid-template-columns:repeat(var(--slots), minmax(0, 1fr)); column-gap:8px; }
+.b8-slot { min-width:0; display:flex; flex-direction:column; padding:1px 0; }
+.b8-slot .b8-name { display:block; max-width:100%; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.b8-slot .b8-name.small { font-size:11px; }
+.b8-slot .b8-notes { display:block; font-size:10.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--muted); }
+.b8-slot .b8-notes > * + * { margin-left:6px; }
+.b8-slot .b8-notes small.count { font-size:10.5px; }
 .entrants-matrix { width:max-content !important; }
 .entrants-matrix th, .entrants-matrix td { min-width:170px; vertical-align:top; }
 /* 年度の列が多いときは横に動かし、都道府県の列は .scroll の左の余白（18px）ごと固定する */

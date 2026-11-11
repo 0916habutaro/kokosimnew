@@ -122,6 +122,23 @@ def place_entrants(rows: list[dict], axes: list[list[str]], summer: bool,
     return shown
 
 
+def best8_years(records, stored: dict | None = None) -> dict[str, set[int]]:
+    """学校ID → その大会でベスト8以上になった年度。``records`` は ``best8_record`` の形の行
+    （進行中の年度）、``stored`` は閉じた年度の分（``competition_best8_years``）。"""
+    out: dict[str, set[int]] = {school_id: set(years) for school_id, years in (stored or {}).items()}
+    for record in records:
+        for schools in record.get("groups", {}).values():
+            for school in schools:
+                out.setdefault(school["school_id"], set()).add(int(record["school_year"]))
+    return out
+
+
+def best8_label(years, school_year: int) -> str:
+    """「8強以上3回目」：その年度を含めて、ベスト8以上になった回数（ゲーム開始後だけ）。"""
+    count = sum(1 for year in years if year <= school_year)
+    return f"8強以上{count}回目" if count else ""
+
+
 def edition(name: str) -> str:
     """大会名の回数（「第109回」）。回数のない大会は空。"""
     match = re.search(r"第[0-9０-９]+回", name or "")

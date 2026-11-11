@@ -207,5 +207,31 @@ class TextTests(unittest.TestCase):
         self.assertEqual("", rf.empty_hint(rows=1, hidden_upcoming=0, before_start=None, earliest=2026))
 
 
+class Best8CountTests(unittest.TestCase):
+    """「8強以上3回目」：その年度を含めて、ゲーム開始後のベスト8以上の回数。"""
+
+    def record(self, year, **groups):
+        return {"school_year": year, "groups": {
+            finish: [{"school_id": sid} for sid in groups.get(key, ())]
+            for key, finish in (("champion", "優勝"), ("runner", "準優勝"), ("four", "ベスト4"), ("eight", "ベスト8"))}}
+
+    def test_counts_include_the_year(self):
+        years = rf.best8_years([
+            self.record(2026, champion=["X"], eight=["Y"]),
+            self.record(2027, four=["X"]),
+            self.record(2028, eight=["X", "Y"]),
+            self.record(2029),  # 未開催・記録なし（学校がない）
+        ])
+        self.assertEqual({2026, 2027, 2028}, years["X"])
+        self.assertEqual("8強以上1回目", rf.best8_label(years["X"], 2026))
+        self.assertEqual("8強以上3回目", rf.best8_label(years["X"], 2028))
+        self.assertEqual("8強以上2回目", rf.best8_label(years["Y"], 2028))
+        self.assertEqual("", rf.best8_label([], 2028))
+
+    def test_closed_years_and_live_years_are_merged(self):
+        years = rf.best8_years([self.record(2030, eight=["X"])], {"X": {2026, 2028}})
+        self.assertEqual("8強以上3回目", rf.best8_label(years["X"], 2030))
+
+
 if __name__ == "__main__":
     unittest.main()

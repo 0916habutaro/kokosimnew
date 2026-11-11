@@ -164,6 +164,14 @@ class Best8ScreenTests(unittest.TestCase):
         self.assertIn('SEARCH', plan)
         self.assertIn('competition_id=? AND year>? AND year<?', plan)
 
+    def test_best8_count_includes_the_year_and_game_years_only(self):
+        for year in range(2026, 2031):
+            self.store(year)
+        result = self.data.records_best8({'competition_id': self.cid, 'count': 5, 'end': 2030})
+        labels = {r['school_year']: r['groups']['優勝'][0]['best8_label'] for r in result['rows']}
+        self.assertEqual('8強以上1回目', labels[2026])
+        self.assertEqual('8強以上5回目', labels[2030])
+
     def test_catalog_all_162_filters_and_stable_range(self):
         catalog = self.data.records_best8()['catalog']
         self.assertEqual(162, len({c['competition_id'] for c in catalog}))
