@@ -325,17 +325,9 @@ table.list.zebra tbody tr:nth-child(odd) td { background: var(--bg); }
 .entrant small { font-size:11px; }
 .best8-table { table-layout:fixed; }
 .best8-table td { vertical-align:top; }
-/* 1校ごとに同じ幅の枠（列の枠の数は BEST8_SLOTS）。1行目に校名、2行目に小さく県名・回数 */
-/* 枠の間は点線で区切る（罫線なしより、長い校名が並んでも境目が分かりやすい） */
-.b8-slots { display:grid; grid-template-columns:repeat(var(--slots), minmax(0, 1fr)); }
-.b8-slot { min-width:0; display:flex; flex-direction:column; padding:1px 6px; border-left:1px dashed var(--line); }
-.b8-slot:first-child { border-left:0; padding-left:0; }
-.b8-slot .b8-name { display:block; max-width:100%; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.b8-slot .b8-name.small { font-size:11px; }
-/* 2行目（県名・8強以上の回数・優勝の回数）は枠の中で折り返す */
-.b8-slot .b8-notes { display:block; font-size:10.5px; line-height:1.35; overflow-wrap:anywhere; color:var(--muted); }
-.b8-slot .b8-notes > * { margin-right:6px; white-space:nowrap; }
-.b8-slot .b8-notes small.count { font-size:10.5px; }
+/* 列の幅が決まっているので、長い校名はマスの中で折り返す（狭い窓で隣の列に重ねない） */
+.best8-table .entrant { flex-wrap:wrap; max-width:100%; white-space:normal; margin-right:8px; }
+.best8-table .entrant .link { min-width:0; overflow-wrap:anywhere; }
 .entrants-matrix { width:max-content !important; }
 .entrants-matrix th, .entrants-matrix td { min-width:170px; vertical-align:top; }
 /* 年度の列が多いときは横に動かし、都道府県の列は .scroll の左の余白（18px）ごと固定する */
@@ -415,11 +407,6 @@ small.count.first { color: var(--accent); }
 .tile-legend:not(.pick) .tile-region { cursor: default; }
 .tile-region[disabled] { opacity: .25; }
 .tile-legend:not(.pick) .tile-region[disabled] { opacity: 1; }
-.map-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
-.map-controls .muted { font-size: 12px; }
-.map-controls .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
-.map-controls .chip[disabled] { opacity: .35; cursor: default; }
-.tile.split { font-size: 11px; letter-spacing: -.5px; }
 .tile-region.on { background: var(--accent); color: var(--accent-ink); border-color: var(--text); }
 
 /* 記録：個人の記録。部門ごとの表を並べる（打撃・投手で分ける） */

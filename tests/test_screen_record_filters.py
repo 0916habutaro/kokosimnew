@@ -156,108 +156,43 @@ class TileMapTests(unittest.TestCase):
         _, autumn_options, _ = rf.cascade_filters(catalog, {"segment": "autumn", "region": kanto}, {}, PREFS)
         self.assertNotIn("13", autumn_options["region_prefectures"][kanto])
 
-    def test_layout_has_49_tiles_without_overlap(self):
+    def test_layout_covers_47_prefectures_without_overlap(self):
         import json
         config = json.loads((ROOT / "config/screen/tile_map_v1.json").read_text(encoding="utf-8"))
         tiles = config["tiles"]
-        split = {"HKD_NORTH", "HKD_SOUTH", "TYO_EAST", "TYO_WEST"}
-        self.assertEqual(sorted(set(PREFS) - {"01", "13"} | split), sorted(tiles))
-        self.assertEqual(49, len({tuple(pos) for pos in tiles.values()}))
+        self.assertEqual(sorted(PREFS), sorted(tiles))
+        self.assertEqual(47, len({tuple(pos) for pos in tiles.values()}))
         # 北海道は右上、沖縄は左下
         cols = [c for c, _ in tiles.values()]
         rows = [r for _, r in tiles.values()]
-        self.assertEqual((max(cols), min(rows)), tuple(tiles["HKD_NORTH"]))
+        self.assertEqual((max(cols), min(rows)), tuple(tiles["01"]))
         self.assertEqual((min(cols), max(rows)), tuple(tiles["47"]))
         # 地図の左上（地域の名前を置く場所）にはマスがない
         self.assertFalse([code for code, (c, r) in tiles.items() if c < 9 and r < 4])
 
-    def screen_shell(self):
+    def test_regions_follow_autumn_memberships_and_names_are_short(self):
+        import csv
         from phase2_engine.screen.data import GameScreenData
         from phase2_engine import LiveGameService
-        import tempfile
         repo = DataRepository(ROOT / "data")
+        import tempfile
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         service = LiveGameService(repo, ROOT / "data", save_root=tmp.name)
-        return GameScreenData(service, None)
-
-    def test_regions_follow_autumn_memberships_and_names_are_short(self):
-        import csv
-        shell = self.screen_shell().shell()
+        shell = GameScreenData(service, None).shell()
         self.assertIsNone(shell["header"])  # セーブを選ぶ前でも地図は出せる
         tiles = {t["code"]: t for t in shell["tile_map"]["tiles"]}
         with (ROOT / "data/competitions/prefecture_region_memberships.csv").open(encoding="utf-8-sig") as h:
             autumn = {r["prefecture_code"]: r["region_id"] for r in csv.DictReader(h) if r["season_segment"] == "autumn"}
-        self.assertEqual(autumn, {t["prefecture"]: t["region_id"] for t in tiles.values()})
+        self.assertEqual(autumn, {code: t["region_id"] for code, t in tiles.items()})
         self.assertEqual(sorted(set(autumn.values())), [r["region_id"] for r in shell["tile_map"]["regions"]])
-        # 都道府県コード順（北海道〜沖縄）。分けたマスは区分の順
-        self.assertEqual(sorted(t["prefecture"] for t in tiles.values()), [t["prefecture"] for t in tiles.values()])
-        self.assertEqual(sorted(autumn), [code for code, _ in shell["tile_map"]["prefectures"]])
-        # 県名は「都・府・県」を除いた短い名前（京都府 → 京都）
-        self.assertEqual(("京都", "大阪", "香川"), tuple(tiles[c]["name"] for c in ("26", "27", "37")))
+        self.assertEqual(sorted(tiles), list(tiles))  # コード順（北海道〜沖縄）
+        # 県名は「都・府・県」を除いた短い名前（京都府 → 京都、北海道はそのまま）
+        self.assertEqual(("北海道", "東京", "京都", "大阪", "香川"),
+                         tuple(tiles[c]["name"] for c in ("01", "13", "26", "27", "37")))
         for t in tiles.values():
-            if not t["area_id"]:
-                self.assertEqual(t["full_name"][:len(t["name"])], t["name"])
-                self.assertLessEqual(len(t["name"]), 3)
-
-    def test_hokkaido_and_tokyo_are_split_by_summer_representation(self):
-        tiles = {t["code"]: t for t in self.screen_shell().tile_map()["tiles"]}
-        self.assertEqual(49, len(tiles))
-        self.assertEqual(("01", "01", "13", "13"),
-                         tuple(tiles[c]["prefecture"] for c in ("HKD_NORTH", "HKD_SOUTH", "TYO_EAST", "TYO_WEST")))
-        self.assertEqual(4, len({tiles[c]["area_id"] for c in ("HKD_NORTH", "HKD_SOUTH", "TYO_EAST", "TYO_WEST")}))
-        self.assertNotIn("01", tiles)
-        self.assertNotIn("13", tiles)
-
-    def test_schools_are_placed_by_summer_representation(self):
-        data = self.screen_shell()
-        tile_of, tiles = data._school_tiles()
-        self.assertEqual(49, len(tiles))
-        repo = data.service.repo
-        placed = {}
-        for school_id, school in repo.schools.items():
-            if school.get("prefecture_code") in ("01", "13") and school_id in repo.school_to_program:
-                placed.setdefault(tile_of(school_id), 0)
-                placed[tile_of(school_id)] += 1
-        # 北海道・東京の学校は区分のマスのどれかに入り、都道府県全体のコードのままの学校はない
-        self.assertEqual({"HKD_NORTH", "HKD_SOUTH", "TYO_EAST", "TYO_WEST"}, set(placed))
-
-
-class MapPickTests(unittest.TestCase):
-    """地図のマスを押したとき：2つに分かれる大会ならそのマスの大会、分かれない大会は都道府県全体。"""
-
-    def catalog(self):
-        competitions = {
-            "N": {"competition_type": "summer_local_qualifier", "prefecture_code": "90", "season_segment": "summer",
-                  "qualifying_area_id": "A-N", "competition_level": "local"},
-            "S": {"competition_type": "summer_local_qualifier", "prefecture_code": "90", "season_segment": "summer",
-                  "qualifying_area_id": "A-S", "competition_level": "local"},
-            "ONE": {"competition_type": "summer_local_qualifier", "prefecture_code": "91", "season_segment": "summer",
-                    "qualifying_area_id": "A-1", "competition_level": "local"},
-            "AUT": {"competition_type": "autumn_regional", "prefecture_code": "", "region_id": "R9",
-                    "season_segment": "autumn", "competition_level": "regional"},
-        }
-        memberships = [{"prefecture_code": "90", "region_id": "R9", "season_segment": s} for s in ("summer", "autumn")]
-        return rf.build_catalog(competitions, memberships, lambda c: c["competition_level"], lambda cid, name: cid)
-
-    def test_split_competitions(self):
-        split = {c["competition_id"]: c["split"] for c in self.catalog()}
-        self.assertEqual({"N": True, "S": True, "ONE": False, "AUT": False}, split)
-
-    def test_summer_pick_selects_the_tile_competition(self):
-        catalog = self.catalog()
-        f = rf.map_pick(catalog, {"segment": "summer", "competition_id": "N", "region": "R9"}, "90", "A-S")
-        self.assertEqual(("S", "90", ""), (f["competition_id"], f["prefecture"], f["region"]))
-        self.assertEqual("A-S", rf.map_area(catalog, f))
-
-    def test_unsplit_competition_picks_the_whole_prefecture(self):
-        catalog = self.catalog()
-        f = rf.map_pick(catalog, {"segment": "autumn", "competition_id": "AUT"}, "90", "A-N")
-        self.assertEqual(("AUT", "90"), (f["competition_id"], f["prefecture"]))
-        # 2マスとも選んだ色（片方の区分を返さない）
-        self.assertEqual("", rf.map_area(catalog, f))
-        f, options, _ = rf.cascade_filters(catalog, f, {}, PREFS)
-        self.assertEqual("", options["map_area"])
+            self.assertEqual(t["full_name"][:len(t["name"])], t["name"])
+            self.assertLessEqual(len(t["name"]), 3)
 
 
 class TextTests(unittest.TestCase):
@@ -270,32 +205,6 @@ class TextTests(unittest.TestCase):
         self.assertIn("出場のあった都道府県だけ", rf.empty_hint(rows=1, hidden_upcoming=0, before_start=None,
                                                          earliest=2026, axes=0, only_entered=True))
         self.assertEqual("", rf.empty_hint(rows=1, hidden_upcoming=0, before_start=None, earliest=2026))
-
-
-class Best8CountTests(unittest.TestCase):
-    """「8強以上3回目」：その年度を含めて、ゲーム開始後のベスト8以上の回数。"""
-
-    def record(self, year, **groups):
-        return {"school_year": year, "groups": {
-            finish: [{"school_id": sid} for sid in groups.get(key, ())]
-            for key, finish in (("champion", "優勝"), ("runner", "準優勝"), ("four", "ベスト4"), ("eight", "ベスト8"))}}
-
-    def test_counts_include_the_year(self):
-        years = rf.best8_years([
-            self.record(2026, champion=["X"], eight=["Y"]),
-            self.record(2027, four=["X"]),
-            self.record(2028, eight=["X", "Y"]),
-            self.record(2029),  # 未開催・記録なし（学校がない）
-        ])
-        self.assertEqual({2026, 2027, 2028}, years["X"])
-        self.assertEqual("8強以上1回目", rf.best8_label(years["X"], 2026))
-        self.assertEqual("8強以上3回目", rf.best8_label(years["X"], 2028))
-        self.assertEqual("8強以上2回目", rf.best8_label(years["Y"], 2028))
-        self.assertEqual("", rf.best8_label([], 2028))
-
-    def test_closed_years_and_live_years_are_merged(self):
-        years = rf.best8_years([self.record(2030, eight=["X"])], {"X": {2026, 2028}})
-        self.assertEqual("8強以上3回目", rf.best8_label(years["X"], 2030))
 
 
 if __name__ == "__main__":

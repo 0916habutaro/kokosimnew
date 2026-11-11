@@ -1081,26 +1081,6 @@ class HistoricalMatchArchive:
                         entry['champion'].add(year)
         return out
 
-    def competition_best8_years(self, cid: str, last: int) -> dict[str, set[int]]:
-        """その大会で学校がベスト8以上になった年度（``last`` 以前）。「8強以上3回目」に使う。
-
-        ベスト8の索引から学校IDだけを SQLite の JSON 関数で取り出す（記録の JSON を Python で読まない）。"""
-        out: dict[str, set[int]] = {}
-        if not self.db_path.is_file():
-            return out
-        with closing(sqlite3.connect(self.db_path.resolve().as_uri() + '?mode=ro',
-                                    uri=True, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
-            if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='competition_best8'").fetchone():
-                return out
-            rows = conn.execute(
-                "SELECT b.year, json_extract(s.value, '$.school_id') FROM competition_best8 b, "
-                "json_each(b.record_json, '$.groups') g, json_each(g.value) s "
-                'WHERE b.competition_id=? AND b.year<=?', (cid, last)).fetchall()
-        for year, school_id in rows:
-            if school_id:
-                out.setdefault(school_id, set()).add(int(year))
-        return out
-
     def competition_best8(self, cid: str, first: int, last: int) -> list[dict]:
         return self._competition_history('competition_best8', cid, first, last)
 

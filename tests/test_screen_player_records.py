@@ -250,34 +250,5 @@ class ClosedYearTests(unittest.TestCase):
             self.assertEqual(3, pr.merge(data.player_tallies().values())["batters"][("S-A", "x")]["hits"])
 
 
-class PrefectureFilterTests(unittest.TestCase):
-    """個人の記録の都道府県は47都道府県のコード（地図の北北海道などのマスでも北海道全体）。"""
-
-    def screen(self):
-        from phase2_engine.screen.data import load_screen_config
-        root = Path(__file__).resolve().parents[1]
-        data = GameScreenData.__new__(GameScreenData)
-        data.config = load_screen_config(root / "config")
-        data._records_players_memo = {}
-        data.player_tallies = lambda: {2030: pr.PlayerTally(year=2030)}
-        data._current_year = lambda: 2030
-        data.competition_names = lambda cid, name: name
-        data.names = lambda sid, *args: sid
-        data.session = SimpleNamespace(state=SimpleNamespace(year=2030, seasons={}, rosters=None), slot_id="s")
-        data._roster_lookup = lambda *args, **kwargs: None
-        data._regions = {"90": "R1", "91": "R1", "92": "R2"}
-        data.prefectures = {"90": "架空道", "91": "架空県", "92": "架空都"}
-        data.service = SimpleNamespace(repo=SimpleNamespace(data_dir=root / "data", schools={}, competitions={}))
-        return data
-
-    def test_prefectures_are_codes(self):
-        out = self.screen().records_players({})
-        self.assertEqual([["90", "架空道"], ["91", "架空県"], ["92", "架空都"]], out["prefectures"])
-        out = self.screen().records_players({"prefecture": "90"})
-        self.assertEqual("90", out["filters"]["prefecture"])
-        out = self.screen().records_players({"region": "R1"})
-        self.assertEqual(["90", "91"], [code for code, _ in out["prefectures"]])
-
-
 if __name__ == "__main__":
     unittest.main()
