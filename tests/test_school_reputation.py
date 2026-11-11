@@ -257,6 +257,15 @@ class BottomOf2025SummerTests(unittest.TestCase):
         for school_id in ("SCHX6", "SCHX8", "SCHX10"):
             self.assertNotIn(school_id, self.reputation.bottom)
 
+    def test_exe_bundles_the_files_for_the_rule(self):
+        # EXE（kokosimnew.spec）に、最下位を決めるのに読むファイルが入っている
+        from historical_results.summer_local import GAMES_FILE, NEW_SCHOOLS_FILE, UNION_FILE
+        spec = (ROOT / "kokosimnew.spec").read_text(encoding="utf-8")
+        for name in (GAMES_FILE, UNION_FILE, NEW_SCHOOLS_FILE):
+            self.assertIn(f'"historical_data" / "{name}"', spec, name)
+        # baseball_programs.csv は data/ ごと入る
+        self.assertIn('(str(ROOT / "data"), "data")', spec)
+
     def test_rule_is_in_the_config(self):
         self.assertEqual(["union", "absent"], self.reputation.config["bottom_if_2025_summer"])
 
