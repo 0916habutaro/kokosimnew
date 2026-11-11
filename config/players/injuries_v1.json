@@ -87,7 +87,7 @@
     }
   },
   "rng_namespaces": {
-    "practice": "injuries_v1:practice:{month}:{school_id}",
+    "practice": "injuries_v1:practice:{month}:{school_id}:{entry_year}:{roster_no}",
     "match": "injuries_v1:match:{competition_id}:{match_id}"
   }
 }
