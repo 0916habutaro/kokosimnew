@@ -14,6 +14,7 @@ from .competition_schedule_runtime import (
     _iso_date,
 )
 from .models import AnnualCompetitionInput
+from .initial_state import fill_by_lot
 from .paths import resolve_data_file
 from .randomness import shuffled
 from .repository import DataRepository
@@ -227,6 +228,9 @@ class LiveSeasonDependencyRuntimeState:
     # 前の年度の秋季県大会の順位（都道府県 → 順位の並び。prior_season.py）。
     # 夏の地方大会のシードを秋＋春の成績で選ぶ大会に使う。最初の年度は空
     prior_autumn_rankings: dict[str, tuple[str, ...]] = field(default_factory=dict, repr=False)
+    # 最初の年度：前年秋の順位は実際の結果の分かっている上位だけ。残りはシードを選ぶときに
+    # その都道府県のほかの学校を抽選で並べる（initial_state.fill_by_lot）
+    prior_autumn_fill: bool = False
     # シードを選ぶ元の大会（春季県大会）がまだ終わらず、シードなしでつくった
     # 夏の地方大会（元の大会が終わったら組み直す）
     seed_pending: set[str] = field(default_factory=set, repr=False)
@@ -343,6 +347,7 @@ class LiveSeasonDependencyRuntimeState:
         ) = (),
         on_created: Callable[["LiveSeasonDependencyRuntimeState"], None] | None = None,
         prior_autumn_rankings: Mapping[str, Sequence[str]] | None = None,
+        prior_autumn_fill: bool = False,
     ) -> "LiveSeasonDependencyRuntimeState":
         """``on_created``：状態をつくった直後（開始前の試合をする前）に呼ぶ
         （選手で試合をする部品を状態につなぐ。球数制限・コールドの判断に使う）。"""
@@ -680,6 +685,7 @@ class LiveSeasonDependencyRuntimeState:
                 pcode: tuple(ids)
                 for pcode, ids in (prior_autumn_rankings or {}).items()
             },
+            prior_autumn_fill=prior_autumn_fill,
         )
         if on_created is not None:
             on_created(state)
@@ -1132,6 +1138,14 @@ class LiveSeasonDependencyRuntimeState:
         for kind, offset in seed_sources(rules):
             if offset < 0:
                 ranking = self.prior_autumn_rankings.get(prefecture)
+                if ranking and getattr(self, "prior_autumn_fill", False):
+                    ranking = fill_by_lot(
+                        ranking,
+                        (sid for sid, row in self.repo.schools.items()
+                         if row.get("prefecture_code") == prefecture),
+                        base_seed=self.rng_seed,
+                        namespace=f"initial_autumn_ranking:{self.year}:{prefecture}",
+                    )
                 if ranking:
                     rankings[kind] = tuple(ranking)
                 continue
