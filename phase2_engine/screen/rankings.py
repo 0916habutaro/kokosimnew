@@ -2,8 +2,10 @@
 
 ゲームの記録は年度ごとに数えておき（``year_tally``）、表示のときに期間の年度を足す。
 甲子園の実際の記録（``koshien_records.load_actual``。#451 と同じ数え方）は保存では混ぜず、
-「実際＋ゲーム」を選んだときに表示のときだけ足す。実際の記録は年ごとの勝敗がそろって
-いないので、期間を区切ったときは足さない（ゲームの記録だけ）。
+期間「通算（実際＋ゲーム）」のときに表示のときだけ足す。「ゲーム開始後の通算」と直近◯年は
+ゲームの記録だけ（実際の記録は年ごとの勝敗がそろっていないため）。
+
+学校別は、並べ替えの項目（``basis``）と甲子園の種類で記録のある学校だけを出す（``has_record``）。
 
 - 甲子園（夏・選抜）：出場・勝利・敗戦・優勝の回数と勝率（勝ち÷（勝ち＋負け）。引き分けは数えない）
 - 明治神宮大会・地区大会（春・秋）・都道府県大会（春・秋の県大会と夏の地方大会）：優勝の回数（ゲームだけ）
@@ -24,6 +26,39 @@ TITLES = {
 }
 TITLE_KEYS = ("jingu", "regional", "prefectural")
 COUNT_KEYS = ("appearances", "wins", "losses", "championships")
+
+
+# 期間：通算（実際＋ゲーム）・ゲーム開始後の通算・直近◯年（ゲームだけ）
+PERIODS = (("all", "通算（実際＋ゲーム）"), ("game", "ゲーム開始後の通算"),
+           ("5", "直近5年"), ("10", "直近10年"), ("20", "直近20年"))
+KIND_LABELS = {"koshien": "夏か選抜の甲子園", "summer": "夏の甲子園", "spring": "選抜"}
+TITLE_LABELS = {"jingu": "神宮大会", "regional": "地区大会", "prefectural": "県大会"}
+
+
+def period_years(period: str, current: int):
+    """期間の年度（None は全年度）と、甲子園の実際の記録を足すか。"""
+    if period in ("all", "game"):
+        return None, period == "all"
+    return set(range(current - int(period) + 1, current + 1)), False
+
+
+def basis(sort_key: str | None) -> str:
+    """学校別に出す学校の基準。神宮・地区・県大会の優勝で並べているときはその大会、
+    ほか（甲子園の項目・校名・都道府県）は甲子園（``"koshien"``）。"""
+    return sort_key if sort_key in TITLE_KEYS else "koshien"
+
+
+def has_record(total: dict, kind: str, basis_key: str) -> bool:
+    """学校別に出すか：甲子園なら選んだ種類（``kind``）に1回でも出場、ほかはその優勝が1回以上。"""
+    if basis_key == "koshien":
+        return total[kind]["appearances"] > 0
+    return total[basis_key] > 0
+
+
+def basis_note(kind: str, basis_key: str) -> str:
+    if basis_key == "koshien":
+        return f"{KIND_LABELS[kind]}に出場した学校だけを出しています。"
+    return f"{TITLE_LABELS[basis_key]}で優勝した学校だけを出しています。"
 
 
 def year_tally(results: dict[str, list[dict]], finished=None) -> dict[str, dict]:

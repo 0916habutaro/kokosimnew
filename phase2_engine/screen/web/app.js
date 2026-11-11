@@ -673,11 +673,13 @@ function rankMapLegend(map, metric) {
 
 async function renderRankings(content) {
   const requested = JSON.stringify(state.recordsRankings);
-  const data = await call("records_rankings", state.recordsRankings);
+  const sort = state.recordsRankings.sort || { key: "K.appearances", dir: -1 };
+  // 学校別に出す学校は並べ替えの項目で決まる（サーバー側で絞る）
+  const data = await call("records_rankings", { ...state.recordsRankings, sort_key: sort.key });
   if (requested !== JSON.stringify(state.recordsRankings)) return;
   if (!data || state.page !== "records" || state.recordsTab !== "rankings") return;
-  const sort = state.recordsRankings.sort || { key: "K.appearances", dir: -1 };
-  state.recordsRankings = { ...data.filters, sort };
+  const { sort_key: _sortKey, ...filters } = data.filters;
+  state.recordsRankings = { ...filters, sort };
   refreshLocation();
   const f = data.filters, kind = f.kind;
   const opt = (value, text, on) => `<option value="${esc(value)}" ${String(on ?? "") === String(value) ? "selected" : ""}>${esc(text)}</option>`;
@@ -685,7 +687,8 @@ async function renderRankings(content) {
   const schoolsView = f.view === "schools";
   const sourceNote = data.use_actual
     ? "甲子園は実際の記録（ゲーム開始前）とゲームの記録の合計です。神宮・地区・県大会の優勝はゲームの記録だけです。"
-    : (f.actual && f.period !== "all" ? "期間を区切ったときは、ゲームの記録だけを数えます（実際の記録には年ごとの勝敗がないため）。" : "ゲームの記録だけを数えています。");
+    : (f.period === "game" ? "ゲーム開始後の記録だけを数えています。"
+      : "直近の期間は、ゲームの記録だけを数えます（実際の記録には年ごとの勝敗がないため）。");
   const period = data.years.length ? `ゲームの記録：${data.years[0]}〜${data.years[1]}年度。` : "";
   let body;
   if (schoolsView) {
@@ -721,7 +724,6 @@ async function renderRankings(content) {
       <button class="chip ${schoolsView ? "" : "on"}" data-rk-view="prefectures">都道府県別</button>
       <span class="sep"></span>
       ${select("kind", "甲子園", RANK_KINDS)}
-      <label class="toggle${f.period !== "all" ? " off" : ""}"><input type="checkbox" id="rk-actual" ${f.actual ? "checked" : ""} ${f.period !== "all" ? "disabled" : ""}>実際の記録も足す</label>
       ${select("period", "期間", data.periods)}
       ${schoolsView ? `<span class="sep"></span>
         ${select("region", "地域", [["", "すべて"], ...data.regions])}
@@ -731,7 +733,7 @@ async function renderRankings(content) {
         : `${select("metric", "地図の色", RANK_METRICS)}`}
     </div>
     <div class="scroll">
-      <p class="muted record-note">${esc(period + sourceNote)}見出しを押すと並べ替えます。</p>
+      <p class="muted record-note">${esc(period + sourceNote)}${schoolsView ? esc(data.basis_note) : ""}見出しを押すと並べ替えます。</p>
       ${body}
     </div>`;
   bindRecordsTabs(content);
@@ -743,7 +745,6 @@ async function renderRankings(content) {
       renderPage();
     });
   }
-  $("rk-actual").addEventListener("change", (e) => { state.recordsRankings.actual = e.target.checked; renderPage(); });
   content.querySelectorAll("[data-rk-view]").forEach((b) => b.addEventListener("click", () => {
     state.recordsRankings.view = b.dataset.rkView;
     renderPage();

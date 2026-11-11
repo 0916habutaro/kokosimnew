@@ -1499,7 +1499,7 @@ class GameScreenData:
 
     # ---- 記録：ランキング ----
 
-    RANKING_PERIODS = (("all", "全期間"), ("5", "直近5年"), ("10", "直近10年"), ("20", "直近20年"))
+    RANKING_PERIODS = rankings.PERIODS
 
     def ranking_tallies(self) -> dict[int, dict]:
         """年度 → ランキングの集計（ゲームの記録だけ）。
@@ -1530,8 +1530,9 @@ class GameScreenData:
     def records_rankings(self, filters=None) -> dict:
         """記録の画面の「ランキング」：学校別と都道府県別の回数。
 
-        甲子園は「実際＋ゲーム」（``actual``）と「ゲームだけ」を切り替える。実際の記録は表示の
-        ときだけ足し、期間を区切ったときは足さない（年ごとの勝敗がないため）。"""
+        期間「通算（実際＋ゲーム）」は甲子園の実際の記録を表示のときだけ足す。「ゲーム開始後の通算」と
+        直近◯年はゲームの記録だけ。学校別は、並べ替えの項目（``sort_key``）と甲子園の種類で
+        記録のある学校だけを出す（``rankings.has_record``）。"""
         f = dict(filters or {})
         tallies = self.ranking_tallies()
         current = self._current_year()
@@ -1539,10 +1540,8 @@ class GameScreenData:
         if str(f.get("period")) not in periods:
             f["period"] = "all"
         f["period"] = str(f["period"])
-        years = None if f["period"] == "all" else set(range(current - int(f["period"]) + 1, current + 1))
-        f["actual"] = bool(f.get("actual", True))
-        # 期間を区切ったときは実際の記録を足さない（年ごとの勝敗がないため）
-        use_actual = f["actual"] and years is None
+        years, use_actual = rankings.period_years(f["period"], current)
+        f.pop("actual", None)
         f["view"] = f.get("view") if f.get("view") in ("schools", "prefectures") else "schools"
         if f.get("owner") not in ("", "private", "public"):
             f["owner"] = ""
@@ -1559,6 +1558,7 @@ class GameScreenData:
         metrics = ("appearances", "wins", "rate", "championships")
         if f.get("metric") not in metrics:
             f["metric"] = "appearances"
+        basis = rankings.basis(f.get("sort_key"))
         schools = self.service.repo.schools
 
         def prefecture_of(school_id):
@@ -1568,6 +1568,8 @@ class GameScreenData:
         # 学校別：地域・都道府県・私立／公立で絞る（都道府県別は全国の47都道府県）
         rows = []
         for school_id, total in totals.items():
+            if not rankings.has_record(total, f["kind"], basis):
+                continue
             pref = prefecture_of(school_id)
             if f["prefecture"] and pref != f["prefecture"]:
                 continue
@@ -1593,6 +1595,8 @@ class GameScreenData:
         return {
             "filters": f,
             "use_actual": use_actual,
+            "basis": basis,
+            "basis_note": rankings.basis_note(f["kind"], basis),
             "periods": [list(p) for p in self.RANKING_PERIODS],
             "years": [min(years), max(years)] if years else ([game_years[0], game_years[-1]] if game_years else []),
             "regions": [[r, region_names.get(r, r)] for r in regions],
