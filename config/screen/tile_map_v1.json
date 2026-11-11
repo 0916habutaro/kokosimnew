@@ -1,11 +1,11 @@
 {
-  "notes_ja": "都道府県のタイル地図（phase2_engine/screen/web/app.js の tileMap）。都道府県コード → [列, 行]。マスはみな同じ大きさで、北海道は右上・沖縄は左下。地域の色分けは data/competitions/ の秋の地区（prefecture_region_memberships.csv の autumn）",
+  "notes_ja": "都道府県のタイル地図（phase2_engine/screen/web/app.js の tileMap）。マスのID → [列, 行]。マスはみな同じ大きさで、北海道は右上・沖縄は左下。北海道・東京は夏の代表区分（split_schemes の区分。data/areas/competition_areas.csv の area_code がマスのID）で2マスずつに分け、ほかは都道府県コードがマスのID。地域の色分けは data/competitions/ の秋の地区（prefecture_region_memberships.csv の autumn）",
   "region_segment": "autumn",
+  "split_schemes": {
+    "01": "ASM000002",
+    "13": "ASM000003"
+  },
   "tiles": {
-    "01": [
-      12,
-      0
-    ],
     "02": [
       12,
       1
@@ -47,11 +47,7 @@
       6
     ],
     "12": [
-      12,
-      6
-    ],
-    "13": [
-      11,
+      13,
       6
     ],
     "14": [
@@ -189,6 +185,22 @@
     "47": [
       0,
       10
+    ],
+    "HKD_NORTH": [
+      13,
+      0
+    ],
+    "HKD_SOUTH": [
+      12,
+      0
+    ],
+    "TYO_EAST": [
+      12,
+      6
+    ],
+    "TYO_WEST": [
+      11,
+      6
     ]
   }
 }

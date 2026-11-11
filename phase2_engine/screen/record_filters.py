@@ -17,6 +17,11 @@ def build_catalog(competitions: dict, memberships: list[dict], level_of, name_of
 
     ``prefectures`` は、都道府県の大会ならその都道府県、地区大会なら地区の都道府県（季節ごとの地区割り）、
     全国大会は空（都道府県では絞らない）。"""
+    # 1つの都道府県から2つに分かれる大会（夏の北北海道・南北海道・東東京・西東京の地方大会）
+    qualifiers: dict[str, int] = {}
+    for c in competitions.values():
+        if c.get("competition_type") == "summer_local_qualifier" and c.get("qualifying_area_id"):
+            qualifiers[c.get("prefecture_code", "")] = qualifiers.get(c.get("prefecture_code", ""), 0) + 1
     catalog = []
     for cid, c in competitions.items():
         pref = c.get("prefecture_code", "")
@@ -35,6 +40,9 @@ def build_catalog(competitions: dict, memberships: list[dict], level_of, name_of
             prefectures = [pref] if pref else []
         catalog.append({"competition_id": cid, "name": name_of(cid, c.get("competition_name", cid)),
                         "segment": segment, "level": level, "prefecture": pref,
+                        "area": c.get("qualifying_area_id", ""),
+                        "split": c.get("competition_type") == "summer_local_qualifier"
+                        and bool(c.get("qualifying_area_id")) and qualifiers.get(pref, 0) > 1,
                         "regions": regions, "prefectures": prefectures})
     return catalog
 
@@ -72,6 +80,7 @@ def cascade_filters(catalog: list[dict], filters: dict, region_names: dict,
     if f.get("competition_id") not in {c["competition_id"] for c in pool}:
         f["competition_id"] = pool[0]["competition_id"] if pool else ""
     options = {
+        "map_area": map_area(catalog, f),
         "level": [list(item) for item in levels],
         "region": [[r, region_names.get(r, r)] for r in regions],
         "prefecture": [[p, prefecture_names.get(p, p)] for p in prefectures],
@@ -80,6 +89,30 @@ def cascade_filters(catalog: list[dict], filters: dict, region_names: dict,
         "disabled": {"region": not regions, "prefecture": not prefectures},
     }
     return f, options, pool
+
+
+def map_area(catalog: list[dict], filters: dict) -> str:
+    """地図で片方のマスだけを選んだ色にするときの区分。選んでいる大会が2つに分かれる地方大会で、
+    都道府県もそれを選んでいるときだけ（ほかは空＝都道府県の2マスとも）。"""
+    entry = next((c for c in catalog if c["competition_id"] == filters.get("competition_id")), None)
+    if entry and entry.get("split") and filters.get("prefecture") == entry["prefecture"]:
+        return entry["area"]
+    return ""
+
+
+def map_pick(catalog: list[dict], filters: dict, prefecture: str, area: str = "") -> dict:
+    """地図のマスを押したときの絞り込み（地域は外して都道府県を選ぶ）。
+
+    2つに分かれる大会を見ているとき（季節が夏か、選んでいる大会が分かれた地方大会）は、押したマスの
+    区分の大会を選ぶ。分かれない大会（春・秋の北海道・東京の大会、選抜など）は都道府県全体。"""
+    f = {**filters, "region": "", "prefecture": prefecture}
+    current = next((c for c in catalog if c["competition_id"] == filters.get("competition_id")), None)
+    split = filters.get("segment") == "summer" or bool(current and current.get("split"))
+    if split and area:
+        entry = next((c for c in catalog if c.get("split") and c.get("area") == area), None)
+        if entry:
+            f["competition_id"] = entry["competition_id"]
+    return f
 
 
 def entrant_axes(entry: dict | None, level: str, summer: bool, summer_areas: list,
@@ -122,6 +155,23 @@ def place_entrants(rows: list[dict], axes: list[list[str]], summer: bool,
     return shown
 
 
+def best8_years(records, stored: dict | None = None) -> dict[str, set[int]]:
+    """学校ID → その大会でベスト8以上になった年度。``records`` は ``best8_record`` の形の行
+    （進行中の年度）、``stored`` は閉じた年度の分（``competition_best8_years``）。"""
+    out: dict[str, set[int]] = {school_id: set(years) for school_id, years in (stored or {}).items()}
+    for record in records:
+        for schools in record.get("groups", {}).values():
+            for school in schools:
+                out.setdefault(school["school_id"], set()).add(int(record["school_year"]))
+    return out
+
+
+def best8_label(years, school_year: int) -> str:
+    """「8強以上3回目」：その年度を含めて、ベスト8以上になった回数（ゲーム開始後だけ）。"""
+    count = sum(1 for year in years if year <= school_year)
+    return f"8強以上{count}回目" if count else ""
+
+
 def edition(name: str) -> str:
     """大会名の回数（「第109回」）。回数のない大会は空。"""
     match = re.search(r"第[0-9０-９]+回", name or "")
@@ -142,19 +192,43 @@ def empty_hint(*, rows: int, hidden_upcoming: int, before_start: dict | None, ea
     return "条件に合う大会がありません。季節・大会区分を「すべて」にすると出ます。"
 
 
-def tile_map(config: dict, memberships: list[dict], region_names: dict, prefecture_names: dict) -> dict:
-    """タイル地図のマス（都道府県コード順）と地域（地区のID順）。
+def split_areas(config: dict, areas: list[dict]) -> dict[str, dict]:
+    """2マスに分ける都道府県の区分（夏の代表区分）。マスのID（``area_code``）→
+    {"prefecture", "area_id", "name"}。``areas`` は ``competition_areas.csv`` の行。"""
+    schemes = {scheme: code for code, scheme in config.get("split_schemes", {}).items()}
+    out = {}
+    for row in sorted(areas, key=lambda r: (r["scheme_id"], int(r.get("sort_order") or 0))):
+        code = schemes.get(row["scheme_id"])
+        if code:
+            out[row["area_code"]] = {"prefecture": code, "area_id": row["area_id"],
+                                     "name": row["display_name"] or row["area_name"]}
+    return out
 
+
+def tile_map(config: dict, memberships: list[dict], region_names: dict, prefecture_names: dict,
+             areas: list[dict] = ()) -> dict:
+    """タイル地図のマス（都道府県コード順。分けた都道府県は区分の順）と地域（地区のID順）。
+
+    北海道・東京は夏の代表区分（``config["split_schemes"]``）で2マスずつに分ける。マスの
+    ``code`` はマスのID（分けたマスは区分の ``area_code``、ほかは都道府県コード）、``prefecture``
+    はその都道府県コード、``area_id`` は分けたマスの区分（ほかは空）。
     地域は ``config["region_segment"]``（秋）の地区割り。県名は「都・府・県」を除く（北海道はそのまま）。"""
     segment = config.get("region_segment", "autumn")
     region_of = {r["prefecture_code"]: r["region_id"] for r in memberships if r["season_segment"] == segment}
+    splits = split_areas(config, list(areas))
+    order = {code: i for i, code in enumerate(splits)}
     tiles = []
-    for code, (col, row) in sorted(config["tiles"].items()):
-        name = prefecture_names.get(code, code)
-        tiles.append({"code": code, "name": name[:-1] if name.endswith(("都", "府", "県")) else name,
+    for code, (col, row) in config["tiles"].items():
+        split = splits.get(code)
+        pref = split["prefecture"] if split else code
+        name = split["name"] if split else prefecture_names.get(code, code)
+        tiles.append({"code": code, "prefecture": pref, "area_id": split["area_id"] if split else "",
+                      "name": name if split else (name[:-1] if name.endswith(("都", "府", "県")) else name),
                       "full_name": name, "col": int(col), "row": int(row),
-                      "region_id": region_of.get(code, "")})
+                      "region_id": region_of.get(pref, "")})
+    tiles.sort(key=lambda t: (t["prefecture"], order.get(t["code"], 0)))
     regions = [{"region_id": r, "name": region_names.get(r, r)} for r in sorted(set(region_of.values()))]
     return {"tiles": tiles, "regions": regions,
+            # 都道府県の一覧（分けたマスをまとめた47）
+            "prefectures": [[code, prefecture_names.get(code, code)] for code in sorted({t["prefecture"] for t in tiles})],
             "cols": max(t["col"] for t in tiles) + 1, "rows": max(t["row"] for t in tiles) + 1}
-
