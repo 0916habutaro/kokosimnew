@@ -82,6 +82,9 @@ class ScreenApi:
     def records_best8(self, filters=None) -> dict:
         return self._read(self._data.records_best8, filters)
 
+    def records_filter_options(self, filters=None) -> dict:
+        return self._read(self._data.records_filter_options, filters)
+
     def records_rankings(self, filters=None) -> dict:
         return self._read(self._data.records_rankings, filters)
 

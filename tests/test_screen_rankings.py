@@ -176,6 +176,10 @@ class RecordsRankingsTests(unittest.TestCase):
         repo = SimpleNamespace(schools={sid: {"prefecture_code": "90"} for sid in ("S-L", "S-J", "S-N", "S-A")},
                                data_dir=Path(__file__).resolve().parents[1] / "data")
         data.service = SimpleNamespace(repo=repo)
+        # 地図のマス：架空県90を夏の代表区分で2つに分ける（S-L は北、ほかは南）
+        tiles = [["90N", "架空北"], ["90S", "架空南"]]
+        data._school_tiles = lambda: ((lambda sid: "90N" if sid == "S-L" else "90S"), tiles)
+        data.tile_map = lambda: {"tiles": [{"code": "90N", "prefecture": "90"}, {"code": "90S", "prefecture": "90"}]}
         return data
 
     def ids(self, **filters):
@@ -196,7 +200,17 @@ class RecordsRankingsTests(unittest.TestCase):
         self.assertEqual(["S-J"], [r["school_id"] for r in out["schools"]])
         self.assertEqual("神宮大会で優勝した学校だけを出しています。", out["basis_note"])
         # 都道府県別は絞らない
-        self.assertEqual(["90"], [r["prefecture_code"] for r in out["prefecture_rows"]])
+        self.assertEqual(["90N", "90S"], [r["prefecture_code"] for r in out["prefecture_rows"]])
+
+    def test_split_tiles_count_schools_by_summer_representation(self):
+        out = self.screen().records_rankings({"period": "game", "kind": "koshien"})
+        rows = {r["prefecture_code"]: r for r in out["prefecture_rows"]}
+        self.assertEqual(1, rows["90N"]["koshien"]["appearances"])  # S-L
+        self.assertEqual(2, rows["90S"]["koshien"]["appearances"])  # S-J・S-N の選抜
+        self.assertEqual({"90N", "90S"}, set(out["map"]["values"]))
+        # 学校別で北のマスを選ぶと、その区分の学校だけ
+        self.assertEqual(["S-L"], self.ids(period="game", kind="koshien", prefecture="90N"))
+        self.assertEqual([["90N", "架空北"], ["90S", "架空南"]], out["prefectures"])
 
 
 if __name__ == "__main__":

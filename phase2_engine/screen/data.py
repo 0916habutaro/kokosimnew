@@ -222,15 +222,48 @@ class GameScreenData:
             self._competition_prefs = {c["competition_id"]: c["prefectures"] for c in catalog}
         return self._competition_prefs
 
+    def _tile_config(self) -> dict:
+        return json.loads((self.config_root / TILE_MAP_PATH).read_text(encoding="utf-8"))
+
     def tile_map(self) -> dict:
-        """都道府県のタイル地図：マスの位置・短い県名・地域（秋の地区）と、地域の並び。"""
+        """都道府県のタイル地図（49マス）：マスの位置・短い名前・地域（秋の地区）と、地域の並び。
+        北海道・東京は夏の代表区分で2マスずつ。"""
         return record_filters.tile_map(
-            json.loads((self.config_root / TILE_MAP_PATH).read_text(encoding="utf-8")),
+            self._tile_config(),
             _csv_rows(self.service.repo.data_dir, "prefecture_region_memberships.csv"),
             {r["region_id"]: r["region_name"]
              for r in _csv_rows(self.service.repo.data_dir, "baseball_regions.csv")},
             self.prefectures,
+            _csv_rows(self.service.repo.data_dir, "competition_areas.csv"),
         )
+
+    def _school_tiles(self):
+        """学校ID → 地図のマスのID を返す関数と、マス（[ID, 名前]、地図の並び）。
+
+        北海道・東京の学校は夏の代表区分（``school_area_memberships.csv``）のマス。区分の分からない
+        学校は都道府県コードのまま（どのマスにも入らない）。"""
+        if getattr(self, "_tiles_cache", None) is None:
+            config = self._tile_config()
+            splits = record_filters.split_areas(
+                config, _csv_rows(self.service.repo.data_dir, "competition_areas.csv"))
+            tile_of_area = {split["area_id"]: code for code, split in splits.items()}
+            repo = self.service.repo
+            by_school = {}
+            for (_, scheme), schools in repo.school_areas_by_scheme.items():
+                if scheme not in config.get("split_schemes", {}).values():
+                    continue
+                for school_id, area_ids in schools.items():
+                    tiles = sorted(tile_of_area[a] for a in area_ids if a in tile_of_area)
+                    if tiles:
+                        by_school[school_id] = tiles[0]
+            tiles = [[t["code"], t["full_name"]] for t in self.tile_map()["tiles"]]
+            self._tiles_cache = (by_school, tiles)
+        by_school, tiles = self._tiles_cache
+        schools = self.service.repo.schools
+
+        def tile_of(school_id):
+            return by_school.get(school_id) or schools.get(school_id, {}).get("prefecture_code", "")
+        return tile_of, tiles
 
     def header(self) -> dict:
         today = self.state.current_date
@@ -1145,6 +1178,35 @@ class GameScreenData:
     def records_entrants(self, filters=None) -> dict:
         return self._records_history(filters, entrants=True)
 
+    def _record_catalog(self) -> tuple[list[dict], dict]:
+        """記録の画面の大会の一覧（季節・区分・地域・都道府県）と地域の名前。"""
+        from .competition_views import _level
+
+        memberships = _csv_rows(self.service.repo.data_dir, 'prefecture_region_memberships.csv')
+        region_names = {r['region_id']: r['region_name']
+                        for r in _csv_rows(self.service.repo.data_dir, 'baseball_regions.csv')}
+        catalog = record_filters.build_catalog(self.service.repo.competitions, memberships, _level,
+                                               self.competition_names)
+        return catalog, region_names
+
+    @staticmethod
+    def _map_picked(catalog, filters) -> dict:
+        """地図でマスを押したとき（``map_pick``: {prefecture, area}）は、その絞り込みに直す。"""
+        f = dict(filters or {})
+        picked = f.pop('map_pick', None)
+        if isinstance(picked, dict):
+            f = record_filters.map_pick(catalog, f, str(picked.get('prefecture') or ''),
+                                        str(picked.get('area') or ''))
+        return f
+
+    def records_filter_options(self, filters=None) -> dict:
+        """地図の画面で季節・区分を変えたときの、選べる地域・都道府県・大会（``cascade_filters``）。
+        表の行は読まない。"""
+        catalog, region_names = self._record_catalog()
+        f, options, eligible = record_filters.cascade_filters(
+            catalog, self._map_picked(catalog, filters), region_names, self.prefectures)
+        return {'filters': f, 'options': options, 'competitions': eligible}
+
     def records_best8(self, filters=None) -> dict:
         return self._records_history(filters)
 
@@ -1167,11 +1229,9 @@ class GameScreenData:
         first = int(f.get('start') or max(earliest, last - count + 1))
         if first < 1 or last > latest or first > last:
             raise ValueError('開始年度・終了年度を確認してください')
-        memberships = _csv_rows(self.service.repo.data_dir, 'prefecture_region_memberships.csv')
-        region_names = {r['region_id']: r['region_name']
-                        for r in _csv_rows(self.service.repo.data_dir, 'baseball_regions.csv')}
         competitions = self.service.repo.competitions
-        catalog = record_filters.build_catalog(competitions, memberships, _level, self.competition_names)
+        catalog, region_names = self._record_catalog()
+        f = self._map_picked(catalog, f)
         f, options, eligible = record_filters.cascade_filters(catalog, f, region_names, self.prefectures)
         cid = f['competition_id']
         show_upcoming = bool(f.get('show_upcoming'))
@@ -1367,9 +1427,13 @@ class GameScreenData:
         regions = sorted(set(self._regions.values()))
         if f.get("region") not in regions:
             f["region"] = ""
-        prefectures = sorted(code for code, region in self._regions.items()
-                             if not f["region"] or region == f["region"])
-        if f.get("prefecture") not in prefectures:
+        # 都道府県は地図の49マス（北海道・東京は夏の代表区分で2つずつ）
+        tile_of, tiles = self._school_tiles()
+        pref_of_tile = {code: code for code in self.prefectures}
+        pref_of_tile.update({t["code"]: t["prefecture"] for t in self.tile_map()["tiles"]})
+        prefectures = [[code, name] for code, name in tiles
+                       if not f["region"] or self._regions.get(pref_of_tile.get(code)) == f["region"]]
+        if f.get("prefecture") not in {code for code, _ in prefectures}:
             f["prefecture"] = ""
         schools = self.service.repo.schools
 
@@ -1559,9 +1623,13 @@ class GameScreenData:
         regions = sorted(set(self._regions.values()))
         if f.get("region") not in regions:
             f["region"] = ""
-        prefectures = sorted(code for code, region in self._regions.items()
-                             if not f["region"] or region == f["region"])
-        if f.get("prefecture") not in prefectures:
+        # 都道府県は地図の49マス（北海道・東京は夏の代表区分で2つずつ）
+        tile_of, tiles = self._school_tiles()
+        pref_of_tile = {code: code for code in self.prefectures}
+        pref_of_tile.update({t["code"]: t["prefecture"] for t in self.tile_map()["tiles"]})
+        prefectures = [[code, name] for code, name in tiles
+                       if not f["region"] or self._regions.get(pref_of_tile.get(code)) == f["region"]]
+        if f.get("prefecture") not in {code for code, _ in prefectures}:
             f["prefecture"] = ""
         kinds = ("koshien", "summer", "spring")
         if f.get("kind") not in kinds:
@@ -1582,7 +1650,7 @@ class GameScreenData:
             if not rankings.has_record(total, f["kind"], basis):
                 continue
             pref = prefecture_of(school_id)
-            if f["prefecture"] and pref != f["prefecture"]:
+            if f["prefecture"] and tile_of(school_id) != f["prefecture"]:
                 continue
             if f["region"] and self._regions.get(pref) != f["region"]:
                 continue
@@ -1592,11 +1660,12 @@ class GameScreenData:
             rows.append({"school_id": school_id, "name": self.names(school_id),
                          "prefecture_code": pref, "prefecture": self.prefectures.get(pref, ""),
                          "ownership": owner, **total})
-        by_prefecture = rankings.prefecture_totals(totals, prefecture_of)
+        # 都道府県別は49マス（北海道・東京は学校の夏の代表区分で分ける）
+        by_prefecture = rankings.prefecture_totals(totals, tile_of)
         prefecture_rows = [
-            {"prefecture_code": code, "prefecture": name,
+            {"prefecture_code": code, "prefecture": name, "order": order,
              **by_prefecture.get(code, rankings.finish(rankings.empty()))}
-            for code, name in sorted(self.prefectures.items())
+            for order, (code, name) in enumerate(tiles)
         ]
         value = {row["prefecture_code"]: row[f["kind"]][f["metric"]] for row in prefecture_rows}
         steps = rankings.color_steps(value)
@@ -1611,7 +1680,7 @@ class GameScreenData:
             "periods": [list(p) for p in self.RANKING_PERIODS],
             "years": [min(years), max(years)] if years else ([game_years[0], game_years[-1]] if game_years else []),
             "regions": [[r, region_names.get(r, r)] for r in regions],
-            "prefectures": [[p, self.prefectures.get(p, p)] for p in prefectures],
+            "prefectures": prefectures,
             "schools": rows,
             "prefecture_rows": prefecture_rows,
             "map": {"values": value, "classes": steps["classes"], "bounds": steps["bounds"],

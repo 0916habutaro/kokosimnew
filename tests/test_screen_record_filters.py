@@ -156,43 +156,108 @@ class TileMapTests(unittest.TestCase):
         _, autumn_options, _ = rf.cascade_filters(catalog, {"segment": "autumn", "region": kanto}, {}, PREFS)
         self.assertNotIn("13", autumn_options["region_prefectures"][kanto])
 
-    def test_layout_covers_47_prefectures_without_overlap(self):
+    def test_layout_has_49_tiles_without_overlap(self):
         import json
         config = json.loads((ROOT / "config/screen/tile_map_v1.json").read_text(encoding="utf-8"))
         tiles = config["tiles"]
-        self.assertEqual(sorted(PREFS), sorted(tiles))
-        self.assertEqual(47, len({tuple(pos) for pos in tiles.values()}))
+        split = {"HKD_NORTH", "HKD_SOUTH", "TYO_EAST", "TYO_WEST"}
+        self.assertEqual(sorted(set(PREFS) - {"01", "13"} | split), sorted(tiles))
+        self.assertEqual(49, len({tuple(pos) for pos in tiles.values()}))
         # 北海道は右上、沖縄は左下
         cols = [c for c, _ in tiles.values()]
         rows = [r for _, r in tiles.values()]
-        self.assertEqual((max(cols), min(rows)), tuple(tiles["01"]))
+        self.assertEqual((max(cols), min(rows)), tuple(tiles["HKD_NORTH"]))
         self.assertEqual((min(cols), max(rows)), tuple(tiles["47"]))
         # 地図の左上（地域の名前を置く場所）にはマスがない
         self.assertFalse([code for code, (c, r) in tiles.items() if c < 9 and r < 4])
 
-    def test_regions_follow_autumn_memberships_and_names_are_short(self):
-        import csv
+    def screen_shell(self):
         from phase2_engine.screen.data import GameScreenData
         from phase2_engine import LiveGameService
-        repo = DataRepository(ROOT / "data")
         import tempfile
+        repo = DataRepository(ROOT / "data")
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         service = LiveGameService(repo, ROOT / "data", save_root=tmp.name)
-        shell = GameScreenData(service, None).shell()
+        return GameScreenData(service, None)
+
+    def test_regions_follow_autumn_memberships_and_names_are_short(self):
+        import csv
+        shell = self.screen_shell().shell()
         self.assertIsNone(shell["header"])  # セーブを選ぶ前でも地図は出せる
         tiles = {t["code"]: t for t in shell["tile_map"]["tiles"]}
         with (ROOT / "data/competitions/prefecture_region_memberships.csv").open(encoding="utf-8-sig") as h:
             autumn = {r["prefecture_code"]: r["region_id"] for r in csv.DictReader(h) if r["season_segment"] == "autumn"}
-        self.assertEqual(autumn, {code: t["region_id"] for code, t in tiles.items()})
+        self.assertEqual(autumn, {t["prefecture"]: t["region_id"] for t in tiles.values()})
         self.assertEqual(sorted(set(autumn.values())), [r["region_id"] for r in shell["tile_map"]["regions"]])
-        self.assertEqual(sorted(tiles), list(tiles))  # コード順（北海道〜沖縄）
-        # 県名は「都・府・県」を除いた短い名前（京都府 → 京都、北海道はそのまま）
-        self.assertEqual(("北海道", "東京", "京都", "大阪", "香川"),
-                         tuple(tiles[c]["name"] for c in ("01", "13", "26", "27", "37")))
+        # 都道府県コード順（北海道〜沖縄）。分けたマスは区分の順
+        self.assertEqual(sorted(t["prefecture"] for t in tiles.values()), [t["prefecture"] for t in tiles.values()])
+        self.assertEqual(sorted(autumn), [code for code, _ in shell["tile_map"]["prefectures"]])
+        # 県名は「都・府・県」を除いた短い名前（京都府 → 京都）
+        self.assertEqual(("京都", "大阪", "香川"), tuple(tiles[c]["name"] for c in ("26", "27", "37")))
         for t in tiles.values():
-            self.assertEqual(t["full_name"][:len(t["name"])], t["name"])
-            self.assertLessEqual(len(t["name"]), 3)
+            if not t["area_id"]:
+                self.assertEqual(t["full_name"][:len(t["name"])], t["name"])
+                self.assertLessEqual(len(t["name"]), 3)
+
+    def test_hokkaido_and_tokyo_are_split_by_summer_representation(self):
+        tiles = {t["code"]: t for t in self.screen_shell().tile_map()["tiles"]}
+        self.assertEqual(49, len(tiles))
+        self.assertEqual(("01", "01", "13", "13"),
+                         tuple(tiles[c]["prefecture"] for c in ("HKD_NORTH", "HKD_SOUTH", "TYO_EAST", "TYO_WEST")))
+        self.assertEqual(4, len({tiles[c]["area_id"] for c in ("HKD_NORTH", "HKD_SOUTH", "TYO_EAST", "TYO_WEST")}))
+        self.assertNotIn("01", tiles)
+        self.assertNotIn("13", tiles)
+
+    def test_schools_are_placed_by_summer_representation(self):
+        data = self.screen_shell()
+        tile_of, tiles = data._school_tiles()
+        self.assertEqual(49, len(tiles))
+        repo = data.service.repo
+        placed = {}
+        for school_id, school in repo.schools.items():
+            if school.get("prefecture_code") in ("01", "13") and school_id in repo.school_to_program:
+                placed.setdefault(tile_of(school_id), 0)
+                placed[tile_of(school_id)] += 1
+        # 北海道・東京の学校は区分のマスのどれかに入り、都道府県全体のコードのままの学校はない
+        self.assertEqual({"HKD_NORTH", "HKD_SOUTH", "TYO_EAST", "TYO_WEST"}, set(placed))
+
+
+class MapPickTests(unittest.TestCase):
+    """地図のマスを押したとき：2つに分かれる大会ならそのマスの大会、分かれない大会は都道府県全体。"""
+
+    def catalog(self):
+        competitions = {
+            "N": {"competition_type": "summer_local_qualifier", "prefecture_code": "90", "season_segment": "summer",
+                  "qualifying_area_id": "A-N", "competition_level": "local"},
+            "S": {"competition_type": "summer_local_qualifier", "prefecture_code": "90", "season_segment": "summer",
+                  "qualifying_area_id": "A-S", "competition_level": "local"},
+            "ONE": {"competition_type": "summer_local_qualifier", "prefecture_code": "91", "season_segment": "summer",
+                    "qualifying_area_id": "A-1", "competition_level": "local"},
+            "AUT": {"competition_type": "autumn_regional", "prefecture_code": "", "region_id": "R9",
+                    "season_segment": "autumn", "competition_level": "regional"},
+        }
+        memberships = [{"prefecture_code": "90", "region_id": "R9", "season_segment": s} for s in ("summer", "autumn")]
+        return rf.build_catalog(competitions, memberships, lambda c: c["competition_level"], lambda cid, name: cid)
+
+    def test_split_competitions(self):
+        split = {c["competition_id"]: c["split"] for c in self.catalog()}
+        self.assertEqual({"N": True, "S": True, "ONE": False, "AUT": False}, split)
+
+    def test_summer_pick_selects_the_tile_competition(self):
+        catalog = self.catalog()
+        f = rf.map_pick(catalog, {"segment": "summer", "competition_id": "N", "region": "R9"}, "90", "A-S")
+        self.assertEqual(("S", "90", ""), (f["competition_id"], f["prefecture"], f["region"]))
+        self.assertEqual("A-S", rf.map_area(catalog, f))
+
+    def test_unsplit_competition_picks_the_whole_prefecture(self):
+        catalog = self.catalog()
+        f = rf.map_pick(catalog, {"segment": "autumn", "competition_id": "AUT"}, "90", "A-N")
+        self.assertEqual(("AUT", "90"), (f["competition_id"], f["prefecture"]))
+        # 2マスとも選んだ色（片方の区分を返さない）
+        self.assertEqual("", rf.map_area(catalog, f))
+        f, options, _ = rf.cascade_filters(catalog, f, {}, PREFS)
+        self.assertEqual("", options["map_area"])
 
 
 class TextTests(unittest.TestCase):

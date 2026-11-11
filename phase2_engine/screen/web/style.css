@@ -412,6 +412,11 @@ small.count.first { color: var(--accent); }
 .tile-legend:not(.pick) .tile-region { cursor: default; }
 .tile-region[disabled] { opacity: .25; }
 .tile-legend:not(.pick) .tile-region[disabled] { opacity: 1; }
+.map-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
+.map-controls .muted { font-size: 12px; }
+.map-controls .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+.map-controls .chip[disabled] { opacity: .35; cursor: default; }
+.tile.split { font-size: 11px; letter-spacing: -.5px; }
 .tile-region.on { background: var(--accent); color: var(--accent-ink); border-color: var(--text); }
 
 /* 記録：個人の記録。部門ごとの表を並べる（打撃・投手で分ける） */
