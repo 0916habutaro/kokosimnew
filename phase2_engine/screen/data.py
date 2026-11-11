@@ -1427,13 +1427,9 @@ class GameScreenData:
         regions = sorted(set(self._regions.values()))
         if f.get("region") not in regions:
             f["region"] = ""
-        # 都道府県は地図の49マス（北海道・東京は夏の代表区分で2つずつ）
-        tile_of, tiles = self._school_tiles()
-        pref_of_tile = {code: code for code in self.prefectures}
-        pref_of_tile.update({t["code"]: t["prefecture"] for t in self.tile_map()["tiles"]})
-        prefectures = [[code, name] for code, name in tiles
-                       if not f["region"] or self._regions.get(pref_of_tile.get(code)) == f["region"]]
-        if f.get("prefecture") not in {code for code, _ in prefectures}:
+        prefectures = sorted(code for code, region in self._regions.items()
+                             if not f["region"] or region == f["region"])
+        if f.get("prefecture") not in prefectures:
             f["prefecture"] = ""
         schools = self.service.repo.schools
 
