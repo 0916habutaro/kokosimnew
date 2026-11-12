@@ -94,6 +94,41 @@ class BalanceTallyTests(unittest.TestCase):
         self.assertEqual(1, rosters["velocity_bands"]["〜129"])
         self.assertEqual({"contact": 1, "control": 2}, rosters["s_count"])
 
+    def test_rosters_count_a_by_grade_and_koshien_bench_by_grade(self):
+        from types import SimpleNamespace
+
+        tally = self.tally()
+        tally.add_rosters(2026, [
+            (1, False, {"contact": 82, "power": 81, "velocity_kmh": None}),
+            (1, False, {"contact": 79, "strikeout_resistance": 95}),  # 主な能力でないものは数えない
+            (2, True, {"control": 80, "velocity_kmh": 146}),
+            (3, True, {"control": 91, "stuff": 85, "velocity_kmh": 151}),
+            (3, False, {"speed": 90}),
+        ])
+        grades = tally.summary()[2026]["rosters"]["by_grade"]
+        self.assertEqual((1, 1), (grades["1"]["a_one"], grades["1"]["a_two"]))
+        self.assertEqual((1, 0, 1, 0), (grades["2"]["a_one"], grades["2"]["a_two"],
+                                        grades["2"]["kmh145"], grades["2"]["kmh150"]))
+        self.assertEqual((2, 1, 1, 151), (grades["3"]["a_one"], grades["3"]["a_two"],
+                                          grades["3"]["kmh150"], grades["3"]["fastest"]))
+        self.assertEqual({"control": 1, "speed": 1}, tally.summary()[2026]["rosters"]["s_third_main"])
+
+        def player(pid, grade):
+            return SimpleNamespace(player_id=pid, academic_year=grade)
+
+        rosters = SimpleNamespace(roster=lambda year, sid: SimpleNamespace(players={
+            "FAKE-A": [player("a1", 1), player("a2", 2), player("a3", 3), player("a4", 3)],
+            "FAKE-B": [player("b1", 1), player("b2", 2)],
+        }[sid]))
+        season = SimpleNamespace(bench_members={
+            "KOS1:FAKE-A": ("a1", "a3"),  # ベンチ入りの選手だけ
+            "KOS1:FAKE-B": (),            # 全員が入った学校
+            "LOC1:FAKE-A": ("a2",),       # 地方大会は数えない
+        })
+        tally.add_koshien_bench(2026, season, rosters)
+        self.assertEqual({"1": 2, "2": 1, "3": 1}, tally.summary()[2026]["koshien_bench"])
+        self.assertIn("夏の甲子園のベンチ入り: 1年 2人（50.0%）", format_report("x", tally.summary()))
+
     def test_leaders_skip_players_whose_team_played_too_few_games(self):
         tally = BalanceTally(lambda cid: KINDS[cid[:3]], {}, RANKINGS, min_team_games=2)
         tally.add_match("LOC1", match(2026, "LOC1", "FAKE-A", "FAKE-B", 2, 1, 9))

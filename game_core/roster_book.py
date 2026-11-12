@@ -152,19 +152,23 @@ class PlayerState:
 
     ``games`` はその月の公式戦の出場数（成長で使って0に戻す）、``season_games`` は
     その年度の出場数（怪我の起きやすさ）。``injuries`` は怪我の履歴（最後が今か直近）。
+    ``deferred`` は入学時の頭打ちで抑えた点（能力の並びは ``values`` の先頭と同じ。
+    抑えていない選手は空）。成長で少しずつ ``values`` に戻す。
     """
 
     __slots__ = (
         "values", "growth_type", "potential", "velocity_potential", "games", "season_games",
-        "injuries", "trait",
+        "injuries", "trait", "deferred",
     )
 
     def __init__(
         self, values: bytearray, growth_type: int, potential: int, games: int = 0,
         season_games: int = 0, injuries: list[Injury] | None = None,
         velocity_potential: int | None = None, trait: int = 0,
+        deferred: bytearray | None = None,
     ):
         self.values = values
+        self.deferred = deferred if deferred is not None else bytearray()
         # 左右の得意・不得意（TRAITS の番号）
         self.trait = trait
         self.growth_type = growth_type
@@ -196,12 +200,14 @@ def _pack_states(first_year: int, states: dict[tuple[int, int], PlayerState]) ->
             entry_year - first_year + 2, roster_no, state.growth_type,
             state.potential, state.velocity_potential, state.trait, state.games,
             min(255, state.season_games), len(state.injuries), len(state.values),
+            len(state.deferred),
         ))
         for injury in state.injuries:
             out.extend(_day(injury.start).to_bytes(2, "big"))
             out.extend(injury.days.to_bytes(2, "big"))
             out.append(injury.severity)
         out.extend(state.values)
+        out.extend(state.deferred)
     return bytes(out)
 
 
@@ -210,8 +216,8 @@ def _unpack_states(first_year: int, data: bytes) -> dict[tuple[int, int], Player
     offset = 0
     while offset < len(data):
         (entry, roster_no, growth_type, potential, velocity_potential, trait, games,
-         season_games, count, size) = data[offset:offset + 10]
-        offset += 10
+         season_games, count, size, deferred) = data[offset:offset + 11]
+        offset += 11
         injuries = []
         for _ in range(count):
             injuries.append(Injury(
@@ -223,8 +229,9 @@ def _unpack_states(first_year: int, data: bytes) -> dict[tuple[int, int], Player
         states[(entry + first_year - 2, roster_no)] = PlayerState(
             bytearray(data[offset:offset + size]), growth_type, potential, games,
             season_games, injuries, velocity_potential, trait,
+            bytearray(data[offset + size:offset + size + deferred]),
         )
-        offset += size
+        offset += size + deferred
     return states
 
 
@@ -402,12 +409,14 @@ class RosterBook:
             rng_for(self.career_seed, namespace), program_z,
         )
         values = bytearray(pack_abilities(snapshot, self._pitch_types()))
+        held = dict(getattr(snapshot, "intake_deferred", ()) or ())
+        deferred = bytearray(min(255, held.get(name, 0)) for name in SCALARS) if held else bytearray()
         if player.entry_year < self.first_year and (
                 type(generator) is SchoolAwarePlayerAbilityGenerator and generator.source is None):
             self.growth.bootstrap(
                 values, position=player.primary_position, entry_year=player.entry_year,
                 first_year=self.first_year, type_index=growth_type, potential=potential,
-                velocity_potential=velocity_potential,
+                velocity_potential=velocity_potential, deferred=deferred,
                 rng=rng_for(self.career_seed, self.growth.config["rng_namespaces"]["bootstrap"].format(
                     entry_year=player.entry_year, school_id=player.school_id,
                     roster_no=player.roster_no,
@@ -415,7 +424,7 @@ class RosterBook:
             )
         return PlayerState(
             values, growth_type, potential, velocity_potential=velocity_potential,
-            trait=TRAITS.index(snapshot.platoon_trait),
+            trait=TRAITS.index(snapshot.platoon_trait), deferred=deferred,
         )
 
     # ---- 部員の人数 ----
@@ -824,6 +833,7 @@ class RosterBook:
                         games=state.games,
                         month=month.month, rng=rng,
                         practice_multiplier=practice_multiplier,
+                        deferred=state.deferred,
                     )
                     state.games = 0
                     if month.month == 3:

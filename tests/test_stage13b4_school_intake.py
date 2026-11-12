@@ -225,6 +225,37 @@ class Stage13B4SchoolIntakeTests(unittest.TestCase):
             low_snapshot.velocity_kmh,
         )
 
+    def test_entry_cap_holds_back_only_the_top_and_keeps_the_amount(self):
+        # 入学時の頭打ちで抑えた点（intake_deferred）を足すと、頭打ちがないときの値に戻る
+        without = SchoolAwarePlayerAbilityGenerator(CONFIG_DIR)
+        without.params = {k: v for k, v in without.params.items() if k != "entry_soft_cap"}
+        knee = self.aware_generator.params["entry_soft_cap"]["scalar"]["knee"]
+        held_any = False
+        for player in make_roster(school_id="SCH_ENTRY_CAP"):
+            base = self.base_generator.generate(player, 2026, 2026100701)
+            profile = SchoolIntakeProfile(
+                school_id=player.school_id, entry_year=player.entry_year,
+                generation_seed=2026100701,
+                intake_config_id=self.model.config.config_id,
+                intake_config_revision=self.model.config.revision,
+                intake_config_sha256=self.model.config.canonical_sha256,
+                program_quality_z=3.0, cohort_quality_z=0.0, intake_quality_z=3.0,
+            )
+            capped = self.aware_generator._adjust_snapshot(base=base, player=player, profile=profile)
+            full = without._adjust_snapshot(base=base, player=player, profile=profile)
+            held = dict(capped.intake_deferred)
+            self.assertNotIn("velocity_kmh", held)
+            self.assertEqual(full.velocity_kmh, capped.velocity_kmh)
+            self.assertEqual(full.pitch_repertoire, capped.pitch_repertoire)
+            for name in ("contact", "power", "fielding", "control", "stuff", "catching"):
+                if getattr(full, name) is None:
+                    continue
+                self.assertEqual(getattr(full, name), getattr(capped, name) + held.get(name, 0))
+                if getattr(full, name) <= knee:
+                    self.assertNotIn(name, held)
+            held_any = held_any or bool(held)
+        self.assertTrue(held_any)
+
     def test_baseline_generator_remains_available(self):
         player = make_roster(school_id="SCH_BASELINE")[0]
         first = self.base_generator.generate(

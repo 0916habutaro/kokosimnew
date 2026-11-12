@@ -1,6 +1,6 @@
 {
   "config_id": "roster_size_v1",
-  "revision": 3,
+  "revision": 4,
   "status": "design_default_not_tuned",
   "description_ja": "学校ごと・年度ごとの部員の人数（新入部員の人数・退部・最低人数・守備位置・ベンチ入り）。使うのは game_core/roster_size.py（game_definition.md §3.7）。新入部員の期待人数 = scale × exp(学校ごとの集まりやすさ) × exp(coach_per_z × 監督の z) × 都道府県の傾向。集まりやすさ（対数）= 目安 ＋ 学校ごとのずれ。目安は by_share（評判の全国の順位 → 1学年の人数の目安。私立と公立で別）の対数。実際の人数は期待人数から負の二項で引き、stability の割合だけ期待人数に寄せる。傾向の目安は docs/research/school_roster_2026/（実在の値には合わせていない）。学校の強さに直接足す補正はない。",
   "freshmen": {
@@ -203,11 +203,11 @@
     "RF": 0.08
   },
   "bench": {
-    "description_ja": "ベンチ入り：大会ごとに size 人を、その学校の最初の試合の日の能力で選ぶ（大会の途中で入れ替えない）。投手と捕手を先に min_pitchers・min_catchers 人まで入れ、残りは評価の高い順。評価は投手が pitcher の重み、野手が fielder の重みの平均に、学年1つにつき grade_bonus を足したもの。ベンチ外の選手は試合に出ず、試合の経験も付かない",
+    "description_ja": "ベンチ入り：大会ごとに size 人を、その学校の最初の試合の日の能力で選ぶ（大会の途中で入れ替えない）。投手と捕手を先に min_pitchers・min_catchers 人まで入れ、残りは評価の高い順。評価は投手が pitcher の重み、野手が fielder の重みの平均に、学年1つにつき grade_bonus を足したもの（3.0。1年生の能力を抑えた（school_intake_v1 の entry_soft_cap）うえで、夏の甲子園のベンチ入りの1年生が実際（4〜5%、49校で40〜51人）に近くなるように決めた。2026-11-12）。ベンチ外の選手は試合に出ず、試合の経験も付かない",
     "size": 20,
     "min_pitchers": 4,
     "min_catchers": 2,
-    "grade_bonus": 1.5,
+    "grade_bonus": 3.0,
     "pitcher": {
       "control": 0.25,
       "stuff": 0.25,

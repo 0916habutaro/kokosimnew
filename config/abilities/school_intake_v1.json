@@ -1,6 +1,6 @@
 {
   "config_id": "school_intake_v1",
-  "revision": 8,
+  "revision": 9,
   "status": "tuned_2026_11_01",
   "description_ja": "架空選手生成用の入部品質モデル（game_definition.md §3.1・§10）。学校・年度の成分（入部品質 z）は、学校成分（program。学校の評判 school_reputation_v1 の順位を z に変えたもの）と年度ごとの当たり外れ（cohort。乱数）と監督の評判を足したもの。選手の能力には、この z を全員に一律に足さず、選手ごとの素質（talent_model）を通して効かせる：素質 = z × school_weight ＋ 選手ごとの乱数 ＋ 有望な新入生の上乗せ。能力 = 入学時の平均 ＋ 素質 × 能力ごとの重み × 型の傾き ＋ 型の長所・短所 ＋ 能力ごとの乱数。学校の強さは選手から計算する。",
   "quality_model": {
@@ -221,6 +221,13 @@
       "knee": 138,
       "cap": 160,
       "rate": 1.0
+    }
+  },
+  "entry_soft_cap": {
+    "description_ja": "1年の4月（入学時）だけ、upper_soft_cap のあとの能力の上の方をさらに抑える（式は upper_soft_cap と同じ）。1年生のA（80以上）を一部の「スーパー1年生」だけにするため。抑えた点は能力ごとに名簿に残し、成長で3年の夏の前までに全部戻す（player_growth_v1 の entry_deferral）ので、3年の能力の分布は変わらない。球速と変化球には使わない",
+    "scalar": {
+      "knee": 61,
+      "cap": 83
     }
   },
   "rules": {

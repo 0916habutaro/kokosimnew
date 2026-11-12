@@ -58,6 +58,8 @@ class IntakeAdjustedPlayerAbilitySnapshot(PlayerAbilitySnapshot):
     intake_prospect: bool = False
     batter_type: str | None = None
     pitcher_type: str | None = None
+    # 入学時の頭打ち（entry_soft_cap）で抑えた点（能力ID, 点）。成長で取り戻す（player_growth_v1）
+    intake_deferred: tuple = ()
 
 
 def _clamp_round(value: float, low: int, high: int) -> int:
@@ -219,6 +221,13 @@ class SchoolAwarePlayerAbilityGenerator:
             value, float(rule["knee"]), float(rule["cap"]), float(rule.get("rate", 1.0)),
         )
 
+    def _entry_cap(self, value: float) -> float:
+        """1年の4月の能力の上の方をさらに抑える（``entry_soft_cap``）。抑えた分は成長で取り戻す。"""
+        rule = (self.params.get("entry_soft_cap") or {}).get("scalar")
+        if not rule:
+            return value
+        return soft_cap(value, float(rule["knee"]), float(rule["cap"]), float(rule.get("rate", 1.0)))
+
     # ---- 素質 ----
 
     def _namespace(self, key: str, *, school_id: str, entry_year: int, roster_no: int = 0) -> str:
@@ -343,8 +352,10 @@ class SchoolAwarePlayerAbilityGenerator:
             for field in fields(PlayerAbilitySnapshot)
         }
 
+        deferred: dict[str, int] = {}
+
         def value(ability_id: str, params: dict, weight: float, kind: str = "scalar",
-                  low: int = 1, high: int = 100) -> int:
+                  low: int = 1, high: int = 100, defer: bool = False) -> int:
             noise = rng.gauss(0.0, 1.0)
             defaults = generation["scalar_defaults"]
             load, tilt = self._shape(talent, ability_id)
@@ -353,17 +364,23 @@ class SchoolAwarePlayerAbilityGenerator:
                 + weight * load * talent.talent + tilt
                 + float(params.get("stddev", defaults["stddev"])) * noise
             )
-            return _clamp_round(self._soft_cap(raw, kind), low, high)
+            full = _clamp_round(self._soft_cap(raw, kind), low, high)
+            if not defer:
+                return full
+            entry = min(full, _clamp_round(self._entry_cap(self._soft_cap(raw, kind)), low, high))
+            if entry < full:
+                deferred[ability_id] = full - entry
+            return entry
 
         for ability_id in BATTER_ABILITIES:
             payload[ability_id] = value(
                 ability_id, generation["batter_abilities"][ability_id],
-                float(per_talent["batter"][ability_id]),
+                float(per_talent["batter"][ability_id]), defer=True,
             )
         for ability_id in CATCHER_ABILITIES:
             drawn = value(
                 ability_id, generation["catcher_only_abilities"][ability_id],
-                float(per_talent["catcher"][ability_id]),
+                float(per_talent["catcher"][ability_id]), defer=player.primary_position == "C",
             )
             payload[ability_id] = drawn if player.primary_position == "C" else None
         for ability_id in PITCHER_ABILITIES:
@@ -373,6 +390,7 @@ class SchoolAwarePlayerAbilityGenerator:
                 ability_id, params, float(per_talent["pitcher"][ability_id]),
                 kind="velocity_kmh" if velocity else "scalar",
                 low=int(params.get("min", 1)), high=int(params.get("max", 100)),
+                defer=not velocity and player.primary_position == "P",
             )
             payload[ability_id] = drawn if player.primary_position == "P" else None
 
@@ -420,6 +438,7 @@ class SchoolAwarePlayerAbilityGenerator:
             intake_prospect=talent.prospect,
             batter_type=talent.batter_type,
             pitcher_type=talent.pitcher_type,
+            intake_deferred=tuple(sorted(deferred.items())),
         )
         validate_ability_snapshot(snapshot)
         return snapshot
