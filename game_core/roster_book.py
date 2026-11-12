@@ -194,20 +194,23 @@ class PlayerState:
 
 
 def _pack_states(first_year: int, states: dict[tuple[int, int], PlayerState]) -> bytes:
+    """抑えた点（``deferred``）は残っている能力だけを (番号, 点) で入れ、その数を
+    左右の得意・不得意（0〜2）と同じ1バイトの上の位に入れる（セーブを大きくしない）。"""
     out = bytearray()
     for (entry_year, roster_no), state in sorted(states.items()):
+        held = [(index, value) for index, value in enumerate(state.deferred) if value]
         out.extend((
             entry_year - first_year + 2, roster_no, state.growth_type,
-            state.potential, state.velocity_potential, state.trait, state.games,
+            state.potential, state.velocity_potential, state.trait | (len(held) << 2), state.games,
             min(255, state.season_games), len(state.injuries), len(state.values),
-            len(state.deferred),
         ))
         for injury in state.injuries:
             out.extend(_day(injury.start).to_bytes(2, "big"))
             out.extend(injury.days.to_bytes(2, "big"))
             out.append(injury.severity)
         out.extend(state.values)
-        out.extend(state.deferred)
+        for pair in held:
+            out.extend(pair)
     return bytes(out)
 
 
@@ -216,8 +219,9 @@ def _unpack_states(first_year: int, data: bytes) -> dict[tuple[int, int], Player
     offset = 0
     while offset < len(data):
         (entry, roster_no, growth_type, potential, velocity_potential, trait, games,
-         season_games, count, size, deferred) = data[offset:offset + 11]
-        offset += 11
+         season_games, count, size) = data[offset:offset + 10]
+        offset += 10
+        held, trait = trait >> 2, trait & 3
         injuries = []
         for _ in range(count):
             injuries.append(Injury(
@@ -226,12 +230,16 @@ def _unpack_states(first_year: int, data: bytes) -> dict[tuple[int, int], Player
                 data[offset + 4],
             ))
             offset += 5
+        deferred = bytearray()
+        if held:
+            deferred = bytearray(len(SCALARS))
+            for at in range(offset + size, offset + size + 2 * held, 2):
+                deferred[data[at]] = data[at + 1]
         states[(entry + first_year - 2, roster_no)] = PlayerState(
             bytearray(data[offset:offset + size]), growth_type, potential, games,
-            season_games, injuries, velocity_potential, trait,
-            bytearray(data[offset + size:offset + size + deferred]),
+            season_games, injuries, velocity_potential, trait, deferred,
         )
-        offset += size + deferred
+        offset += size + 2 * held
     return states
 
 
