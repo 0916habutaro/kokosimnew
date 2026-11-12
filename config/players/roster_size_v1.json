@@ -203,11 +203,11 @@
     "RF": 0.08
   },
   "bench": {
-    "description_ja": "ベンチ入り：大会ごとに size 人を、その学校の最初の試合の日の能力で選ぶ（大会の途中で入れ替えない）。投手と捕手を先に min_pitchers・min_catchers 人まで入れ、残りは評価の高い順。評価は投手が pitcher の重み、野手が fielder の重みの平均に、学年1つにつき grade_bonus を足したもの（3.25。1年生の能力を抑えた（school_intake_v1 の entry_soft_cap）うえで、夏の甲子園のベンチ入りの1年生が実際（4〜5%、49校で40〜51人）に近くなるように決めた。2026-11-12）。ベンチ外の選手は試合に出ず、試合の経験も付かない",
+    "description_ja": "ベンチ入り：大会ごとに size 人を、その学校の最初の試合の日の能力で選ぶ（大会の途中で入れ替えない）。投手と捕手を先に min_pitchers・min_catchers 人まで入れ、残りは評価の高い順。評価は投手が pitcher の重み、野手が fielder の重みの平均に、学年1つにつき grade_bonus を足したもの（3.0。1年生の能力を抑えた（school_intake_v1 の entry_soft_cap）うえで、夏の甲子園のベンチ入りの1年生が実際（4〜5%、49校で40〜51人）に近くなるように決めた。2026-11-12）。ベンチ外の選手は試合に出ず、試合の経験も付かない",
     "size": 20,
     "min_pitchers": 4,
     "min_catchers": 2,
-    "grade_bonus": 3.25,
+    "grade_bonus": 3.0,
     "pitcher": {
       "control": 0.25,
       "stuff": 0.25,
