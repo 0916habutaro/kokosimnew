@@ -98,6 +98,20 @@ class AnnualReputationTests(unittest.TestCase):
         self.assertEqual({}, multi.yearly_points[2030])
 
 
+    def test_equal_points_summed_differently_still_tie_on_previous_reputation(self):
+        # 0.6＋0.6×0.5 と 0.75＋0.6×0.25 はどちらも0.9点だが、小数では 0.8999… と 0.9 になる。
+        # 同点として前の評判の順（SCH-2 の上に SCH-5）に並ぶ
+        book = spread_book()
+        # 順位がそのまま値に出るよう、前の値はほとんど残さない
+        book.config = dict(book.config, recent_year_weights=[1.0, 0.6], carry=0.01, max_annual_change_z=100)
+        book.updated_year = 2027
+        book.yearly_points = {2027: {'SCH-5': 0.5, 'SCH-2': 0.25}}
+        book.pending = {(2027, 'CUP'): ('2028-03-31', {'SCH-5': 0.6, 'SCH-2': 0.75})}
+        self.assertNotEqual(0.6 + 0.6 * 0.5, 0.75 + 0.6 * 0.25)
+        book.update(date(2028, 4, 1))
+        top = sorted(book.values, key=book.values.get)[-2:]
+        self.assertEqual(['SCH-2', 'SCH-5'], top)
+
     def test_initial_values_and_ranks_are_exactly_the_existing_values(self):
         initial = reputation_for(str(ROOT))
         saved = AnnualReputation(ROOT, 7)

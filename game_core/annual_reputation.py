@@ -11,6 +11,10 @@ from .ability_config import load_config
 from .school_reputation import reputation_for
 
 
+# 目標の点を比べるときの桁数。点は重み×到達点の和なので、これより細かい差は計算の誤差
+POINT_DIGITS = 9
+
+
 def _shares(scores):
     order = sorted(scores, key=lambda sid: (scores[sid], sid))
     return {sid: (i + 0.5) / len(order) for i, sid in enumerate(order)}
@@ -134,9 +138,11 @@ class AnnualReputation:
         for back, weight in enumerate(recent):
             for sid, value in self.yearly_points.get(day.year - back, {}).items():
                 target_points[sid] += weight * value
-        # 同点（点のない学校など）は前の評判の順。結果のない学校は順位がほとんど動かない
+        # 同点（点のない学校など）は前の評判の順。結果のない学校は順位がほとんど動かない。
+        # 足し方による小数の誤差（0.6+0.3 と 0.75+0.15 など）で同点が崩れないよう丸めて比べる
         before = dict(self.values)
-        order = sorted(before, key=lambda sid: (target_points.get(sid, 0.0), before[sid], sid))
+        rounded = {sid: round(value, POINT_DIGITS) for sid, value in target_points.items()}
+        order = sorted(before, key=lambda sid: (rounded.get(sid, 0.0), before[sid], sid))
         carry = float(self.config['carry'])
         limit = float(self.config['max_annual_change_z'])
         normal = NormalDist(self.mean, self.stddev)
