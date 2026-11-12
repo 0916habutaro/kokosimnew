@@ -23,6 +23,8 @@ ABILITY_FIELDS = (
     "discipline_strength", "ace_strength", "pitching_depth_strength",
     "bullpen_strength",
 )
+from ..tournament_runtime import THIRD_PLACE_SUFFIX
+
 _MAIN_ROUND = re.compile(r"-MAIN-R(\d+)-M\d+$")
 
 
@@ -153,6 +155,8 @@ def normalized_rows(rows) -> list[dict]:
         match_id = get("match_id")
         stage = get("stage_code")
         round_no = get("round_no")
+        # 3位決定戦は勝ち負けに数えるが、勝ち上がりの到達には使わない
+        third_place = str(match_id or "").endswith(THIRD_PLACE_SUFFIX)
         if stage is None:
             found = _MAIN_ROUND.search(match_id)
             stage = "MAIN" if found else ""
@@ -166,7 +170,8 @@ def normalized_rows(rows) -> list[dict]:
             "team1_score": score1,
             "team2_score": score2,
             "winner_id": winner,
-            "main": stage == "MAIN",
+            "main": stage == "MAIN" and not third_place,
+            "third_place": third_place,
             "round_no": int(round_no or 0),
         })
     return out

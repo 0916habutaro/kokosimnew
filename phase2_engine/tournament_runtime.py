@@ -34,6 +34,24 @@ MATCH_WAITING = "waiting"
 MATCH_READY = "ready"
 MATCH_COMPLETED = "completed"
 MATCH_BYE = "bye"
+# 3位決定戦（準決勝で負けた2校。決勝と同じ回戦として同じ日に組む）
+THIRD_PLACE_PHASE = "MAIN_THIRD_PLACE"
+THIRD_PLACE_NAME = "3位決定戦"
+THIRD_PLACE_SUFFIX = "-MAIN-3RD"
+
+
+def is_third_place(match) -> bool:
+    """3位決定戦の試合か（試合・試合の行・試合ID のどれでも）。勝ち上がりの到達には数えない。"""
+    match_id = match if isinstance(match, str) else (
+        match.get("match_id", "") if isinstance(match, dict) else getattr(match, "match_id", "")
+    )
+    return str(match_id).endswith(THIRD_PLACE_SUFFIX)
+
+
+def third_place_possible(entrant_count: int) -> bool:
+    """準決勝の2試合とも実際の試合になるか（不戦勝は1回戦だけなので、4校ちょうどか、
+    3回戦以上ある大会）。"""
+    return entrant_count >= 4
 
 
 @dataclass
@@ -60,7 +78,7 @@ class RuntimeBracketMatch:
             "competition_id": self.competition_id,
             "stage_id": self.stage_id,
             "stage_code": "MAIN",
-            "phase_code": "MAIN_BRACKET",
+            "phase_code": THIRD_PLACE_PHASE if is_third_place(self.match_id) else "MAIN_BRACKET",
             "round_no": self.round_no,
             "round_name": self.round_name,
             "match_no_in_round": self.match_no_in_round,
@@ -104,6 +122,8 @@ class MainTournamentRuntimeState:
     # 前の回戦が終わったあとに抽選する回戦 → 前の回戦を上から何組に分けて抽選するか
     # （夏の甲子園の準々決勝・準決勝。config/schedule/national_day_plans_v1.json）
     redraw_rounds: Dict[int, int] = field(default_factory=dict)
+    # 3位決定戦の試合ID（しない大会は空）。勝った方が3位、負けた方が4位
+    third_place_match_id: str = ""
 
     @classmethod
     def create(
@@ -123,6 +143,7 @@ class MainTournamentRuntimeState:
         redraw_rounds: Dict[int, int] | None = None,
         separation: dict | None = None,
         seed_bye_count: int | None = None,
+        third_place: bool = False,
     ) -> "MainTournamentRuntimeState":
         entrants = list(dict.fromkeys(entrants))
         if not entrants:
@@ -173,6 +194,8 @@ class MainTournamentRuntimeState:
             ),
             redraw_rounds=dict(redraw_rounds or {}),
         )
+        if third_place and third_place_possible(len(entrants)):
+            state.third_place_match_id = f"{stage_id}{THIRD_PLACE_SUFFIX}"
         state._build_bracket_skeleton()
         state._validate()
         return state
@@ -249,6 +272,7 @@ class MainTournamentRuntimeState:
                 repo, competition.get("competition_type", ""), entrants,
             ),
             seed_bye_count=policy_seed_bye_count(repo, annual.competition_id),
+            third_place=annual.competition_id in getattr(repo, "third_place_competitions", ()),
         )
         # 全国大会：準々決勝以降を前の回戦のあとに抽選するか（日ごとの計画の設定）。
         # 地方大会：途中で抽選し直す回戦（bracket_generation_policies.csv）
@@ -324,6 +348,19 @@ class MainTournamentRuntimeState:
                 ids.append(match_id)
             self.match_ids_by_round[round_no] = ids
 
+        if self.third_place_match_id:
+            # 決勝と同じ回戦に置く（決勝と同じ日に組まれる）。番号は決勝のあと
+            self.matches[self.third_place_match_id] = RuntimeBracketMatch(
+                match_id=self.third_place_match_id,
+                competition_id=self.competition_id,
+                stage_id=self.stage_id,
+                round_no=self.total_rounds,
+                round_name=THIRD_PLACE_NAME,
+                match_no_in_round=2,
+                metadata={"third_place": True},
+            )
+            self.match_ids_by_round[self.total_rounds].append(self.third_place_match_id)
+
         self._refresh_all_statuses()
 
     def _match_id(self, round_no: int, match_no: int) -> str:
@@ -377,6 +414,16 @@ class MainTournamentRuntimeState:
         self,
         match: RuntimeBracketMatch,
     ) -> None:
+        if match.match_id == self.third_place_match_id:
+            return
+        if (
+            self.third_place_match_id
+            and match.round_no == self.total_rounds - 1
+            and match.loser
+        ):
+            # 準決勝で負けた学校は3位決定戦へ（組み合わせの上の準決勝が team1）
+            third = self.matches[self.third_place_match_id]
+            setattr(third, match.next_match_side, match.loser)
         if not match.next_match_id:
             self.champion_school_id = match.winner
             self.runner_up_school_id = match.loser
@@ -512,9 +559,11 @@ class MainTournamentRuntimeState:
                 resolution.team2_score
             )
 
-        self.eliminated_by_round[match.round_no].append(
-            match.loser
-        )
+        if match.match_id != self.third_place_match_id:
+            # 3位決定戦の負けは到達を変えない（準決勝敗退のまま）
+            self.eliminated_by_round[match.round_no].append(
+                match.loser
+            )
         self._store_resolution_detail(match, resolution)
         self._propagate_winner(match)
         self._refresh_all_statuses()
@@ -832,11 +881,19 @@ class MainTournamentRuntimeState:
                     [],
                 )
             )
+            third = self.matches.get(self.third_place_match_id)
             if (
                 round_no == self.total_rounds
                 and runner_up
             ):
                 cohort = [runner_up]
+            elif (
+                round_no == self.total_rounds - 1
+                and third is not None
+                and third.status == MATCH_COMPLETED
+            ):
+                # 3位決定戦の勝者が3位、負けた学校が4位
+                cohort = [third.winner, third.loser]
             elif len(cohort) > 1:
                 cohort = shuffled(
                     cohort,
@@ -879,7 +936,11 @@ class MainTournamentRuntimeState:
                     competition_id=self.competition_id,
                     stage_id=self.stage_id,
                     stage_code="MAIN",
-                    phase_code="MAIN_BRACKET",
+                    phase_code=(
+                        THIRD_PLACE_PHASE
+                        if item.match_id == self.third_place_match_id
+                        else "MAIN_BRACKET"
+                    ),
                     round_no=item.round_no,
                     team1=item.team1,
                     team2=item.team2,

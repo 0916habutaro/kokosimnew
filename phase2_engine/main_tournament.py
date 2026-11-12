@@ -379,7 +379,9 @@ def run_main_single_elimination(
     redraw: Dict[int, int] | None = None,
     separation: dict | None = None,
     seed_bye_count: int | None = None,
+    third_place: bool = False,
 ) -> Tuple[StageExecution, CompetitionOutcome]:
+    """``third_place`` なら準決勝で負けた2校で3位決定戦をする（勝った方が3位）。"""
     entrants = list(dict.fromkeys(entrants))
     if not entrants:
         raise ValueError("MAIN entrants cannot be empty")
@@ -436,6 +438,79 @@ def run_main_single_elimination(
         )
         return execution, outcome
 
+    def resolve(match_id: str, t1: str, t2: str, round_no: int, match_no: int):
+        """1試合の勝敗（年度の指定 → 試合の計算 → 乱数の順）。"""
+        resolution: MatchResolution | None = None
+        if match_id in winner_overrides:
+            winner = winner_overrides[match_id]
+            if winner not in {t1, t2}:
+                raise ValueError(f"winner override for {match_id} is not a participant")
+            loser = t2 if winner == t1 else t1
+        elif match_resolver is not None:
+            if reference_year is None:
+                raise ValueError("reference_year is required when match_resolver is used")
+            resolution = match_resolver(
+                match_id=match_id,
+                competition_id=competition_id,
+                reference_year=reference_year,
+                generation_seed=base_seed,
+                team1=t1,
+                team2=t2,
+            )
+            if not isinstance(resolution, MatchResolution):
+                raise TypeError("match_resolver must return MatchResolution")
+            if resolution.winner_id not in {t1, t2}:
+                raise ValueError("match_resolver winner is not a participant")
+            expected_loser = t2 if resolution.winner_id == t1 else t1
+            if resolution.loser_id != expected_loser:
+                raise ValueError("match_resolver loser is inconsistent with winner")
+            if (resolution.team1_score is None) != (resolution.team2_score is None):
+                raise ValueError("match_resolver scores must be both present or both absent")
+            if resolution.team1_score is not None:
+                if (
+                    isinstance(resolution.team1_score, bool)
+                    or isinstance(resolution.team2_score, bool)
+                    or not isinstance(resolution.team1_score, int)
+                    or not isinstance(resolution.team2_score, int)
+                ):
+                    raise ValueError("match_resolver scores must be integers")
+                if resolution.team1_score < 0 or resolution.team2_score < 0:
+                    raise ValueError("match_resolver scores must be non-negative")
+                if resolution.team1_score == resolution.team2_score:
+                    raise ValueError("match_resolver cannot return a tied score")
+                expected_winner = (
+                    t1
+                    if resolution.team1_score > resolution.team2_score
+                    else t2
+                )
+                if resolution.winner_id != expected_winner:
+                    raise ValueError("match_resolver score winner mismatch")
+            winner = resolution.winner_id
+            loser = resolution.loser_id
+            if resolved_match_sink is not None:
+                if match_id in resolved_match_sink:
+                    raise ValueError(f"duplicate resolved match id: {match_id}")
+                detail = dict(resolution.detail)
+                detail.setdefault("match_id", match_id)
+                detail.setdefault("competition_id", competition_id)
+                detail.setdefault("reference_year", reference_year)
+                detail.setdefault("generation_seed", base_seed)
+                detail.setdefault("team1_school_id", t1)
+                detail.setdefault("team2_school_id", t2)
+                detail.setdefault("team1_score", resolution.team1_score)
+                detail.setdefault("team2_score", resolution.team2_score)
+                detail.setdefault("winner_id", resolution.winner_id)
+                detail.setdefault("loser_id", resolution.loser_id)
+                detail.setdefault("score_source", resolution.score_source)
+                resolved_match_sink[match_id] = detail
+        else:
+            namespace = f"{competition_id}:{stage_id}:MAIN:R{round_no}:M{match_no}:{t1}:{t2}"
+            winner = winner_resolver(t1, t2, namespace)
+            if winner not in {t1, t2}:
+                raise ValueError("winner_resolver returned a team not in the match")
+            loser = t2 if winner == t1 else t1
+        return winner, loser, resolution
+
     matches: List[Match] = []
     eliminated_by_round: Dict[int, List[str]] = defaultdict(list)
     current = list(slots)
@@ -491,75 +566,7 @@ def run_main_single_elimination(
                 round_matches.append(match_id)
                 continue
 
-            resolution: MatchResolution | None = None
-            if match_id in winner_overrides:
-                winner = winner_overrides[match_id]
-                if winner not in {t1, t2}:
-                    raise ValueError(f"winner override for {match_id} is not a participant")
-                loser = t2 if winner == t1 else t1
-            elif match_resolver is not None:
-                if reference_year is None:
-                    raise ValueError("reference_year is required when match_resolver is used")
-                resolution = match_resolver(
-                    match_id=match_id,
-                    competition_id=competition_id,
-                    reference_year=reference_year,
-                    generation_seed=base_seed,
-                    team1=t1,
-                    team2=t2,
-                )
-                if not isinstance(resolution, MatchResolution):
-                    raise TypeError("match_resolver must return MatchResolution")
-                if resolution.winner_id not in {t1, t2}:
-                    raise ValueError("match_resolver winner is not a participant")
-                expected_loser = t2 if resolution.winner_id == t1 else t1
-                if resolution.loser_id != expected_loser:
-                    raise ValueError("match_resolver loser is inconsistent with winner")
-                if (resolution.team1_score is None) != (resolution.team2_score is None):
-                    raise ValueError("match_resolver scores must be both present or both absent")
-                if resolution.team1_score is not None:
-                    if (
-                        isinstance(resolution.team1_score, bool)
-                        or isinstance(resolution.team2_score, bool)
-                        or not isinstance(resolution.team1_score, int)
-                        or not isinstance(resolution.team2_score, int)
-                    ):
-                        raise ValueError("match_resolver scores must be integers")
-                    if resolution.team1_score < 0 or resolution.team2_score < 0:
-                        raise ValueError("match_resolver scores must be non-negative")
-                    if resolution.team1_score == resolution.team2_score:
-                        raise ValueError("match_resolver cannot return a tied score")
-                    expected_winner = (
-                        t1
-                        if resolution.team1_score > resolution.team2_score
-                        else t2
-                    )
-                    if resolution.winner_id != expected_winner:
-                        raise ValueError("match_resolver score winner mismatch")
-                winner = resolution.winner_id
-                loser = resolution.loser_id
-                if resolved_match_sink is not None:
-                    if match_id in resolved_match_sink:
-                        raise ValueError(f"duplicate resolved match id: {match_id}")
-                    detail = dict(resolution.detail)
-                    detail.setdefault("match_id", match_id)
-                    detail.setdefault("competition_id", competition_id)
-                    detail.setdefault("reference_year", reference_year)
-                    detail.setdefault("generation_seed", base_seed)
-                    detail.setdefault("team1_school_id", t1)
-                    detail.setdefault("team2_school_id", t2)
-                    detail.setdefault("team1_score", resolution.team1_score)
-                    detail.setdefault("team2_score", resolution.team2_score)
-                    detail.setdefault("winner_id", resolution.winner_id)
-                    detail.setdefault("loser_id", resolution.loser_id)
-                    detail.setdefault("score_source", resolution.score_source)
-                    resolved_match_sink[match_id] = detail
-            else:
-                namespace = f"{competition_id}:{stage_id}:MAIN:R{round_no}:M{match_no}:{t1}:{t2}"
-                winner = winner_resolver(t1, t2, namespace)
-                if winner not in {t1, t2}:
-                    raise ValueError("winner_resolver returned a team not in the match")
-                loser = t2 if winner == t1 else t1
+            winner, loser, resolution = resolve(match_id, t1, t2, round_no, match_no)
             eliminated_by_round[round_no].append(loser)
             metadata = {
                 "round_name": round_name,
@@ -600,6 +607,29 @@ def run_main_single_elimination(
         current = nxt
         match_ids_by_round[round_no] = round_matches
 
+    third = None
+    semifinal = list(eliminated_by_round.get(total_rounds - 1, [])) if total_rounds >= 2 else []
+    if third_place and len(semifinal) == 2:
+        # 3位決定戦（組み合わせの上の準決勝の負けが team1）。到達（eliminated_by_round）は変えない
+        t1, t2 = semifinal
+        match_id = f"{stage_id}-MAIN-3RD"
+        winner, loser, resolution = resolve(match_id, t1, t2, total_rounds, 2)
+        metadata = {"round_name": "3位決定戦", "bracket_size": bracket_size, "third_place": True,
+                    "winner_source": (
+                        "annual_override" if match_id in winner_overrides
+                        else (resolution.score_source if resolution is not None and resolution.score_source
+                              else "resolver"))}
+        if resolution is not None and resolution.team1_score is not None:
+            metadata.update(score_source=resolution.score_source,
+                            team1_score=resolution.team1_score, team2_score=resolution.team2_score)
+        third = Match(
+            match_id=match_id, competition_id=competition_id, stage_id=stage_id,
+            stage_code="MAIN", phase_code="MAIN_THIRD_PLACE", round_no=total_rounds,
+            team1=t1, team2=t2, winner=winner, loser=loser, metadata=metadata,
+        )
+        matches.append(third)
+        match_ids_by_round[total_rounds].append(match_id)
+
     champion = current[0]
     final_losers = eliminated_by_round.get(total_rounds, [])
     runner_up = final_losers[0] if final_losers else ""
@@ -611,6 +641,8 @@ def run_main_single_elimination(
         cohort = list(eliminated_by_round.get(rno, []))
         if rno == total_rounds and runner_up:
             cohort = [runner_up]
+        elif rno == total_rounds - 1 and third is not None:
+            cohort = [third.winner, third.loser]
         elif len(cohort) > 1:
             cohort = shuffled(cohort, base_seed, f"{competition_id}:{stage_id}:MAIN:ranking:{rno}")
         final_ranking.extend(cohort)

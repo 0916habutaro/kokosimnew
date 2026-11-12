@@ -174,6 +174,8 @@ class SeededCompetitionRuntimeState:
             ),
             winner_overrides=self.annual.main_match_winner_overrides,
             match_resolver=self.main_match_resolver,
+            third_place=self.annual.competition_id
+            in getattr(self.repo, "third_place_competitions", ()),
         )
 
     def _activate_after_seed(self) -> None:

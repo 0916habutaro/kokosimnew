@@ -43,6 +43,11 @@ class DataRepository:
         self.tables["bracket_generation_policies.csv"] = (
             self._read(policy_path) if policy_path.exists() else []
         )
+        # 県大会の本大会の方針（3位決定戦の有無。main_tournament_engine_policies.csv の third_place_*）
+        main_policy_path = resolve_data_file(self.data_dir, "main_tournament_engine_policies.csv")
+        self.tables["main_tournament_engine_policies.csv"] = (
+            self._read(main_policy_path) if main_policy_path.exists() else []
+        )
         # 遊んでいるセーブで編集した設置者（学校ID → ownership_type）。
         # マスターは書き換えず、これを優先する（phase2_engine/school_edits.py）
         self.ownership_overrides: Dict[str, str] = {}
@@ -95,6 +100,14 @@ class DataRepository:
             (r["competition_id"], r["stage_code"]): r
             for r in self.tables["bracket_generation_policies.csv"]
         }
+
+        # 準決勝で負けた2校で3位決定戦をする大会（2026年に実施を確かめた大会だけ。
+        # 「なし」「不明」の大会は今までどおり乱数で3位・4位を決める）
+        self.third_place_competitions = frozenset(
+            r["competition_id"]
+            for r in self.tables["main_tournament_engine_policies.csv"]
+            if r.get("third_place_match") == "yes"
+        )
 
         self.access_rules_by_comp = defaultdict(list)
         for r in self.tables["competition_access_rules.csv"]:

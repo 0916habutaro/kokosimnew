@@ -471,7 +471,8 @@ function best8Table(data) {
   const width = (n) => `${((100 - BEST8_YEAR_WIDTH) * n / total).toFixed(3)}%`;
   // 1行目に校名、2行目に県名・8強以上の回数・優勝の回数。入らなければ省略し、マウスを当てたら全部出す
   const school = (s) => {
-    const notes = [showPref && s.prefecture ? s.prefecture.replace(/[都府県]$/, "") : "", s.best8_label, s.champion_label].filter(Boolean);
+    // 3位決定戦をした大会は、ベスト4の2校に「3位」「4位」
+    const notes = [s.place, showPref && s.prefecture ? s.prefecture.replace(/[都府県]$/, "") : "", s.best8_label, s.champion_label].filter(Boolean);
     const tip = [s.name, ...notes].join("\n");
     return `<div class="b8-slot" title="${esc(tip)}"><button class="link b8-name" data-school="${esc(s.school_id)}">${esc(s.name)}</button>
       <small class="b8-notes">${notes.map((n) => n === s.champion_label ? countTag(n) : `<span class="muted">${esc(n)}</span>`).join("")}</small></div>`;
@@ -1081,6 +1082,8 @@ function drawPaper() {
     row.className = "paper-row";
     row.append(bracketSvg(main, name));
     if ((main.later_rounds || []).length) row.append(laterRounds(main.later_rounds, name));
+    // 3位決定戦は組み合わせの線の外に、別の枠で出す
+    if (main.third_place) row.append(laterRounds([main.third_place], name));
     paper.append(row);
   }
   wrap.replaceChildren(paper);
@@ -1153,7 +1156,7 @@ function laterRounds(rounds, name) {
       <div class="${m.winner_id && m.winner_id === m.team1_id ? "w" : ""}"><span>${esc(name(m.team1_id))}</span><b>${m.team1_score ?? ""}</b></div>
       <div class="${m.winner_id && m.winner_id === m.team2_id ? "w" : ""}"><span>${esc(name(m.team2_id))}</span><b>${m.team2_score ?? ""}</b></div>
       ${m.match_date ? `<small>${fmtDate(m.match_date)}</small>` : ""}</div>`).join("")
-      : '<div class="later-wait">抽選待ち</div>'}</div>`).join("");
+      : `<div class="later-wait">${esc(r.wait || "抽選待ち")}</div>`}</div>`).join("");
   box.querySelectorAll(".later-match").forEach((el) => el.addEventListener("click", () =>
     openMatch(view.year, view.id, el.dataset.id)));
   return box;
