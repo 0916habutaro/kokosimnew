@@ -124,6 +124,28 @@ class ThirdPlaceSeasonTests(unittest.TestCase):
         self.assertIn(third.winner, regional)
         self.assertNotIn(third.loser, regional)
 
+    def test_kinki_playoff_candidates_are_the_third_place_winners(self):
+        # 近畿の4府県（3位校の出場校決定戦。regional_qualification_playoffs.csv）：
+        # 候補は各府県の3位決定戦の勝者（乱数の3位ではない）
+        import csv
+
+        with (ROOT / "data" / "competitions" / "regional_feeder_rules.csv").open(encoding="utf-8-sig") as f:
+            rules = {r["feeder_rule_id"]: r for r in csv.DictReader(f)
+                     if r["qualification_mode"] == "playoff_candidate"}
+        with (ROOT / "data" / "competitions" / "regional_qualification_playoffs.csv").open(encoding="utf-8-sig") as f:
+            playoffs = {r["playoff_id"]: r for r in csv.DictReader(f)}
+        resolutions = {r.playoff_id: r for r in self.season.regional_playoff_resolutions}
+        self.assertTrue(playoffs)
+        for playoff_id, playoff in playoffs.items():
+            resolution = resolutions[playoff_id]
+            for rule_id, candidate in ((playoff["candidate_rule_id_a"], resolution.candidate_school_id_a),
+                                       (playoff["candidate_rule_id_b"], resolution.candidate_school_id_b)):
+                source = rules[rule_id]["source_competition_id"]
+                with self.subTest(playoff_id=playoff_id, source=source):
+                    self.assertIn(source, self.repo.third_place_competitions)
+                    third = self.third_place(self.season.competition_runs[source])
+                    self.assertEqual(third.winner, candidate)
+
     def test_competitions_without_a_third_place_match_keep_the_random_order(self):
         for cid, run in self.season.competition_runs.items():
             if cid in self.repo.third_place_competitions or run.outcome is None:
