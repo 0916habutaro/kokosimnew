@@ -565,6 +565,7 @@ class TournamentEngine:
                 0 if len(main_entrants) <= 1 else (len(main_entrants) - 1).bit_length(),
             ),
             seed_bye_count=policy_seed_bye_count(self.repo, annual.competition_id),
+            third_place=annual.competition_id in getattr(self.repo, "third_place_competitions", ()),
             separation=draw_separation(
                 self.repo,
                 self.repo.competition(annual.competition_id).get("competition_type", ""),

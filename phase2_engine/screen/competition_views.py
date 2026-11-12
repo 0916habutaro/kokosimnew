@@ -274,6 +274,22 @@ def bracket_layout(main: MainTournamentRuntimeState, scheduled) -> dict:
         "champion_id": main.champion_school_id if final else "",
         "later_rounds": later,
         "champion_after_draw": main.champion_school_id if not final else "",
+        "third_place": _third_place(main, scheduled_matches),
+    }
+
+
+def _third_place(main, scheduled_matches) -> dict | None:
+    """3位決定戦（組み合わせの線の外に出す）。準決勝が終わるまで学校は空。"""
+    match_id = getattr(main, "third_place_match_id", "")
+    if not match_id:
+        return None
+    match = main.matches[match_id]
+    return {
+        "round": match.round_no,
+        "round_name": match.round_name,
+        "drawn": bool(match.team1 and match.team2),
+        "wait": "準決勝のあと",
+        "matches": [_later_match(match, scheduled_matches.get(match_id))],
     }
 
 

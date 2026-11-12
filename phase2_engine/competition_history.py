@@ -38,6 +38,12 @@ def best8_record(season, cid, name=''):
         ids = ([main.champion_school_id], [main.runner_up_school_id],
                main.eliminated_by_round.get(main.total_rounds - 1, []) if main.total_rounds >= 2 else [],
                main.eliminated_by_round.get(main.total_rounds - 2, []) if main.total_rounds >= 3 else [])
+        third = main.matches.get(getattr(main, 'third_place_match_id', '')) if main.total_rounds >= 2 else None
+        places = {}
+        if third is not None and third.status == 'completed':
+            # 3位決定戦をした大会は、ベスト4を3位・4位の順に並べる（到達はベスト4のまま）
+            places = {third.winner: '3位', third.loser: '4位'}
+            ids = ids[:2] + ([third.winner, third.loser],) + ids[3:]
         seen = set()
         for finish, schools in zip(FINISHES, ids):
             for sid in schools:
@@ -48,8 +54,10 @@ def best8_record(season, cid, name=''):
                 days = [m.match_date for m in scheduled.matches.values()
                         if m.stage_code == 'MAIN' and m.status == 'completed'
                         and sid in (m.team1_id, m.team2_id) and m.match_date]
-                groups[finish].append({'school_id': sid,
-                                       'date': max(days, default=calendar.get('end_date') or start)})
+                entry = {'school_id': sid, 'date': max(days, default=calendar.get('end_date') or start)}
+                if sid in places and finish == 'ベスト4':
+                    entry['place'] = places[sid]
+                groups[finish].append(entry)
     elif complete:
         status = '記録なし'  # MAINの確定結果がないものを試合から推測しない
     return {'school_year': season.year, 'competition_id': cid,

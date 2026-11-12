@@ -12,6 +12,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+from .tournament_runtime import is_third_place
 from .historical_match_archive import HistoricalMatchArchive
 from .models import CompetitionRun
 
@@ -86,10 +87,17 @@ def _main_result(run: CompetitionRun) -> tuple[dict, list]:
                                set(entrants)):
         raise CareerOutcomeConflictError("invalid semifinal or quarterfinal school")
 
-    matches = [m for m in stage.matches if not m.is_bye]
+    # 3位決定戦は勝ち上がりの組み合わせの外（到達は変えず、3位・4位だけを決める）
+    third = [m for m in stage.matches if is_third_place(m)]
+    matches = [m for m in stage.matches if not m.is_bye and not is_third_place(m)]
     if (len(matches) != len(entrants) - 1
-            or len(matches) != outcome.match_count):
+            or len(matches) != outcome.match_count
+            or len(third) > 1):
         raise CareerOutcomeConflictError("MAIN match count inconsistent")
+    if third and (
+            set((third[0].team1, third[0].team2)) != set(outcome.semifinalist_school_ids)
+            or ranking[2:4] != [third[0].winner, third[0].loser]):
+        raise CareerOutcomeConflictError("third-place match disagrees with ranking")
     keys = [m.match_id for m in matches]
     if len(keys) != len(set(keys)):
         raise CareerOutcomeConflictError("duplicate MAIN match IDs")
@@ -120,7 +128,7 @@ def _main_result(run: CompetitionRun) -> tuple[dict, list]:
         "runner_up_school_id": outcome.runner_up_school_id,
         "main_entrant_school_ids": list(entrants),
         "main_match_count": len(matches),
-    }, matches
+    }, matches + third
 
 
 class CareerCompetitionOutcomes:

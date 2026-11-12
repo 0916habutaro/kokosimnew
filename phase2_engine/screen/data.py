@@ -71,6 +71,7 @@ from .school_views import (
     round_label,
     year_results,
 )
+from ..tournament_runtime import THIRD_PLACE_NAME
 
 
 CONFIG_PATH = Path("screen") / "screen_v1.json"
@@ -2706,7 +2707,7 @@ class GameScreenData:
                 ),
                 "match_id": row["match_id"],
                 "match_date": row["match_date"],
-                "round_name": (
+                "round_name": THIRD_PLACE_NAME if row.get("third_place") else (
                     original.get("round_name") or round_label(
                         row["round_no"], rounds.get(row["competition_id"], 0),
                     )
