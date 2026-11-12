@@ -51,6 +51,24 @@ class DataIntegrityTests(unittest.TestCase):
             with self.subTest(competition_id=row["competition_id"]):
                 self.assertIn(row["primary_source_id"], self.sources)
 
+    def test_third_place_playoffs_use_known_values_and_cited_sources(self):
+        # 3位決定戦の有無：あり・なしには出典があり、日付は決勝と同じ日なら日程の最終日
+        calendar = {row["competition_id"]: row["game_date_list"].split(";") for row in self.calendar}
+        for row in read(DATA / "competitions" / "main_tournament_engine_policies.csv"):
+            with self.subTest(competition_id=row["competition_id"]):
+                self.assertIn(row["third_place_match"], ("yes", "no", "unknown"))
+                ids = [i for i in row["third_place_source_ids"].split(";") if i]
+                if row["third_place_match"] != "unknown":
+                    self.assertTrue(ids)
+                for source_id in ids:
+                    self.assertIn(source_id, self.sources)
+                if row["third_place_match"] == "yes":
+                    self.assertIn(row["third_place_day"], ("final_day", "before_final", "unknown"))
+                    if row["third_place_day"] == "final_day":
+                        self.assertEqual(calendar[row["competition_id"]][-1], row["third_place_date_2026"])
+                else:
+                    self.assertEqual("", row["third_place_day"])
+
     def test_every_summer_qualifier_sends_its_winner_to_koshien(self):
         summer = {row["competition_id"] for row in self.competitions
                   if row["competition_type"] == "summer_local_qualifier"}
