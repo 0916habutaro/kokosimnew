@@ -137,6 +137,39 @@ class PlayerGrowthTests(unittest.TestCase):
         self.assertGreaterEqual(summer_of_third_year(round(2.4 * POTENTIAL_SCALE)), 142)
         self.assertLessEqual(summer_of_third_year(round(0.2 * POTENTIAL_SCALE)), 129)
 
+    def test_held_back_points_return_by_the_third_year_may_without_speeding_growth(self):
+        months = int(self.growth.config["entry_deferral"]["months"])
+        self.assertEqual(26, months)  # 3年の5月の分（6月1日）まで
+        values, held = _values(60), bytearray([0] * len(SCALARS))
+        held[CONTACT] = 30
+        rng = random.Random(1)
+        elapsed = 0
+        for grade in (1, 2, 3):
+            for month in MONTHS:
+                before = held[CONTACT]
+                # 潜在能力0（練習では伸びない）でも、抑えた点だけは戻る
+                self.growth.grow(values, position="SS", grade=grade, type_index=1, potential=0,
+                                 games=0, month=month, rng=rng, deferred=held)
+                elapsed += 1
+                if elapsed < months:
+                    self.assertGreater(before, held[CONTACT])
+                    self.assertGreater(held[CONTACT], 0)
+        self.assertEqual(0, held[CONTACT])
+        self.assertEqual(90, values[CONTACT])
+
+        # 抑えた点のある選手は、同じ合計の値の選手と同じ速さで伸びる（速く伸びない）
+        def gain(level, back):
+            total = 0
+            for seed in range(200):
+                values, held = _values(level), bytearray([0] * len(SCALARS))
+                held[CONTACT] = back
+                self.growth.grow(values, position="SS", grade=2, type_index=1,
+                                 potential=POTENTIAL_SCALE, games=0, month=8,
+                                 rng=random.Random(seed), deferred=held)
+                total += values[CONTACT] - level - (back - held[CONTACT])
+            return total / 200
+        self.assertAlmostEqual(gain(85, 0), gain(70, 15), delta=0.15)
+
     def test_bootstrap_matches_monthly_growth(self):
         """新規開始時の3年生は、1年の4月から2年間の成長を進めたものと同じ。"""
         start = _values(50, pitcher=True)

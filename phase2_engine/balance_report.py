@@ -11,7 +11,10 @@
 - 先発の平均球数・完投の割合、盗塁・併殺の1試合あたりの数（両チームの合計）
 - 個人成績の上位（打率・本塁打・防御率。規定は ``config/stats/player_rankings_v1.json``。
   少ない試合の選手で埋まらないよう、チームの試合数が ``--min-team-games`` 以上の選手だけ）
-- 3年の投手の球速の分布、能力ごとのSの人数（7月1日の名簿。7月1日がなければ最後の日）
+- 3年の投手の球速の分布、能力ごとのSの人数（7月1日の名簿。7月1日がなければ最後の日）。
+  学年ごとに、主な能力（野手はミート・長打・選球・走力・守備・肩、投手は制球・スタミナ・球威・奪三振）の
+  A以上（80以上）を1つ以上・2つ以上持つ人数、3年のSの人数、投手の球速 145・150km/h以上の人数と最速
+- 夏の甲子園のベンチ入りの学年ごとの人数（8月31日。大会ごとに固定したベンチ入りから）
 - 作戦（犠打・スクイズ・エンドラン）の1試合あたりの数と犠打の成功率。試合の要点の作戦の記録
   （``game_core/highlights.py`` の ``T``）と打者の犠打から数え、監督の小技・機動力の傾向
   （低い〜40・中・61〜高い）ごとの1チーム1試合あたりの数も出す
@@ -72,6 +75,8 @@ COMPOSURE_BANDS = ((0, "〜44"), (45, "45〜59"), (60, "60〜"))
 FIELDING_BANDS = ((0, "〜44"), (45, "45〜54"), (55, "55〜"))
 FIELDING_POSITIONS = ("P", "1B", "2B", "3B", "SS", "LF", "CF", "RF")
 HITS = ("single", "double", "triple", "home_run")
+MAIN_BATTER = ("contact", "power", "plate_discipline", "speed", "fielding", "arm_strength")
+MAIN_PITCHER = ("control", "stamina", "stuff", "strikeout")
 
 
 def tendency_band(value) -> str | None:
@@ -117,6 +122,7 @@ class BalanceTally:
         self.pitchers = defaultdict(lambda: defaultdict(Counter))
         self.team_games = defaultdict(Counter)   # 年度 → 学校 → 試合数
         self.rosters = {}                        # 年度 → 名簿の集計
+        self.koshien_bench = {}                  # 年度 → 夏の甲子園のベンチ入りの学年ごとの人数
         self.sizes = {}                          # 年度 → 部員の人数の集計（4月1日）
         self.top_reputation = {}                 # 年度 → 評判の上位50校（4月1日）
         self.unions = {}                         # 年度 → 大会の種類 → 連合チームの集計
@@ -320,13 +326,27 @@ class BalanceTally:
         velocity = Counter()
         speeds = []
         s_count = Counter()
+        s_third = Counter()
+        a_one, a_two, fast145, fast150, fastest = Counter(), Counter(), Counter(), Counter(), {}
         total = 0
         for grade, pitcher, values in players:
             total += 1
             for name, value in values.items():
                 if name != "velocity_kmh" and value and value >= 90:
                     s_count[name] += 1
+            main = [values.get(name) or 0 for name in (MAIN_PITCHER if pitcher else MAIN_BATTER)]
+            high = sum(1 for value in main if value >= 80)
+            a_one[grade] += high >= 1
+            a_two[grade] += high >= 2
+            if grade == 3:
+                for name in (MAIN_PITCHER if pitcher else MAIN_BATTER):
+                    if (values.get(name) or 0) >= 90:
+                        s_third[name] += 1
             speed = values.get("velocity_kmh")
+            if pitcher and speed:
+                fast145[grade] += speed >= 145
+                fast150[grade] += speed >= 150
+                fastest[grade] = max(fastest.get(grade, 0), speed)
             if grade == 3 and pitcher and speed:
                 speeds.append(speed)
                 velocity[next(label for low, label in reversed(VELOCITY_BANDS) if speed >= low)] += 1
@@ -337,7 +357,29 @@ class BalanceTally:
             "velocity_max": max(speeds) if speeds else None,
             "velocity_bands": {label: velocity[label] for _, label in VELOCITY_BANDS},
             "s_count": dict(sorted(s_count.items())),
+            "by_grade": {
+                str(g): {"a_one": a_one[g], "a_two": a_two[g], "kmh145": fast145[g],
+                         "kmh150": fast150[g], "fastest": fastest.get(g)}
+                for g in (1, 2, 3)
+            },
+            "s_third_main": dict(sorted(s_third.items())),
         }
+
+    def add_koshien_bench(self, year: int, season, rosters) -> None:
+        """夏の甲子園のベンチ入り（大会ごとに固定した選手ID。全員が入る学校は名簿の全員）の学年。"""
+        grades = Counter()
+        for slot, ids in (getattr(season, "bench_members", None) or {}).items():
+            cid, school_id = slot.split(":", 1)
+            if self.kind_of(cid) != KOSHIEN:
+                continue
+            try:
+                players = rosters.roster(year, school_id).players
+            except (KeyError, ValueError):
+                continue
+            keep = set(ids)
+            grades.update(p.academic_year for p in players if not keep or p.player_id in keep)
+        if grades:
+            self.koshien_bench[year] = {str(g): grades[g] for g in (1, 2, 3)}
 
     def add_unions(self, year: int, season, kind_of) -> None:
         """その年度の連合チーム（大会の種類ごとに合計）。"""
@@ -599,6 +641,8 @@ class BalanceTally:
             row["leaders"] = self._leaders(year)
             if year in self.rosters:
                 row["rosters"] = self.rosters[year]
+            if year in self.koshien_bench:
+                row["koshien_bench"] = self.koshien_bench[year]
             if year in self.sizes:
                 row["sizes"] = self.sizes[year]
             if year in self.top_reputation and self._top_turnover(year):
@@ -1034,6 +1078,7 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
                         tally.add_seeds(year, state.seasons[year], segment)
                 if today.year in state.seasons:
                     tally.add_regionals(today.year, state.seasons[today.year], "spring")
+                    tally.add_koshien_bench(today.year, state.seasons[today.year], state.rosters)
             if (today.month, today.day) == (12, 1) and today.year in state.seasons:
                 season = state.seasons[today.year]
                 tally.add_selection(today.year, season, tally.add_seeds(today.year, season, "autumn"))
@@ -1251,6 +1296,20 @@ def format_report(seed_label: str, report: dict) -> str:
                              f"{k}:{v}" for k, v in ro["velocity_bands"].items()))
             lines.append(f"  Sの人数（全{ro['players']}人）: " + " ".join(
                 f"{k}:{v}" for k, v in ro["s_count"].items()))
+            grades = ro.get("by_grade")
+            if grades:
+                lines.append("  主な能力のA以上 1つ以上／2つ以上: " + " / ".join(
+                    f"{g}年 {grades[g]['a_one']}／{grades[g]['a_two']}人" for g in ("1", "2", "3")))
+                lines.append("  投手の球速 145以上／150以上（最速）: " + " / ".join(
+                    f"{g}年 {grades[g]['kmh145']}／{grades[g]['kmh150']}人（{grades[g]['fastest']}）"
+                    for g in ("1", "2", "3")))
+                lines.append("  3年のS（主な能力）: " + " ".join(
+                    f"{k}:{v}" for k, v in ro["s_third_main"].items()))
+        bench = row.get("koshien_bench")
+        if bench:
+            total = sum(bench.values())
+            lines.append("  夏の甲子園のベンチ入り: " + " / ".join(
+                f"{g}年 {bench[g]}人（{bench[g] / total:.1%}）" for g in ("1", "2", "3")))
     return "\n".join(lines)
 
 

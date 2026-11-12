@@ -181,6 +181,26 @@ class RosterBookTests(unittest.TestCase):
         loaded = self._loaded(book)
         self.assertEqual(kept, loaded.roster(2027, "SCH-A").to_dict())
 
+    def test_held_back_points_are_saved_with_the_player(self):
+        from game_core.roster_book import PlayerState, _pack_states, _unpack_states
+
+        from game_core.roster_book import SCALARS
+
+        held = bytearray(len(SCALARS))
+        held[3], held[20] = 7, 2
+        states = {
+            (2026, 1): PlayerState(bytearray([60, 61]), 1, 80, trait=2, deferred=held),
+            (2026, 2): PlayerState(bytearray([50, 51]), 0, 80, trait=1),
+            # 全部戻した選手は抑えた点を持たない
+            (2026, 3): PlayerState(bytearray([40, 41]), 0, 80, deferred=bytearray(len(SCALARS))),
+        }
+        back = _unpack_states(2026, _pack_states(2026, states))
+        self.assertEqual(held, back[(2026, 1)].deferred)
+        self.assertEqual((2, 1), (back[(2026, 1)].trait, back[(2026, 2)].trait))
+        self.assertEqual(bytearray(), back[(2026, 2)].deferred)
+        self.assertFalse(any(back[(2026, 3)].deferred))
+        self.assertEqual(bytearray([50, 51]), back[(2026, 2)].values)
+
     def test_same_seed_gives_the_same_book(self):
         other = _book()
         for school_id in TEAMS:
