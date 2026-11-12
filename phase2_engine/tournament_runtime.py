@@ -915,8 +915,10 @@ class MainTournamentRuntimeState:
                 for key, value
                 in self.eliminated_by_round.items()
             },
+            # 勝ち上がりの試合だけ（3位決定戦は数えない：試合数＝出場校−1）
             match_count=sum(
                 match.status == MATCH_COMPLETED
+                and match.match_id != self.third_place_match_id
                 for match in self.matches.values()
             ),
             bye_count=sum(

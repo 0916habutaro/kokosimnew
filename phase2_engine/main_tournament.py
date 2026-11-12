@@ -614,7 +614,9 @@ def run_main_single_elimination(
         t1, t2 = semifinal
         match_id = f"{stage_id}-MAIN-3RD"
         winner, loser, resolution = resolve(match_id, t1, t2, total_rounds, 2)
-        metadata = {"round_name": "3位決定戦", "bracket_size": bracket_size, "third_place": True,
+        # 試合ごとに進めるとき（tournament_runtime）と同じ中身
+        metadata = {"third_place": True, "round_name": "3位決定戦", "bracket_size": bracket_size,
+                    "match_no_in_round": 2, "next_match_id": "", "next_match_side": "",
                     "winner_source": (
                         "annual_override" if match_id in winner_overrides
                         else (resolution.score_source if resolution is not None and resolution.score_source
@@ -673,7 +675,7 @@ def run_main_single_elimination(
         quarterfinalist_school_ids=quarterfinalists,
         final_ranking_school_ids=final_ranking,
         eliminated_by_round={str(k): list(v) for k, v in eliminated_by_round.items()},
-        match_count=sum(1 for m in matches if not m.is_bye),
+        match_count=sum(1 for m in matches if not m.is_bye and m is not third),
         bye_count=sum(1 for m in matches if m.is_bye),
         bracket_size=bracket_size,
     )

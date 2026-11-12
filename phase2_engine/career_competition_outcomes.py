@@ -91,7 +91,7 @@ def _main_result(run: CompetitionRun) -> tuple[dict, list]:
     third = [m for m in stage.matches if is_third_place(m)]
     matches = [m for m in stage.matches if not m.is_bye and not is_third_place(m)]
     if (len(matches) != len(entrants) - 1
-            or len(matches) + len(third) != outcome.match_count
+            or len(matches) != outcome.match_count
             or len(third) > 1):
         raise CareerOutcomeConflictError("MAIN match count inconsistent")
     if third and (
