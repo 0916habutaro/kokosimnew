@@ -21,12 +21,13 @@ def reputation(seed=7):
     return book
 
 
-def season(completed=True, day='2027-03-31'):
+def season(completed=True, day='2027-03-31', champion='SCH-A', runner_up='SCH-C', best4=('SCH-B',),
+           entrants=('SCH-A', 'SCH-B', 'SCH-C')):
     outcome = SimpleNamespace(
-        champion_school_id='SCH-A', runner_up_school_id='SCH-C',
-        semifinalist_school_ids=['SCH-B'], quarterfinalist_school_ids=[],
+        champion_school_id=champion, runner_up_school_id=runner_up,
+        semifinalist_school_ids=list(best4), quarterfinalist_school_ids=[],
     )
-    run = SimpleNamespace(entrant_school_ids=['SCH-A', 'SCH-B', 'SCH-C'], outcome=outcome)
+    run = SimpleNamespace(entrant_school_ids=list(entrants), outcome=outcome)
     tournament = SimpleNamespace(
         is_complete=completed, to_competition_run=lambda: run,
         matches={'final': SimpleNamespace(completed_on=day)},
@@ -37,7 +38,80 @@ def season(completed=True, day='2027-03-31'):
     )
 
 
+def spread_book(seed=7, schools=('SCH-1', 'SCH-2', 'SCH-3', 'SCH-4', 'SCH-5', 'SCH-6')):
+    """評判がばらばらの学校（SCH-1 がいちばん下）。"""
+    book = AnnualReputation(ROOT, seed)
+    book.values = {sid: -1.5 + 0.6 * i for i, sid in enumerate(schools)}
+    book.intake_by_year = {2026: dict(book.values)}
+    return book
+
+
 class AnnualReputationTests(unittest.TestCase):
+    def test_schools_without_results_keep_their_order_whatever_the_seed(self):
+        # 結果のない学校は同点。同点は前の評判の順なので、乱数の種によらず順位が動かない
+        books = [spread_book(seed) for seed in (7, 19, 20261022)]
+        for book in books:
+            start = dict(book.values)
+            for year in range(2027, 2032):
+                book.update(date(year, 4, 1))
+                order = sorted(book.values, key=book.values.get)
+                self.assertEqual(sorted(start, key=start.get), order)
+        self.assertEqual(books[0].values, books[1].values)
+        self.assertEqual(books[0].values, books[2].values)
+
+    def test_strong_school_without_results_is_not_pulled_to_a_random_place(self):
+        # いちばん上の学校（SCH-6）は1年結果がなくても、結果のない学校の中のいちばん上にいる。
+        # 勝ち上がった学校（SCH-1）だけがその上に来る
+        for seed in (7, 19):
+            book = spread_book(seed)
+            book.collect({2026: season(champion='SCH-1', runner_up='', best4=(),
+                                       entrants=('SCH-1', 'SCH-6'))})
+            book.update(date(2027, 4, 1))
+            others = sorted((sid for sid in book.values if sid != 'SCH-1'), key=book.values.get)
+            self.assertEqual(['SCH-2', 'SCH-3', 'SCH-4', 'SCH-5', 'SCH-6'], others)
+            self.assertGreater(book.values['SCH-1'], -1.5)
+
+    def test_results_of_recent_years_count_with_weights(self):
+        weights = AnnualReputation(ROOT, 7).config['recent_year_weights']
+        self.assertEqual(3, len(weights))
+        self.assertTrue(weights[0] > weights[1] > weights[2] > 0)
+
+        def run(recent):
+            book = spread_book()
+            book.config = dict(book.config, recent_year_weights=recent)
+            # SCH-1 は2026年度だけ優勝。その後の2年は結果なし
+            book.collect({2026: season(champion='SCH-1', runner_up='', best4=(), entrants=('SCH-1',))})
+            values = []
+            for year in (2027, 2028, 2029, 2030):
+                book.update(date(year, 4, 1))
+                values.append(book.values['SCH-1'])
+            return book, values
+
+        multi, with_history = run(weights)
+        _, one_year = run([1.0])
+        # 1年目は同じ。2・3年目は前の年の優勝が重み付きで効き、評判が高いまま
+        self.assertAlmostEqual(with_history[0], one_year[0])
+        self.assertGreater(with_history[1], one_year[1])
+        self.assertGreater(with_history[2], one_year[2])
+        # 重みの年数より前の結果は残さない（保存も小さい）
+        self.assertEqual({2028, 2029, 2030}, set(multi.yearly_points))
+        self.assertEqual({}, multi.yearly_points[2030])
+
+
+    def test_equal_points_summed_differently_still_tie_on_previous_reputation(self):
+        # 0.6＋0.6×0.5 と 0.75＋0.6×0.25 はどちらも0.9点だが、小数では 0.8999… と 0.9 になる。
+        # 同点として前の評判の順（SCH-2 の上に SCH-5）に並ぶ
+        book = spread_book()
+        # 順位がそのまま値に出るよう、前の値はほとんど残さない
+        book.config = dict(book.config, recent_year_weights=[1.0, 0.6], carry=0.01, max_annual_change_z=100)
+        book.updated_year = 2027
+        book.yearly_points = {2027: {'SCH-5': 0.5, 'SCH-2': 0.25}}
+        book.pending = {(2027, 'CUP'): ('2028-03-31', {'SCH-5': 0.6, 'SCH-2': 0.75})}
+        self.assertNotEqual(0.6 + 0.6 * 0.5, 0.75 + 0.6 * 0.25)
+        book.update(date(2028, 4, 1))
+        top = sorted(book.values, key=book.values.get)[-2:]
+        self.assertEqual(['SCH-2', 'SCH-5'], top)
+
     def test_initial_values_and_ranks_are_exactly_the_existing_values(self):
         initial = reputation_for(str(ROOT))
         saved = AnnualReputation(ROOT, 7)

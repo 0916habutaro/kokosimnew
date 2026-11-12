@@ -7,9 +7,12 @@ import math
 from pathlib import Path
 from statistics import NormalDist
 
-from phase2_engine.randomness import rng_for
 from .ability_config import load_config
 from .school_reputation import reputation_for
+
+
+# 目標の点を比べるときの桁数。点は重み×到達点の和なので、これより細かい差は計算の誤差
+POINT_DIGITS = 9
 
 
 def _shares(scores):
@@ -32,6 +35,9 @@ class AnnualReputation:
         for weights in ('competition_weights', 'finish_points'):
             if any(not 0 <= v < math.inf for v in self.config[weights].values()):
                 raise ValueError(f'annual reputation {weights} must be nonnegative and finite')
+        recent = self.config['recent_year_weights']
+        if not recent or any(not 0 <= v < math.inf for v in recent) or not recent[0] > 0:
+            raise ValueError('annual reputation recent_year_weights must be nonnegative and finite')
         self.rank_labels = initial.config['rank_labels']
         self.mean, self.stddev = initial._mean, initial._stddev
         self.edits = {}
@@ -43,6 +49,8 @@ class AnnualReputation:
         self.counted: set[tuple[int, str]] = set()
         # 完了日、学校ごとの点。年度が閉じて大会の状態を手放しても残る。
         self.pending: dict[tuple[int, str], tuple[str, dict[str, float]]] = {}
+        # 更新した年 → その1年の学校ごとの点（点のある学校だけ。直近の年数分だけ残す）
+        self.yearly_points: dict[int, dict[str, float]] = {}
 
     def program_z(self, school_id: str, entry_year: int) -> float | None:
         year = max(self.first_year, entry_year)
@@ -112,19 +120,29 @@ class AnnualReputation:
             return False
         if day.year != self.updated_year + 1:
             raise ValueError('reputation must be updated in consecutive school years')
-        totals = {sid: 0.0 for sid in self.values}
+        totals: dict[str, float] = defaultdict(float)
         for key, (completed, points) in list(self.pending.items()):
             if completed >= day.isoformat():
                 continue
             for sid, value in points.items():
-                if sid in totals:
+                if sid in self.values and value:
                     totals[sid] += value
             self.counted.add(key)
             del self.pending[key]
-        # 同点内の順は能力と独立した固定乱数。名門への同点優遇を残さない。
-        order = sorted(totals, key=lambda sid: (
-            totals[sid], rng_for(self.seed, f'annual_reputation:tie:{sid}').random(), sid,
-        ))
+        recent = [float(w) for w in self.config['recent_year_weights']]
+        self.yearly_points[day.year] = dict(totals)
+        for year in [y for y in self.yearly_points if y <= day.year - len(recent)]:
+            del self.yearly_points[year]
+        # 目標の点：直近の年の点を重みを付けて合わせる（今年 recent[0]、前の年 recent[1] …）
+        target_points = defaultdict(float)
+        for back, weight in enumerate(recent):
+            for sid, value in self.yearly_points.get(day.year - back, {}).items():
+                target_points[sid] += weight * value
+        # 同点（点のない学校など）は前の評判の順。結果のない学校は順位がほとんど動かない。
+        # 足し方による小数の誤差（0.6+0.3 と 0.75+0.15 など）で同点が崩れないよう丸めて比べる
+        before = dict(self.values)
+        rounded = {sid: round(value, POINT_DIGITS) for sid, value in target_points.items()}
+        order = sorted(before, key=lambda sid: (rounded.get(sid, 0.0), before[sid], sid))
         carry = float(self.config['carry'])
         limit = float(self.config['max_annual_change_z'])
         normal = NormalDist(self.mean, self.stddev)

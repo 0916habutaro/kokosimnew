@@ -1,8 +1,14 @@
 {
   "config_id": "annual_reputation_v1",
-  "revision": 1,
+  "revision": 2,
   "carry": 0.8,
   "max_annual_change_z": 0.35,
+  "recent_year_weights": [1.0, 0.6, 0.3],
+  "notes_ja": {
+    "carry": "前の評判を残す割合。新しい評判 = 前 + (目標 - 前) × (1 - carry)",
+    "max_annual_change_z": "1年の評判の変化の上限（z）",
+    "recent_year_weights": "目標の点に使う直近の年の重み（その年、1年前、2年前…）。同点は前の評判の順"
+  },
   "competition_weights": {
     "national_invitational": 4.0,
     "national_championship": 5.0,

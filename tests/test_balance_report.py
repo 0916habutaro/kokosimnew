@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import unittest
 
-from phase2_engine.balance_report import BalanceTally, average
+from phase2_engine.balance_report import BalanceTally, average, format_report
 
 RANKINGS = {
     "batter_qualification": {"minimum_team_games": 1, "plate_appearances_per_team_game": 2.0},
@@ -100,6 +100,19 @@ class BalanceTallyTests(unittest.TestCase):
         tally.add_match("LOC1", match(2026, "LOC1", "FAKE-A", "FAKE-C", 2, 1, 9))
         leaders = tally.summary()[2026]["leaders"]
         self.assertEqual({"FAKE-A"}, {r[2] for rows in leaders.values() for r in rows})
+
+    def test_top_reputation_turnover(self):
+        tally = self.tally()
+        for year in range(2026, 2032):
+            # 毎年1校ずつ入れ替わる（架空の学校）
+            tally.add_top_reputation(year, {f"X{n}": -n for n in range(year - 2026, 60)}, count=3)
+        out = tally.summary()
+        self.assertNotIn("reputation_top50", out[2026])
+        self.assertEqual({"vs_previous": 1, "vs_start": 1}, out[2027]["reputation_top50"])
+        self.assertEqual({"vs_previous": 1, "vs_5_years": 3, "vs_start": 3},
+                         out[2031]["reputation_top50"])
+        self.assertIn("評判の上位50校の入れ替わり: 前の年から 1校 / 5年前から 3校",
+                      format_report("x", out))
 
     def test_average_keeps_shared_numbers_and_drops_leaders(self):
         a, b = self.tally(), self.tally()
