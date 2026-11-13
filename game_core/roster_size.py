@@ -196,6 +196,32 @@ class RosterSizeModel:
             return 0.0, interpolate(rule["union_ceiling"], score), interpolate(rule["union_stability"], score)
         return 0.0, math.inf, 0.0
 
+    # ---- 野球部員の全国的な減少 ----
+
+    def population_factor(self, year: int) -> float:
+        """入学年度の全国の係数（2026年＝1.0）。表の外は端の年の値のまま。"""
+        rule = self.config.get("population")
+        if not rule:
+            return 1.0
+        factor = 1.0
+        for key in ("by_year", "participation_by_year"):
+            table = {int(y): float(v) for y, v in (rule.get(key) or {}).items()}
+            if table:
+                factor *= table[min(max(year, min(table)), max(table))]
+        return factor
+
+    def population_exponent(self, ownership: str, reputation_z: float, expected: float) -> float:
+        """係数の効き方：部員の少ない学校ほど大きく、推薦・寮で集める強豪私立はほとんど0。"""
+        rule = self.config.get("population")
+        if not rule:
+            return 0.0
+        return (interpolate(rule["by_expected"], expected)
+                * self._by_share(rule["by_share"], ownership, self.share(reputation_z)))
+
+    def apply_population(self, mean: float, year: int, ownership: str, reputation_z: float) -> float:
+        return mean * self.population_factor(year) ** self.population_exponent(
+            ownership, reputation_z, mean)
+
     # ---- 新入部員の人数 ----
 
     def expected_freshmen(
@@ -248,6 +274,8 @@ class RosterSizeModel:
         # 部の規模（夏の出方の実績）：期待人数の下限と、ばらつきを小さくする割合
         floor, ceiling, steady = self.program_size(school_id)
         mean = min(max(mean, floor), ceiling)
+        # 全国の部員の減少（部の規模の下限・上限のあと。下限も年とともに下がる）
+        mean = self.apply_population(mean, year, context.ownership, reputation_z)
         rng = rng_for(seed, self.namespaces["count"].format(year=year, school_id=school_id))
         drawn = self.draw_freshmen(
             rng, mean, stability=max(self.stability(context.ownership, reputation_z), steady),

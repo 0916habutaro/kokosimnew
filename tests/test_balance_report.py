@@ -137,8 +137,10 @@ class BalanceTallyTests(unittest.TestCase):
         tally.summer_actual = ({"FAKE-A", "FAKE-B", "FAKE-C", "FAKE-D"}, {"FAKE-E", "FAKE-F"})
 
         def season(*teams):
+            run = SimpleNamespace(entrant_school_ids=["FAKE-A"] + [f"FAKE-S{n}" for n in range(9)])
             return SimpleNamespace(union_plans={"LOC1": SimpleNamespace(
-                teams=[SimpleNamespace(schools=team) for team in teams], absent=())})
+                teams=[SimpleNamespace(schools=team) for team in teams], absent=())},
+                competitions={"LOC1": SimpleNamespace(to_competition_run=lambda: run)})
 
         tally.add_unions(2026, season(("FAKE-A", "FAKE-E"), ("FAKE-X", "FAKE-Y")), tally.kind_of)
         tally.add_unions(2027, season(("FAKE-A", "FAKE-Z")), tally.kind_of)
@@ -150,6 +152,9 @@ class BalanceTallyTests(unittest.TestCase):
         self.assertEqual((1, 4), (out[2027]["summer_union_history"]["continued"],
                                   out[2027]["summer_union_history"]["previous"]))
         self.assertIn("夏の連合：5年続けて単独だった学校が連合 1／4校（25.0%）", format_report("x", out))
+        # 夏の連合チームの数と、出場チーム（連合は1チーム）のうち連合の割合
+        self.assertEqual(10, out[2026]["unions"]["summer_local_qualifier"]["entrants"])
+        self.assertIn("夏の地方大会の連合チーム: 2チーム／出場10チーム（20.0%）", format_report("x", out))
 
     def test_leaders_skip_players_whose_team_played_too_few_games(self):
         tally = BalanceTally(lambda cid: KINDS[cid[:3]], {}, RANKINGS, min_team_games=2)

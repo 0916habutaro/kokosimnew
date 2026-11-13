@@ -406,6 +406,17 @@ class BalanceTally:
             if kind_of(cid) == LOCAL:
                 self.summer_unions.setdefault(year, set()).update(
                     school for team in plan.teams for school in team.schools)
+        # 夏の地方大会に出たチームの数（連合は1チーム）。連合の割合の分母
+        entrants = 0
+        for cid, scheduled in (getattr(season, "competitions", None) or {}).items():
+            if kind_of(cid) != LOCAL:
+                continue
+            try:
+                entrants += len(scheduled.to_competition_run().entrant_school_ids)
+            except (AttributeError, ValueError):
+                continue
+        if entrants and LOCAL in out:
+            out[LOCAL]["entrants"] = entrants
         self.unions[year] = {kind: dict(row) for kind, row in sorted(out.items())}
 
     def _summer_union_history(self, year: int) -> dict | None:
@@ -1295,6 +1306,10 @@ def format_report(seed_label: str, report: dict) -> str:
             lines.append("  連合チーム（チーム／構成校／出ない学校）: " + " ".join(
                 f"{k}:{v.get('teams', 0)}／{v.get('schools', 0)}／{v.get('absent', 0)}"
                 for k, v in un.items()))
+        summer = (un or {}).get(LOCAL) or {}
+        if summer.get("entrants"):
+            lines.append(f"  夏の地方大会の連合チーム: {summer.get('teams', 0)}チーム／出場{summer['entrants']}チーム"
+                         f"（{summer.get('teams', 0) / summer['entrants']:.1%}）")
         sh = row.get("summer_union_history")
         if sh:
             line = (f"  夏の連合：5年続けて単独だった学校が連合 {sh['five_single']}／{sh['five_single_total']}校"

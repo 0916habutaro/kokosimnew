@@ -122,9 +122,10 @@ class ProgramSizeTests(unittest.TestCase):
     def test_five_years_single_school_keeps_the_floor_every_year(self):
         self.assertGreater(self.floor, 0)
         for year in range(2026, 2046):
-            # 年がたって集まりやすさが下がり続けても、期待人数は下限を下回らない
-            self.assertGreaterEqual(self.plan("FAKE-SINGLE5", year, appeal=-3.0 - 0.1 * (year - 2026)).expected,
-                                    self.floor)
+            # 年がたって集まりやすさが下がり続けても、期待人数は下限（全国の部員の減少を掛けたもの）を下回らない
+            floor = self.model.apply_population(self.floor, year, "prefectural", -3.0)
+            self.assertGreaterEqual(
+                self.plan("FAKE-SINGLE5", year, appeal=-3.0 - 0.1 * (year - 2026)).expected, floor - 1e-9)
 
     def test_union_school_and_unknown_school_have_no_floor(self):
         for school_id in ("FAKE-UNION", "FAKE-NO-HISTORY"):
@@ -134,6 +135,35 @@ class ProgramSizeTests(unittest.TestCase):
         # 2025年に連合だった学校は、集まりやすい年でも上限までにとどめる
         ceiling = self.model.program_size("FAKE-UNION")[1]
         self.assertLessEqual(self.plan("FAKE-UNION", 2026, appeal=3.0).expected, ceiling)
+
+
+class PopulationTests(unittest.TestCase):
+    """野球部員の全国的な減少（population）。架空の表で確かめる。"""
+
+    def setUp(self):
+        config = deepcopy(roster_size_model().config)
+        config["population"].update(
+            by_year={"2026": 1.0, "2027": 0.9, "2030": 0.6},
+            participation_by_year={"2026": 1.0, "2027": 0.9},
+        )
+        self.model = RosterSizeModel(config)
+
+    def test_table_years_are_used_and_later_years_stop_at_the_last_value(self):
+        self.assertEqual(1.0, self.model.population_factor(2026))
+        self.assertAlmostEqual(0.81, self.model.population_factor(2027))
+        self.assertAlmostEqual(0.54, self.model.population_factor(2030))
+        # 表の最後の年より先は最後の値のまま。最初の年より前は最初の値
+        self.assertAlmostEqual(0.54, self.model.population_factor(2060))
+        self.assertEqual(1.0, self.model.population_factor(2020))
+
+    def test_strong_private_schools_hardly_change_and_small_schools_change_most(self):
+        strong = self.model.apply_population(30.0, 2030, "private", 2.8) / 30.0
+        small = self.model.apply_population(2.0, 2030, "prefectural", -1.5) / 2.0
+        middle = self.model.apply_population(10.0, 2030, "prefectural", 0.0) / 10.0
+        self.assertGreater(strong, 0.9)
+        self.assertLess(small, middle)
+        self.assertLess(small, 0.54)
+        self.assertEqual(10.0, self.model.apply_population(10.0, 2026, "prefectural", 0.0))
 
 
 class MinimumAndPositionTests(unittest.TestCase):
