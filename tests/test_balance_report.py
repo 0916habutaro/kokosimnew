@@ -129,6 +129,28 @@ class BalanceTallyTests(unittest.TestCase):
         self.assertEqual({"1": 2, "2": 1, "3": 1}, tally.summary()[2026]["koshien_bench"])
         self.assertIn("夏の甲子園のベンチ入り: 1年 2人（50.0%）", format_report("x", tally.summary()))
 
+    def test_summer_unions_against_five_single_years_and_last_year(self):
+        from types import SimpleNamespace
+
+        tally = self.tally()
+        # 実際の記録：5年続けて単独 FAKE-A〜D、2025年に連合 FAKE-E・F
+        tally.summer_actual = ({"FAKE-A", "FAKE-B", "FAKE-C", "FAKE-D"}, {"FAKE-E", "FAKE-F"})
+
+        def season(*teams):
+            return SimpleNamespace(union_plans={"LOC1": SimpleNamespace(
+                teams=[SimpleNamespace(schools=team) for team in teams], absent=())})
+
+        tally.add_unions(2026, season(("FAKE-A", "FAKE-E"), ("FAKE-X", "FAKE-Y")), tally.kind_of)
+        tally.add_unions(2027, season(("FAKE-A", "FAKE-Z")), tally.kind_of)
+        out = tally.summary()
+        self.assertEqual({"five_single": 1, "five_single_total": 4, "five_single_share": 0.25,
+                          "previous": 2, "continued": 1, "continued_share": 0.5},
+                         out[2026]["summer_union_history"])
+        # 2027年は2026年のゲームの連合（4校）から続けて連合になった割合
+        self.assertEqual((1, 4), (out[2027]["summer_union_history"]["continued"],
+                                  out[2027]["summer_union_history"]["previous"]))
+        self.assertIn("夏の連合：5年続けて単独だった学校が連合 1／4校（25.0%）", format_report("x", out))
+
     def test_leaders_skip_players_whose_team_played_too_few_games(self):
         tally = BalanceTally(lambda cid: KINDS[cid[:3]], {}, RANKINGS, min_team_games=2)
         tally.add_match("LOC1", match(2026, "LOC1", "FAKE-A", "FAKE-B", 2, 1, 9))

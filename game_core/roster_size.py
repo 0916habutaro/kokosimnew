@@ -180,6 +180,22 @@ class RosterSizeModel:
         return _prefecture_log(seed, prefecture_code, float(self.config["prefecture"]["stddev"]),
                                self.namespaces["prefecture"])
 
+    # ---- 部の規模（2021〜2025年の夏の出方） ----
+
+    def program_size(self, school_id: str) -> tuple[float, float, float]:
+        """（新入部員の期待人数の下限, 上限, ばらつきを小さくする割合）。決まりのない学校は
+        (0, 無限大, 0)。"""
+        rule = self.config.get("program_size")
+        if not rule:
+            return 0.0, math.inf, 0.0
+        kind, score = _program_scores(tuple(sorted(rule["year_weights"].items()))).get(school_id, ("", 0.0))
+        if kind == "single":
+            return interpolate(rule["floor"], score), math.inf, interpolate(rule["stability"], score)
+        if kind == "union":
+            # 2025年に連合だった学校：下限は置かず、連合の年が多いほど小さい期待人数にとどめる
+            return 0.0, interpolate(rule["union_ceiling"], score), interpolate(rule["union_stability"], score)
+        return 0.0, math.inf, 0.0
+
     # ---- 新入部員の人数 ----
 
     def expected_freshmen(
@@ -229,9 +245,13 @@ class RosterSizeModel:
             appeal=appeal, coach_z=context.coach_z(year),
             prefecture_log=self.prefecture_log(seed, context.prefecture_code),
         )
+        # 部の規模（夏の出方の実績）：期待人数の下限と、ばらつきを小さくする割合
+        floor, ceiling, steady = self.program_size(school_id)
+        mean = min(max(mean, floor), ceiling)
         rng = rng_for(seed, self.namespaces["count"].format(year=year, school_id=school_id))
-        drawn = self.draw_freshmen(rng, mean, stability=self.stability(context.ownership, reputation_z),
-                                   maximum=self.max_freshmen(context.ownership))
+        drawn = self.draw_freshmen(
+            rng, mean, stability=max(self.stability(context.ownership, reputation_z), steady),
+            maximum=self.max_freshmen(context.ownership))
         count = drawn
         if enforce_minimum:
             minimum = self.config["minimum"]
@@ -308,6 +328,24 @@ def free_numbers(taken: Iterable[int], count: int) -> list[int]:
         if number not in used:
             out.append(number)
         number += 1
+    return out
+
+
+@lru_cache(maxsize=4)
+def _program_scores(year_weights: tuple) -> dict[str, tuple[str, float]]:
+    """学校ID → （最後の年の出方, score）。score は、最後の年に単独なら単独の年の重みの割合、
+    連合なら連合の年の重みの割合（どちらも試合のあった年の重みで割る）。"""
+    from historical_results.summer_local import read_games, read_union_members, participation
+
+    games, unions = read_games(), read_union_members()
+    weights = {int(year): float(weight) for year, weight in year_weights}
+    last = max(weights)
+    by_year = {year: participation(games, unions, year) for year in weights}
+    out = {}
+    for school_id, kind in by_year[last].items():
+        played = sum(weights[y] for y in weights if school_id in by_year[y])
+        same = sum(weights[y] for y in weights if by_year[y].get(school_id) == kind)
+        out[school_id] = (kind, same / played if played else 0.0)
     return out
 
 

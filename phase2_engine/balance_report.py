@@ -34,7 +34,9 @@
 - 部員の人数（4月1日の名簿）：全国の1校あたりの学年ごとの人数、1校の部員数の分布、私立・公立と
   評判の帯（z）ごとの平均、新入部員を最低人数まで増やした学校の数、退部した人数
 - 評判の上位50校（4月1日の年度の評判の更新のあと）：前の年・5年前・始めの年の上位50校から入れ替わった学校の数
-- 連合チーム（11月1日の年度の状態）：大会の種類ごとの連合チームの数・構成校の数・出なかった学校の数
+- 連合チーム（11月1日の年度の状態）：大会の種類ごとの連合チームの数・構成校の数・出なかった学校の数。
+  夏の地方大会で、2021〜2025年に5年続けて単独で出た学校（実際）のうち連合になった数・割合と、
+  前の年に夏の連合だった学校（最初の年は実際の2025年の連合）が続けて連合になった割合
 - 成績シード（夏の地方大会と春季県大会は8月31日、秋季県大会は12月1日の年度の状態）：大会の種類ごとに、
   シードのある大会の数・シード校の数、シード校どうしが準々決勝より前に当たった数（16校・32校のシードは
   ベスト16・32で当たるので、ブロックを分けた回戦より前に当たった数も）、シード校のベスト8・ベスト4に
@@ -85,6 +87,16 @@ def tendency_band(value) -> str | None:
     return next(label for low, label in reversed(TENDENCY_BANDS) if value >= low)
 
 
+def actual_summer_participation() -> tuple[set[str], set[str]]:
+    """実際の夏の地方大会（2021〜2025年）：5年続けて単独で出た学校と、2025年に連合だった学校。"""
+    from historical_results.summer_local import read_games, read_union_members, participation
+
+    games, unions = read_games(), read_union_members()
+    years = {year: participation(games, unions, year) for year in range(2021, 2026)}
+    five = {s for s in years[2025] if all(years[y].get(s) == "single" for y in years)}
+    return five, {s for s, kind in years[2025].items() if kind == "union"}
+
+
 def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -126,6 +138,8 @@ class BalanceTally:
         self.sizes = {}                          # 年度 → 部員の人数の集計（4月1日）
         self.top_reputation = {}                 # 年度 → 評判の上位50校（4月1日）
         self.unions = {}                         # 年度 → 大会の種類 → 連合チームの集計
+        self.summer_unions = {}                  # 年度 → 夏の地方大会で連合の構成校だった学校
+        self.summer_actual = None                # （5年続けて単独の学校, 2025年の連合の学校）。実際の記録
         self.seeds = defaultdict(dict)           # 季節 → 年度 → 成績シードの集計
         self.selection = {}                      # 年度 → 選抜の選考の顔ぶれ
         self.regionals = defaultdict(dict)       # 季節 → 年度 → 地区大会の集計
@@ -389,7 +403,26 @@ class BalanceTally:
             row["teams"] += len(plan.teams)
             row["schools"] += sum(len(team.schools) for team in plan.teams)
             row["absent"] += len(plan.absent)
+            if kind_of(cid) == LOCAL:
+                self.summer_unions.setdefault(year, set()).update(
+                    school for team in plan.teams for school in team.schools)
         self.unions[year] = {kind: dict(row) for kind, row in sorted(out.items())}
+
+    def _summer_union_history(self, year: int) -> dict | None:
+        """夏の連合：5年続けて単独だった学校が連合になった数・割合、前の年の連合が続けて連合になった割合。"""
+        if year not in self.summer_unions:
+            return None
+        if self.summer_actual is None:
+            self.summer_actual = actual_summer_participation()
+        five, actual_union = self.summer_actual
+        now = self.summer_unions[year]
+        previous = self.summer_unions.get(year - 1, actual_union if year - 1 == 2025 else None)
+        out = {"five_single": len(now & five), "five_single_total": len(five),
+               "five_single_share": round(len(now & five) / len(five), 4) if five else None}
+        if previous is not None:
+            out.update(previous=len(previous), continued=len(now & previous),
+                       continued_share=round(len(now & previous) / len(previous), 4) if previous else None)
+        return out
 
     def add_seeds(self, year: int, season, segment: str) -> list[dict]:
         """その年度の成績シードの大会のシード校と勝ち上がり（``seed_rows``）。"""
@@ -649,6 +682,9 @@ class BalanceTally:
                 row["reputation_top50"] = self._top_turnover(year)
             if year in self.unions:
                 row["unions"] = self.unions[year]
+            history = self._summer_union_history(year)
+            if history:
+                row["summer_union_history"] = history
             for segment, by_year in sorted(self.seeds.items()):
                 if year in by_year:
                     row[f"{segment}_seeds"] = by_year[year]
@@ -1259,6 +1295,14 @@ def format_report(seed_label: str, report: dict) -> str:
             lines.append("  連合チーム（チーム／構成校／出ない学校）: " + " ".join(
                 f"{k}:{v.get('teams', 0)}／{v.get('schools', 0)}／{v.get('absent', 0)}"
                 for k, v in un.items()))
+        sh = row.get("summer_union_history")
+        if sh:
+            line = (f"  夏の連合：5年続けて単独だった学校が連合 {sh['five_single']}／{sh['five_single_total']}校"
+                    f"（{sh['five_single_share']:.1%}）")
+            if sh.get("previous") is not None and sh.get("continued_share") is not None:
+                line += (f" / 前の年の連合が続けて連合 {sh['continued']}／{sh['previous']}校"
+                         f"（{sh['continued_share']:.1%}）")
+            lines.append(line)
         for segment in ("spring", "summer", "autumn"):
             ss = row.get(f"{segment}_seeds")
             if ss:
