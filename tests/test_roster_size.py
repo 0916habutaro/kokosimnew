@@ -98,6 +98,44 @@ class ExpectedFreshmenTests(unittest.TestCase):
         self.assertLess(max(steps), 0.5)
 
 
+class ProgramSizeTests(unittest.TestCase):
+    """部の規模（2021〜2025年の夏の出方）。架空の学校の出方を差し替えて確かめる。"""
+
+    SCORES = {"FAKE-SINGLE5": ("single", 1.0), "FAKE-UNION": ("union", 1.0)}
+
+    def setUp(self):
+        from unittest.mock import patch
+
+        self.model = roster_size_model()
+        patcher = patch("game_core.roster_size._program_scores", return_value=self.SCORES)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        rule = self.model.config["program_size"]
+        self.floor = dict(rule["floor"])[1.0]
+
+    def plan(self, school_id, year, appeal=-3.0):
+        # 評判も集まりやすさもとても低い学校（目安だけなら1学年0.05人ほど）
+        context = SizeContext(ownership="prefectural", reputation_z=lambda _y: -3.0,
+                              appeal=lambda _y: appeal)
+        return self.model.plan_freshmen(7, school_id, year, context, enforce_minimum=False)
+
+    def test_five_years_single_school_keeps_the_floor_every_year(self):
+        self.assertGreater(self.floor, 0)
+        for year in range(2026, 2046):
+            # 年がたって集まりやすさが下がり続けても、期待人数は下限を下回らない
+            self.assertGreaterEqual(self.plan("FAKE-SINGLE5", year, appeal=-3.0 - 0.1 * (year - 2026)).expected,
+                                    self.floor)
+
+    def test_union_school_and_unknown_school_have_no_floor(self):
+        for school_id in ("FAKE-UNION", "FAKE-NO-HISTORY"):
+            with self.subTest(school_id=school_id):
+                self.assertEqual(0.0, self.model.program_size(school_id)[0])
+                self.assertLess(self.plan(school_id, 2026).expected, 0.1)
+        # 2025年に連合だった学校は、集まりやすい年でも上限までにとどめる
+        ceiling = self.model.program_size("FAKE-UNION")[1]
+        self.assertLessEqual(self.plan("FAKE-UNION", 2026, appeal=3.0).expected, ceiling)
+
+
 class MinimumAndPositionTests(unittest.TestCase):
     def setUp(self):
         self.model = roster_size_model()

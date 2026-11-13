@@ -267,8 +267,12 @@ class PlayerCareerYearTests(unittest.TestCase):
     def test_player_screen_shows_growth_trend_and_seasons(self):
         screen = GameScreenData(self.service, self.session)
         archived = self.service.closed_roster("year", 2026, "SCH000001")
-        returning = next(row for row in archived if row["academic_year"] == 2)
-        player = screen.player("SCH000001", returning["player_id"])
+        # 2年だった選手のうち、試合に出た選手（部員の多い学校では出ない控えもいる）
+        candidates = [(row, screen.player("SCH000001", row["player_id"]))
+                      for row in archived if row["academic_year"] == 2]
+        returning, player = next(
+            ((row, p) for row, p in candidates
+             if any(s["batting"] or s["pitching"] for s in p["seasons"])), candidates[0])
         self.assertEqual(returning["display_name"], player["name"])
         self.assertEqual(3, player["grade"])
         self.assertEqual("在学", player["status"])
