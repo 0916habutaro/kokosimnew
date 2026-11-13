@@ -166,6 +166,25 @@ class PopulationTests(unittest.TestCase):
         self.assertEqual(10.0, self.model.apply_population(10.0, 2026, "prefectural", 0.0))
 
 
+class RealPopulationConfigTests(unittest.TestCase):
+    """実際の設定：全国の係数は15歳人口の比と参加率の比の両方を掛ける（片方の入れ忘れを防ぐ）。"""
+
+    def test_real_config_multiplies_population_and_participation(self):
+        model = roster_size_model()
+        rule = model.config["population"]
+        self.assertTrue(rule.get("by_year"))
+        self.assertTrue(rule.get("participation_by_year"))
+        last = max(rule["participation_by_year"], key=int)
+        self.assertLess(float(rule["participation_by_year"][last]), 1.0)
+        for year in (2026, int(last)):
+            expected = (float(rule["by_year"][str(year)])
+                        * float(rule["participation_by_year"][str(year)]))
+            self.assertAlmostEqual(expected, model.population_factor(year))
+        # 参加率の表より先も、参加率は最後の値のまま掛かる
+        self.assertLess(model.population_factor(int(last) + 1),
+                        float(rule["by_year"][str(int(last) + 1)]))
+
+
 class MinimumAndPositionTests(unittest.TestCase):
     def setUp(self):
         self.model = roster_size_model()
