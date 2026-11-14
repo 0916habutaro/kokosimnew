@@ -24,6 +24,13 @@ class TeamMatchInput:
     player_abilities: tuple[PlayerAbilitySnapshot, ...]
     # 大会登録者。能力を渡すのは当日の出場可能者だけ（単独利用では省略可）。
     registered_player_ids: frozenset[str] | None = None
+    # 先発・打順・DHを選ぶ能力（調子を入れない）。省くと player_abilities と同じ。
+    # player_abilities はその日の調子を入れた、試合の中身（打席・投球・試合中の交代）の能力
+    selection_abilities: tuple[PlayerAbilitySnapshot, ...] | None = None
+
+    @property
+    def lineup_abilities(self) -> tuple[PlayerAbilitySnapshot, ...]:
+        return self.selection_abilities if self.selection_abilities is not None else self.player_abilities
 
     def to_dict(self) -> dict:
         out = {

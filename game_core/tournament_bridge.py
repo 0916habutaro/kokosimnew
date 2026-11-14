@@ -15,6 +15,7 @@ from phase2_engine.repository import DataRepository
 
 from .match_contract import MatchSimulationInput, TeamMatchInput, validated_match_history
 from .coaches import CoachTactics
+from .form import form_model
 from .highlights import game_highlights
 from .match_simulator import GameRules, MatchSimulator
 from .membership import CompetitionMembers
@@ -105,6 +106,8 @@ class AbilityMatchResolver:
         # Explicitly prepared initial sources outlive the performance caches.
         # Default resolvers never create this persistence authority implicitly.
         self._initial_roster_source: dict[str, SchoolRoster] = {}
+        # (大会, 学校) → (日, その日のチームをつくったときの采配)。試合の計算にも同じものを渡す
+        self._tactics_on: dict = {}
         self._competition_teams: dict[
             tuple,
             TeamMatchInput,
@@ -174,6 +177,7 @@ class AbilityMatchResolver:
         self._team_cache.clear()
         self._roster_cache.clear()
         self._competition_teams.clear()
+        self.__dict__.setdefault("_tactics_on", {}).clear()
         self._abilities.clear()
 
     def begin_season(
@@ -315,17 +319,22 @@ class AbilityMatchResolver:
             condition = tuple(sorted(
                 (pid, state) for pid, state in states.items() if state != (False, 0)
             ))
-        key = (competition_id, team_seed, school_id, condition, tactics.selection_grade_bias,
-               tactics.batting_order)
-        cached = self._competition_teams.get(key)
-        if cached is not None:
-            return cached
         # 能力はその大会の年度のもの（3月に始まる大会も、大会の年度で揃える）。
         # 同じ選手が年度内のいくつもの大会に出るので、一度つくった能力を使い回す。
+        # 先発・打順・DHは調子を入れない能力に、監督が見た調子の加点だけを足して決める。
+        # 打席・投球など試合の中身は、その日の調子を入れた能力で行う（段階F4）
         abilities = tuple(
             self._player_ability(player, reference_year, team_seed)
             for player in members
         )
+        points = self._form_points(members, day)
+        tactics = self._with_form(tactics, school_id, day, members, abilities)
+        self.__dict__.setdefault("_tactics_on", {})[(competition_id, school_id)] = (day, tactics)
+        key = (competition_id, team_seed, school_id, condition, tactics.selection_grade_bias,
+               tactics.batting_order, tactics.form_bonus, points)
+        cached = self._competition_teams.get(key)
+        if cached is not None:
+            return cached
         if any(snapshot.school_id != school_id for snapshot in abilities):
             # 連合チーム：試合では代表校のチームとして出る。選手の名簿上の学校は変えない
             # （試合の記録は選手IDから選手それぞれの学校に付く）
@@ -334,16 +343,46 @@ class AbilityMatchResolver:
                 else replace(snapshot, school_id=school_id)
                 for snapshot in abilities
             )
+        model = form_model()
+        playing = tuple(model.apply(snapshot, point) for snapshot, point in zip(abilities, points))
         team = TeamMatchInput(
             school_id=school_id,
             team_strength=self.team_generator.generate(
                 abilities, selection_grade_bias=tactics.selection_grade_bias,
-                order_style=tactics.batting_order),
-            player_abilities=abilities,
+                order_style=tactics.batting_order, form_bonus=dict(tactics.form_bonus)),
+            player_abilities=playing,
             registered_player_ids=registered_ids,
+            selection_abilities=abilities if playing != abilities else None,
         )
         self._competition_teams[key] = team
         return team
+
+    def _form_points(self, members, day) -> tuple[int, ...]:
+        """その日の調子で試合の能力に足す点（選手の並びの順）。"""
+        source = self.ability_generator.source
+        if source is None or day is None or not hasattr(source, "form"):
+            return (0,) * len(members)
+        model = form_model()
+        return tuple(model.points(source.form(p, day)) for p in members)
+
+    def _with_form(self, tactics, school_id, day, members, abilities):
+        """監督が見た調子の加点を足す（調子の重視が中立以下の監督・監督のいない学校は足さない）。"""
+        source = self.ability_generator.source
+        coaches = getattr(source, "coaches", None)
+        if coaches is None or day is None or not hasattr(source, "form"):
+            return tactics
+        forms = {p.player_id: source.form(p, day) for p in members}
+        scores = {a.player_id: self.team_generator._batting_composite(a)
+                  for a in abilities if a.primary_position != "P"}
+        bonus = coaches.form_reading(school_id, day, forms, scores)
+        return replace(tactics, form_bonus=bonus) if bonus else tactics
+
+    def _match_tactics(self, competition_id, school_id, day):
+        """その試合のチームをつくったときの采配（調子の加点を含む）。"""
+        held = self.__dict__.setdefault("_tactics_on", {}).get((competition_id, school_id))
+        if held is not None and held[0] == day:
+            return held[1]
+        return self._coach_tactics(school_id, day)
 
     def _coach_tactics(self, school_id, day):
         source = self.ability_generator.source
@@ -356,7 +395,7 @@ class AbilityMatchResolver:
         day = self._match_day()
         if source is not None and day is not None and hasattr(source, "recovery"):
             # 能力は試合の日の名簿から（キーと同じ日。名簿の今日が試合の日と違っても、
-            # 使い回した能力が続けて遊んだときとロードしたときで変わらない）
+            # 使い回した能力が続けて遊んだときとロードしたときで変わらない）。調子は入れない
             recovery = source.recovery(player, day)
             key = (player, reference_year, team_seed, recovery)
             snapshot = self._abilities.get(key)
@@ -413,6 +452,21 @@ class AbilityMatchResolver:
                         consecutive += 1
                 appearances.append((player, pitches, load7, consecutive,
                                     exit_fatigue.get(player.player_id, 0)))
+        if day is not None and hasattr(source, "after_game_form"):
+            # 調子（段階F4）：出場した選手を、その試合の結果で動かす
+            batting = {b.player_id: b for b in result.batter_stats}
+            pitching = {p.player_id: p for p in result.pitcher_stats if p.batters_faced > 0}
+            rows = []
+            for school_id in (result.team1_school_id, result.team2_school_id):
+                for player in self.member_provider(competition_id, school_id).players:
+                    if player.player_id not in played:
+                        continue
+                    b, p = batting.get(player.player_id), pitching.get(player.player_id)
+                    rows.append((player,
+                                 (b.hits + b.walks + b.hit_by_pitch) if b else 0,
+                                 (b.at_bats - b.hits) if b else 0,
+                                 p.outs_recorded if p else 0, p.earned_runs if p else 0))
+            source.after_game_form(list({r[0].player_id: r for r in rows}.values()), day=day)
         if day is not None and hasattr(source, "after_game"):
             # 両校の従来対象を先に抽選し、その後で守備のみの選手を抽選する。
             # 試合ごとに独立した乱数なので、追加分は従来対象の怪我結果を変えない。
@@ -528,14 +582,15 @@ class AbilityMatchResolver:
         DH候補がどのくらい打順に残るかの比較だけに使う。
         """
         params = self.simulator.params
-        players = {p.player_id: p for p in team.player_abilities}
+        # DHを比べるための見積もり。先発選びと同じく調子を入れない能力で
+        players = {p.player_id: p for p in team.lineup_abilities}
         pitcher = self.simulator._as_pitcher(players[order[0]])
         model = params['plate_appearance_model']
         if opponent is None:
             weights = [{event: max(model['probability_floor'], value)
                         for event, value in model['base_probabilities'].items()}]
         else:
-            opponents = {p.player_id: p for p in opponent.player_abilities}
+            opponents = {p.player_id: p for p in opponent.lineup_abilities}
             defense = self.team_generator.defense_for_alignment(players,
                 ((a.defensive_position, a.player_id) for a in base.defensive_alignment))
             # 基底の純粋な確率計算だけを使用。試験用サブクラスの打席列も消費しない。
@@ -619,10 +674,11 @@ class AbilityMatchResolver:
             replacement = actual  # 野手の登板では元の投手の打順が残る。
         forecast = self._pitching_forecast(team, base, order, professional_count, allowances, tactics, opponent,
                                            carry=carry)
-        decision = self.team_generator.select_dh_mode(team.player_abilities,
+        decision = self.team_generator.select_dh_mode(team.lineup_abilities,
             starting_pitcher_id=actual, replacement_batter_id=replacement,
             starter_share=forecast[0].batting_share,
             selection_grade_bias=tactics.selection_grade_bias, minimum_batting_gain=self._dh_minimum_gain,
+            form_bonus=dict(tactics.form_bonus),
             two_way_requires_lineup_bat=self._dh_two_way_lineup_bat,
             baseline_batter_ids=tuple(s.player_id for s in base.batting_order),
             baseline_lineup=base.initial_lineup, pitching_forecast=forecast,
@@ -631,9 +687,10 @@ class AbilityMatchResolver:
                     and (self.member_provider is not None or tactics.selection_grade_bias == 0)) else None))
         if decision.mode == 'none':
             return team
-        strength = self.team_generator.generate(team.player_abilities,
+        strength = self.team_generator.generate(team.lineup_abilities,
             dh_mode=decision.mode, starting_pitcher_id=actual,
             selection_grade_bias=tactics.selection_grade_bias, order_style=tactics.batting_order,
+            form_bonus=dict(tactics.form_bonus),
             designated_hitter_id=decision.normal_candidate_id if decision.mode=='normal' else None)
         return replace(team, team_strength=strength)
 
@@ -691,7 +748,7 @@ class AbilityMatchResolver:
                 "ability resolver team generation seed mismatch"
             )
         day = self._match_day()
-        tactics = {sid: self._coach_tactics(sid, day) for sid in (team1, team2)}
+        tactics = {sid: self._match_tactics(competition_id, sid, day) for sid in (team1, team2)}
         allowances = self._pitch_allowances((team1_input, team2_input), day)
         history = self._pitch_history((team1_input, team2_input), day)
         original_team1, original_team2 = team1_input, team2_input

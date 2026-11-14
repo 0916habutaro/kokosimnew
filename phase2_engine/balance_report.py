@@ -25,6 +25,8 @@
 - 打順（段階F3）：先発の1番打者の走力・4番打者のパワーの平均（能力は試合の翌日の名簿の値）、
   1番が先発9人の中で走力の上位2人に入る割合・4番が先発9人の中でパワーが最も高い割合（同じ値は上位に数える）と、
   監督の打順の型（低い〜40・中・61〜高い）ごとの同じ値
+- 調子（段階F4）：同じ学校の前の試合（同じ年度）から、先発の顔ぶれ・打順（9人の並び）が変わった割合を、
+  監督の調子の重視（低い〜40・中・61〜高い）ごとに
 - 左右別の打率（打者の左右は名簿から）：同じ側どうし・逆の側、右対右・左対左・両打ち
 - 暴投・捕逸・重盗・本盗の1試合あたりの数、1打席・1チーム1試合（9回あたり）の球数（段階H1）
 - 度胸（段階G）：投手の度胸の帯（〜44・45〜59・60〜）ごとの、ピンチ・終盤の接戦とそれ以外の被打率
@@ -157,6 +159,9 @@ class BalanceTally:
         # 年度 → 打順の型の帯（全体は "all"） → [1番の数, 1番の走力の合計, 4番の数, 4番のパワーの合計,
         #   9人そろったチーム試合, 1番が走力の上位2人, 4番がパワーの最上位]
         self.lineup_slots = defaultdict(lambda: defaultdict(lambda: [0] * 7))
+        # 年度 → 調子の重視の帯（全体は "all"） → [前の試合のあるチーム試合, 顔ぶれが変わった, 打順が変わった]
+        self.lineup_changes = defaultdict(lambda: defaultdict(lambda: [0, 0, 0]))
+        self.previous_lineup = {}               # (年度, 学校) → 前の試合の打順（選手IDの並び）
         # 年度 → (小技／機動力, 傾向の帯) → [チーム試合, 犠打の試み, スクイズ, エンドラン, 盗塁の試み]
         self.by_tendency = defaultdict(lambda: defaultdict(lambda: [0, 0, 0, 0, 0]))
 
@@ -220,6 +225,7 @@ class BalanceTally:
                 {k: int(p.get(k, 0)) for k in ("outs_recorded", "earned_runs")})
         self._add_tactics(year, detail, batters, coach_of, kind == KOSHIEN)
         self._add_substitutions(year, detail, batters, coach_of)
+        self._add_lineup_changes(year, detail, coach_of)
         if ability_of is not None:
             self._add_lineup_slots(year, competition_id, detail, coach_of, ability_of)
         if bats_of is not None:
@@ -244,6 +250,36 @@ class BalanceTally:
                 cell = self.substitutions_by_band[year][band]
                 cell[0] += 1
                 cell[1] += sum(reasons.values())
+
+    def _add_lineup_changes(self, year, detail, coach_of) -> None:
+        for part in detail.get("team_participation") or []:
+            school = part["school_id"]
+            order = tuple(slot["player_id"] for slot in sorted(
+                part.get("starting_lineup") or (), key=lambda slot: slot["batting_order"]))
+            if not order:
+                continue
+            before = self.previous_lineup.get((year, school))
+            self.previous_lineup[(year, school)] = order
+            if before is None:
+                continue
+            coach = coach_of(school) if coach_of else None
+            band = tendency_band(getattr(coach, "form_reliance", None)) if coach is not None else None
+            for key in ("all", *((band,) if band else ())):
+                cell = self.lineup_changes[year][key]
+                cell[0] += 1
+                cell[1] += set(order) != set(before)
+                cell[2] += order != before
+
+    def _lineup_change_summary(self, year) -> dict:
+        rows = self.lineup_changes.get(year) or {}
+        if not rows.get("all", [0])[0]:
+            return {}
+
+        def shares(cell):
+            return {"members": round(cell[1] / cell[0], 3), "order": round(cell[2] / cell[0], 3),
+                    "teams": cell[0]}
+        return {"all": shares(rows["all"]),
+                "by_tendency": {band: shares(cell) for band, cell in sorted(rows.items()) if band != "all"}}
 
     def _add_lineup_slots(self, year, competition_id, detail, coach_of, ability_of) -> None:
         for part in detail.get("team_participation") or []:
@@ -761,6 +797,9 @@ class BalanceTally:
             subs = self._substitution_summary(year)
             if subs:
                 row["substitutions"] = subs
+            changes = self._lineup_change_summary(year)
+            if changes:
+                row["lineup_changes"] = changes
             lineup = self._lineup_summary(year)
             if lineup:
                 row["lineup"] = lineup
@@ -1426,6 +1465,15 @@ def format_report(seed_label: str, report: dict) -> str:
                                  f"{share(cell.get('leadoff_top2_speed'))}・{share(cell.get('cleanup_top_power'))}"
                                  f"（{cell['teams']}）"
                                  for band, cell in lu["by_tendency"].items()))
+        lc = row.get("lineup_changes")
+        if lc:
+            a = lc["all"]
+            lines.append(f"  前の試合から変わった割合: 先発の顔ぶれ {a['members']:.1%} / 打順 {a['order']:.1%}"
+                         f"（{a['teams']}チーム試合）")
+            if lc.get("by_tendency"):
+                lines.append("  監督 調子の重視（顔ぶれ・打順が変わった割合）: " + " / ".join(
+                    f"{band} {cell['members']:.1%}・{cell['order']:.1%}（{cell['teams']}）"
+                    for band, cell in lc["by_tendency"].items()))
         sp = row.get("splits")
         if sp:
             lines.append("  左右別の打率: " + " / ".join(

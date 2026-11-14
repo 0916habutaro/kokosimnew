@@ -5,9 +5,10 @@ from bisect import bisect_right
 from dataclasses import asdict, dataclass, replace
 from datetime import date
 import math
+import random
 from pathlib import Path
 
-from phase2_engine.randomness import rng_for
+from phase2_engine.randomness import namespaced_seed, rng_for
 from phase2_engine.school_year import school_year_of
 from .ability_config import load_config
 from .player_names import ROOT, name_generator
@@ -37,6 +38,8 @@ class Coach:
     lineup_style: int = 50
     form_reliance: int = 50
     pitcher_shuffle: int = 50
+    # 選手を見る目（段階F4）。低いほど、監督が見る選手の調子が本当の値からずれる
+    player_eye: int = 50
 
     def view(self, today: date) -> dict:
         year = school_year_of(today)
@@ -80,6 +83,8 @@ class CoachTactics:
     substitutions: float = 1.0
     # 打順の組み方（段階F3）。監督がいないときは None（打てる順のまま）
     batting_order: BattingOrderStyle | None = None
+    # 監督が見た調子の加点（段階F4）。(選手ID, 点) の並び。調子の重視が中立以下なら空
+    form_bonus: tuple[tuple[str, float], ...] = ()
 
 
 def _draw_coach(team, year, rng, coach_id, names, config, *, initial):
@@ -101,9 +106,10 @@ def _draw_coach(team, year, rng, coach_id, names, config, *, initial):
     # 作戦の傾向は既存の抽選のあとに引く（ほかの能力・氏名は変わらない）
     coach = replace(coach, small_ball=ability("small_ball"), mobility=ability("mobility"))
     coach = replace(coach, substitutions=ability("substitutions"))
-    return replace(coach, lineup_style=ability("lineup_style"),
-                   form_reliance=ability("form_reliance"),
-                   pitcher_shuffle=ability("pitcher_shuffle"))
+    coach = replace(coach, lineup_style=ability("lineup_style"),
+                    form_reliance=ability("form_reliance"),
+                    pitcher_shuffle=ability("pitcher_shuffle"))
+    return replace(coach, player_eye=ability("player_eye"))
 
 
 def _band_probability(bands, value):
@@ -166,6 +172,13 @@ class CoachBook:
                 or tactics["max_abs_bf_reduction"] >= 1):
             raise ValueError("invalid coach tactics configuration")
         strategy = tactics["strategy"]
+        form = tactics["form"]
+        if (form["neutral_reliance"] != 50 or not isinstance(form["core_players"], int)
+                or form["core_players"] < 0
+                or any(not math.isfinite(form[k]) or form[k] < 0 for k in (
+                    "bonus_per_point", "misread_sd", "core_negative_scale"))
+                or form["core_negative_scale"] > 1):
+            raise ValueError("invalid coach form configuration")
         if (strategy["neutral_ability"] != 50
                 or any(not math.isfinite(strategy[k]) or strategy[k] < 0 for k in (
                     "small_ball_log_per_point", "mobility_log_per_point",
@@ -251,7 +264,7 @@ class CoachBook:
     def batting_order_style(coach: Coach) -> BattingOrderStyle:
         """打順の組み方に使う傾向（打順の型と、上乗せに使う小技・機動力）。新規開始から使う。"""
         values = (coach.lineup_style, coach.small_ball, coach.mobility,
-                  coach.form_reliance, coach.pitcher_shuffle)
+                  coach.form_reliance, coach.pitcher_shuffle, coach.player_eye)
         if not all(1 <= value <= 100 for value in values):
             raise ValueError("coach tendencies must be between 1 and 100")
         return BattingOrderStyle(coach.lineup_style, coach.small_ball, coach.mobility)
@@ -285,6 +298,39 @@ class CoachBook:
                         "max_abs_selection_bias"), 6),
             small_ball, mobility, substitutions, order,
         )
+
+    def form_reading(self, school_id: str, on: date, forms, scores) -> tuple[tuple[str, float], ...]:
+        """監督が見た調子の加点（段階F4。新規開始から）。``forms`` は選手ID → 本当の調子、
+        ``scores`` は選手ID → 打撃の評価（上位の中心の選手は、調子が悪く見えても外しにくい）。
+
+        調子の重視が中立（50）以下の監督は空（能力だけで決める）。見る調子は、選手を見る目
+        （player_eye）が低いほど本当の値からずれる。乱数は監督・選手・日ごと。"""
+        if school_year_of(on) > self.updated_year:
+            raise ValueError("coach personnel not finalized for match date")
+        coach = self.for_school(school_id, on=on)
+        if coach is None:
+            return ()
+        rule = self.tactics_config["form"]
+        if not (1 <= coach.form_reliance <= 100 and 1 <= coach.player_eye <= 100):
+            raise ValueError("coach tendencies must be between 1 and 100")
+        weight = max(0, coach.form_reliance - rule["neutral_reliance"]) * rule["bonus_per_point"]
+        if not weight:
+            return ()
+        spread = rule["misread_sd"] * (100 - coach.player_eye) / 99
+        core = set(sorted(scores, key=lambda pid: (-scores[pid], pid))[:rule["core_players"]])
+        out = []
+        for pid in sorted(forms):
+            seen = forms[pid]
+            if spread:
+                seed = namespaced_seed(self.seed, f"coach_form_read_v1:{coach.coach_id}:{pid}:{on.isoformat()}")
+                seen += random.Random(seed).gauss(0.0, spread)
+            bonus = weight * seen
+            if pid in core and bonus < 0:
+                bonus *= rule["core_negative_scale"]
+            bonus = round(bonus, 4)
+            if bonus:
+                out.append((pid, bonus))
+        return tuple(out)
 
     def practice_for(self, school_id: str, month: date) -> tuple[str | None, int | None, float]:
         """対象月1日の在任者と育成力・練習倍率。育成力は人物の固定能力。
@@ -452,7 +498,8 @@ class CoachBook:
                              expected_config_id="coach_generation_v1").payload
         for field in ("age", "tenure", "reputation", "development",
                       "pitching_change", "player_selection", "small_ball", "mobility",
-                      "substitutions", "lineup_style", "form_reliance", "pitcher_shuffle"):
+                      "substitutions", "lineup_style", "form_reliance", "pitcher_shuffle",
+                      "player_eye"):
             spec = config[field]
             if not all(isinstance(v, (int, float)) and math.isfinite(v) for v in spec.values()):
                 raise ValueError(f"coach {field}: finite numbers required")
