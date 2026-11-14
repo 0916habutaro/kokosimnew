@@ -315,7 +315,8 @@ class AbilityMatchResolver:
             condition = tuple(sorted(
                 (pid, state) for pid, state in states.items() if state != (False, 0)
             ))
-        key = (competition_id, team_seed, school_id, condition, tactics.selection_grade_bias)
+        key = (competition_id, team_seed, school_id, condition, tactics.selection_grade_bias,
+               tactics.batting_order)
         cached = self._competition_teams.get(key)
         if cached is not None:
             return cached
@@ -336,7 +337,8 @@ class AbilityMatchResolver:
         team = TeamMatchInput(
             school_id=school_id,
             team_strength=self.team_generator.generate(
-                abilities, selection_grade_bias=tactics.selection_grade_bias),
+                abilities, selection_grade_bias=tactics.selection_grade_bias,
+                order_style=tactics.batting_order),
             player_abilities=abilities,
             registered_player_ids=registered_ids,
         )
@@ -631,7 +633,7 @@ class AbilityMatchResolver:
             return team
         strength = self.team_generator.generate(team.player_abilities,
             dh_mode=decision.mode, starting_pitcher_id=actual,
-            selection_grade_bias=tactics.selection_grade_bias,
+            selection_grade_bias=tactics.selection_grade_bias, order_style=tactics.batting_order,
             designated_hitter_id=decision.normal_candidate_id if decision.mode=='normal' else None)
         return replace(team, team_strength=strength)
 

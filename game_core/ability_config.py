@@ -529,6 +529,19 @@ def validate_team_strength(
         selection["batting_order_weights"],
         "team_strength.selection.batting_order_weights",
     )
+    role_order = selection.get("role_batting_order")
+    if not isinstance(role_order, dict):
+        raise ValueError("team strength: role_batting_order required")
+    for key in ("leadoff_weights", "second_weights", "cleanup_weights", "fourth_weights"):
+        _require_probability_weights(
+            role_order[key], f"team_strength.selection.role_batting_order.{key}",
+        )
+    if role_order["neutral_style"] != 50:
+        raise ValueError("team strength: role batting order neutral must be 50")
+    for key in ("role_share_per_point", "mobility_speed_weight_per_point",
+                "small_ball_bunt_weight_per_point"):
+        if _require_number(role_order[key], f"team_strength.selection.role_batting_order.{key}") < 0:
+            raise ValueError(f"team strength: role_batting_order.{key} must be >= 0")
 
     _require_probability_weights(
         payload["batting"]["lineup_weights"],
@@ -574,6 +587,8 @@ def validate_team_strength(
     }
     referenced = set(payload["batting"]["lineup_weights"]) - {"bench_depth"}
     referenced |= set(payload["selection"]["batting_order_weights"])
+    for key in ("leadoff_weights", "second_weights", "cleanup_weights", "fourth_weights"):
+        referenced |= set(payload["selection"]["role_batting_order"][key])
     referenced |= set(
         payload["batting"]["bench_depth"]["composite_weights"]
     )

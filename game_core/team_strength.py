@@ -175,6 +175,17 @@ def _weighted(values: dict[str, float], weights: dict[str, float]) -> float:
     return sum(float(values[key]) * float(weight) for key, weight in weights.items())
 
 
+@dataclass(frozen=True)
+class BattingOrderStyle:
+    """打順の組み方に使う監督の傾向（1〜100、50が中立）。
+
+    ``lineup_style`` が低いほど打てる順、高いほど役割で組む。小技・機動力は
+    役割で組むときの2番・1番の重みに上乗せする。"""
+    lineup_style: int = 50
+    small_ball: int = 50
+    mobility: int = 50
+
+
 class TeamStrengthGenerator:
     def __init__(self, config_dir: str | Path = "config/abilities"):
         self.config_dir = Path(config_dir)
@@ -333,6 +344,51 @@ class TeamStrengthGenerator:
         }
         return _weighted(values, weights)
 
+    def _role_order(self, players, style: BattingOrderStyle) -> list:
+        """役割で組む並べ方。3〜5番 → 1番 → 2番 → 6番以下（打てる順）の順に決める。"""
+        rule = self.params["selection"]["role_batting_order"]
+        neutral = float(rule["neutral_style"])
+
+        def score(player, weights):
+            return _weighted({k: float(player.ability(k)) for k in weights}, weights)
+
+        def top(pool, weights):
+            return min(pool, key=lambda p: (-score(p, weights), p.player_id))
+
+        leadoff = dict(rule["leadoff_weights"])
+        leadoff["speed"] = max(0.0, leadoff.get("speed", 0.0) + (style.mobility - neutral)
+                               * float(rule["mobility_speed_weight_per_point"]))
+        second = dict(rule["second_weights"])
+        second["bunt"] = max(0.0, second.get("bunt", 0.0) + (style.small_ball - neutral)
+                             * float(rule["small_ball_bunt_weight_per_point"]))
+        pool = list(players)
+        cleanup = sorted(pool, key=lambda p: (-score(p, rule["cleanup_weights"]), p.player_id))[:3]
+        fourth = top(cleanup, rule["fourth_weights"])
+        third, fifth = ([p for p in cleanup if p is not fourth] + [None, None])[:2]
+        pool = [p for p in pool if p not in cleanup]
+        first = top(pool, leadoff) if pool else None
+        pool = [p for p in pool if p is not first]
+        two = top(pool, second) if pool else None
+        pool = [p for p in pool if p is not two]
+        rest = sorted(pool, key=lambda p: (-self._batting_order_score(p), p.player_id))
+        return [p for p in (first, two, third, fourth, fifth, *rest) if p is not None]
+
+    def _batting_order(self, players, style: BattingOrderStyle | None) -> list:
+        """打てる順と役割の順を、監督の打順の型で混ぜる（各選手の2つの打順の加重平均の順）。"""
+        power = sorted(players, key=lambda p: (-self._batting_order_score(p), p.player_id))
+        if style is None:
+            return power
+        rule = self.params["selection"]["role_batting_order"]
+        share = min(1.0, max(0.0, 0.5 + (style.lineup_style - float(rule["neutral_style"]))
+                                   * float(rule["role_share_per_point"])))
+        power_rank = {p.player_id: i for i, p in enumerate(power)}
+        role_rank = {p.player_id: i for i, p in enumerate(self._role_order(players, style))}
+        # 同じ値なら、寄っている側の並べ方を優先する（ちょうど半分なら役割の順）
+        lead, other = (role_rank, power_rank) if share >= 0.5 else (power_rank, role_rank)
+        return sorted(players, key=lambda p: (
+            round((1 - share) * power_rank[p.player_id] + share * role_rank[p.player_id], 9),
+            lead[p.player_id], other[p.player_id]))
+
     def select_dh_mode(self, snapshots: Iterable[PlayerAbilitySnapshot], *,
                        starting_pitcher_id: str, replacement_batter_id: str,
                        starter_share: float, selection_grade_bias: float = 0.0,
@@ -460,7 +516,9 @@ class TeamStrengthGenerator:
         dh_mode: str = "none",
         starting_pitcher_id: str | None = None,
         designated_hitter_id: str | None = None,
+        order_style: BattingOrderStyle | None = None,
     ) -> StartingLineup:
+        """``order_style`` は監督の打順の型（None なら打てる順）。"""
         players = list(snapshots)
         school_id, reference_year, *_ = self._validate_source(players)
         if dh_mode not in ('none', 'normal', 'pitcher'):
@@ -559,16 +617,10 @@ class TeamStrengthGenerator:
             dh_id = dh.player_id
             chosen[0] = ('DH', dh, self._batting_composite(dh))
 
-        ordered = sorted(
-            chosen,
-            key=lambda item: (
-                -self._batting_order_score(item[1]),
-                item[1].player_id,
-            ),
-        )
         batting_order = {
             player.player_id: index
-            for index, (_, player, _) in enumerate(ordered, start=1)
+            for index, player in enumerate(
+                self._batting_order([player for _, player, _ in chosen], order_style), start=1)
         }
         entries = tuple(
             LineupEntry(
@@ -648,6 +700,7 @@ class TeamStrengthGenerator:
         dh_mode: str = "none",
         starting_pitcher_id: str | None = None,
         designated_hitter_id: str | None = None,
+        order_style: BattingOrderStyle | None = None,
     ) -> TeamStrengthSnapshot:
         players = list(snapshots)
         (
@@ -661,7 +714,8 @@ class TeamStrengthGenerator:
         ) = self._validate_source(players)
         lineup = self.select_starting_lineup(
             players, selection_grade_bias=selection_grade_bias,
-            dh_mode=dh_mode, starting_pitcher_id=starting_pitcher_id, designated_hitter_id=designated_hitter_id)
+            dh_mode=dh_mode, starting_pitcher_id=starting_pitcher_id, designated_hitter_id=designated_hitter_id,
+            order_style=order_style)
         staff = self.select_pitching_staff(
             players, selection_grade_bias=selection_grade_bias)
         by_id = {player.player_id: player for player in players}

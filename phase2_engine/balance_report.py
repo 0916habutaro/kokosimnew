@@ -22,6 +22,8 @@
   試みた打席の割合。全試合と夏の甲子園）。試合の計算の作戦の判断（``_choose_tactic``）を数える
 - 交代（段階F2）：代打・代走・守備固めの1試合あたりの数（交代の記録の理由から）、代打の打率、
   監督の交代の積極性（低い〜40・中・61〜高い）ごとの1チーム1試合あたりの交代の数
+- 打順（段階F3）：先発の1番打者の走力・4番打者のパワーの平均（能力は試合の翌日の名簿の値）と、
+  監督の打順の型（低い〜40・中・61〜高い）ごとの同じ平均
 - 左右別の打率（打者の左右は名簿から）：同じ側どうし・逆の側、右対右・左対左・両打ち
 - 暴投・捕逸・重盗・本盗の1試合あたりの数、1打席・1チーム1試合（9回あたり）の球数（段階H1）
 - 度胸（段階G）：投手の度胸の帯（〜44・45〜59・60〜）ごとの、ピンチ・終盤の接戦とそれ以外の被打率
@@ -151,12 +153,17 @@ class BalanceTally:
         self.substitutions = defaultdict(Counter)   # 年度 → 交代の数・代打の成績
         self.substitutions_by_band = defaultdict(lambda: defaultdict(lambda: [0, 0]))  # 年度 → 帯 → [チーム試合, 交代]
         self.splits = defaultdict(lambda: defaultdict(lambda: [0, 0]))  # 年度 → 組み合わせ → [打数, 安打]
+        # 年度 → 打順の型の帯（全体は "all"） → [1番の数, 1番の走力の合計, 4番の数, 4番のパワーの合計]
+        self.lineup_slots = defaultdict(lambda: defaultdict(lambda: [0, 0, 0, 0]))
         # 年度 → (小技／機動力, 傾向の帯) → [チーム試合, 犠打の試み, スクイズ, エンドラン, 盗塁の試み]
         self.by_tendency = defaultdict(lambda: defaultdict(lambda: [0, 0, 0, 0, 0]))
 
-    def add_match(self, competition_id: str, detail: dict, coach_of=None, bats_of=None) -> None:
+    def add_match(self, competition_id: str, detail: dict, coach_of=None, bats_of=None,
+                  ability_of=None) -> None:
         """``coach_of(学校ID)`` はその試合の監督（小技・機動力・交代の傾向を見る。なければ None）。
-        ``bats_of(学校ID, 選手ID)`` は打者の打つ側（R・L・S。左右別の打率に使う）。"""
+        ``bats_of(学校ID, 選手ID)`` は打者の打つ側（R・L・S。左右別の打率に使う）。
+        ``ability_of(学校ID, 選手ID, 大会ID)`` は (走力, パワー)（打順の指標に使う。なければ None）。
+        学校IDは試合に出たチーム（連合なら代表校）。選手は本来の所属校の名簿から引く。"""
         year = int(detail["reference_year"])
         kind = self.kind_of(competition_id)
         self.games[(year, kind)].append(
@@ -211,6 +218,8 @@ class BalanceTally:
                 {k: int(p.get(k, 0)) for k in ("outs_recorded", "earned_runs")})
         self._add_tactics(year, detail, batters, coach_of, kind == KOSHIEN)
         self._add_substitutions(year, detail, batters, coach_of)
+        if ability_of is not None:
+            self._add_lineup_slots(year, competition_id, detail, coach_of, ability_of)
         if bats_of is not None:
             self._add_splits(year, batters, bats_of)
             for b in batters:
@@ -233,6 +242,38 @@ class BalanceTally:
                 cell = self.substitutions_by_band[year][band]
                 cell[0] += 1
                 cell[1] += sum(reasons.values())
+
+    def _add_lineup_slots(self, year, competition_id, detail, coach_of, ability_of) -> None:
+        for part in detail.get("team_participation") or []:
+            school = part["school_id"]
+            coach = coach_of(school) if coach_of else None
+            band = tendency_band(getattr(coach, "lineup_style", None)) if coach is not None else None
+            cells = [self.lineup_slots[year]["all"]] + ([self.lineup_slots[year][band]] if band else [])
+            for slot in part.get("starting_lineup") or ():
+                if slot["batting_order"] not in (1, 4):
+                    continue
+                values = ability_of(school, slot["player_id"], competition_id)
+                if values is None:
+                    continue
+                speed, power = values
+                for cell in cells:
+                    if slot["batting_order"] == 1:
+                        cell[0] += 1
+                        cell[1] += speed
+                    else:
+                        cell[2] += 1
+                        cell[3] += power
+
+    def _lineup_summary(self, year) -> dict:
+        def means(cell):
+            return {"leadoff_speed": round(cell[1] / cell[0], 1) if cell[0] else None,
+                    "cleanup_power": round(cell[3] / cell[2], 1) if cell[2] else None,
+                    "teams": cell[0]}
+        rows = self.lineup_slots.get(year) or {}
+        if not rows.get("all", [0])[0]:
+            return {}
+        return {"all": means(rows["all"]),
+                "by_tendency": {band: means(cell) for band, cell in sorted(rows.items()) if band != "all"}}
 
     def _add_splits(self, year, batters, bats_of) -> None:
         cells = self.splits[year]
@@ -715,6 +756,9 @@ class BalanceTally:
             subs = self._substitution_summary(year)
             if subs:
                 row["substitutions"] = subs
+            lineup = self._lineup_summary(year)
+            if lineup:
+                row["lineup"] = lineup
             splits = self.splits.get(year)
             if splits:
                 row["splits"] = {key: {"at_bats": ab, "average": round(h / ab, 3)}
@@ -1115,13 +1159,24 @@ class SituationCounter:
 
 
 class HandLookup:
-    """選手ID → 打つ側（名簿から。学校・年度ごとに1回だけ引く）。"""
+    """選手ID → 打つ側と (走力, パワー)（名簿から。学校・年度ごとに1回だけ引く。能力は引いた日の値）。"""
 
     def __init__(self):
         self.bats: dict[str, str] = {}
+        self.batting: dict[str, tuple[int, int]] = {}
         self.loaded: set[tuple[int, str]] = set()
 
+    def abilities(self, book, year: int, school_ids, player_id: str) -> tuple[int, int] | None:
+        """``school_ids`` は探す学校の順（連合チームは代表校と構成校）。"""
+        for school_id in school_ids:
+            if player_id in self.batting:
+                break
+            self.lookup(book, year, school_id, player_id)
+        return self.batting.get(player_id)
+
     def lookup(self, book, year: int, school_id: str, player_id: str) -> str | None:
+        from game_core.roster_book import SCALARS
+
         if player_id not in self.bats:
             for each in (year, year - 1):
                 if (each, school_id) in self.loaded:
@@ -1132,6 +1187,10 @@ class HandLookup:
                 except (KeyError, ValueError):
                     continue
                 self.bats.update({p.player_id: p.bats for p in players})
+                speed, power = SCALARS.index("speed"), SCALARS.index("power")
+                for p in players:
+                    values = book.state(p).values
+                    self.batting[p.player_id] = (values[speed], values[power])
                 if player_id in self.bats:
                     break
         return self.bats.get(player_id)
@@ -1142,6 +1201,7 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
     from .live_season_save import PLAYER_RESOLVER_CONTRACT
     from .repository import DataRepository
     from .school_year import school_year_of
+    from .screen.player_records import union_partners
 
     repo = DataRepository(ROOT / "data")
     tally = BalanceTally(competition_kinds(repo), summer_history(),
@@ -1171,8 +1231,15 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
 
             for season in state.seasons.values():
                 pending = season.pending_match_details
+                partners = union_partners(season)
+
+                def ability_of(school_id, player_id, competition_id, on=played_on, partners=partners):
+                    # 監督の傾向は代表校、選手の能力は本来の所属校（連合の構成校）から
+                    schools = (school_id, *partners(competition_id, school_id))
+                    return hands.abilities(state.rosters, school_year_of(on), schools, player_id)
+
                 for key in list(pending):
-                    tally.add_match(key.split(":", 1)[0], pending.pop(key), coach_of, bats_of)
+                    tally.add_match(key.split(":", 1)[0], pending.pop(key), coach_of, bats_of, ability_of)
             if (today.month, today.day) == (4, 1):
                 sizes = list(size_rows(state.rosters, today.year, repo))
                 tally.add_sizes(today.year, sizes, state.rosters.floor_hits.get(today.year, 0))
@@ -1333,6 +1400,14 @@ def format_report(seed_label: str, report: dict) -> str:
             if su.get("by_tendency"):
                 lines.append("  監督 交代の積極性（1チーム1試合あたりの交代）: " + " / ".join(
                     f"{band} {cell['substitutions']}（{cell['team_games']}）" for band, cell in su["by_tendency"].items()))
+        lu = row.get("lineup")
+        if lu:
+            lines.append(f"  打順（平均）: 1番の走力 {lu['all']['leadoff_speed']} / 4番のパワー {lu['all']['cleanup_power']}"
+                         f"（{lu['all']['teams']}チーム試合）")
+            if lu.get("by_tendency"):
+                lines.append("  監督 打順の型（1番の走力・4番のパワー）: " + " / ".join(
+                    f"{band} {cell['leadoff_speed']}・{cell['cleanup_power']}（{cell['teams']}）"
+                    for band, cell in lu["by_tendency"].items()))
         sp = row.get("splits")
         if sp:
             lines.append("  左右別の打率: " + " / ".join(

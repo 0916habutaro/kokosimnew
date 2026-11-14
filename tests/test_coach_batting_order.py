@@ -1,0 +1,85 @@
+"""監督の打順の型：打てる順と役割で組む並べ方を、傾向で混ぜる（架空の選手）。"""
+from dataclasses import replace
+import unittest
+
+from game_core.team_strength import BattingOrderStyle, TeamStrengthGenerator
+from test_stage13b3_team_strength import make_roster_abilities
+
+
+def batter(base, pid, *, contact=50, power=50, discipline=50, strikeouts=50, bunt=50, speed=50):
+    return replace(base, player_id=pid, contact=contact, power=power, plate_discipline=discipline,
+                   strikeout_resistance=strikeouts, bunt=bunt, speed=speed, baserunning=50)
+
+
+class CoachBattingOrderTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.generator = TeamStrengthGenerator()
+        cls.roster = make_roster_abilities(school_id='FAKE-ORDER')
+        base = cls.roster[5]
+        cls.players = [
+            batter(base, 'A-SLUG', contact=70, power=90),
+            batter(base, 'B-CONTACT', contact=85, power=55),
+            batter(base, 'C-POWER', contact=60, power=75),
+            batter(base, 'D-SPEED', contact=55, power=30, discipline=70, speed=95),
+            batter(base, 'E-BUNT', contact=60, power=30, strikeouts=80, bunt=90),
+            batter(base, 'F', contact=62, power=50),
+            batter(base, 'G', contact=58, power=45),
+            batter(base, 'H', contact=50, power=40),
+            batter(base, 'I', contact=40, power=35),
+        ]
+
+    def order(self, style, players=None):
+        return [p.player_id for p in self.generator._batting_order(players or self.players, style)]
+
+    def test_low_style_is_batting_score_order_and_high_style_is_role_order(self):
+        by_score = [p.player_id for p in sorted(
+            self.players, key=lambda p: (-self.generator._batting_order_score(p), p.player_id))]
+        self.assertEqual(by_score, self.order(None))
+        self.assertEqual(by_score, self.order(BattingOrderStyle(lineup_style=1)))
+        role = self.order(BattingOrderStyle(lineup_style=100))
+        # 1番は出塁と足、2番はつなぐ打者、4番は最も長打寄り、3・5番は長打とミートの順
+        self.assertEqual(['D-SPEED', 'E-BUNT', 'B-CONTACT', 'A-SLUG', 'C-POWER'], role[:5])
+        rest = [pid for pid in by_score if pid not in role[:5]]
+        self.assertEqual(rest, role[5:])
+
+    def test_neutral_style_is_between_the_two_orders(self):
+        score = self.order(BattingOrderStyle(lineup_style=1))
+        role = self.order(BattingOrderStyle(lineup_style=100))
+        middle = self.order(BattingOrderStyle(lineup_style=50))
+        self.assertNotEqual(score, middle)
+        self.assertNotEqual(role, middle)
+        for pid in middle:
+            low, high = sorted((score.index(pid), role.index(pid)))
+            # 2つの打順の平均の順に並べるので、どちらかから大きく外れない
+            self.assertLessEqual(low - 1, middle.index(pid))
+            self.assertLessEqual(middle.index(pid), high + 1)
+        # 打てる順では下位の足の速い打者も、中立では上位に上がる
+        self.assertLess(middle.index('D-SPEED'), score.index('D-SPEED'))
+
+    def test_mobility_puts_a_fast_runner_first_and_small_ball_a_bunter_second(self):
+        base = self.roster[5]
+        players = [p for p in self.players if p.player_id not in ('D-SPEED', 'E-BUNT')] + [
+            batter(base, 'D-SPEED', contact=50, power=30, speed=95),
+            batter(base, 'J-ONBASE', contact=70, power=30, discipline=70, speed=60),
+        ]
+        self.assertEqual('J-ONBASE', self.order(BattingOrderStyle(100, mobility=50), players)[0])
+        self.assertEqual('D-SPEED', self.order(BattingOrderStyle(100, mobility=95), players)[0])
+        players = [p for p in self.players if p.player_id != 'E-BUNT'] + [
+            batter(base, 'E-BUNT', contact=45, power=30, strikeouts=50, bunt=70),
+            batter(base, 'K-CONTACT', contact=68, power=30, strikeouts=70, bunt=40),
+        ]
+        self.assertEqual('K-CONTACT', self.order(BattingOrderStyle(100, small_ball=50), players)[1])
+        self.assertEqual('E-BUNT', self.order(BattingOrderStyle(100, small_ball=95), players)[1])
+
+    def test_starting_lineup_uses_style_only_for_order(self):
+        plain = self.generator.select_starting_lineup(self.roster)
+        low = self.generator.select_starting_lineup(self.roster, order_style=BattingOrderStyle(1))
+        high = self.generator.select_starting_lineup(self.roster, order_style=BattingOrderStyle(100))
+        self.assertEqual(plain, low)
+        self.assertEqual(sorted(e.player_id for e in plain.entries), sorted(e.player_id for e in high.entries))
+        self.assertEqual(list(range(1, 10)), sorted(e.batting_order for e in high.entries))
+
+
+if __name__ == '__main__':
+    unittest.main()

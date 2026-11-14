@@ -11,6 +11,7 @@ from phase2_engine.randomness import rng_for
 from phase2_engine.school_year import school_year_of
 from .ability_config import load_config
 from .player_names import ROOT, name_generator
+from .team_strength import BattingOrderStyle
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,11 @@ class Coach:
     mobility: int = 50
     # 交代の積極性（段階F2）。大きいほど代打・代走・守備固め・左右を見た起用が多い
     substitutions: int = 50
+    # 采配の傾向（段階F3）。打順の型は低いほど打てる順、高いほど役割で組む。
+    # 調子の重視・投手の配置転換は値だけ持つ（効果は次の段階でつなぐ）
+    lineup_style: int = 50
+    form_reliance: int = 50
+    pitcher_shuffle: int = 50
 
     def view(self, today: date) -> dict:
         year = school_year_of(today)
@@ -72,6 +78,8 @@ class CoachTactics:
     mobility: float = 1.0
     # 交代（代打・代走・守備固め・左右の起用）の積極性の倍率（段階F2）。基準の差をこれで割る
     substitutions: float = 1.0
+    # 打順の組み方（段階F3）。監督がいないときは None（打てる順のまま）
+    batting_order: BattingOrderStyle | None = None
 
 
 def _draw_coach(team, year, rng, coach_id, names, config, *, initial):
@@ -92,7 +100,10 @@ def _draw_coach(team, year, rng, coach_id, names, config, *, initial):
                   ability("pitching_change"), ability("player_selection"))
     # 作戦の傾向は既存の抽選のあとに引く（ほかの能力・氏名は変わらない）
     coach = replace(coach, small_ball=ability("small_ball"), mobility=ability("mobility"))
-    return replace(coach, substitutions=ability("substitutions"))
+    coach = replace(coach, substitutions=ability("substitutions"))
+    return replace(coach, lineup_style=ability("lineup_style"),
+                   form_reliance=ability("form_reliance"),
+                   pitcher_shuffle=ability("pitcher_shuffle"))
 
 
 def _band_probability(bands, value):
@@ -236,6 +247,15 @@ class CoachBook:
                 factor(coach.mobility, "mobility_log_per_point"),
                 factor(coach.substitutions, "substitutions_log_per_point"))
 
+    @staticmethod
+    def batting_order_style(coach: Coach) -> BattingOrderStyle:
+        """打順の組み方に使う傾向（打順の型と、上乗せに使う小技・機動力）。新規開始から使う。"""
+        values = (coach.lineup_style, coach.small_ball, coach.mobility,
+                  coach.form_reliance, coach.pitcher_shuffle)
+        if not all(1 <= value <= 100 for value in values):
+            raise ValueError("coach tendencies must be between 1 and 100")
+        return BattingOrderStyle(coach.lineup_style, coach.small_ball, coach.mobility)
+
     def tactics_for(self, school_id: str, on: date) -> CoachTactics:
         """大会年度ではなく試合当日の所属を使う。参照だけで乱数は消費しない。
 
@@ -247,8 +267,10 @@ class CoachBook:
         if coach is None:
             return CoachTactics()
         small_ball, mobility, substitutions = self.strategy_multipliers(coach)
+        order = self.batting_order_style(coach)
         if on < date.fromisoformat(config["first_match_date"]):
-            return CoachTactics(small_ball=small_ball, mobility=mobility, substitutions=substitutions)
+            return CoachTactics(small_ball=small_ball, mobility=mobility, substitutions=substitutions,
+                                batting_order=order)
         if not (1 <= coach.pitching_change <= 100 and 1 <= coach.player_selection <= 100):
             raise ValueError("coach tactics abilities must be between 1 and 100")
         def delta(ability, slope, cap):
@@ -261,7 +283,7 @@ class CoachBook:
                         "max_abs_quick_hook_reduction")),
             round(delta(coach.player_selection, "selection_bias_per_point",
                         "max_abs_selection_bias"), 6),
-            small_ball, mobility, substitutions,
+            small_ball, mobility, substitutions, order,
         )
 
     def practice_for(self, school_id: str, month: date) -> tuple[str | None, int | None, float]:
@@ -430,7 +452,7 @@ class CoachBook:
                              expected_config_id="coach_generation_v1").payload
         for field in ("age", "tenure", "reputation", "development",
                       "pitching_change", "player_selection", "small_ball", "mobility",
-                      "substitutions"):
+                      "substitutions", "lineup_style", "form_reliance", "pitcher_shuffle"):
             spec = config[field]
             if not all(isinstance(v, (int, float)) and math.isfinite(v) for v in spec.values()):
                 raise ValueError(f"coach {field}: finite numbers required")

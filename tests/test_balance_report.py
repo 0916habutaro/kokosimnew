@@ -227,6 +227,54 @@ class PlatoonAndAbilityTableTests(unittest.TestCase):
         self.assertEqual({"R": {"weight": 20.0, "opposite_minus_same": 0.2}},
                          tally.summary()[2026]["platoon_within"])
 
+    def test_leadoff_speed_and_cleanup_power_by_lineup_style(self):
+        from types import SimpleNamespace
+
+        tally = BalanceTally(lambda cid: KINDS[cid[:3]], {}, RANKINGS)
+        detail = match(2026, "LOC1", "FAKE-A", "FAKE-B", 2, 1, 9)
+        for part in detail["team_participation"]:
+            sid = part["school_id"]
+            part["starting_lineup"] = [dict(batting_order=n, player_id=f"{sid}-{n}", defensive_position="LF")
+                                       for n in range(1, 10)]
+        values = {"FAKE-A-1": (80, 30), "FAKE-A-4": (40, 90), "FAKE-B-1": (60, 30), "FAKE-B-4": (40, 70)}
+        coaches = {"FAKE-A": SimpleNamespace(lineup_style=90), "FAKE-B": SimpleNamespace(lineup_style=10)}
+        tally.add_match("LOC1", detail, coaches.get, ability_of=lambda school, player, cid: values.get(player))
+        lineup = tally.summary()[2026]["lineup"]
+        self.assertEqual({"leadoff_speed": 70.0, "cleanup_power": 80.0, "teams": 2}, lineup["all"])
+        self.assertEqual({"leadoff_speed": 80.0, "cleanup_power": 90.0, "teams": 1}, lineup["by_tendency"]["高"])
+        self.assertEqual({"leadoff_speed": 60.0, "cleanup_power": 70.0, "teams": 1}, lineup["by_tendency"]["低"])
+        self.assertIn("1番の走力 70.0", format_report("x", tally.summary()))
+
+    def test_union_member_abilities_come_from_their_own_school(self):
+        from types import SimpleNamespace
+        from game_core.roster_book import SCALARS
+        from phase2_engine.balance_report import HandLookup
+
+        def values(speed, power):
+            row = [0] * len(SCALARS)
+            row[SCALARS.index("speed")], row[SCALARS.index("power")] = speed, power
+            return row
+
+        rosters = {"FAKE-LEAD": [("FAKE-LEAD-1", 70, 40)], "FAKE-PART": [("FAKE-PART-4", 50, 85)]}
+        players = {sid: [SimpleNamespace(player_id=pid, bats="R", v=values(sp, pw)) for pid, sp, pw in rows]
+                   for sid, rows in rosters.items()}
+
+        def roster(year, sid):
+            if year != 2026 or sid not in players:
+                raise KeyError(sid)
+            return SimpleNamespace(players=players[sid])
+
+        book = SimpleNamespace(roster=roster, state=lambda p: SimpleNamespace(values=p.v))
+        union = ("FAKE-LEAD", "FAKE-PART")
+        # 構成校の名簿を先に読んでも、代表校から探しても同じ値になる
+        for order in (union, union[::-1]):
+            lookup = HandLookup()
+            for sid in order:
+                lookup.lookup(book, 2026, sid, "missing")
+            self.assertEqual((50, 85), lookup.abilities(book, 2026, union, "FAKE-PART-4"))
+            self.assertEqual((70, 40), lookup.abilities(book, 2026, union, "FAKE-LEAD-1"))
+        self.assertIsNone(HandLookup().abilities(book, 2026, ("FAKE-LEAD",), "FAKE-PART-4"))
+
     def test_ability_table_moves_in_the_intended_direction(self):
         from phase2_engine.balance_report import ability_table
 
