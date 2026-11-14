@@ -494,7 +494,7 @@
       "max_per_half": 2
     },
     "platoon_lineup": {
-      "description_ja": "先発メンバーの左右：相手の先発投手の腕を見て、控えの野手（捕手を除く）の左右の差を入れた打撃の値が先発より selection_min_gain 以上高く、その守備位置の守備の値の差が max_defense_loss 以内なら1人まで入れ替える。打順は、次の打者の左右の差を入れた打撃の値が order_min_gain 以上高ければ隣どうしを入れ替える（max_order_swaps 回まで）",
+      "description_ja": "先発メンバーの左右：相手の先発投手の腕を見て、控えの野手（捕手を除く）の左右の差を入れた打撃の値が先発より selection_min_gain 以上高く、その守備位置の守備の値の差が max_defense_loss 以内なら1人まで入れ替える。打順は、次の打者の左右の差を入れた打撃の値が order_min_gain 以上高く、左右の差の分だけでも order_min_gain 以上あれば隣どうしを入れ替える（max_order_swaps 回まで。監督が役割で組んだ打順を打撃の差だけで崩さない）",
       "selection_min_gain": 3.0,
       "max_defense_loss": 5.0,
       "max_selection_swaps": 1,

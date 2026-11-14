@@ -1226,10 +1226,15 @@ class MatchSimulator:
         order = sorted(entries, key=lambda e: e.batting_order)
         swaps = 0
         index = 0
+        composite = self._strength_generator()._batting_composite
         while index < len(order) - 1 and swaps < int(rule["max_order_swaps"]):
             here, after = order[index], order[index + 1]
-            if (self._hitting_value(players[after.player_id], opponent)
-                    - self._hitting_value(players[here.player_id], opponent) >= float(rule["order_min_gain"])):
+            a, b = players[after.player_id], players[here.player_id]
+            gain = self._hitting_value(a, opponent) - self._hitting_value(b, opponent)
+            # 左右の差だけでも基準に届くときに限る（役割で組んだ打順を、打撃の差だけで崩さない）。
+            # 打てる順の打順では後ろの打者の総合はほぼ前以下なので、今までとほぼ同じ判定になる
+            platoon = gain - (composite(a) - composite(b))
+            if min(gain, platoon) >= float(rule["order_min_gain"]):
                 order[index] = replace(after, batting_order=here.batting_order)
                 order[index + 1] = replace(here, batting_order=after.batting_order)
                 swaps += 1

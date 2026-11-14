@@ -96,6 +96,27 @@ class CoachBattingOrderTests(unittest.TestCase):
         self.assertEqual(sorted(e.player_id for e in plain.entries), sorted(e.player_id for e in high.entries))
         self.assertEqual(list(range(1, 10)), sorted(e.batting_order for e in high.entries))
 
+    def test_same_side_pitcher_does_not_undo_the_role_order(self):
+        from game_core.coaches import CoachTactics
+        from game_core.match_contract import TeamMatchInput
+        from game_core.match_simulator import MatchSimulator
+
+        sim = MatchSimulator()
+        opponent = replace(make_roster_abilities(school_id='FAKE-OPP')[0], throws='R')
+        checked = 0
+        for seed in range(2026100701, 2026100721):
+            roster = tuple(make_roster_abilities(school_id='FAKE-ORDER', seed=seed))
+            strength = self.generator.generate(roster, order_style=BattingOrderStyle(100))
+            lineup = strength.starting_lineup
+            team = TeamMatchInput('FAKE-ORDER', strength, roster)
+            after = sim._platoon_lineup(lineup, team, opponent, (), CoachTactics())
+            before = {e.player_id: e.batting_order for e in lineup.entries}
+            kept = {e.player_id: e.batting_order for e in after.entries if e.player_id in before}
+            # 全員が右打ちで左右の差がないので、打撃の差だけで隣どうしを入れ替えない
+            self.assertEqual({pid: before[pid] for pid in kept}, kept)
+            checked += 1
+        self.assertEqual(20, checked)
+
 
 if __name__ == '__main__':
     unittest.main()
