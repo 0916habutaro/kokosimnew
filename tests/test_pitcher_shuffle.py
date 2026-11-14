@@ -123,15 +123,57 @@ class PitcherShuffleTests(unittest.TestCase):
             self.play(0, CoachTactics(), lineup_changes=changes)
 
 
+class DHGameShuffleTests(unittest.TestCase):
+    """DHを宣言した試合：投手が守備に就くとDHは消え、救援はDHの打順に入る。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.sim = MatchSimulator()
+        generator = TeamStrengthGenerator()
+        cls.teams = []
+        for sid in ('FAKE-A', 'FAKE-B'):
+            players = tuple(replace(p, player_id=f'{sid}-{p.player_id}')
+                            for p in make_roster_abilities(school_id=sid, seed=SEED))
+            cls.teams.append(TeamMatchInput(sid, generator.generate(players, dh_mode='normal'), players))
+
+    def test_shuffle_ends_the_dh_and_the_reliever_bats_in_the_dh_slot(self):
+        from game_core.match_state import replay_team_participation
+
+        checked = returned = 0
+        for i in range(80):
+            match = MatchSimulationInput(f'MATCH-{i}', 'FAKE-CUP', 2026, SEED, *self.teams)
+            result = self.sim.simulate(match, tactics={'FAKE-A': SHUFFLER, 'FAKE-B': SHUFFLER})
+            validate_match_simulation_result(result, match)
+            for part in result.team_participation:
+                dh = part.starting_designated_hitter_id
+                for change in part.changes:
+                    returned += change.reason == 'pitcher_return'
+                    if change.reason != 'pitcher_to_field' or dh is None:
+                        continue
+                    record = replace(part, changes=part.changes[:change.sequence], fielding_player_ids=())
+                    state = replay_team_participation(record, 2026)
+                    reliever = state.current_pitcher_id
+                    batters = [s.player_id for s in state.batting_order]
+                    moved = next(c.after_player_id for c in change.defensive_changes if c.defensive_position != 'P')
+                    self.assertIsNone(state.designated_hitter_id)
+                    self.assertIn(moved, batters)
+                    self.assertIn(reliever, batters)
+                    self.assertIn(dh, state.exited_player_ids)
+                    checked += 1
+        self.assertGreater(checked, 5)
+        self.assertGreater(returned, 0)
+
+
 class CoachShufflePolicyTests(unittest.TestCase):
     def test_rate_from_pitcher_shuffle_and_misread_from_pitching_change(self):
         from test_coach_intake import books
 
         book = books(50)[1]
         coach = book.coaches['C-FAKE-A']
-        self.assertEqual((0.0, round(0.4 * 50 / 99, 6)), book.shuffle_policy(coach))
-        self.assertEqual(0.0, book.shuffle_policy(replace(coach, pitcher_shuffle=30))[0])
-        self.assertEqual(0.8, book.shuffle_policy(replace(coach, pitcher_shuffle=100))[0])
+        self.assertEqual((0.17, round(0.4 * 50 / 99, 6)), book.shuffle_policy(coach))
+        for low in (1, 30, 40):
+            self.assertEqual(0.0, book.shuffle_policy(replace(coach, pitcher_shuffle=low))[0])
+        self.assertEqual(0.9, book.shuffle_policy(replace(coach, pitcher_shuffle=100))[0])
         self.assertEqual(0.0, book.shuffle_policy(replace(coach, pitching_change=100))[1])
         self.assertEqual(0.4, book.shuffle_policy(replace(coach, pitching_change=1))[1])
 

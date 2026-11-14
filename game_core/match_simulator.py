@@ -2294,7 +2294,10 @@ class MatchSimulator:
             state = states[school_id]
             rate = policies[school_id].shuffle_rate
             stat = pitcher_rows[school_id].get(outgoing)
-            if (rate <= 0 or stat is None or state.initial_lineup.designated_hitter_id is not None
+            if (rate <= 0 or stat is None
+                    # 投げながらDHも兼ねる投手（投・DH）は守備に残さない
+                    or outgoing == state.designated_hitter_id
+                    or outgoing == state.initial_lineup.designated_hitter_id
                     or shuffle_counts[school_id] >= int(shuffle_rule["max_per_game"])
                     or inning > int(shuffle_rule["latest_inning"])
                     or abs(margin) > int(shuffle_rule["max_margin"])

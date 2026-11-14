@@ -177,7 +177,7 @@ class CoachBook:
             raise ValueError("invalid coach tactics configuration")
         strategy = tactics["strategy"]
         shuffle = tactics["pitcher_shuffle"]
-        if (shuffle["neutral"] != 50 or any(
+        if (not 0 <= shuffle["start"] <= 100 or any(
                 not math.isfinite(shuffle[k]) or not 0 <= shuffle[k] <= 1
                 for k in ("rate_per_point", "max_rate", "max_misread"))):
             raise ValueError("invalid coach pitcher shuffle configuration")
@@ -283,7 +283,7 @@ class CoachBook:
         rule = self.tactics_config["pitcher_shuffle"]
         if not (1 <= coach.pitcher_shuffle <= 100 and 1 <= coach.pitching_change <= 100):
             raise ValueError("coach tendencies must be between 1 and 100")
-        rate = min(rule["max_rate"], max(0, coach.pitcher_shuffle - rule["neutral"]) * rule["rate_per_point"])
+        rate = min(rule["max_rate"], max(0, coach.pitcher_shuffle - rule["start"]) * rule["rate_per_point"])
         misread = rule["max_misread"] * (100 - coach.pitching_change) / 99
         return round(rate, 6), round(misread, 6)
 

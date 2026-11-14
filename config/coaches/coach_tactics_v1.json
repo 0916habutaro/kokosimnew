@@ -11,10 +11,10 @@
   "selection_bias_per_point": 0.01,
   "max_abs_selection_bias": 0.5,
   "pitcher_shuffle": {
-    "description_ja": "投手の配置転換（段階F5）。継投のとき、降りる投手を守備に残す確率 = min(max_rate, max(0, 投手の配置転換 − 50) × rate_per_point)。50以下の監督は使わない。戻すときを読み違える確率 = max_misread × (100 − 継投の傾向) ÷ 99（match_simulation_v1 の pitcher_shuffle.return の点を ±1 ずらす）。新規開始から使う。ゲーム用の仮の値",
-    "neutral": 50,
-    "rate_per_point": 0.016,
-    "max_rate": 0.8,
+    "description_ja": "投手の配置転換（段階F5）。継投のとき、降りる投手を守備に残す確率 = min(max_rate, max(0, 投手の配置転換 − start) × rate_per_point)。start 以下の監督（傾向の低い帯）は使わない。戻すときを読み違える確率 = max_misread × (100 − 継投の傾向) ÷ 99（match_simulation_v1 の pitcher_shuffle.return の点を ±1 ずらす）。新規開始から使う。ゲーム用の仮の値",
+    "start": 40,
+    "rate_per_point": 0.017,
+    "max_rate": 0.9,
     "max_misread": 0.4
   },
   "form": {

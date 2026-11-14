@@ -58,8 +58,9 @@ class CoachTacticsTests(unittest.TestCase):
         f=books();annual(f,2027)
         c=f[1].coaches['C-FAKE-A'];f[1].coaches[c.coach_id]=replace(c,pitching_change=100,player_selection=100)
         for d in (date(2026,7,1),date(2027,3,31)):
-            # 継投の傾向100の監督は、戻すときを読み違えない（段階F5）
-            self.assertEqual(CoachTactics(batting_order=BattingOrderStyle()),f[1].tactics_for('FAKE-A',d))
+            # 継投の傾向100の監督は、戻すときを読み違えない。投手の配置転換50は確率0.17（段階F5）
+            self.assertEqual(CoachTactics(batting_order=BattingOrderStyle(),shuffle_rate=0.17),
+                             f[1].tactics_for('FAKE-A',d))
         self.assertEqual(CoachTactics(),f[1].tactics_for('ABSENT',date(2027,4,1)))
         with self.assertRaises(ValueError):f[1].tactics_for('FAKE-A',date(2028,4,1))
 

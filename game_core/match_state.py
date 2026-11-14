@@ -588,13 +588,30 @@ class TeamMatchState:
         """本番の自動継投。野手登板で空く位置にはDHが入り、旧投手は退く。
 
         ``keep_in_field`` に出場中の野手を渡すと、旧投手はその守備位置に残り、その野手が退いて
-        控えの投手がその打順に入る（投手の配置転換。DHを宣言した試合では使わない）。"""
+        控えの投手が打順に入る（投手の配置転換）。DHが続いている試合では、投手が守備に就くので
+        DHは消え、旧投手は退く野手の打順、控えの投手はDHの打順に入る（DHの打者も退く）。
+        投げながらDHも兼ねる投手（投・DH）には使わない。"""
         if keep_in_field is not None:
-            if self.initial_lineup.designated_hitter_id is not None:
-                raise ValueError('pitcher shuffle is not used with a declared DH')
-            if keep_in_field == self.current_pitcher_id or incoming_player_id in self.active_player_ids:
+            current = self.current_pitcher_id
+            if keep_in_field == current or incoming_player_id in self.active_player_ids:
                 raise ValueError('pitcher shuffle requires a fielder to replace and a bench pitcher')
-            return self.change_pitcher(incoming_player_id, outgoing_player_id=keep_in_field, moment=moment)
+            if self.initial_lineup.designated_hitter_id is None:
+                return self.change_pitcher(incoming_player_id, outgoing_player_id=keep_in_field, moment=moment)
+            if current == self.designated_hitter_id or current == self._initial_two_way_id():
+                raise ValueError('pitcher shuffle is not used for a pitcher/DH')
+            position = next(a.defensive_position for a in self.defensive_alignment
+                            if a.player_id == keep_in_field)
+            slot = next(s.batting_order for s in self.batting_order if s.player_id == keep_in_field)
+            if self.designated_hitter_id is not None:
+                dh_slot = next(s.batting_order for s in self.batting_order
+                               if s.player_id == self.designated_hitter_id)
+                bats = {slot: current, dh_slot: incoming_player_id}
+            else:
+                # DHはもう消えていて、旧投手は自分の打順のまま守備に移る
+                bats = {slot: incoming_player_id}
+            return self.transition(batting_changes=bats,
+                                   defensive_changes={position: current, 'P': incoming_player_id},
+                                   moment=moment)
         extra_defense = {}
         if self.designated_hitter_id is not None and self.current_pitcher_id != self.designated_hitter_id:
             vacated = next((a.defensive_position for a in self.defensive_alignment
