@@ -38,6 +38,8 @@ class Coach:
     lineup_style: int = 50
     form_reliance: int = 50
     pitcher_shuffle: int = 50
+    # 選手を見る目（段階F4）。低いほど、監督が見る選手の調子が本当の値からずれる
+    player_eye: int = 50
 
     def view(self, today: date) -> dict:
         year = school_year_of(today)
@@ -104,9 +106,10 @@ def _draw_coach(team, year, rng, coach_id, names, config, *, initial):
     # 作戦の傾向は既存の抽選のあとに引く（ほかの能力・氏名は変わらない）
     coach = replace(coach, small_ball=ability("small_ball"), mobility=ability("mobility"))
     coach = replace(coach, substitutions=ability("substitutions"))
-    return replace(coach, lineup_style=ability("lineup_style"),
-                   form_reliance=ability("form_reliance"),
-                   pitcher_shuffle=ability("pitcher_shuffle"))
+    coach = replace(coach, lineup_style=ability("lineup_style"),
+                    form_reliance=ability("form_reliance"),
+                    pitcher_shuffle=ability("pitcher_shuffle"))
+    return replace(coach, player_eye=ability("player_eye"))
 
 
 def _band_probability(bands, value):
@@ -261,7 +264,7 @@ class CoachBook:
     def batting_order_style(coach: Coach) -> BattingOrderStyle:
         """打順の組み方に使う傾向（打順の型と、上乗せに使う小技・機動力）。新規開始から使う。"""
         values = (coach.lineup_style, coach.small_ball, coach.mobility,
-                  coach.form_reliance, coach.pitcher_shuffle)
+                  coach.form_reliance, coach.pitcher_shuffle, coach.player_eye)
         if not all(1 <= value <= 100 for value in values):
             raise ValueError("coach tendencies must be between 1 and 100")
         return BattingOrderStyle(coach.lineup_style, coach.small_ball, coach.mobility)
@@ -300,20 +303,20 @@ class CoachBook:
         """監督が見た調子の加点（段階F4。新規開始から）。``forms`` は選手ID → 本当の調子、
         ``scores`` は選手ID → 打撃の評価（上位の中心の選手は、調子が悪く見えても外しにくい）。
 
-        調子の重視が中立（50）以下の監督は空（能力だけで決める）。見る調子は、選手の見極め
-        （player_selection）が低いほど本当の値からずれる。乱数は監督・選手・日ごと。"""
+        調子の重視が中立（50）以下の監督は空（能力だけで決める）。見る調子は、選手を見る目
+        （player_eye）が低いほど本当の値からずれる。乱数は監督・選手・日ごと。"""
         if school_year_of(on) > self.updated_year:
             raise ValueError("coach personnel not finalized for match date")
         coach = self.for_school(school_id, on=on)
         if coach is None:
             return ()
         rule = self.tactics_config["form"]
-        if not (1 <= coach.form_reliance <= 100 and 1 <= coach.player_selection <= 100):
+        if not (1 <= coach.form_reliance <= 100 and 1 <= coach.player_eye <= 100):
             raise ValueError("coach tendencies must be between 1 and 100")
         weight = max(0, coach.form_reliance - rule["neutral_reliance"]) * rule["bonus_per_point"]
         if not weight:
             return ()
-        spread = rule["misread_sd"] * (100 - coach.player_selection) / 99
+        spread = rule["misread_sd"] * (100 - coach.player_eye) / 99
         core = set(sorted(scores, key=lambda pid: (-scores[pid], pid))[:rule["core_players"]])
         out = []
         for pid in sorted(forms):
@@ -495,7 +498,8 @@ class CoachBook:
                              expected_config_id="coach_generation_v1").payload
         for field in ("age", "tenure", "reputation", "development",
                       "pitching_change", "player_selection", "small_ball", "mobility",
-                      "substitutions", "lineup_style", "form_reliance", "pitcher_shuffle"):
+                      "substitutions", "lineup_style", "form_reliance", "pitcher_shuffle",
+                      "player_eye"):
             spec = config[field]
             if not all(isinstance(v, (int, float)) and math.isfinite(v) for v in spec.values()):
                 raise ValueError(f"coach {field}: finite numbers required")

@@ -617,14 +617,14 @@ class MatchSimulator:
         planned_pitcher = lineup.player_for_position("P")
         if actual_pitcher_id != planned_pitcher and lineup.designated_hitter_id is not None:
             lineup = self._strength_generator().select_starting_lineup(
-                team.player_abilities, starting_pitcher_id=actual_pitcher_id,
+                team.lineup_abilities, starting_pitcher_id=actual_pitcher_id,
                 dh_mode='pitcher' if lineup.designated_hitter_id == planned_pitcher else 'normal',
                 order_style=tactics.batting_order, form_bonus=dict(tactics.form_bonus))
         elif actual_pitcher_id != planned_pitcher:
             position = next((entry.defensive_position for entry in lineup.entries
                              if entry.player_id == actual_pitcher_id), None)
             if position is None:
-                player = self._players(team)[actual_pitcher_id]
+                player = {p.player_id: p for p in team.lineup_abilities}[actual_pitcher_id]
                 score = round(self._strength_generator()._selection_score(player, "P"), 4)
                 entries = tuple(
                     replace(entry, player_id=actual_pitcher_id, selection_score=score)
@@ -1191,9 +1191,10 @@ class MatchSimulator:
         if opponent is None:
             return lineup
         rule = self._substitutions()["platoon_lineup"]
-        players = self._players(team)
+        # 先発選びなので、調子を入れない能力で比べる（試合の中身の能力ではない）
+        players = {p.player_id: p for p in team.lineup_abilities}
         starters = {entry.player_id for entry in lineup.entries} | {a.player_id for a in lineup.defense}
-        bench = [p for p in team.player_abilities if p.player_id not in starters and p.player_id not in set(staff)]
+        bench = [p for p in team.lineup_abilities if p.player_id not in starters and p.player_id not in set(staff)]
         entries = list(lineup.entries)
         defense = list(lineup.defense)
         swaps = 0

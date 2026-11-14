@@ -43,7 +43,7 @@ class CoachGenerationTests(unittest.TestCase):
                 self.assertGreaterEqual(coach.appointment_year - coach.birth_year,
                                         config["minimum_appointment_age"])
             for field in ("reputation", "development", "pitching_change", "player_selection",
-                          "lineup_style", "form_reliance", "pitcher_shuffle"):
+                          "lineup_style", "form_reliance", "pitcher_shuffle", "player_eye"):
                 values = [getattr(c, field) for c in coaches]
                 spec = config[field]
                 self.assertTrue(all(spec["min"] <= v <= spec["max"] for v in values))

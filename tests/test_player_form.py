@@ -12,11 +12,11 @@ from test_stage13b3_team_strength import make_roster_abilities
 DAY = date(2026, 7, 10)
 
 
-def coach_book(form_reliance, player_selection=100):
+def coach_book(form_reliance, player_eye=100, player_selection=50):
     f = books(50)
     book = f[1]
     coach = book.coaches['C-FAKE-A']
-    book.coaches[coach.coach_id] = replace(coach, form_reliance=form_reliance,
+    book.coaches[coach.coach_id] = replace(coach, form_reliance=form_reliance, player_eye=player_eye,
                                            player_selection=player_selection)
     return book
 
@@ -159,7 +159,7 @@ class CoachFormTests(unittest.TestCase):
         chosen = self.generator.select_starting_lineup(self.roster, form_bonus=bonus)
         self.assertIn(star, chosen.starter_ids)
 
-    def test_low_player_selection_misreads_the_form(self):
+    def test_low_player_eye_misreads_the_form(self):
         scores = self.scores()
         forms = {pid: 1.0 for pid in scores}
         sharp = dict(coach_book(100, 100).form_reading('FAKE-A', DAY, forms, scores))
@@ -169,6 +169,48 @@ class CoachFormTests(unittest.TestCase):
         self.assertTrue(any(v < 0 for v in dull.values()))
         # 同じ監督・選手・日なら同じ読み違え
         self.assertEqual(dull, dict(coach_book(100, 1).form_reading('FAKE-A', DAY, forms, scores)))
+        # 下級生・上級生の起用の傾向（player_selection）は読み違いに関係しない
+        for selection in (1, 100):
+            self.assertEqual(sharp, dict(coach_book(100, 100, selection).form_reading(
+                'FAKE-A', DAY, forms, scores)))
+
+
+class BridgeFormTests(unittest.TestCase):
+    """試合の入口：先発・打順は調子を入れない能力で決め、試合の中身は調子入りの能力。"""
+
+    def team(self, form_reliance, units):
+        from test_coach_tactics import resolver
+
+        f = books(50)
+        book, rosters = f[1], f[3]
+        coach = book.coaches['C-FAKE-A']
+        book.coaches[coach.coach_id] = replace(coach, form_reliance=form_reliance, player_eye=100)
+        players = rosters.roster(2026, 'FAKE-A').players
+        for index, player in enumerate(players):
+            state = rosters.state(player)
+            state.form, state.form_day = units[index % len(units)], DAY
+        bridge = resolver(f, DAY)
+        return players, bridge.team_input(school_id='FAKE-A', reference_year=2026,
+                                          generation_seed=7, competition_id='FAKE-CUP')
+
+    def test_low_reliance_lineup_ignores_form_but_the_game_uses_it(self):
+        _, plain = self.team(40, [0])
+        for units in ([100, -100], [-100, 100], [100, 0, -100]):
+            players, team = self.team(40, units)
+            self.assertEqual(plain.team_strength.starting_lineup, team.team_strength.starting_lineup)
+            self.assertEqual(plain.player_abilities, team.selection_abilities)
+            hot = next(p for i, p in enumerate(players) if units[i % len(units)] == 100)
+            playing = {a.player_id: a for a in team.player_abilities}[hot.player_id]
+            base = {a.player_id: a for a in team.selection_abilities}[hot.player_id]
+            self.assertEqual(min(100, base.contact + 3), playing.contact)
+
+    def test_high_reliance_uses_the_form_it_sees(self):
+        _, plain = self.team(100, [0])
+        changed = 0
+        for units in ([100, -100], [-100, 100], [100, 0, -100]):
+            _, team = self.team(100, units)
+            changed += plain.team_strength.starting_lineup != team.team_strength.starting_lineup
+        self.assertGreater(changed, 0)
 
 
 if __name__ == '__main__':

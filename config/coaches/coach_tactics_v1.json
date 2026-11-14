@@ -11,7 +11,7 @@
   "selection_bias_per_point": 0.01,
   "max_abs_selection_bias": 0.5,
   "form": {
-    "description_ja": "調子の重視（段階F4）。監督が見た調子 × max(0, 調子の重視 − 50) × bonus_per_point を、投手以外の先発の選考点と打順の点に足す（新規開始から）。見た調子 = 本当の調子 + 平均0・標準偏差 misread_sd × (100 − 選手の見極め) ÷ 99 の読み違え（監督・選手・日ごとの乱数）。打撃の評価の上位 core_players 人は、マイナスの加点を core_negative_scale 倍にする（中心の選手を外しにくい）。ゲーム用の仮の値",
+    "description_ja": "調子の重視（段階F4）。監督が見た調子 × max(0, 調子の重視 − 50) × bonus_per_point を、投手以外の先発の選考点と打順の点に足す（新規開始から）。見た調子 = 本当の調子 + 平均0・標準偏差 misread_sd × (100 − 選手を見る目) ÷ 99 の読み違え（監督・選手・日ごとの乱数）。打撃の評価の上位 core_players 人は、マイナスの加点を core_negative_scale 倍にする（中心の選手を外しにくい）。ゲーム用の仮の値",
     "neutral_reliance": 50,
     "bonus_per_point": 0.08,
     "misread_sd": 1.0,
