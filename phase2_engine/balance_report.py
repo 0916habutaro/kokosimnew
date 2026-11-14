@@ -162,7 +162,8 @@ class BalanceTally:
                   ability_of=None) -> None:
         """``coach_of(学校ID)`` はその試合の監督（小技・機動力・交代の傾向を見る。なければ None）。
         ``bats_of(学校ID, 選手ID)`` は打者の打つ側（R・L・S。左右別の打率に使う）。
-        ``ability_of(学校ID, 選手ID)`` は (走力, パワー)（打順の指標に使う。なければ None）。"""
+        ``ability_of(学校ID, 選手ID, 大会ID)`` は (走力, パワー)（打順の指標に使う。なければ None）。
+        学校IDは試合に出たチーム（連合なら代表校）。選手は本来の所属校の名簿から引く。"""
         year = int(detail["reference_year"])
         kind = self.kind_of(competition_id)
         self.games[(year, kind)].append(
@@ -218,7 +219,7 @@ class BalanceTally:
         self._add_tactics(year, detail, batters, coach_of, kind == KOSHIEN)
         self._add_substitutions(year, detail, batters, coach_of)
         if ability_of is not None:
-            self._add_lineup_slots(year, detail, coach_of, ability_of)
+            self._add_lineup_slots(year, competition_id, detail, coach_of, ability_of)
         if bats_of is not None:
             self._add_splits(year, batters, bats_of)
             for b in batters:
@@ -242,7 +243,7 @@ class BalanceTally:
                 cell[0] += 1
                 cell[1] += sum(reasons.values())
 
-    def _add_lineup_slots(self, year, detail, coach_of, ability_of) -> None:
+    def _add_lineup_slots(self, year, competition_id, detail, coach_of, ability_of) -> None:
         for part in detail.get("team_participation") or []:
             school = part["school_id"]
             coach = coach_of(school) if coach_of else None
@@ -251,7 +252,7 @@ class BalanceTally:
             for slot in part.get("starting_lineup") or ():
                 if slot["batting_order"] not in (1, 4):
                     continue
-                values = ability_of(school, slot["player_id"])
+                values = ability_of(school, slot["player_id"], competition_id)
                 if values is None:
                     continue
                 speed, power = values
@@ -1165,8 +1166,12 @@ class HandLookup:
         self.batting: dict[str, tuple[int, int]] = {}
         self.loaded: set[tuple[int, str]] = set()
 
-    def abilities(self, book, year: int, school_id: str, player_id: str) -> tuple[int, int] | None:
-        self.lookup(book, year, school_id, player_id)
+    def abilities(self, book, year: int, school_ids, player_id: str) -> tuple[int, int] | None:
+        """``school_ids`` は探す学校の順（連合チームは代表校と構成校）。"""
+        for school_id in school_ids:
+            if player_id in self.batting:
+                break
+            self.lookup(book, year, school_id, player_id)
         return self.batting.get(player_id)
 
     def lookup(self, book, year: int, school_id: str, player_id: str) -> str | None:
@@ -1196,6 +1201,7 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
     from .live_season_save import PLAYER_RESOLVER_CONTRACT
     from .repository import DataRepository
     from .school_year import school_year_of
+    from .screen.player_records import union_partners
 
     repo = DataRepository(ROOT / "data")
     tally = BalanceTally(competition_kinds(repo), summer_history(),
@@ -1223,11 +1229,15 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
             def bats_of(school_id, player_id, on=played_on):
                 return hands.lookup(state.rosters, school_year_of(on), school_id, player_id)
 
-            def ability_of(school_id, player_id, on=played_on):
-                return hands.abilities(state.rosters, school_year_of(on), school_id, player_id)
-
             for season in state.seasons.values():
                 pending = season.pending_match_details
+                partners = union_partners(season)
+
+                def ability_of(school_id, player_id, competition_id, on=played_on, partners=partners):
+                    # 監督の傾向は代表校、選手の能力は本来の所属校（連合の構成校）から
+                    schools = (school_id, *partners(competition_id, school_id))
+                    return hands.abilities(state.rosters, school_year_of(on), schools, player_id)
+
                 for key in list(pending):
                     tally.add_match(key.split(":", 1)[0], pending.pop(key), coach_of, bats_of, ability_of)
             if (today.month, today.day) == (4, 1):
