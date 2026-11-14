@@ -120,6 +120,24 @@ class CoachFormTests(unittest.TestCase):
         hot_order = [p.player_id for p in self.generator._batting_order(nine, BattingOrderStyle(50), bonus)]
         self.assertLess(hot_order.index(hot.player_id), order.index(hot.player_id))
 
+    def test_dh_choice_uses_the_same_form_bonus_as_the_lineup(self):
+        plain = self.generator.select_starting_lineup(self.roster)
+        starters = set(plain.starter_ids)
+        pitcher = plain.player_for_position('P')
+        # 守備に入っていない一番打てる野手（DHの候補）を、調子の加点で守備に入れる
+        bench = [p for p in self.roster if p.player_id not in starters and p.primary_position != 'P']
+        hot = max(bench, key=lambda p: (self.generator._batting_composite(p), p.player_id))
+        bonus = {hot.player_id: 8.0}
+        decision = self.generator.select_dh_mode(
+            self.roster, starting_pitcher_id=pitcher, replacement_batter_id=pitcher,
+            starter_share=1.0, form_bonus=bonus)
+        self.assertEqual('normal', decision.mode)
+        self.assertNotEqual(hot.player_id, decision.normal_candidate_id)
+        strength = self.generator.generate(
+            self.roster, dh_mode='normal', starting_pitcher_id=pitcher,
+            designated_hitter_id=decision.normal_candidate_id, form_bonus=bonus)
+        self.assertIn(hot.player_id, strength.starting_lineup.starter_ids)
+
     def test_cold_players_drop_but_core_players_are_protected(self):
         scores = self.scores()
         ranked = sorted(scores, key=lambda pid: (-scores[pid], pid))

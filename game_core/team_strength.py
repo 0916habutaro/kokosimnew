@@ -413,7 +413,8 @@ class TeamStrengthGenerator:
                        baseline_batter_ids: Iterable[str] | None = None,
                        candidate_lineup: StartingLineup | None = None,
                        baseline_lineup: StartingLineup | None = None,
-                       pitching_forecast: tuple[PitcherForecast, ...] | None = None) -> DHSelection:
+                       pitching_forecast: tuple[PitcherForecast, ...] | None = None,
+                       form_bonus: Mapping[str, float] | None = None) -> DHSelection:
         """同じ実先発で、打順9枠の予想打撃合成値を比較する。
 
         DHなしは継投後の打者へ移る。兼任は先発の打撃を残せるが、
@@ -430,7 +431,8 @@ class TeamStrengthGenerator:
         batting = self._batting_composite
         own = batting(pitcher)
         lineup = candidate_lineup or self.select_starting_lineup(players, dh_mode='pitcher',
-            starting_pitcher_id=starting_pitcher_id, selection_grade_bias=selection_grade_bias)
+            starting_pitcher_id=starting_pitcher_id, selection_grade_bias=selection_grade_bias,
+            form_bonus=form_bonus)
         validate_starting_lineup(lineup)
         if lineup.player_for_position('P') != starting_pitcher_id:
             raise ValueError('DH comparison lineup has another starting pitcher')

@@ -666,6 +666,7 @@ class AbilityMatchResolver:
             starting_pitcher_id=actual, replacement_batter_id=replacement,
             starter_share=forecast[0].batting_share,
             selection_grade_bias=tactics.selection_grade_bias, minimum_batting_gain=self._dh_minimum_gain,
+            form_bonus=dict(tactics.form_bonus),
             two_way_requires_lineup_bat=self._dh_two_way_lineup_bat,
             baseline_batter_ids=tuple(s.player_id for s in base.batting_order),
             baseline_lineup=base.initial_lineup, pitching_forecast=forecast,
