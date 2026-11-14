@@ -10,6 +10,74 @@ from .randomness import shuffled
 from .tournament_runtime import MATCH_BYE, MATCH_COMPLETED, MATCH_READY
 
 
+def fmt006_pool_plan(entrant_count: int, output_slots: int) -> tuple[int, int, int]:
+    """3〜4校のリーグの組の数（4校・3校）と、組に入らずに進む学校の数。
+
+    その年のチーム数から組む。組の1位は代表、残りの代表は2位どうしの補充代表決定戦で
+    決める（``fmt006_qualifiers``）。組はできるだけ少なく（4校の組を多く）して、
+    2位の決定戦が2位の数の半分に収まる組み方を選ぶ。2026年の神奈川（代表の数の2倍の
+    チーム）では、4校の組の1・2位と3校の組の1位が代表、3校の組の2位どうしが決定戦。
+    チームが少なく組めないときだけ、組に入らずに進む学校をつくる（できるだけ少なく）。"""
+    if entrant_count <= output_slots:
+        return 0, 0, entrant_count
+    plan = _fmt006_pools_without_byes(entrant_count, output_slots)
+    if plan is not None:
+        return plan[0], plan[1], 0
+    for byes in range(1, output_slots + 1):
+        plan = _fmt006_pools_without_byes(entrant_count - byes, output_slots - byes)
+        if plan is not None:
+            return plan[0], plan[1], byes
+    raise ValueError(
+        f"cannot partition entrants={entrant_count} into 3/4-team pools "
+        f"for output_slots={output_slots}"
+    )
+
+
+def _fmt006_pools_without_byes(teams: int, slots: int) -> tuple[int, int] | None:
+    for pools in range(-(-teams // 4), teams // 3 + 1):
+        playoffs = 2 * pools - slots  # 2位どうしの決定戦の数（負けた学校の数）
+        if 0 <= playoffs and 2 * playoffs <= pools:
+            four = teams - 3 * pools
+            return four, pools - four
+    return None
+
+
+def fmt006_qualifiers(
+    pools: Sequence[Sequence[str]],
+    rankings: Sequence[Sequence[str]],
+    byes: Sequence[str],
+    output_slots: int,
+    *,
+    seed: int,
+    namespace: str,
+) -> tuple[list[str], list[tuple[str, str]]]:
+    """組の結果から、そのまま代表になる学校と、2位どうしの補充代表決定戦の組み合わせ。
+
+    組の1位（と組に入らずに進む学校）はすべて代表。残りの枠は2位から：決定戦の数は
+    2位の数 −（残りの枠）。決定戦には3校の組の2位を先に、足りなければ4校の組の2位を
+    あてる。決定戦に出ない2位はそのまま代表。"""
+    winners = list(byes)
+    second_3, second_4 = [], []
+    for pool, ranking in zip(pools, rankings):
+        winners.append(ranking[0])
+        if len(ranking) > 1:
+            (second_4 if len(pool) == 4 else second_3).append(ranking[1])
+    need = max(0, output_slots - len(winners))
+    playoffs = max(0, len(second_3) + len(second_4) - need)
+    order = shuffled(second_3, seed, f"{namespace}:cross_playoff_draw") + shuffled(
+        second_4, seed, f"{namespace}:cross_playoff_draw_4team")
+    playing = order[:2 * playoffs]
+    if len(playing) < 2 * playoffs:
+        raise ValueError(f"{namespace}: too many teams for {output_slots} qualifiers")
+    pairs = [(playing[i], playing[i + 1]) for i in range(0, len(playing), 2)]
+    direct = list(byes)
+    for ranking in rankings:
+        direct.append(ranking[0])
+        if len(ranking) > 1 and ranking[1] not in playing:
+            direct.append(ranking[1])
+    return direct, pairs
+
+
 @dataclass
 class Fmt006QualifierGroupRuntime:
     group: dict
@@ -31,6 +99,7 @@ class Fmt006QualifierGroupRuntime:
     # 出場校が少なく3〜4校の組に分けきれないとき、組の試合をせずに進む学校
     # （連合チームで出場校が減った年。できるだけ少なくする）
     bye_school_ids: List[str] = field(default_factory=list)
+    # 2位どうしの補充代表決定戦に出る学校
     runnerup_3_school_ids: List[str] = field(default_factory=list)
     standings_by_pool: Dict[str, dict] = field(default_factory=dict)
 
@@ -62,7 +131,7 @@ class Fmt006QualifierGroupRuntime:
             if any(len(pool) not in {3, 4} for pool in pools):
                 raise ValueError(f"{gid}: FMT006 pools must have 3 or 4 teams")
         else:
-            four_count, three_count, bye_count = cls._solve_pool_plan_with_byes(
+            four_count, three_count, bye_count = fmt006_pool_plan(
                 len(eligible), output_slots
             )
             sizes = [4] * four_count + [3] * three_count
@@ -117,47 +186,6 @@ class Fmt006QualifierGroupRuntime:
             match_resolver=match_resolver,
             match_simulation_results=sink,
         )
-
-    @classmethod
-    def _solve_pool_plan_with_byes(
-        cls, entrant_count: int, output_slots: int,
-    ) -> tuple[int, int, int]:
-        """3〜4校の組の数と、組に入らずに進む学校の数（いちばん少なく）。出場校が代表の数
-        以下なら、全校が組に入らずに進む。"""
-        if entrant_count <= output_slots:
-            return 0, 0, entrant_count
-        for byes in range(0, min(entrant_count, output_slots) + 1):
-            try:
-                four, three = cls._solve_3_or_4_pool_plan(
-                    entrant_count - byes, output_slots - byes)
-            except ValueError:
-                continue
-            return four, three, byes
-        raise ValueError(
-            f"cannot partition entrants={entrant_count} into 3/4-team pools "
-            f"for output_slots={output_slots}"
-        )
-
-    @staticmethod
-    def _solve_3_or_4_pool_plan(
-        entrant_count: int,
-        output_slots: int,
-    ) -> tuple[int, int]:
-        candidates = []
-        for three in range(0, entrant_count // 3 + 1):
-            rem = entrant_count - 3 * three
-            if rem < 0 or rem % 4:
-                continue
-            four = rem // 4
-            outputs = 2 * four + three + (three + 1) // 2
-            if outputs == output_slots:
-                candidates.append((four, three))
-        if not candidates:
-            raise ValueError(
-                f"cannot partition entrants={entrant_count} into 3/4-team pools "
-                f"for output_slots={output_slots}"
-            )
-        return sorted(candidates, key=lambda item: (item[1], -item[0]))[0]
 
     @property
     def format_model_id(self) -> str:
@@ -252,61 +280,27 @@ class Fmt006QualifierGroupRuntime:
     def _activate_cross_playoff(self) -> None:
         if self.cross_activated or not self.pool_phase_complete:
             return
-
-        direct = []
-        runnerups_3 = []
+        rankings = []
         standings = {}
-        for pool_no, (pool, runtime) in enumerate(
-            zip(self.pools, self.pool_runtimes),
-            start=1,
-        ):
-            ranking = runtime.ranking()
+        for pool_no, runtime in enumerate(self.pool_runtimes, start=1):
+            rankings.append(runtime.ranking())
             standings[str(pool_no)] = runtime.standings()
-            if len(pool) == 4:
-                direct.extend(ranking[:2])
-            else:
-                direct.append(ranking[0])
-                runnerups_3.append(ranking[1])
-
-        self.direct_school_ids = list(self.bye_school_ids) + direct
-        self.runnerup_3_school_ids = runnerups_3
-        self.standings_by_pool = standings
-
-        candidates = shuffled(
-            runnerups_3,
-            self.generation_seed,
-            f"{self.competition_id}:{self.stage_id}:"
-            f"{self.group['stage_group_id']}:cross_playoff_draw",
+        direct, pairs = fmt006_qualifiers(
+            self.pools, rankings, self.bye_school_ids, self.output_slots,
+            seed=self.generation_seed,
+            namespace=(
+                f"{self.competition_id}:{self.stage_id}:"
+                f"{self.group['stage_group_id']}"
+            ),
         )
-        match_no = 1
-        i = 0
-        while i < len(candidates):
-            team1 = candidates[i]
+        self.direct_school_ids = direct
+        self.runnerup_3_school_ids = [team for pair in pairs for team in pair]
+        self.standings_by_pool = standings
+        for match_no, (team1, team2) in enumerate(pairs, start=1):
             match_id = (
                 f"{self.stage_id}-{self.group['stage_group_id']}-"
                 f"CROSS_PLAYOFF-M{match_no:03d}"
             )
-            if i + 1 >= len(candidates):
-                self.cross_matches[match_id] = RuntimePreMainMatch(
-                    match_id=match_id,
-                    competition_id=self.competition_id,
-                    stage_id=self.stage_id,
-                    stage_code=self.stage_code,
-                    phase_code="CROSS_PLAYOFF",
-                    round_no=1,
-                    group_id=self.group["stage_group_id"],
-                    group_name=self.group["group_name"],
-                    team1=team1,
-                    winner=team1,
-                    status=MATCH_BYE,
-                    is_bye=True,
-                    match_seq=match_no,
-                    metadata={"reason": "unpaired_3team_pool_runnerup"},
-                )
-                self.cross_order.append(match_id)
-                break
-
-            team2 = candidates[i + 1]
             self.cross_matches[match_id] = RuntimePreMainMatch(
                 match_id=match_id,
                 competition_id=self.competition_id,
@@ -322,9 +316,6 @@ class Fmt006QualifierGroupRuntime:
                 match_seq=match_no,
             )
             self.cross_order.append(match_id)
-            match_no += 1
-            i += 2
-
         self.cross_activated = True
 
     def output_school_ids(self) -> list[str]:

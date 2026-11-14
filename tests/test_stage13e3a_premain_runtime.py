@@ -10,7 +10,6 @@ from phase2_engine import (
     MatchResolution,
     RoundRobinRuntimeState,
     SingleEliminationRuntimeState,
-    SingleRoundGateRuntimeState,
     TournamentEngine,
 )
 from phase2_engine.brackets import (
@@ -18,7 +17,6 @@ from phase2_engine.brackets import (
     run_block_winner_forest,
     run_round_robin,
     run_single_elimination_ranking,
-    run_single_round_gate,
 )
 
 
@@ -110,41 +108,6 @@ class Stage13E3APreMainRuntimeTests(unittest.TestCase):
         self.assertEqual(matches, runtime.to_matches())
         self.assertEqual(legacy_sink, lazy_sink)
         self.assertEqual(legacy_resolver.calls, lazy_resolver.calls)
-
-    def test_gate_runtime_matches_legacy_primitive(self):
-        teams = ["S1", "S2", "S3", "S4", "S5"]
-        legacy_resolver = StubDetailedResolver()
-        lazy_resolver = StubDetailedResolver()
-        legacy_sink = {}
-        lazy_sink = {}
-
-        winners, matches = run_single_round_gate(
-            teams,
-            competition_id="C",
-            stage_id="STG",
-            stage_code="GATE",
-            phase_code="GATE_ROUND",
-            base_seed=12,
-            winner_resolver=random_winner_resolver(12),
-            match_resolver=legacy_resolver,
-            resolved_match_sink=legacy_sink,
-            reference_year=2026,
-        )
-        runtime = SingleRoundGateRuntimeState.create(
-            teams,
-            competition_id="C",
-            reference_year=2026,
-            stage_id="STG",
-            stage_code="GATE",
-            phase_code="GATE_ROUND",
-            generation_seed=12,
-            match_resolver=lazy_resolver,
-            resolved_match_sink=lazy_sink,
-        )
-
-        self.assertEqual(winners, runtime.resolve_all())
-        self.assertEqual(matches, runtime.to_matches())
-        self.assertEqual(legacy_sink, lazy_sink)
 
     def test_round_robin_runtime_matches_legacy_primitive(self):
         teams = ["S1", "S2", "S3", "S4"]

@@ -9,7 +9,8 @@ RANKINGS = {
     "batter_qualification": {"minimum_team_games": 1, "plate_appearances_per_team_game": 2.0},
     "pitcher_qualification": {"minimum_team_games": 1, "outs_recorded_per_team_game": 3.0},
 }
-KINDS = {"LOC": "summer_local_qualifier", "KOS": "national_championship"}
+KINDS = {"LOC": "summer_local_qualifier", "KOS": "national_championship",
+         "AUT": "autumn_prefectural", "SPR": "spring_prefectural"}
 
 
 def match(year, cid, a, b, score_a, score_b, inning, *, complete=True, sb=0, dp=0, wp=0, pb=0, errors=0):
@@ -155,6 +156,35 @@ class BalanceTallyTests(unittest.TestCase):
         # 夏の連合チームの数と、出場チーム（連合は1チーム）のうち連合の割合
         self.assertEqual(10, out[2026]["unions"]["summer_local_qualifier"]["entrants"])
         self.assertIn("夏の地方大会の連合チーム: 2チーム／出場10チーム（20.0%）", format_report("x", out))
+
+    def test_prefectural_entry_against_summer_and_unions(self):
+        from types import SimpleNamespace
+
+        def comp(*entrants):
+            run = SimpleNamespace(entrant_school_ids=list(entrants))
+            return SimpleNamespace(to_competition_run=lambda: run)
+
+        plan = lambda teams=(), absent=(): SimpleNamespace(
+            teams=[SimpleNamespace(schools=t) for t in teams], absent=tuple(absent),
+            removed=lambda: {s for t in teams for s in t[1:]} | set(absent))
+        season = SimpleNamespace(
+            competitions={"LOC1": comp("FAKE-A", "FAKE-B", "FAKE-D"),
+                          "AUT1": comp("FAKE-A", "FAKE-C"), "SPR1": comp("FAKE-A", "FAKE-B", "FAKE-D")},
+            # 夏：FAKE-D と FAKE-E の連合。秋：FAKE-C と FAKE-D の連合、FAKE-E は出ない。FAKE-B は外れた
+            union_plans={"LOC1": plan([("FAKE-D", "FAKE-E")]),
+                         "AUT1": plan([("FAKE-C", "FAKE-D")], ["FAKE-E"])})
+        tally = self.tally()
+        scope = {"LOC1": "summer", "AUT1": "autumn", "SPR1": "spring"}
+        tally.add_prefectural_entry(2026, season, lambda cid: (scope[cid], "13"))
+        out = tally.summary()[2026]["prefectural_entry"]
+        self.assertEqual({"teams": 2, "unions_absent": 2, "summer_missing": 3, "summer_missing_other": 1},
+                         out["autumn"]["13"])
+        self.assertEqual({"teams": 3, "unions_absent": 0, "summer_missing": 1, "summer_missing_other": 1},
+                         out["spring"]["13"])
+        text = format_report("x", tally.summary())
+        self.assertIn("秋季県大会の出場 1大会: 出場2チーム / 連合・不参加で外れた2校 / "
+                      "夏に出て単独で出ていない3校（連合・不参加でない1校）", text)
+        self.assertIn("連合・不参加でないのに出ていない（都道府県:校数）: 13:1", text)
 
     def test_leaders_skip_players_whose_team_played_too_few_games(self):
         tally = BalanceTally(lambda cid: KINDS[cid[:3]], {}, RANKINGS, min_team_games=2)

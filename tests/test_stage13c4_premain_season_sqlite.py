@@ -14,7 +14,6 @@ from phase2_engine.brackets import (
     run_head_to_head,
     run_round_robin,
     run_single_elimination_ranking,
-    run_single_round_gate,
 )
 from phase2_engine.browse_repository import BrowseRepository, SCHEMA_VERSION
 from phase2_engine.models import MatchResolution
@@ -92,25 +91,6 @@ class Stage13C4PreMainSeasonSQLiteTests(unittest.TestCase):
         self.assertEqual("ability_model_v1", played[0].metadata["score_source"])
         self.assertEqual(2, played[0].metadata["team1_score"])
         self.assertEqual(ranking[0], played[-1].winner)
-
-    def test_gate_accepts_detailed_resolver(self):
-        resolver = StubDetailedResolver()
-        sink = {}
-        winners, matches = run_single_round_gate(
-            ["S1", "S2", "S3", "S4"],
-            competition_id="C",
-            stage_id="STG",
-            stage_code="GATE",
-            phase_code="GATE",
-            base_seed=2,
-            winner_resolver=random_winner_resolver(2),
-            match_resolver=resolver,
-            resolved_match_sink=sink,
-            reference_year=2026,
-        )
-        self.assertEqual(2, len(winners))
-        self.assertEqual(2, len(sink))
-        self.assertTrue(all(m.metadata["score_source"] == "ability_model_v1" for m in matches))
 
     def test_round_robin_accepts_detailed_resolver(self):
         resolver = StubDetailedResolver()

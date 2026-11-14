@@ -403,8 +403,12 @@ class Stage13E3D3FullSeasonPlannerTests(
                 .direct_main_entry_school_ids
             ),
         )
+        # 東京の学校はすべて出る（連合を組む名簿のないこのテストでは269校）
         self.assertEqual(
-            232,
+            sum(
+                row.get("prefecture_code") == "13"
+                for row in state.repo.schools.values()
+            ),
             len(annual.entrant_school_ids),
         )
         self.assertTrue(

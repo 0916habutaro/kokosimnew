@@ -11,7 +11,7 @@ from .models import (
     StageExecution,
 )
 from .premain_competition_runtime import QualifierMainRuntimeState
-from .premain_runtime_gate import SingleRoundGateRuntimeState
+from .premain_runtime_forest import BlockForestRuntimeState, gate_winner_slots
 from .premain_runtime_seed_event import SeedEventRuntimeState
 from .repository import DataRepository
 from .tournament_runtime import MainTournamentRuntimeState
@@ -28,7 +28,7 @@ class SeededCompetitionRuntimeState:
     seed_runtime: SeedEventRuntimeState
     qualifier_entrant_school_ids: List[str] = field(default_factory=list)
     qualifier_warnings: List[str] = field(default_factory=list)
-    gate_runtime: SingleRoundGateRuntimeState | None = None
+    gate_runtime: BlockForestRuntimeState | None = None
     gate_entrant_school_ids: List[str] = field(default_factory=list)
     qualifier_runtime: QualifierMainRuntimeState | None = None
     main_runtime: MainTournamentRuntimeState | None = None
@@ -213,8 +213,15 @@ class SeededCompetitionRuntimeState:
                     "gate handler requires FMT026"
                 )
             self.gate_entrant_school_ids = list(nonseed)
-            self.gate_runtime = SingleRoundGateRuntimeState.create(
+            # 2次トーナメントへ進む数（2026年は21）は固定。非シード校をその数のブロックに
+            # 分け、2校のブロックは1試合、3校以上は1回戦から、1校は不戦勝で進む
+            self.gate_runtime = BlockForestRuntimeState.create(
                 nonseed,
+                block_count=gate_winner_slots(
+                    self.repo, gate_stage, len(nonseed)
+                ),
+                group_id="",
+                group_name="1次トーナメント",
                 competition_id=self.annual.competition_id,
                 reference_year=self.annual.year,
                 stage_id=gate_stage["stage_id"],
@@ -285,13 +292,9 @@ class SeededCompetitionRuntimeState:
 
         gate_stage = self.stage_by_code["FIRST_TOURNAMENT"]
         expected = {
-            "nonseed": self.repo.param(
-                gate_stage["stage_id"],
-                "observed_nonseed_gate_teams",
-            ),
             "winners": self.repo.param(
                 gate_stage["stage_id"],
-                "observed_gate_winner_slots",
+                "gate_winner_slots",
             ),
             "seed": self.repo.param(
                 gate_stage["stage_id"],
@@ -303,7 +306,6 @@ class SeededCompetitionRuntimeState:
             ),
         }
         observed = {
-            "nonseed": len(self.gate_entrant_school_ids),
             "winners": len(self.gate_runtime.winners()),
             "seed": len(assignments),
             "main": len(main_entrants),

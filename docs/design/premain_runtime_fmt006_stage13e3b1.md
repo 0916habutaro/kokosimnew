@@ -19,12 +19,20 @@ Stage 13E-3B-1ではFMT006をcompetition runtimeへ接続し、
 
 ## Pool preparation
 
-groupごとのoutput_slotsとeligible entrant数から、既存 _solve_3_or_4_pool_plan と同じ条件で
+groupごとのoutput_slotsとeligible entrant数から `fmt006_pool_plan` で
 
 - 4校pool数
 - 3校pool数
+- poolに入らずに進む学校の数（チームが少なく組めないときだけ）
 
 を決定する。
+
+（2026-11-14 改定）その年のチーム数から組む。組の1位は代表、残りの枠は2位から：
+2位どうしの補充代表決定戦の数は「2位の数 −（残りの枠）」で、3校の組の2位を先に、
+足りなければ4校の組の2位をあてる（`fmt006_qualifiers`）。組はできるだけ少なく
+（4校の組を多く）して、決定戦が2位の数の半分に収まる組み方を選ぶ。2026年の
+チーム数（代表の数の2倍）では、これまでの「4校pool上位2校・3校pool首位が直接、
+3校pool2位が決定戦」と同じになる。
 
 annual.group_pool_assignments が与えられた場合は年次overrideを優先し、各eligible teamがちょうど1回含まれること、各poolが3校または4校であることを検証する。
 

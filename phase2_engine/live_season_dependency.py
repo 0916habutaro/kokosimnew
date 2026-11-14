@@ -1062,6 +1062,7 @@ class LiveSeasonDependencyRuntimeState:
         self, competition_id: str, annual: AnnualCompetitionInput,
     ) -> AnnualCompetitionInput:
         """部員の足りない学校の連合チームを組み、代表校以外と出ない学校を出場校から外す。
+        予選の組をチーム数から組む大会（東京の秋）は、外したあとのチーム数で組み直す。
         部員の名簿がまだつくれない大会は、そのままつくって4月1日に組み直す。"""
         planner = self._union_planner()
         if planner is None:
@@ -1078,7 +1079,9 @@ class LiveSeasonDependencyRuntimeState:
             self.union_plans[competition_id] = plan
         else:
             self.union_plans.pop(competition_id, None)
-        return apply_to_annual(annual, plan)
+        annual = apply_to_annual(annual, plan)
+        arrange = getattr(self.structural_factory, "arrange_groups", None)
+        return arrange(annual) if arrange is not None and plan.removed() else annual
 
     def _team_members(self, competition_id: str, annual: AnnualCompetitionInput) -> dict:
         """この大会の連合チーム：代表校 → 構成校（連合を組んだ大会と、そこから進んだ大会）。"""

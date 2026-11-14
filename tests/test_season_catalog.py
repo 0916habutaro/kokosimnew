@@ -155,8 +155,8 @@ class GeneratedSeasonPlanTests(unittest.TestCase):
             self.base.entries["CMP000002"].rng_seed,
             self.plan.entries["CMP000002"].rng_seed,
         )
-        # 岐阜秋の参加校の抽出も年度ごとに変わる
-        self.assertNotEqual(
+        # 県大会は学校がすべて出る（出場校の抽出はない）
+        self.assertEqual(
             self.base.annual_templates["CMP000110"].entrant_school_ids,
             self.plan.annual_templates["CMP000110"].entrant_school_ids,
         )

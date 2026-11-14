@@ -8,6 +8,15 @@ from .models import Match, MatchResolution
 from .premain_runtime_single_elim import SingleEliminationRuntimeState
 
 
+def gate_winner_slots(repo, gate_stage: dict, nonseed_count: int) -> int:
+    """岐阜の秋の1次トーナメント（FMT026）から2次トーナメントへ進む数。
+    ``gate_winner_slots`` の数（2026年は21）。非シード校がそれより少なければ全校。"""
+    slots = repo.param(gate_stage["stage_id"], "gate_winner_slots")
+    if not slots:
+        raise ValueError(f"{gate_stage['stage_id']}: FMT026 requires gate_winner_slots")
+    return max(1, min(int(slots), nonseed_count))
+
+
 @dataclass
 class BlockForestRuntimeState:
     competition_id: str
