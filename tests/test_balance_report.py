@@ -174,7 +174,8 @@ class BalanceTallyTests(unittest.TestCase):
             union_plans={"LOC1": plan([("FAKE-D", "FAKE-E")]),
                          "AUT1": plan([("FAKE-C", "FAKE-D")], ["FAKE-E"])})
         tally = self.tally()
-        tally.add_prefectural_entry(2026, season, lambda cid: "13")
+        scope = {"LOC1": "summer", "AUT1": "autumn", "SPR1": "spring"}
+        tally.add_prefectural_entry(2026, season, lambda cid: (scope[cid], "13"))
         out = tally.summary()[2026]["prefectural_entry"]
         self.assertEqual({"teams": 2, "unions_absent": 2, "summer_missing": 3, "summer_missing_other": 1},
                          out["autumn"]["13"])
