@@ -85,6 +85,10 @@ class CoachTactics:
     batting_order: BattingOrderStyle | None = None
     # 監督が見た調子の加点（段階F4）。(選手ID, 点) の並び。調子の重視が中立以下なら空
     form_bonus: tuple[tuple[str, float], ...] = ()
+    # 投手の配置転換（段階F5）：降りる投手を守備に残す確率（投手の配置転換が中立以下なら0）と、
+    # 戻すときを読み違える確率（継投の傾向が低いほど大きい）
+    shuffle_rate: float = 0.0
+    return_misread: float = 0.0
 
 
 def _draw_coach(team, year, rng, coach_id, names, config, *, initial):
@@ -172,6 +176,11 @@ class CoachBook:
                 or tactics["max_abs_bf_reduction"] >= 1):
             raise ValueError("invalid coach tactics configuration")
         strategy = tactics["strategy"]
+        shuffle = tactics["pitcher_shuffle"]
+        if (not 0 <= shuffle["start"] <= 100 or any(
+                not math.isfinite(shuffle[k]) or not 0 <= shuffle[k] <= 1
+                for k in ("rate_per_point", "max_rate", "max_misread"))):
+            raise ValueError("invalid coach pitcher shuffle configuration")
         form = tactics["form"]
         if (form["neutral_reliance"] != 50 or not isinstance(form["core_players"], int)
                 or form["core_players"] < 0
@@ -269,6 +278,15 @@ class CoachBook:
             raise ValueError("coach tendencies must be between 1 and 100")
         return BattingOrderStyle(coach.lineup_style, coach.small_ball, coach.mobility)
 
+    def shuffle_policy(self, coach: Coach) -> tuple[float, float]:
+        """(守備に残す確率, 戻すときを読み違える確率)。段階F5。新規開始から使う。"""
+        rule = self.tactics_config["pitcher_shuffle"]
+        if not (1 <= coach.pitcher_shuffle <= 100 and 1 <= coach.pitching_change <= 100):
+            raise ValueError("coach tendencies must be between 1 and 100")
+        rate = min(rule["max_rate"], max(0, coach.pitcher_shuffle - rule["start"]) * rule["rate_per_point"])
+        misread = rule["max_misread"] * (100 - coach.pitching_change) / 99
+        return round(rate, 6), round(misread, 6)
+
     def tactics_for(self, school_id: str, on: date) -> CoachTactics:
         """大会年度ではなく試合当日の所属を使う。参照だけで乱数は消費しない。
 
@@ -281,9 +299,10 @@ class CoachBook:
             return CoachTactics()
         small_ball, mobility, substitutions = self.strategy_multipliers(coach)
         order = self.batting_order_style(coach)
+        shuffle = self.shuffle_policy(coach)
         if on < date.fromisoformat(config["first_match_date"]):
             return CoachTactics(small_ball=small_ball, mobility=mobility, substitutions=substitutions,
-                                batting_order=order)
+                                batting_order=order, shuffle_rate=shuffle[0], return_misread=shuffle[1])
         if not (1 <= coach.pitching_change <= 100 and 1 <= coach.player_selection <= 100):
             raise ValueError("coach tactics abilities must be between 1 and 100")
         def delta(ability, slope, cap):
@@ -297,6 +316,7 @@ class CoachBook:
             round(delta(coach.player_selection, "selection_bias_per_point",
                         "max_abs_selection_bias"), 6),
             small_ball, mobility, substitutions, order,
+            shuffle_rate=shuffle[0], return_misread=shuffle[1],
         )
 
     def form_reading(self, school_id: str, on: date, forms, scores) -> tuple[tuple[str, float], ...]:

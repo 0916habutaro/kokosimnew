@@ -260,6 +260,28 @@ class PlatoonAndAbilityTableTests(unittest.TestCase):
         tally.add_match("LOC1", detail, coaches.get, ability_of=lambda school, player, cid: values.get(player))
         self.assertEqual(1.0, tally.summary()[2026]["lineup"]["all"]["leadoff_top2_speed"])
 
+    def test_pitcher_shuffles_per_team_game_by_tendency_and_not_counted_as_substitutions(self):
+        from types import SimpleNamespace
+
+        tally = BalanceTally(lambda cid: KINDS[cid[:3]], {}, RANKINGS)
+        detail = match(2026, "LOC1", "FAKE-A", "FAKE-B", 2, 1, 9)
+        a, b = detail["team_participation"]
+        a["changes"] = [dict(reason="pitcher_to_field"), dict(reason="pitcher_return"),
+                        dict(reason="pinch_hitter")]
+        b["changes"] = []
+        coaches = {"FAKE-A": SimpleNamespace(pitcher_shuffle=90, substitutions=50),
+                   "FAKE-B": SimpleNamespace(pitcher_shuffle=10, substitutions=50)}
+        tally.add_match("LOC1", detail, coaches.get)
+        row = tally.summary()[2026]
+        self.assertEqual({"to_field": 0.5, "returns": 0.5, "team_games": 2}, row["pitcher_shuffle"]["all"])
+        self.assertEqual({"to_field": 1.0, "returns": 1.0, "team_games": 1},
+                         row["pitcher_shuffle"]["by_tendency"]["高"])
+        self.assertEqual({"to_field": 0.0, "returns": 0.0, "team_games": 1},
+                         row["pitcher_shuffle"]["by_tendency"]["低"])
+        # 交代の数（代打・代走・守備固め）には入れない
+        self.assertEqual(0.5, row["substitutions"]["by_tendency"]["中"]["substitutions"])
+        self.assertIn("守備に残す 0.5", format_report("x", tally.summary()))
+
     def test_lineup_changes_from_the_previous_game_by_form_reliance(self):
         from types import SimpleNamespace
 

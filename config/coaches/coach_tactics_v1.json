@@ -1,6 +1,6 @@
 {
   "config_id": "coach_tactics_v1",
-  "revision": 4,
+  "revision": 5,
   "status": "active",
   "first_match_date": "2027-04-01",
   "neutral_ability": 50,
@@ -10,6 +10,13 @@
   "max_abs_quick_hook_reduction": 1,
   "selection_bias_per_point": 0.01,
   "max_abs_selection_bias": 0.5,
+  "pitcher_shuffle": {
+    "description_ja": "投手の配置転換（段階F5）。継投のとき、降りる投手を守備に残す確率 = min(max_rate, max(0, 投手の配置転換 − start) × rate_per_point)。start 以下の監督（傾向の低い帯）は使わない。戻すときを読み違える確率 = max_misread × (100 − 継投の傾向) ÷ 99（match_simulation_v1 の pitcher_shuffle.return の点を ±1 ずらす）。新規開始から使う。ゲーム用の仮の値",
+    "start": 40,
+    "rate_per_point": 0.017,
+    "max_rate": 0.9,
+    "max_misread": 0.4
+  },
   "form": {
     "description_ja": "調子の重視（段階F4）。監督が見た調子 × max(0, 調子の重視 − 50) × bonus_per_point を、投手以外の先発の選考点と打順の点に足す（新規開始から）。見た調子 = 本当の調子 + 平均0・標準偏差 misread_sd × (100 − 選手を見る目) ÷ 99 の読み違え（監督・選手・日ごとの乱数）。打撃の評価の上位 core_players 人は、マイナスの加点を core_negative_scale 倍にする（中心の選手を外しにくい）。ゲーム用の仮の値",
     "neutral_reliance": 50,

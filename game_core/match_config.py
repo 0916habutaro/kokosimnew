@@ -264,6 +264,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
 
     _validate_strategy(payload.get("strategy"))
     _validate_substitutions(payload.get("substitutions"))
+    _validate_pitcher_shuffle(payload.get("pitcher_shuffle"))
     _validate_h1(payload)
     _validate_fielding(payload.get("fielding"))
 
@@ -412,6 +413,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         "tactic",
         "wild_pitch",
         "fielding",
+        "pitcher_shuffle",
     }:
         raise ValueError(
             "match simulation: RNG namespace keys mismatch"
@@ -426,6 +428,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         "tactic": ("{match_id}", "{plate_appearance_no}"),
         "wild_pitch": ("{match_id}", "{plate_appearance_no}"),
         "fielding": ("{match_id}", "{plate_appearance_no}"),
+        "pitcher_shuffle": ("{match_id}", "{plate_appearance_no}"),
     }
     for key, placeholders in required_placeholders.items():
         template = str(namespaces[key])
@@ -588,6 +591,30 @@ def _validate_substitutions(subs) -> None:
     relief = subs["platoon_relief"]
     if relief["min_same_side"] > relief["lookahead"]:
         raise ValueError("match simulation: platoon_relief.min_same_side exceeds lookahead")
+
+
+def _validate_pitcher_shuffle(rule) -> None:
+    """投手の配置転換（段階F5）の値。回・点差・点・人数・球数は0以上の整数。"""
+    if not isinstance(rule, dict) or not isinstance(rule.get("return"), dict):
+        raise ValueError("match simulation: pitcher_shuffle required")
+    back = rule["return"]
+    counts = [rule.get(k) for k in ("candidate_quality_ranks", "max_exit_fatigue_stage",
+                                    "min_remaining_pitches", "max_margin", "latest_inning", "max_per_game")]
+    counts += [back.get(k) for k in ("late_inning_from", "close_margin", "max_fatigue_stage",
+                                     "min_remaining_pitches", "min_points")]
+    if not all(isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in counts):
+        raise ValueError("match simulation: invalid pitcher_shuffle count")
+    if not (_number(rule.get("min_defense_value")) and rule["min_defense_value"] >= 0
+            and _number(rule.get("rest_pitches_per_out")) and rule["rest_pitches_per_out"] >= 0
+            and isinstance(rule.get("max_rest_pitches"), int) and rule["max_rest_pitches"] >= 0):
+        raise ValueError("match simulation: invalid pitcher_shuffle rest")
+    positions = rule.get("positions")
+    if (not isinstance(positions, list) or not positions
+            or any(p not in ("1B", "2B", "3B", "SS", "LF", "CF", "RF") for p in positions)):
+        raise ValueError("match simulation: invalid pitcher_shuffle positions")
+    slots = back.get("cleanup_slots")
+    if not isinstance(slots, list) or any(type(n) is not int or not 1 <= n <= 9 for n in slots):
+        raise ValueError("match simulation: invalid pitcher_shuffle cleanup slots")
 
 
 def validate_event_catalog(document: ConfigDocument) -> None:
