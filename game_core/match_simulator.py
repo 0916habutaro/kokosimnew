@@ -1191,8 +1191,14 @@ class MatchSimulator:
         if opponent is None:
             return lineup
         rule = self._substitutions()["platoon_lineup"]
-        # 先発選びなので、調子を入れない能力で比べる（試合の中身の能力ではない）
+        # 先発選びなので、調子を入れない能力に、監督が見た調子の加点（段階F4）を足して比べる
+        # （先発・打順を選んだときと同じ物差し。試合の中身の能力ではない）
         players = {p.player_id: p for p in team.lineup_abilities}
+        bonus = dict(tactics.form_bonus)
+
+        def hitting(player):
+            return self._hitting_value(player, opponent) + bonus.get(player.player_id, 0.0)
+
         starters = {entry.player_id for entry in lineup.entries} | {a.player_id for a in lineup.defense}
         bench = [p for p in team.lineup_abilities if p.player_id not in starters and p.player_id not in set(staff)]
         entries = list(lineup.entries)
@@ -1205,10 +1211,10 @@ class MatchSimulator:
                 if entry.defensive_position in ("P", "C", "DH"):
                     continue
                 starter = players[entry.player_id]
-                base_hit = self._hitting_value(starter, opponent)
+                base_hit = hitting(starter)
                 base_def = self._defense_value(starter, entry.defensive_position)
                 for candidate in bench:
-                    gain = self._hitting_value(candidate, opponent) - base_hit
+                    gain = hitting(candidate) - base_hit
                     loss = base_def - self._defense_value(candidate, entry.defensive_position)
                     if gain >= need and loss <= float(rule["max_defense_loss"]):
                         key = (gain, candidate.player_id)
@@ -1231,10 +1237,11 @@ class MatchSimulator:
         while index < len(order) - 1 and swaps < int(rule["max_order_swaps"]):
             here, after = order[index], order[index + 1]
             a, b = players[after.player_id], players[here.player_id]
-            gain = self._hitting_value(a, opponent) - self._hitting_value(b, opponent)
-            # 左右の差だけでも基準に届くときに限る（役割で組んだ打順を、打撃の差だけで崩さない）。
-            # 打てる順の打順では後ろの打者の総合はほぼ前以下なので、今までとほぼ同じ判定になる
-            platoon = gain - (composite(a) - composite(b))
+            gain = hitting(a) - hitting(b)
+            # 左右の差だけでも基準に届くときに限る（役割で組んだ打順を、打撃の差や調子の加点だけで
+            # 崩さない）。打てる順の打順では後ろの打者の総合はほぼ前以下なので、今までとほぼ同じ判定になる
+            platoon = gain - (composite(a) + bonus.get(a.player_id, 0.0)
+                              - composite(b) - bonus.get(b.player_id, 0.0))
             if min(gain, platoon) >= float(rule["order_min_gain"]):
                 order[index] = replace(after, batting_order=here.batting_order)
                 order[index + 1] = replace(here, batting_order=after.batting_order)

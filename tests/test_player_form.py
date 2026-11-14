@@ -175,6 +175,52 @@ class CoachFormTests(unittest.TestCase):
                 'FAKE-A', DAY, forms, scores)))
 
 
+class MatchStartFormTests(unittest.TestCase):
+    def test_hot_starter_chosen_by_form_is_kept_at_the_first_pitch(self):
+        from game_core.coaches import CoachTactics
+        from game_core.match_contract import TeamMatchInput
+        from game_core.match_simulator import MatchSimulator
+
+        generator, sim = TeamStrengthGenerator(), MatchSimulator()
+        opponent = replace(make_roster_abilities(school_id='FAKE-OPP')[0], throws='R')
+        checked = 0
+        for seed in range(2026100701, 2026100711):
+            roster = tuple(make_roster_abilities(school_id='FAKE-A', seed=seed))
+            plain_strength = generator.generate(roster)
+            plain = plain_strength.starting_lineup
+            by_id = {p.player_id: p for p in roster}
+            # 加点がなければ、試合直前の入れ替えが起きないチームだけで確かめる
+            # （左右の差のない入れ替えは、打撃の差だけで起きることがある。この変更とは別の話）
+            kept = sim._initial_state(TeamMatchInput('FAKE-A', plain_strength, roster),
+                                      plain.player_for_position('P'), opponent_pitcher=opponent)
+            if set(plain.starter_ids) != {slot.player_id for slot in kept.batting_order}:
+                continue
+            for hot in roster:
+                if hot.primary_position == 'P' or hot.player_id in plain.starter_ids:
+                    continue
+                bonus = {hot.player_id: 8.0}
+                strength = generator.generate(roster, form_bonus=bonus)
+                lineup = strength.starting_lineup
+                if hot.player_id not in lineup.starter_ids:
+                    continue
+                position = next(e.defensive_position for e in lineup.entries if e.player_id == hot.player_id)
+                original = by_id[plain.player_for_position(position)]
+                # 加点がなければ、試合直前の比較で元の先発に戻される選手（全員右打ち・相手も右投手）
+                if (sim._hitting_value(original, opponent) - sim._hitting_value(hot, opponent) < 3
+                        or position in ('C', 'DH')):
+                    continue
+                team = TeamMatchInput('FAKE-A', strength, roster)
+                tactics = CoachTactics(form_bonus=tuple(bonus.items()))
+                state = sim._initial_state(team, lineup.player_for_position('P'),
+                                           opponent_pitcher=opponent, tactics=tactics)
+                start = {e.player_id: (e.batting_order, e.defensive_position)
+                         for e in state.initial_lineup.entries}
+                planned = {e.player_id: (e.batting_order, e.defensive_position) for e in lineup.entries}
+                self.assertEqual(planned[hot.player_id], start.get(hot.player_id))
+                checked += 1
+        self.assertGreater(checked, 0)
+
+
 class BridgeFormTests(unittest.TestCase):
     """試合の入口：先発・打順は調子を入れない能力で決め、試合の中身は調子入りの能力。"""
 
