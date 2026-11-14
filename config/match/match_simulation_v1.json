@@ -429,7 +429,7 @@
         0.02,
         0.06
       ],
-      "max_margin": 3,
+      "max_margin": 5,
       "close_margin": 2,
       "late_inning_from": 7,
       "late_close_multiplier": 2.0,
@@ -515,9 +515,9 @@
   "pitcher_shuffle": {
     "description_ja": "投手の配置転換（段階F5）。DHを宣言していない試合で、救援を出すときに、降りる投手が投手陣の能力の上位 candidate_quality_ranks 人で、疲れの段階が max_exit_fatigue_stage 以下、球数の残りが min_remaining_pitches 以上、点差 max_margin 以内、latest_inning 回までなら、監督の確率（coach_tactics_v1 の pitcher_shuffle）で守備に残す。球数の上限・代打で入った投手の交代では残さない。残す位置は positions のうち、その投手の守備の値（守備・送球・肩・適性をまとめた守備位置ごとの値。外野の本職は55前後、エースは35前後）が min_defense_value 以上の位置で、そこを守る打撃のいちばん低い野手が退き、救援がその打順に入る。1試合に max_per_game 回まで。守備にいる間は、チームが取ったアウト1つにつき rest_pitches_per_out 球分（max_rest_pitches まで）疲れが戻る。return：打席ごとに、late_inning_from 回以降・点差 close_margin 以内・得点圏に走者・次の打者が cleanup_slots の打順、をそれぞれ1点とし、min_points 点以上で戻す（監督の読み違いで ±1）。戻すには疲れの段階が max_fatigue_stage 以下、球数の残りが min_remaining_pitches 以上、その回にまだ戻っていないこと（公認野球規則：守備に移った投手は同じイニングに1度に限り投手に戻れる）。戻すと、投げていた投手はその守備位置に入る（守れなければ控えの野手と交代）。打順はそのまま。ゲーム用の仮の値",
     "candidate_quality_ranks": 2,
-    "min_defense_value": 35,
+    "min_defense_value": 30,
     "positions": ["1B", "LF", "CF", "RF"],
-    "max_exit_fatigue_stage": 1,
+    "max_exit_fatigue_stage": 2,
     "min_remaining_pitches": 30,
     "max_margin": 3,
     "latest_inning": 8,

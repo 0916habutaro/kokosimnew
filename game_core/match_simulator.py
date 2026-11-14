@@ -2315,9 +2315,9 @@ class MatchSimulator:
                 match_id=match_input.match_id, plate_appearance_no=pa_no + 1))
             if rng.random() >= rate:
                 return None
-            composite = self._strength_generator()._batting_composite
-            return min(options, key=lambda a: (composite(player_maps[school_id][a.player_id]),
-                                               a.player_id)).player_id
+            # 一塁・外野のうち、その投手が最も守れる位置に入る（そこを守っていた野手が退く）
+            return max(options, key=lambda a: (self._defense_value(pitcher, a.defensive_position),
+                                               a.defensive_position)).player_id
 
         def try_return(school_id, offense_id, bases):
             """守備に残した投手を、投手に戻すか（戻したら True）。段階F5。"""
