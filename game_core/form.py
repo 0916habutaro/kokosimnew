@@ -30,12 +30,17 @@ class FormModel:
                 and c["limit"] / c["unit"] <= 127):
             raise ValueError("invalid player form configuration")
         self.limit_units = round(c["limit"] / c["unit"])
+        self.max_age_days = int(c["max_age_days"])
+        if not 0 <= self.max_age_days <= 127:
+            raise ValueError("player form max_age_days must be within 0..127")
 
     def value(self, units: int, since: date | None, day: date) -> float:
         """``since`` に ``units`` だった調子の、``day`` の値（試合のない日は0に戻る）。"""
         if not units or since is None:
             return 0.0
         days = max(0, (day - since).days)
+        if days > self.max_age_days:
+            return 0.0
         return units * self.config["unit"] * self.config["daily_decay"] ** days
 
     def points(self, form: float) -> int:

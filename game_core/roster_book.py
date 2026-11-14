@@ -198,19 +198,31 @@ class PlayerState:
         return max(ended, key=lambda injury: injury.end) if ended else None
 
 
-def _pack_states(first_year: int, states: dict[tuple[int, int], PlayerState]) -> bytes:
+def _pack_states(first_year: int, states: dict[tuple[int, int], PlayerState],
+                 today: date | None = None) -> bytes:
     """抑えた点（``deferred``）は残っている能力だけを (番号, 点) で入れ、その数を
-    左右の得意・不得意（0〜2）と同じ1バイトの上の位に入れる（セーブを大きくしない）。"""
+    左右の得意・不得意（0〜2）と同じ1バイトの上の位に入れる（セーブを大きくしない）。
+
+    調子は、0でなければ同じ1バイトの最上位に印を付け、調子（+128）と、その値になった日が
+    ``today`` の何日前か（符号付き。試合の日が名簿の今日より先でもよい）の2バイトを足す。``max_age_days``
+    より古い調子は0として読むので、入れなくても値は変わらない。"""
+    oldest = form_model().max_age_days
     out = bytearray()
     for (entry_year, roster_no), state in sorted(states.items()):
+        form, age = 0, None
+        if state.form and state.form_day is not None and today is not None:
+            age = (today - state.form_day).days
+            if -128 <= age <= oldest:
+                form = state.form
         held = [(index, value) for index, value in enumerate(state.deferred) if value]
         out.extend((
             entry_year - first_year + 2, roster_no, state.growth_type,
-            state.potential, state.velocity_potential, state.trait | (len(held) << 2), state.games,
+            state.potential, state.velocity_potential,
+            state.trait | (len(held) << 2) | (0x80 if form else 0), state.games,
             min(255, state.season_games), len(state.injuries), len(state.values),
-            state.form + 128,
         ))
-        out.extend((_day(state.form_day) if state.form_day is not None else 0xFFFF).to_bytes(2, "big"))
+        if form:
+            out.extend((form + 128, age & 0xFF))
         for injury in state.injuries:
             out.extend(_day(injury.start).to_bytes(2, "big"))
             out.extend(injury.days.to_bytes(2, "big"))
@@ -221,15 +233,23 @@ def _pack_states(first_year: int, states: dict[tuple[int, int], PlayerState]) ->
     return bytes(out)
 
 
-def _unpack_states(first_year: int, data: bytes) -> dict[tuple[int, int], PlayerState]:
+def _unpack_states(first_year: int, data: bytes,
+                   today: date | None = None) -> dict[tuple[int, int], PlayerState]:
     states = {}
     offset = 0
     while offset < len(data):
         (entry, roster_no, growth_type, potential, velocity_potential, trait, games,
-         season_games, count, size, form) = data[offset:offset + 11]
-        form_day = int.from_bytes(data[offset + 11:offset + 13], "big")
-        offset += 13
-        held, trait = trait >> 2, trait & 3
+         season_games, count, size) = data[offset:offset + 10]
+        offset += 10
+        form, form_day = 0, None
+        if trait & 0x80:
+            form = data[offset] - 128
+            age = data[offset + 1] - 256 if data[offset + 1] > 127 else data[offset + 1]
+            form_day = today - timedelta(days=age) if today is not None else None
+            offset += 2
+            if form_day is None:
+                form = 0
+        held, trait = (trait & 0x7F) >> 2, trait & 3
         injuries = []
         for _ in range(count):
             injuries.append(Injury(
@@ -246,7 +266,7 @@ def _unpack_states(first_year: int, data: bytes) -> dict[tuple[int, int], Player
         states[(entry + first_year - 2, roster_no)] = PlayerState(
             bytearray(data[offset:offset + size]), growth_type, potential, games,
             season_games, injuries, velocity_potential, trait, deferred,
-            form - 128, None if form_day == 0xFFFF else _from_day(form_day),
+            form, form_day,
         )
         offset += size + 2 * held
     return states
@@ -339,7 +359,7 @@ class RosterBook:
             "injury_level": self.injury_level,
             "today": self.today,
             "_states": {
-                school_id: _pack_states(self.first_year, states)
+                school_id: _pack_states(self.first_year, states, self.today)
                 for school_id, states in self._states.items()
             },
         }
@@ -348,7 +368,7 @@ class RosterBook:
         states = data.pop("_states")
         self.__dict__.update(data)
         self._states = {
-            school_id: _unpack_states(self.first_year, packed)
+            school_id: _unpack_states(self.first_year, packed, data.get("today"))
             for school_id, packed in states.items()
         }
         self.bind(None)

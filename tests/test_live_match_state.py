@@ -270,7 +270,8 @@ class LiveMatchStateTests(unittest.TestCase):
         result, _ = self.play(changes=((old, 1),))
         members = {t.school_id: SimpleNamespace(players=t.player_abilities) for t in self.teams}
         bridge.member_provider = lambda cid, sid: members[sid]
-        with patch.object(source, 'record_games') as record, patch.object(source, 'after_game') as injury:
+        with patch.object(source, 'record_games') as record, patch.object(source, 'after_game') as injury, \
+                patch.object(source, 'after_game_form'):
             bridge._record_pitches(result, date(2026, 7, 5))
             bridge._record_games(result.competition_id, result)
         expected = {s.player_id for s in result.batter_stats if s.plate_appearances} | {s.player_id for s in result.pitcher_stats if s.batters_faced}

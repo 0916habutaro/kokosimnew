@@ -75,6 +75,8 @@ class RosterFormTests(unittest.TestCase):
         other = books()[3]
         other.after_game_form(list(reversed(rows)), day=DAY)
         self.assertEqual(forms, [other.form(p, DAY) for p in players])
+        # セーブには名簿の今日からの日数で入れる（試合の日が今日より先でも、古すぎても同じ値に戻る）
+        rosters.set_today(DAY - timedelta(days=1))
         loaded = pickle.loads(pickle.dumps(rosters))
         loaded.bind(repo.team)
         later = DAY + timedelta(days=5)
@@ -85,6 +87,13 @@ class RosterFormTests(unittest.TestCase):
         self.assertEqual([rosters.form(p, later) for p in players],
                          [loaded.form(p, later) for p in players])
         self.assertEqual(0.0, rosters.form(rosters.roster(2026, 'FAKE-B').players[0], DAY))
+        far = later + timedelta(days=form_model().max_age_days + 1)
+        self.assertEqual([0.0] * 4, [rosters.form(p, far) for p in players])
+        rosters.set_today(far)
+        again = pickle.loads(pickle.dumps(rosters))
+        again.bind(repo.team)
+        self.assertEqual([0.0] * 4, [again.form(p, far) for p in players])
+        self.assertEqual([0] * 4, [again.state(p).form for p in players])
 
 
 class CoachFormTests(unittest.TestCase):

@@ -177,7 +177,7 @@ class AbilityMatchResolver:
         self._team_cache.clear()
         self._roster_cache.clear()
         self._competition_teams.clear()
-        self._tactics_on.clear()
+        self.__dict__.setdefault("_tactics_on", {}).clear()
         self._abilities.clear()
 
     def begin_season(
@@ -327,7 +327,7 @@ class AbilityMatchResolver:
             for player in members
         )
         tactics = self._with_form(tactics, school_id, day, members, abilities)
-        self._tactics_on[(competition_id, school_id)] = (day, tactics)
+        self.__dict__.setdefault("_tactics_on", {})[(competition_id, school_id)] = (day, tactics)
         key = (competition_id, team_seed, school_id, condition, tactics.selection_grade_bias,
                tactics.batting_order, tactics.form_bonus, abilities)
         cached = self._competition_teams.get(key)
@@ -366,7 +366,7 @@ class AbilityMatchResolver:
 
     def _match_tactics(self, competition_id, school_id, day):
         """その試合のチームをつくったときの采配（調子の加点を含む）。"""
-        held = self._tactics_on.get((competition_id, school_id))
+        held = self.__dict__.setdefault("_tactics_on", {}).get((competition_id, school_id))
         if held is not None and held[0] == day:
             return held[1]
         return self._coach_tactics(school_id, day)
