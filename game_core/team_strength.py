@@ -345,7 +345,7 @@ class TeamStrengthGenerator:
         return _weighted(values, weights)
 
     def _role_order(self, players, style: BattingOrderStyle) -> list:
-        """役割で組む並べ方。3〜5番 → 1番 → 2番 → 6番以下（打てる順）の順に決める。"""
+        """役割で組む並べ方。4番 → 3・5番 → 1番 → 2番 → 6番以下（打てる順）の順に決める。"""
         rule = self.params["selection"]["role_batting_order"]
         neutral = float(rule["neutral_style"])
 
@@ -362,10 +362,18 @@ class TeamStrengthGenerator:
         second["bunt"] = max(0.0, second.get("bunt", 0.0) + (style.small_ball - neutral)
                              * float(rule["small_ball_bunt_weight_per_point"]))
         pool = list(players)
-        cleanup = sorted(pool, key=lambda p: (-score(p, rule["cleanup_weights"]), p.player_id))[:3]
-        fourth = top(cleanup, rule["fourth_weights"])
-        third, fifth = ([p for p in cleanup if p is not fourth] + [None, None])[:2]
-        pool = [p for p in pool if p not in cleanup]
+        # チームで最も足の速い打者は、長打が上位（leadoff_reserve_power_rank 人以内）でなければ
+        # 中軸に取らず、1番の候補として残す
+        fastest = min(pool, key=lambda p: (-p.speed, -p.baserunning, p.player_id))
+        stronger = sum(p.power > fastest.power for p in pool)
+        reserved = fastest if stronger >= int(rule["leadoff_reserve_power_rank"]) else None
+        middle = [p for p in pool if p is not reserved]
+        fourth = top(middle, rule["fourth_weights"])
+        third, fifth = (sorted((p for p in middle if p is not fourth),
+                               key=lambda p: (-score(p, rule["cleanup_weights"]), p.player_id))
+                        + [None, None])[:2]
+        cleanup = {id(p) for p in (third, fourth, fifth) if p is not None}
+        pool = [p for p in pool if id(p) not in cleanup]
         first = top(pool, leadoff) if pool else None
         pool = [p for p in pool if p is not first]
         two = top(pool, second) if pool else None

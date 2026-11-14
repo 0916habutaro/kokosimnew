@@ -57,14 +57,30 @@ class CoachBattingOrderTests(unittest.TestCase):
         # 打てる順では下位の足の速い打者も、中立では上位に上がる
         self.assertLess(middle.index('D-SPEED'), score.index('D-SPEED'))
 
-    def test_mobility_puts_a_fast_runner_first_and_small_ball_a_bunter_second(self):
+    def test_fastest_batter_leads_off_unless_he_is_a_top_power_hitter(self):
         base = self.roster[5]
-        players = [p for p in self.players if p.player_id not in ('D-SPEED', 'E-BUNT')] + [
-            batter(base, 'D-SPEED', contact=50, power=30, speed=95),
-            batter(base, 'J-ONBASE', contact=70, power=30, discipline=70, speed=60),
+        # 一番足の速い打者がミートも高く、今までなら3〜5番に吸われていた（長打は上位2人に入らない）
+        star = batter(base, 'D-SPEED', contact=75, power=65, speed=95)
+        players = [p for p in self.players if p.player_id != 'D-SPEED'] + [star]
+        self.assertEqual('D-SPEED', self.order(BattingOrderStyle(100), players)[0])
+        self.assertEqual(['A-SLUG', 'D-SPEED'], self.order(BattingOrderStyle(1), players)[:2])
+        # 長打が上位2人に入る打者は中軸に残す
+        slugger = replace(star, power=95)
+        players = [p for p in self.players if p.player_id != 'D-SPEED'] + [slugger]
+        self.assertIn('D-SPEED', self.order(BattingOrderStyle(100), players)[2:5])
+
+    def test_mobility_raises_the_leadoff_speed(self):
+        base = self.roster[5]
+        players = [p for p in self.players if p.player_id != 'D-SPEED'] + [
+            batter(base, 'D-SPEED', contact=30, power=30, discipline=30, speed=95),
+            batter(base, 'J-ONBASE', contact=75, power=30, discipline=80, speed=70),
         ]
-        self.assertEqual('J-ONBASE', self.order(BattingOrderStyle(100, mobility=50), players)[0])
-        self.assertEqual('D-SPEED', self.order(BattingOrderStyle(100, mobility=95), players)[0])
+        speeds = [self.generator._batting_order(players, BattingOrderStyle(100, mobility=m))[0].speed
+                  for m in (1, 50, 100)]
+        self.assertEqual([70, 70, 95], speeds)
+
+    def test_small_ball_puts_a_bunter_second(self):
+        base = self.roster[5]
         players = [p for p in self.players if p.player_id != 'E-BUNT'] + [
             batter(base, 'E-BUNT', contact=45, power=30, strikeouts=50, bunt=70),
             batter(base, 'K-CONTACT', contact=68, power=30, strikeouts=70, bunt=40),
@@ -79,6 +95,27 @@ class CoachBattingOrderTests(unittest.TestCase):
         self.assertEqual(plain, low)
         self.assertEqual(sorted(e.player_id for e in plain.entries), sorted(e.player_id for e in high.entries))
         self.assertEqual(list(range(1, 10)), sorted(e.batting_order for e in high.entries))
+
+    def test_same_side_pitcher_does_not_undo_the_role_order(self):
+        from game_core.coaches import CoachTactics
+        from game_core.match_contract import TeamMatchInput
+        from game_core.match_simulator import MatchSimulator
+
+        sim = MatchSimulator()
+        opponent = replace(make_roster_abilities(school_id='FAKE-OPP')[0], throws='R')
+        checked = 0
+        for seed in range(2026100701, 2026100721):
+            roster = tuple(make_roster_abilities(school_id='FAKE-ORDER', seed=seed))
+            strength = self.generator.generate(roster, order_style=BattingOrderStyle(100))
+            lineup = strength.starting_lineup
+            team = TeamMatchInput('FAKE-ORDER', strength, roster)
+            after = sim._platoon_lineup(lineup, team, opponent, (), CoachTactics())
+            before = {e.player_id: e.batting_order for e in lineup.entries}
+            kept = {e.player_id: e.batting_order for e in after.entries if e.player_id in before}
+            # 全員が右打ちで左右の差がないので、打撃の差だけで隣どうしを入れ替えない
+            self.assertEqual({pid: before[pid] for pid in kept}, kept)
+            checked += 1
+        self.assertEqual(20, checked)
 
 
 if __name__ == '__main__':

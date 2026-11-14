@@ -222,7 +222,7 @@ class PlatoonAndAbilityTableTests(unittest.TestCase):
         tally = BalanceTally(lambda cid: KINDS[cid[:3]], {}, RANKINGS)
         detail = match(2026, "LOC1", "FAKE-A", "FAKE-B", 2, 1, 9)
         detail["batter_stats"][0].update(vs_rhp_at_bats=20, vs_rhp_hits=4, vs_lhp_at_bats=20, vs_lhp_hits=8)
-        tally.add_match("LOC1", detail, bats_of=lambda school, player: "R")
+        tally.add_match("LOC1", detail, bats_of=lambda school, player, cid: "R")
         # 右打ちが逆の側（左投手）に .400、同じ側に .200
         self.assertEqual({"R": {"weight": 20.0, "opposite_minus_same": 0.2}},
                          tally.summary()[2026]["platoon_within"])
@@ -236,14 +236,29 @@ class PlatoonAndAbilityTableTests(unittest.TestCase):
             sid = part["school_id"]
             part["starting_lineup"] = [dict(batting_order=n, player_id=f"{sid}-{n}", defensive_position="LF")
                                        for n in range(1, 10)]
-        values = {"FAKE-A-1": (80, 30), "FAKE-A-4": (40, 90), "FAKE-B-1": (60, 30), "FAKE-B-4": (40, 70)}
+        values = {f"{sid}-{n}": (50, 50) for sid in ("FAKE-A", "FAKE-B") for n in range(1, 10)}
+        # A：1番は走力の2番目（上位2人）、4番はパワーが最も高い（同じ値も最上位）
+        values.update({"FAKE-A-1": (80, 30), "FAKE-A-7": (85, 40), "FAKE-A-4": (40, 90), "FAKE-A-5": (40, 90)})
+        # B：1番より速い打者が2人、4番よりパワーのある打者がいる
+        values.update({"FAKE-B-1": (60, 30), "FAKE-B-6": (70, 40), "FAKE-B-8": (65, 40),
+                       "FAKE-B-4": (40, 70), "FAKE-B-3": (40, 75)})
         coaches = {"FAKE-A": SimpleNamespace(lineup_style=90), "FAKE-B": SimpleNamespace(lineup_style=10)}
         tally.add_match("LOC1", detail, coaches.get, ability_of=lambda school, player, cid: values.get(player))
         lineup = tally.summary()[2026]["lineup"]
-        self.assertEqual({"leadoff_speed": 70.0, "cleanup_power": 80.0, "teams": 2}, lineup["all"])
-        self.assertEqual({"leadoff_speed": 80.0, "cleanup_power": 90.0, "teams": 1}, lineup["by_tendency"]["高"])
-        self.assertEqual({"leadoff_speed": 60.0, "cleanup_power": 70.0, "teams": 1}, lineup["by_tendency"]["低"])
-        self.assertIn("1番の走力 70.0", format_report("x", tally.summary()))
+        self.assertEqual({"leadoff_speed": 70.0, "cleanup_power": 80.0, "leadoff_top2_speed": 0.5,
+                          "cleanup_top_power": 0.5, "teams": 2}, lineup["all"])
+        self.assertEqual({"leadoff_speed": 80.0, "cleanup_power": 90.0, "leadoff_top2_speed": 1.0,
+                          "cleanup_top_power": 1.0, "teams": 1}, lineup["by_tendency"]["高"])
+        self.assertEqual({"leadoff_speed": 60.0, "cleanup_power": 70.0, "leadoff_top2_speed": 0.0,
+                          "cleanup_top_power": 0.0, "teams": 1}, lineup["by_tendency"]["低"])
+        text = format_report("x", tally.summary())
+        self.assertIn("1番の走力 70.0", text)
+        self.assertIn("1番が走力の上位2人 50.0%", text)
+        # 先発の能力が1人でも取れないチームは、順位の割合に数えない
+        tally = BalanceTally(lambda cid: KINDS[cid[:3]], {}, RANKINGS)
+        values.pop("FAKE-B-9")
+        tally.add_match("LOC1", detail, coaches.get, ability_of=lambda school, player, cid: values.get(player))
+        self.assertEqual(1.0, tally.summary()[2026]["lineup"]["all"]["leadoff_top2_speed"])
 
     def test_union_member_abilities_come_from_their_own_school(self):
         from types import SimpleNamespace
@@ -256,7 +271,8 @@ class PlatoonAndAbilityTableTests(unittest.TestCase):
             return row
 
         rosters = {"FAKE-LEAD": [("FAKE-LEAD-1", 70, 40)], "FAKE-PART": [("FAKE-PART-4", 50, 85)]}
-        players = {sid: [SimpleNamespace(player_id=pid, bats="R", v=values(sp, pw)) for pid, sp, pw in rows]
+        players = {sid: [SimpleNamespace(player_id=pid, bats="L" if sid == "FAKE-PART" else "R",
+                                         v=values(sp, pw)) for pid, sp, pw in rows]
                    for sid, rows in rosters.items()}
 
         def roster(year, sid):
@@ -273,7 +289,10 @@ class PlatoonAndAbilityTableTests(unittest.TestCase):
                 lookup.lookup(book, 2026, sid, "missing")
             self.assertEqual((50, 85), lookup.abilities(book, 2026, union, "FAKE-PART-4"))
             self.assertEqual((70, 40), lookup.abilities(book, 2026, union, "FAKE-LEAD-1"))
+            # 左右別の打率に使う打つ側も、構成校の名簿から取れる
+            self.assertEqual("L", lookup.side(book, 2026, union, "FAKE-PART-4"))
         self.assertIsNone(HandLookup().abilities(book, 2026, ("FAKE-LEAD",), "FAKE-PART-4"))
+        self.assertIsNone(HandLookup().side(book, 2026, ("FAKE-LEAD",), "FAKE-PART-4"))
 
     def test_ability_table_moves_in_the_intended_direction(self):
         from phase2_engine.balance_report import ability_table

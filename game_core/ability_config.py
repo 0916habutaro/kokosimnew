@@ -536,6 +536,9 @@ def validate_team_strength(
         _require_probability_weights(
             role_order[key], f"team_strength.selection.role_batting_order.{key}",
         )
+    reserve = role_order["leadoff_reserve_power_rank"]
+    if not isinstance(reserve, int) or isinstance(reserve, bool) or not 0 <= reserve <= 9:
+        raise ValueError("team strength: leadoff_reserve_power_rank must be an integer in 0..9")
     if role_order["neutral_style"] != 50:
         raise ValueError("team strength: role batting order neutral must be 50")
     for key in ("role_share_per_point", "mobility_speed_weight_per_point",
