@@ -10,7 +10,6 @@ from .brackets import (
     run_head_to_head,
     run_round_robin,
     run_single_elimination_ranking,
-    run_single_round_gate,
 )
 from .models import AnnualCompetitionInput, CompetitionRun, Match, SeedAssignment, StageExecution
 from .main_tournament import bye_layout_for, run_main_single_elimination
@@ -19,6 +18,8 @@ from .seed_draw import policy_redraw_rounds, policy_seed_bye_count
 from .randomness import shuffled
 from .repository import DataRepository
 from .direct_access_quota import effective_qualifier_group_output_slots
+from .premain_runtime_fmt006 import fmt006_pool_plan, fmt006_qualifiers
+from .premain_runtime_forest import gate_winner_slots
 
 
 class TournamentEngine:
@@ -673,12 +674,15 @@ class TournamentEngine:
         gate_assignment = self.repo.assignments_by_stage.get(gate_stage["stage_id"])
         if not gate_assignment or gate_assignment["default_format_model_id"] != "FMT026":
             raise NotImplementedError("gate handler requires FMT026")
-        gate_winners, gate_matches = run_single_round_gate(
+        gate_winners, gate_matches, _blocks = run_block_winner_forest(
             nonseed,
+            block_count=gate_winner_slots(self.repo, gate_stage, len(nonseed)),
             competition_id=annual.competition_id,
             stage_id=gate_stage["stage_id"],
             stage_code=gate_stage["stage_code"],
             phase_code="GATE_ROUND",
+            group_id="",
+            group_name="1次トーナメント",
             base_seed=annual.rng_seed,
             winner_resolver=winner_resolver,
             **self._pre_main_resolution_kwargs(annual),
@@ -702,13 +706,12 @@ class TournamentEngine:
             raise AssertionError("duplicate team entered MAIN")
         warnings: List[str] = []
         expected = {
-            "nonseed": self.repo.param(gate_stage["stage_id"], "observed_nonseed_gate_teams"),
-            "winners": self.repo.param(gate_stage["stage_id"], "observed_gate_winner_slots"),
+            "winners": self.repo.param(gate_stage["stage_id"], "gate_winner_slots"),
             "seed": self.repo.param(gate_stage["stage_id"], "seed_bypass_slots"),
             "main": self.repo.param(gate_stage["stage_id"], "observed_second_stage_total"),
         }
         observed = {
-            "nonseed": len(nonseed), "winners": len(gate_winners),
+            "winners": len(gate_winners),
             "seed": len(seeded_ids), "main": len(main_entrants),
         }
         for key, exp in expected.items():
@@ -931,6 +934,7 @@ class TournamentEngine:
         if slots is None:
             raise ValueError(f"{group['group_name']}: FMT006 requires output_slots")
         supplied = annual.group_pool_assignments.get(gid)
+        byes: List[str] = []
         if supplied:
             pools = [list(x) for x in supplied]
             flat = [x for p in pools for x in p]
@@ -939,18 +943,19 @@ class TournamentEngine:
             if any(len(p) not in {3, 4} for p in pools):
                 raise ValueError(f"{gid}: FMT006 pools must have 3 or 4 teams")
         else:
-            four_count, three_count = self._solve_3_or_4_pool_plan(len(eligible), slots)
+            four_count, three_count, bye_count = fmt006_pool_plan(len(eligible), slots)
             sizes = [4] * four_count + [3] * three_count
             sizes = shuffled(sizes, annual.rng_seed, f"{annual.competition_id}:{stage['stage_id']}:{gid}:pool_sizes")
             drawn = shuffled(eligible, annual.rng_seed, f"{annual.competition_id}:{stage['stage_id']}:{gid}:pool_draw")
+            byes = drawn[len(drawn) - bye_count:] if bye_count else []
+            drawn = drawn[:len(drawn) - bye_count]
             pools = []
             pos = 0
             for size in sizes:
                 pools.append(drawn[pos:pos + size])
                 pos += size
 
-        direct: List[str] = []
-        runnerups_3: List[str] = []
+        rankings: List[List[str]] = []
         matches: List[Match] = []
         standings = {}
         for pno, pool in enumerate(pools, start=1):
@@ -964,33 +969,16 @@ class TournamentEngine:
             )
             matches.extend(ms)
             standings[str(pno)] = table
-            if len(pool) == 4:
-                direct.extend(ranking[:2])
-            else:
-                direct.append(ranking[0])
-                runnerups_3.append(ranking[1])
+            rankings.append(ranking)
 
-        playoff_candidates = shuffled(
-            runnerups_3, annual.rng_seed,
-            f"{annual.competition_id}:{stage['stage_id']}:{gid}:cross_playoff_draw",
+        direct, pairs = fmt006_qualifiers(
+            pools, rankings, byes, slots,
+            seed=annual.rng_seed, namespace=f"{annual.competition_id}:{stage['stage_id']}:{gid}",
         )
         supplemental: List[str] = []
-        match_no = 1
-        i = 0
-        while i < len(playoff_candidates):
-            t1 = playoff_candidates[i]
-            if i + 1 >= len(playoff_candidates):
-                supplemental.append(t1)
-                matches.append(Match(
-                    match_id=f"{stage['stage_id']}-{gid}-CROSS_PLAYOFF-M{match_no:03d}",
-                    competition_id=annual.competition_id, stage_id=stage["stage_id"],
-                    stage_code=stage["stage_code"], phase_code="CROSS_PLAYOFF", round_no=1,
-                    group_id=gid, group_name=group["group_name"], team1=t1, winner=t1,
-                    is_bye=True, metadata={"reason": "unpaired_3team_pool_runnerup"},
-                ))
-                break
+        for match_no, (t1, t2) in enumerate(pairs, start=1):
             m = run_head_to_head(
-                t1, playoff_candidates[i + 1],
+                t1, t2,
                 competition_id=annual.competition_id, stage_id=stage["stage_id"],
                 stage_code=stage["stage_code"], phase_code="CROSS_PLAYOFF",
                 group_id=gid, group_name=group["group_name"], match_no=match_no,
@@ -999,10 +987,8 @@ class TournamentEngine:
             )
             matches.append(m)
             supplemental.append(m.winner)
-            match_no += 1
-            i += 2
         out = direct + supplemental
-        if len(out) != slots:
+        if len(out) != min(slots, len(eligible)):
             raise AssertionError(f"{group['group_name']}: qualifiers={len(out)} != output_slots={slots}")
         return out, matches, {
             "entrant_count": len(eligible), "output_slots": slots,
@@ -1014,24 +1000,6 @@ class TournamentEngine:
             "standings": standings,
             "draw_source": "annual_override" if supplied else "simulated_draw",
         }
-
-    @staticmethod
-    def _solve_3_or_4_pool_plan(entrant_count: int, output_slots: int) -> Tuple[int, int]:
-        candidates = []
-        for three in range(0, entrant_count // 3 + 1):
-            rem = entrant_count - 3 * three
-            if rem < 0 or rem % 4:
-                continue
-            four = rem // 4
-            outputs = 2 * four + three + (three + 1) // 2
-            if outputs == output_slots:
-                candidates.append((four, three))
-        if not candidates:
-            raise ValueError(
-                f"cannot partition entrants={entrant_count} into 3/4-team pools for output_slots={output_slots}"
-            )
-        # Prefer fewer 3-team pools: closest to the ordinary 4-team-pool form.
-        return sorted(candidates, key=lambda x: (x[1], -x[0]))[0]
 
     def _quota_forest(
         self, annual, stage, group, teams, slots, phase_code, winner_resolver

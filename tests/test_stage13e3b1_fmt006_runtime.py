@@ -5,6 +5,7 @@ from pathlib import Path
 
 from phase2_engine import AnnualCompetitionInput, DataRepository, MatchResolution, TournamentEngine
 from phase2_engine.cli import _kanagawa_demo
+from phase2_engine.premain_runtime_fmt006 import fmt006_pool_plan
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -193,7 +194,7 @@ class Stage13E3B1Fmt006RuntimeTests(unittest.TestCase):
                 "output_slots",
                 gid,
             )
-            four, three = TournamentEngine._solve_3_or_4_pool_plan(
+            four, three, _byes = fmt006_pool_plan(
                 len(eligible),
                 slots,
             )

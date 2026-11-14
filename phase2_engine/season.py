@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import csv
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, replace
 from datetime import date
 from pathlib import Path
 from typing import Dict, Iterable, List, Sequence, Tuple
@@ -210,11 +210,11 @@ class SeasonExecution:
 
 
 class StructuralAnnualInputFactory:
-    """Create annual structural inputs without hardcoding school names.
+    """県大会の年度の入力（出場校・組）を学校マスターと地区の所属からつくる。
 
-    This is an audit/simulation helper, not an official 2026 draw replay.  It uses the
-    permanent area master plus Stage 12C structural entrant counts where a competition
-    is known to use a participating subset (Chiba/Kanagawa/Gifu etc.).
+    チームを出せる学校はすべて出る（乱数で出場校を減らさない）。連合・不参加は
+    このあと ``live_season_dependency._with_unions`` が外し、予選の組は実際の
+    チーム数から ``arrange_groups`` で組み直す（game_definition.md §3.8）。
     """
 
     def __init__(self, repo: DataRepository, data_dir: str | Path, base_seed: int):
@@ -223,12 +223,6 @@ class StructuralAnnualInputFactory:
         self.base_seed = base_seed
         self.pref_index = self._read("prefectural_competition_index_2026.csv")
         self.pref_by_comp = {r["competition_id"]: r for r in self.pref_index}
-        self.exec_targets = {}
-        p = resolve_data_file(self.data_dir, "stage12c3_structured_competition_execution.csv")
-        if p.exists():
-            for r in self._read(p.name):
-                if r.get("status") == "PASS" and r.get("entrant_count"):
-                    self.exec_targets[r["competition_id"]] = int(r["entrant_count"])
 
     def _read(self, name: str) -> List[dict]:
         with resolve_data_file(self.data_dir, name).open("r", encoding="utf-8-sig", newline="") as f:
@@ -264,114 +258,22 @@ class StructuralAnnualInputFactory:
         stages = self.repo.stages(competition_id)
         assigned_stages = [s for s in stages if s["stage_id"] in self.repo.assignments_by_stage]
         groups = []
-        entrants = set()
+        grouped = set()
         for stage in assigned_stages:
             for group in self.repo.groups_by_stage.get(stage["stage_id"], []):
                 groups.append(group)
-                entrants |= self.repo.group_school_ids(group, year)
+                grouped |= self.repo.group_school_ids(group, year)
 
+        # その都道府県の学校はすべて出る（地区の組に属さない学校も。例：鹿児島の秋の熊毛地区は
+        # 地区のシード決定戦がなく、県大会から出る）
         group_override: Dict[str, List[str]] = {}
         full_candidates = self.prefecture_school_ids(competition_id)
-        if not entrants:
-            entrants = set(full_candidates)
-            if groups:
-                for i, sid in enumerate(full_candidates):
-                    gid = groups[i % len(groups)]["stage_group_id"]
-                    group_override.setdefault(gid, []).append(sid)
-        elif "MAIN" in {s["stage_code"] for s in stages} and not assigned_stages:
-            entrants = set(full_candidates)
-
-        # Tokyo autumn: the official 2026 structure has 232 team units.  The two
-        # current summer East/West Tokyo champions bypass the preliminary round, leaving
-        # 230 preliminary team units.  Phase 1 currently stores schools rather than
-        # annual combined-team units, so structural audit chooses 232 deterministic
-        # school proxies and distributes the 230 non-direct proxies over the 62 A/B
-        # representative brackets as 44 four-team + 18 three-team groups.  Exact annual
-        # combined-team mapping can later replace group_entrant_school_ids.
-        if competition_id == "CMP000016":
-            qstage = self.repo.stage_by_code(competition_id, "PRELIMINARY_QUALIFIER")
-            qgroups = self.repo.groups_by_stage[qstage["stage_id"]]
-            if len(qgroups) != 62:
-                raise ValueError(f"{competition_id}: expected 62 Tokyo preliminary representative groups")
-            forced = list(dict.fromkeys(direct))
-            if year == 2026 and len(forced) != 2:
-                raise ValueError(f"{competition_id}: 2026 structural input requires two summer direct entries")
-            candidates = [x for x in full_candidates if x not in set(forced)]
-            target_prelim = 230
-            selected = shuffled(candidates, rng_seed, f"{competition_id}:2026_team_unit_proxy")[:target_prelim]
-            if len(selected) != target_prelim:
-                raise ValueError(f"{competition_id}: insufficient school proxies for 230 preliminary team units")
-            sizes = [4] * 44 + [3] * 18
-            sizes = shuffled(sizes, rng_seed, f"{competition_id}:preliminary_group_sizes")
-            selected = shuffled(selected, rng_seed, f"{competition_id}:preliminary_group_draw")
-            group_override = {}
-            pos = 0
-            for group, size in zip(qgroups, sizes):
-                group_override[group["stage_group_id"]] = selected[pos:pos + size]
-                pos += size
-            if pos != target_prelim:
-                raise AssertionError("Tokyo preliminary proxy partition mismatch")
-            entrants = set(selected) | set(forced) | set(seed_bypass)
-
-        # Kanagawa FMT006 requires exactly the annual participating subset so that the
-        # 3/4-team pool equations match official MAIN quotas.  The actual direct team is
-        # removed from its district pool, not a hardcoded placeholder.
-        if competition_id in {"CMP000095", "CMP000096"}:
-            qstage = self.repo.stage_by_code(competition_id, "BRANCH_QUALIFIER")
-            reduced: List[str] = []
-            direct_set = set(direct)
-            for group in self.repo.groups_by_stage[qstage["stage_id"]]:
-                ids = sorted(self.repo.group_school_ids(group, year))
-                ids = [x for x in ids if x not in direct_set]
-                slots = int(self.repo.param(qstage["stage_id"], "output_slots", group["stage_group_id"]))
-                target = 2 * slots
-                if len(ids) < target:
-                    raise ValueError(f"{competition_id}/{group['group_name']}: insufficient pool entrants")
-                reduced.extend(shuffled(ids, rng_seed, f"{competition_id}:{group['stage_group_id']}:annual_subset")[:target])
-            entrants = set(reduced) | direct_set | set(seed_bypass)
-
-        # Chiba autumn primary+repechage was observed as 140 qualifier entrants plus
-        # one summer champion direct entry = 141 annual entrants in the Stage12C contract.
-        elif competition_id == "CMP000093":
-            target = self.exec_targets.get(competition_id, 141)
-            forced = set(direct) | set(seed_bypass)
-            candidates = [x for x in sorted(entrants) if x not in forced]
-            need = target - len(forced)
-            entrants = set(shuffled(candidates, rng_seed, f"{competition_id}:annual_subset")[:need]) | forced
-
-        # Gifu autumn requires 58 annual entrants so 16 seeds leave 42 non-seeds, which
-        # becomes the official one-match gate of 21 winners before the second tournament.
-        elif competition_id == "CMP000110":
-            target = self.exec_targets.get(competition_id, 58)
-            seed_stage = self.repo.stage_by_code(competition_id, "SEED_EVENT")
-            sgroups = self.repo.groups_by_stage[seed_stage["stage_id"]]
-            available = {g["stage_group_id"]: sorted(self.repo.group_school_ids(g, year)) for g in sgroups}
-            mins = {
-                g["stage_group_id"]: int(g.get("seed_slots_generated") or 0)
-                for g in sgroups
-            }
-            counts = self._allocate_group_counts(available, mins, target)
-            chosen = []
-            group_override = {}
-            for g in sgroups:
-                gid = g["stage_group_id"]
-                ids = shuffled(available[gid], rng_seed, f"{competition_id}:{gid}:annual_subset")[:counts[gid]]
-                group_override[gid] = ids
-                chosen.extend(ids)
-            entrants = set(chosen) | set(direct) | set(seed_bypass)
-
-        # If a structural target says fewer annual participants than affiliations, trim
-        # only when the generic format tolerates it.  This currently applies to the
-        # Kagoshima seed event and is usually already achieved by group membership union.
-        target = self.exec_targets.get(competition_id)
-        if target and len(entrants) > target and competition_id not in {"CMP000095", "CMP000096", "CMP000093", "CMP000110"}:
-            forced = set(direct) | set(seed_bypass)
-            candidates = [x for x in sorted(entrants) if x not in forced]
-            need = target - len(forced)
-            entrants = set(shuffled(candidates, rng_seed, f"{competition_id}:generic_annual_subset")[:need]) | forced
-            if group_override:
-                entrant_set = set(entrants)
-                group_override = {gid: [x for x in ids if x in entrant_set] for gid, ids in group_override.items()}
+        entrants = set(full_candidates)
+        if groups and not grouped:
+            # 組に学校の所属がない大会は、組を年度ごとに割り振る
+            for i, sid in enumerate(full_candidates):
+                gid = groups[i % len(groups)]["stage_group_id"]
+                group_override.setdefault(gid, []).append(sid)
 
         entrants |= set(direct) | set(seed_bypass)
 
@@ -389,7 +291,7 @@ class StructuralAnnualInputFactory:
             direct_set = set(direct)
             group_override = {gid: [x for x in ids if x not in direct_set] for gid, ids in group_override.items()}
 
-        return AnnualCompetitionInput(
+        return self.arrange_groups(AnnualCompetitionInput(
             competition_id=competition_id,
             year=year,
             entrant_school_ids=sorted(entrants),
@@ -397,25 +299,34 @@ class StructuralAnnualInputFactory:
             seed_event_bypass_school_ids=seed_bypass,
             rng_seed=rng_seed,
             group_entrant_school_ids=group_override,
-        )
+        ))
 
-    @staticmethod
-    def _allocate_group_counts(
-        available: Dict[str, List[str]], minimums: Dict[str, int], total: int
-    ) -> Dict[str, int]:
-        gids = list(available)
-        counts = {gid: min(len(available[gid]), max(minimums.get(gid, 0), 0)) for gid in gids}
-        if sum(counts.values()) > total:
-            raise ValueError("minimum group counts exceed annual target")
-        while sum(counts.values()) < total:
-            candidates = [gid for gid in gids if counts[gid] < len(available[gid])]
-            if not candidates:
-                raise ValueError("annual target exceeds group membership")
-            # Add to the group with the greatest remaining capacity; tie by id for determinism.
-            gid = sorted(candidates, key=lambda g: (-(len(available[g]) - counts[g]), g))[0]
-            counts[gid] += 1
-        return counts
+    # 予選の組を毎年のチーム数から組む大会（組の数＝代表の枠の数は固定）
+    COUNT_BASED_GROUP_COMPETITIONS = frozenset({"CMP000016"})
 
+    def arrange_groups(self, annual: AnnualCompetitionInput) -> AnnualCompetitionInput:
+        """東京の秋の一次予選：予選に出るチーム（夏の代表の直接出場を除く）を62の代表の組に
+        できるだけ同じ数ずつ分ける（2026年は230チームで4チーム44組・3チーム18組）。
+        連合・不参加を外したあとにも呼び、その年の実際のチーム数で組み直す。"""
+        if annual.competition_id not in self.COUNT_BASED_GROUP_COMPETITIONS:
+            return annual
+        qstage = self.repo.stage_by_code(annual.competition_id, "PRELIMINARY_QUALIFIER")
+        qgroups = self.repo.groups_by_stage[qstage["stage_id"]]
+        skip = set(annual.direct_main_entry_school_ids)
+        teams = [x for x in annual.entrant_school_ids if x not in skip]
+        if len(teams) < len(qgroups):
+            raise ValueError(
+                f"{annual.competition_id}: {len(teams)} teams for {len(qgroups)} preliminary groups")
+        base, extra = divmod(len(teams), len(qgroups))
+        sizes = shuffled([base + 1] * extra + [base] * (len(qgroups) - extra),
+                         annual.rng_seed, f"{annual.competition_id}:preliminary_group_sizes")
+        drawn = shuffled(sorted(teams), annual.rng_seed, f"{annual.competition_id}:preliminary_group_draw")
+        groups = {}
+        pos = 0
+        for group, size in zip(qgroups, sizes):
+            groups[group["stage_group_id"]] = drawn[pos:pos + size]
+            pos += size
+        return replace(annual, group_entrant_school_ids=groups)
 
 class SeasonOrchestrator:
     """Stage 12E season resolver including prefectural->regional qualification."""

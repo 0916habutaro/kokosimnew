@@ -33,16 +33,11 @@ Stage 13E-3を以下へ分割する。
 prepare時にはwinnerを生成しない。
 ready matchだけresolveできる。
 
-### SingleRoundGateRuntimeState
+### 1次トーナメント（FMT026、岐阜の秋）
 
-既存 run_single_round_gate() と同じ
-
-- gate draw
-- match_id
-- odd entrant bye
-- winner order
-
-をlazy化する。
+（2026-11-14 改定）1試合ずつのgateは使わない。2次トーナメントへ進む数
+（`gate_winner_slots`、2026年は21）を固定し、非シード校をその数のブロックに分ける
+BlockForestRuntimeState で行う（チームが多ければ1回戦から、少なければ不戦勝）。
 
 ### RoundRobinRuntimeState
 

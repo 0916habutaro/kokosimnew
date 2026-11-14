@@ -42,6 +42,8 @@
   ベスト16・32で当たるので、ブロックを分けた回戦より前に当たった数も）、シード校のベスト8・ベスト4に
   残った割合。シードを入れていない版で比べるときは、同じ決まり（``competition_seed_rules.csv``）で
   選んだはずの学校を数える（``applied``＝0）
+- 春季・秋季県大会の出場（12月1日）：都道府県ごとの出場チーム、連合・不参加で外れた学校、夏の地方大会に
+  出たのにその大会に単独で出ていない学校と、そのうち連合・不参加でない学校（0のはず）
 - 選抜の選考（12月1日）：秋季地区大会の出場校と選抜の出場校の数、そのうち秋季県大会のシード校
   （入れていない版では選んだはずの学校）だった割合。地区ごとの選ばれた学校の秋季地区大会の到達点
   （優勝・準優勝・ベスト4・8…。地区大会に出ていない学校は「外」）
@@ -138,6 +140,7 @@ class BalanceTally:
         self.sizes = {}                          # 年度 → 部員の人数の集計（4月1日）
         self.top_reputation = {}                 # 年度 → 評判の上位50校（4月1日）
         self.unions = {}                         # 年度 → 大会の種類 → 連合チームの集計
+        self.entry = {}                          # 年度 → 春・秋 → 都道府県 → 県大会の出場の集計
         self.summer_unions = {}                  # 年度 → 夏の地方大会で連合の構成校だった学校
         self.summer_actual = None                # （5年続けて単独の学校, 2025年の連合の学校）。実際の記録
         self.seeds = defaultdict(dict)           # 季節 → 年度 → 成績シードの集計
@@ -419,6 +422,41 @@ class BalanceTally:
             out[LOCAL]["entrants"] = entrants
         self.unions[year] = {kind: dict(row) for kind, row in sorted(out.items())}
 
+    def add_prefectural_entry(self, year: int, season, prefecture_of) -> None:
+        """春季・秋季県大会の出場（都道府県ごと）：出場チーム、連合の代表校以外・出ない学校、
+        夏の地方大会に出た（連合の構成校を含む）のにその大会に単独で出ていない学校と、
+        そのうち連合・不参加でない学校（乱数で外れた学校。0のはず）。"""
+        plans = getattr(season, "union_plans", None) or {}
+        played = defaultdict(lambda: defaultdict(set))   # 種類 → 都道府県 → 学校
+        removed = defaultdict(lambda: defaultdict(set))
+        for cid, scheduled in (getattr(season, "competitions", None) or {}).items():
+            kind = self.kind_of(cid)
+            if kind not in (LOCAL, "spring_prefectural", "autumn_prefectural"):
+                continue
+            try:
+                entrants = scheduled.to_competition_run().entrant_school_ids
+            except (AttributeError, ValueError):
+                continue
+            pref = prefecture_of(cid)
+            played[kind][pref].update(entrants)
+            plan = plans.get(cid)
+            if plan is not None:
+                removed[kind][pref].update(plan.removed())
+                if kind == LOCAL:
+                    played[kind][pref].update(s for team in plan.teams for s in team.schools)
+        out = {}
+        for kind, label in (("spring_prefectural", "spring"), ("autumn_prefectural", "autumn")):
+            rows = {}
+            for pref, teams in sorted(played[kind].items()):
+                missing = played[LOCAL].get(pref, set()) - teams
+                rows[pref] = {"teams": len(teams), "unions_absent": len(removed[kind][pref]),
+                              "summer_missing": len(missing),
+                              "summer_missing_other": len(missing - removed[kind][pref])}
+            if rows:
+                out[label] = rows
+        if out:
+            self.entry[year] = out
+
     def _summer_union_history(self, year: int) -> dict | None:
         """夏の連合：5年続けて単独だった学校が連合になった数・割合、前の年の連合が続けて連合になった割合。"""
         if year not in self.summer_unions:
@@ -610,7 +648,7 @@ class BalanceTally:
 
     def summary(self) -> dict:
         years = sorted({y for y, _ in self.games} | set(self.rosters) | set(self.sizes) | set(self.top_reputation)
-                       | set(self.unions) | {y for by in self.seeds.values() for y in by}
+                       | set(self.unions) | set(self.entry) | {y for by in self.seeds.values() for y in by}
                        | {y for by in self.regionals.values() for y in by})
         out = {}
         for year in years:
@@ -693,6 +731,8 @@ class BalanceTally:
                 row["reputation_top50"] = self._top_turnover(year)
             if year in self.unions:
                 row["unions"] = self.unions[year]
+            if year in self.entry:
+                row["prefectural_entry"] = self.entry[year]
             history = self._summer_union_history(year)
             if history:
                 row["summer_union_history"] = history
@@ -874,6 +914,15 @@ def competition_kinds(repo):
                 (t for key, t in types.items() if cid.startswith(key)), "?")
         return cache[cid]
     return kind_of
+
+
+def competition_prefectures(repo):
+    """大会IDから都道府県（年度の付いたIDは元の大会の都道府県）。"""
+    codes = {cid: c.get("prefecture_code", "") for cid, c in repo.competitions.items()}
+
+    def prefecture_of(cid: str) -> str:
+        return codes.get(cid) or next((p for key, p in codes.items() if cid.startswith(key)), "")
+    return prefecture_of
 
 
 def roster_rows(book, year: int):
@@ -1087,6 +1136,7 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
                          _load_json(ROOT / "config" / "stats" / "player_rankings_v1.json"),
                          min_team_games)
     situations = SituationCounter(tally.kind_of)
+    prefecture_of = competition_prefectures(repo)
     hands = HandLookup()
     with tempfile.TemporaryDirectory() as saves, situations.watching():
         service = LiveGameService(repo, ROOT / "data", save_root=saves,
@@ -1130,6 +1180,7 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
                 season = state.seasons[today.year]
                 tally.add_selection(today.year, season, tally.add_seeds(today.year, season, "autumn"))
                 tally.add_regionals(today.year, season, "autumn")
+                tally.add_prefectural_entry(today.year, season, prefecture_of)
             if (today.month, today.day) == (7, 1):
                 tally.add_rosters(today.year, roster_rows(state.rosters, today.year))
                 last_snapshot = today.year
@@ -1310,6 +1361,16 @@ def format_report(seed_label: str, report: dict) -> str:
         if summer.get("entrants"):
             lines.append(f"  夏の地方大会の連合チーム: {summer.get('teams', 0)}チーム／出場{summer['entrants']}チーム"
                          f"（{summer.get('teams', 0) / summer['entrants']:.1%}）")
+        for label, by_pref in sorted((row.get("prefectural_entry") or {}).items()):
+            total = {k: sum(v[k] for v in by_pref.values()) for k in next(iter(by_pref.values()))}
+            lines.append(
+                f"  {'春季' if label == 'spring' else '秋季'}県大会の出場 {len(by_pref)}大会: "
+                f"出場{total['teams']}チーム / 連合・不参加で外れた{total['unions_absent']}校 / "
+                f"夏に出て単独で出ていない{total['summer_missing']}校（連合・不参加でない"
+                f"{total['summer_missing_other']}校）")
+            odd = [f"{p}:{v['summer_missing_other']}" for p, v in by_pref.items() if v["summer_missing_other"]]
+            if odd:
+                lines.append("    連合・不参加でないのに出ていない（都道府県:校数）: " + " ".join(odd))
         sh = row.get("summer_union_history")
         if sh:
             line = (f"  夏の連合：5年続けて単独だった学校が連合 {sh['five_single']}／{sh['five_single_total']}校"

@@ -66,7 +66,6 @@ phase2_stage12c2_engine_audit.csv,Stage 12C-2異方式共通大会エンジン�
 validation_20261004_phase2_stage12c2_engine.csv,Stage 12C-2のformat handler・件数・seed再現・保護ファイル検証。,check_id,2M
 phase2_stage12c2_manifest.csv,Stage 12C-2 ZIP内ファイルのSHA-256 manifest。,file_name,2M
 phase2_stage12c3_engine_audit.csv,Stage 12C-3全26方式dispatch、追加17方式・23大会、全構造化大会実行結果の監査。,audit_id,2M
-stage12c3_structured_competition_execution.csv,Stage 12B format assignmentを持つ44大会のstructural harness実行サマリー。,competition_id,2M
 validation_20261004_phase2_stage12c3_engine.csv,Stage 12C-3の方式網羅、23/23・44/44実行、保護CSV不変性、テスト結果の検証。,check_id,2M
 phase2_stage12c3_manifest.csv,Stage 12C-3 ZIP内ファイルのSHA-256 manifest。manifest自身は対象外。,file_name,2M
 main_tournament_engine_policies.csv,94県春秋MAINのsimulation draw・bye・結果保存方針。公式抽選規則とは分離。,main_engine_policy_id,2M

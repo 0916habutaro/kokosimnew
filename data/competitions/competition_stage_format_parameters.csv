@@ -305,7 +305,7 @@ PAR0303,CMP000110,STG000200,SGR000165,FMT009,seeded_stage_destination,MAIN,enum,
 PAR0304,CMP000110,STG000200,SGR000166,FMT009,seeded_stage_destination,MAIN,enum,SEED_KO,2026 official format/result,P2SRC058,seed対象校はFIRST_TOURNAMENTを免除して2次トーナメント相当MAINへ。
 PAR0305,CMP000110,STG000200,SGR000167,FMT009,seeded_stage_destination,MAIN,enum,SEED_KO,2026 official format/result,P2SRC058,seed対象校はFIRST_TOURNAMENTを免除して2次トーナメント相当MAINへ。
 PAR0306,CMP000110,STG000207,,FMT026,observed_nonseed_gate_teams,42,integer,GATE_ROUND,2026 official format/result,P2SRC157,2026公式1次/2次組合せで検証。実行時は登録校数とseed poolから動的導出可能。
-PAR0307,CMP000110,STG000207,,FMT026,observed_gate_winner_slots,21,integer,GATE_ROUND,2026 official format/result,P2SRC157,2026公式1次/2次組合せで検証。実行時は登録校数とseed poolから動的導出可能。
+PAR0307,CMP000110,STG000207,,FMT026,gate_winner_slots,21,integer,GATE_ROUND,2026 official format/result,P2SRC157,2026公式1次/2次組合せで検証。2次トーナメントへ進む数として固定し、非シード校の数に合わせて1回戦・不戦勝で調整する。
 PAR0308,CMP000110,STG000207,,FMT026,seed_bypass_slots,16,integer,GATE_ROUND,2026 official format/result,P2SRC157,2026公式1次/2次組合せで検証。実行時は登録校数とseed poolから動的導出可能。
 PAR0309,CMP000110,STG000207,,FMT026,observed_second_stage_total,37,integer,GATE_ROUND,2026 official format/result,P2SRC157,2026公式1次/2次組合せで検証。実行時は登録校数とseed poolから動的導出可能。
 PAR0310,CMP000113,STG000184,SGR000112,FMT013,primary_pool_count,4,integer,PRIMARY_LEAGUE,2026 official format/result,P2SRC063,

@@ -209,13 +209,15 @@ class SmallerFieldFormatTests(unittest.TestCase):
     """連合チームで出場校が減っても、予選の形式が組める。"""
 
     def test_pool_qualifier_gives_the_fewest_byes(self):
-        from phase2_engine.premain_runtime_fmt006 import Fmt006QualifierGroupRuntime as Pools
+        from phase2_engine.premain_runtime_fmt006 import fmt006_pool_plan
 
-        self.assertEqual((10, 2, 0), Pools._solve_pool_plan_with_byes(46, 23))
-        four, three, byes = Pools._solve_pool_plan_with_byes(44, 23)
-        self.assertEqual(1, byes)
-        self.assertEqual(43, 4 * four + 3 * three)
-        self.assertEqual((0, 0, 19), Pools._solve_pool_plan_with_byes(19, 23))
+        self.assertEqual((10, 2, 0), fmt006_pool_plan(46, 23))
+        # 少し減っても、2位どうしの決定戦を減らして組に入らずに進む学校をつくらない
+        self.assertEqual((8, 4, 0), fmt006_pool_plan(44, 23))
+        four, three, byes = fmt006_pool_plan(30, 23)
+        self.assertEqual(30, 4 * four + 3 * three + byes)
+        self.assertGreater(byes, 0)
+        self.assertEqual((0, 0, 19), fmt006_pool_plan(19, 23))
 
     def test_single_elimination_cut_between_rounds_uses_byes(self):
         from phase2_engine.premain_runtime_single_elim import SingleEliminationRuntimeState

@@ -37,22 +37,22 @@ class Stage12FTokyoPreliminaryTests(unittest.TestCase):
         self.assertTrue(all(r['grants_main_entry']=='yes' for r in rules))
         self.assertTrue(all(r['bypassed_stage_participation_policy']=='excluded_from_bypassed_stage' for r in rules))
 
-    def test_structural_annual_input_matches_2026_team_unit_counts(self):
+    def test_structural_annual_input_enters_every_tokyo_school(self):
         direct=[self.season.competition_runs[c].outcome.champion_school_id for c in ('CMP000036','CMP000037')]
         factory=StructuralAnnualInputFactory(self.repo,DATA_ROOT,2026100501)
         annual=factory.build_prefectural('CMP000016',2026,direct_main_entry_school_ids=direct,rng_seed=1234)
-        self.assertEqual(232,len(annual.entrant_school_ids))
+        tokyo=factory.prefecture_school_ids('CMP000016')
+        self.assertEqual(sorted(tokyo),annual.entrant_school_ids)
         self.assertEqual(2,len(annual.direct_main_entry_school_ids))
         sizes=sorted(len(v) for v in annual.group_entrant_school_ids.values())
         self.assertEqual(62,len(sizes))
-        self.assertEqual(18,sizes.count(3))
-        self.assertEqual(44,sizes.count(4))
-        self.assertEqual(230,sum(sizes))
+        self.assertLessEqual(sizes[-1]-sizes[0],1)
+        self.assertEqual(len(tokyo)-2,sum(sizes))
         self.assertFalse(set(direct) & {x for v in annual.group_entrant_school_ids.values() for x in v})
 
     def test_tokyo_preliminary_outputs_62_plus_two_direct_equals_64(self):
         run=self.season.competition_runs['CMP000016']
-        self.assertEqual(232,len(run.entrant_school_ids))
+        self.assertEqual(len(self.orch.factory.prefecture_school_ids('CMP000016')),len(run.entrant_school_ids))
         self.assertEqual('PRELIMINARY_QUALIFIER',run.stage_executions[0].stage_code)
         self.assertEqual(62,len(run.stage_executions[0].output_school_ids))
         self.assertEqual(64,len(run.main_entrant_school_ids))

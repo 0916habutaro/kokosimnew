@@ -37,7 +37,6 @@ FILE_SUBDIR = {
     'regional_hosts.csv': "competitions",
     'regional_draw_rules.csv': "competitions",
     'selection_rules.csv': "competitions",
-    'stage12c3_structured_competition_execution.csv': "competitions",
     'tokyo_autumn_preliminary_policies.csv': "competitions",
     'season_calendar.csv': "schedules/2026",
     'competition_stage_calendar.csv': "schedules/2026",
