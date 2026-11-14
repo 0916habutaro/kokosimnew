@@ -260,6 +260,29 @@ class PlatoonAndAbilityTableTests(unittest.TestCase):
         tally.add_match("LOC1", detail, coaches.get, ability_of=lambda school, player, cid: values.get(player))
         self.assertEqual(1.0, tally.summary()[2026]["lineup"]["all"]["leadoff_top2_speed"])
 
+    def test_lineup_changes_from_the_previous_game_by_form_reliance(self):
+        from types import SimpleNamespace
+
+        tally = BalanceTally(lambda cid: KINDS[cid[:3]], {}, RANKINGS)
+        coaches = {"FAKE-A": SimpleNamespace(form_reliance=90), "FAKE-B": SimpleNamespace(form_reliance=10)}
+
+        def game(a_ids, b_ids):
+            detail = match(2026, "LOC1", "FAKE-A", "FAKE-B", 2, 1, 9)
+            for part, ids in zip(detail["team_participation"], (a_ids, b_ids)):
+                part["starting_lineup"] = [dict(batting_order=n, player_id=pid, defensive_position="LF")
+                                           for n, pid in enumerate(ids, start=1)]
+            tally.add_match("LOC1", detail, coaches.get)
+
+        first = [f"P{n}" for n in range(9)]
+        game(first, first)
+        # A は1人入れ替え、B は打順だけ入れ替え
+        game(first[:8] + ["P9"], [first[1], first[0], *first[2:]])
+        changes = tally.summary()[2026]["lineup_changes"]
+        self.assertEqual({"members": 0.5, "order": 1.0, "teams": 2}, changes["all"])
+        self.assertEqual({"members": 1.0, "order": 1.0, "teams": 1}, changes["by_tendency"]["高"])
+        self.assertEqual({"members": 0.0, "order": 1.0, "teams": 1}, changes["by_tendency"]["低"])
+        self.assertIn("先発の顔ぶれ 50.0%", format_report("x", tally.summary()))
+
     def test_union_member_abilities_come_from_their_own_school(self):
         from types import SimpleNamespace
         from game_core.roster_book import SCALARS

@@ -344,13 +344,16 @@ class TeamStrengthGenerator:
         }
         return _weighted(values, weights)
 
-    def _role_order(self, players, style: BattingOrderStyle) -> list:
+    def _role_order(self, players, style: BattingOrderStyle, bonus=None) -> list:
         """役割で組む並べ方。4番 → 3・5番 → 1番 → 2番 → 6番以下（打てる順）の順に決める。"""
         rule = self.params["selection"]["role_batting_order"]
         neutral = float(rule["neutral_style"])
 
+        bonus = bonus or {}
+
         def score(player, weights):
-            return _weighted({k: float(player.ability(k)) for k in weights}, weights)
+            return (_weighted({k: float(player.ability(k)) for k in weights}, weights)
+                    + bonus.get(player.player_id, 0.0))
 
         def top(pool, weights):
             return min(pool, key=lambda p: (-score(p, weights), p.player_id))
@@ -378,19 +381,24 @@ class TeamStrengthGenerator:
         pool = [p for p in pool if p is not first]
         two = top(pool, second) if pool else None
         pool = [p for p in pool if p is not two]
-        rest = sorted(pool, key=lambda p: (-self._batting_order_score(p), p.player_id))
+        rest = sorted(pool, key=lambda p: (-self._batting_order_score(p) - bonus.get(p.player_id, 0.0),
+                                           p.player_id))
         return [p for p in (first, two, third, fourth, fifth, *rest) if p is not None]
 
-    def _batting_order(self, players, style: BattingOrderStyle | None) -> list:
-        """打てる順と役割の順を、監督の打順の型で混ぜる（各選手の2つの打順の加重平均の順）。"""
-        power = sorted(players, key=lambda p: (-self._batting_order_score(p), p.player_id))
+    def _batting_order(self, players, style: BattingOrderStyle | None, bonus=None) -> list:
+        """打てる順と役割の順を、監督の打順の型で混ぜる（各選手の2つの打順の加重平均の順）。
+
+        ``bonus`` は監督が見た調子の加点（選手ID → 点。調子の重視が高い監督だけ）。"""
+        bonus = bonus or {}
+        power = sorted(players, key=lambda p: (-self._batting_order_score(p) - bonus.get(p.player_id, 0.0),
+                                               p.player_id))
         if style is None:
             return power
         rule = self.params["selection"]["role_batting_order"]
         share = min(1.0, max(0.0, 0.5 + (style.lineup_style - float(rule["neutral_style"]))
                                    * float(rule["role_share_per_point"])))
         power_rank = {p.player_id: i for i, p in enumerate(power)}
-        role_rank = {p.player_id: i for i, p in enumerate(self._role_order(players, style))}
+        role_rank = {p.player_id: i for i, p in enumerate(self._role_order(players, style, bonus))}
         # 同じ値なら、寄っている側の並べ方を優先する（ちょうど半分なら役割の順）
         lead, other = (role_rank, power_rank) if share >= 0.5 else (power_rank, role_rank)
         return sorted(players, key=lambda p: (
@@ -525,9 +533,12 @@ class TeamStrengthGenerator:
         starting_pitcher_id: str | None = None,
         designated_hitter_id: str | None = None,
         order_style: BattingOrderStyle | None = None,
+        form_bonus: Mapping[str, float] | None = None,
     ) -> StartingLineup:
-        """``order_style`` は監督の打順の型（None なら打てる順）。"""
+        """``order_style`` は監督の打順の型（None なら打てる順）。``form_bonus`` は監督が見た
+        調子の加点（選手ID → 点）。投手以外の先発の選考と打順に足す。"""
         players = list(snapshots)
+        form_bonus = form_bonus or {}
         school_id, reference_year, *_ = self._validate_source(players)
         if dh_mode not in ('none', 'normal', 'pitcher'):
             raise ValueError('unknown DH mode')
@@ -555,7 +566,8 @@ class TeamStrengthGenerator:
                 bias = selection_grade_bias * (2 - player.academic_year)
                 # 投手陣は実能力順という既存契約を維持し、同点時だけ学年で選ぶ。
                 return ((-score, -bias, player.player_id) if position == "P"
-                        else (-(score + bias), 0.0, player.player_id))
+                        else (-(score + bias + form_bonus.get(player.player_id, 0.0)), 0.0,
+                              player.player_id))
             return min(
                 pool,
                 key=key,
@@ -628,7 +640,7 @@ class TeamStrengthGenerator:
         batting_order = {
             player.player_id: index
             for index, player in enumerate(
-                self._batting_order([player for _, player, _ in chosen], order_style), start=1)
+                self._batting_order([player for _, player, _ in chosen], order_style, form_bonus), start=1)
         }
         entries = tuple(
             LineupEntry(
@@ -709,6 +721,7 @@ class TeamStrengthGenerator:
         starting_pitcher_id: str | None = None,
         designated_hitter_id: str | None = None,
         order_style: BattingOrderStyle | None = None,
+        form_bonus: Mapping[str, float] | None = None,
     ) -> TeamStrengthSnapshot:
         players = list(snapshots)
         (
@@ -723,7 +736,7 @@ class TeamStrengthGenerator:
         lineup = self.select_starting_lineup(
             players, selection_grade_bias=selection_grade_bias,
             dh_mode=dh_mode, starting_pitcher_id=starting_pitcher_id, designated_hitter_id=designated_hitter_id,
-            order_style=order_style)
+            order_style=order_style, form_bonus=form_bonus)
         staff = self.select_pitching_staff(
             players, selection_grade_bias=selection_grade_bias)
         by_id = {player.player_id: player for player in players}

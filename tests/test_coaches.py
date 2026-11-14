@@ -131,11 +131,12 @@ print(json.dumps(GameScreenData(game, session).school(sys.argv[3])["coach"], ens
             self.assertEqual(before, service(tmp).load_game("coach").state.coaches.coaches)
 
     def test_generation_does_not_change_players_abilities_or_matches(self):
-        # 監督の作戦の傾向（段階F1）と打順の型（段階F3）は新規開始から試合に効く。それを
-        # 中立（打順は監督なしと同じ打てる順）にすれば、監督を作ること自体は選手・能力・試合を変えない
+        # 監督の作戦の傾向（段階F1）・打順の型（段階F3）・調子の重視（段階F4）は新規開始から試合に
+        # 効く。それを中立（打順は監督なしと同じ打てる順、調子の加点なし）にすれば、監督を作ること自体は選手・能力・試合を変えない
         with tempfile.TemporaryDirectory() as tmp, \
                 patch.object(CoachBook, "strategy_multipliers", return_value=(1.0, 1.0, 1.0)), \
-                patch.object(CoachBook, "batting_order_style", return_value=None):
+                patch.object(CoachBook, "batting_order_style", return_value=None), \
+                patch.object(CoachBook, "form_reading", return_value=()):
             game = service(tmp, players=True)
             with patch.object(CoachBook, "generate", return_value=None):
                 control = game.new_game("without", rng_seed=17, save_initial=False)

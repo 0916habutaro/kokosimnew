@@ -20,6 +20,7 @@ from typing import Callable, Iterable
 
 from phase2_engine.models import Team
 from phase2_engine.randomness import namespaced_seed, rng_for
+from .form import form_model
 from phase2_engine.school_year import school_year_of
 
 from .abilities import (
@@ -154,20 +155,24 @@ class PlayerState:
     その年度の出場数（怪我の起きやすさ）。``injuries`` は怪我の履歴（最後が今か直近）。
     ``deferred`` は入学時の頭打ちで抑えた点（能力の並びは ``values`` の先頭と同じ。
     抑えていない選手は空）。成長で少しずつ ``values`` に戻す。
+    ``form`` は調子（``form_v1`` の刻みの整数。画面に出さない）、``form_day`` はその値に
+    なった試合の日（なければ None）。
     """
 
     __slots__ = (
         "values", "growth_type", "potential", "velocity_potential", "games", "season_games",
-        "injuries", "trait", "deferred",
+        "injuries", "trait", "deferred", "form", "form_day",
     )
 
     def __init__(
         self, values: bytearray, growth_type: int, potential: int, games: int = 0,
         season_games: int = 0, injuries: list[Injury] | None = None,
         velocity_potential: int | None = None, trait: int = 0,
-        deferred: bytearray | None = None,
+        deferred: bytearray | None = None, form: int = 0, form_day: date | None = None,
     ):
         self.values = values
+        self.form = form
+        self.form_day = form_day
         self.deferred = deferred if deferred is not None else bytearray()
         # 左右の得意・不得意（TRAITS の番号）
         self.trait = trait
@@ -203,7 +208,9 @@ def _pack_states(first_year: int, states: dict[tuple[int, int], PlayerState]) ->
             entry_year - first_year + 2, roster_no, state.growth_type,
             state.potential, state.velocity_potential, state.trait | (len(held) << 2), state.games,
             min(255, state.season_games), len(state.injuries), len(state.values),
+            state.form + 128,
         ))
+        out.extend((_day(state.form_day) if state.form_day is not None else 0xFFFF).to_bytes(2, "big"))
         for injury in state.injuries:
             out.extend(_day(injury.start).to_bytes(2, "big"))
             out.extend(injury.days.to_bytes(2, "big"))
@@ -219,8 +226,9 @@ def _unpack_states(first_year: int, data: bytes) -> dict[tuple[int, int], Player
     offset = 0
     while offset < len(data):
         (entry, roster_no, growth_type, potential, velocity_potential, trait, games,
-         season_games, count, size) = data[offset:offset + 10]
-        offset += 10
+         season_games, count, size, form) = data[offset:offset + 11]
+        form_day = int.from_bytes(data[offset + 11:offset + 13], "big")
+        offset += 13
         held, trait = trait >> 2, trait & 3
         injuries = []
         for _ in range(count):
@@ -238,6 +246,7 @@ def _unpack_states(first_year: int, data: bytes) -> dict[tuple[int, int], Player
         states[(entry + first_year - 2, roster_no)] = PlayerState(
             bytearray(data[offset:offset + size]), growth_type, potential, games,
             season_games, injuries, velocity_potential, trait, deferred,
+            form - 128, None if form_day == 0xFFFF else _from_day(form_day),
         )
         offset += size + 2 * held
     return states
@@ -783,6 +792,29 @@ class RosterBook:
                 if state.injured_on(start) is not None:
                     continue
                 state.injuries.append(model.draw(rng, start))
+
+    # ---- 調子（画面に出さない） ----
+
+    def form(self, player: Player, day: date) -> float:
+        """その日の調子（中立0）。"""
+        state = self.state(player)
+        return form_model().value(state.form, state.form_day, day)
+
+    def after_game_form(self, results, *, day: date) -> None:
+        """試合のあとの調子。``results`` は (選手, 出塁, 凡退, 取ったアウト, 自責点)。
+        乱数は選手・日ごとなので、試合の処理の順や名簿の並びで変わらない。"""
+        model = form_model()
+        namespace = model.config["rng_namespace"]
+        with self._lock:
+            for player, on_base, outs_made, outs_recorded, earned_runs in results:
+                state = self.state(player)
+                seed = namespaced_seed(self.career_seed, namespace.format(
+                    date=day.isoformat(), school_id=player.school_id,
+                    entry_year=player.entry_year, roster_no=player.roster_no))
+                state.form = model.after_game(
+                    model.value(state.form, state.form_day, day), seed, on_base=on_base,
+                    outs_made=outs_made, outs_recorded=outs_recorded, earned_runs=earned_runs)
+                state.form_day = day
 
     # ---- 成長 ----
 

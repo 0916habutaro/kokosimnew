@@ -619,7 +619,7 @@ class MatchSimulator:
             lineup = self._strength_generator().select_starting_lineup(
                 team.player_abilities, starting_pitcher_id=actual_pitcher_id,
                 dh_mode='pitcher' if lineup.designated_hitter_id == planned_pitcher else 'normal',
-                order_style=tactics.batting_order)
+                order_style=tactics.batting_order, form_bonus=dict(tactics.form_bonus))
         elif actual_pitcher_id != planned_pitcher:
             position = next((entry.defensive_position for entry in lineup.entries
                              if entry.player_id == actual_pitcher_id), None)

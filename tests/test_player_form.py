@@ -1,0 +1,148 @@
+"""選手の調子と、監督の調子の重視（段階F4。架空の学校・選手）。"""
+from dataclasses import replace
+from datetime import date, timedelta
+import pickle
+import unittest
+
+from game_core.form import form_model
+from game_core.team_strength import BattingOrderStyle, TeamStrengthGenerator
+from test_coach_intake import books
+from test_stage13b3_team_strength import make_roster_abilities
+
+DAY = date(2026, 7, 10)
+
+
+def coach_book(form_reliance, player_selection=100):
+    f = books(50)
+    book = f[1]
+    coach = book.coaches['C-FAKE-A']
+    book.coaches[coach.coach_id] = replace(coach, form_reliance=form_reliance,
+                                           player_selection=player_selection)
+    return book
+
+
+class FormModelTests(unittest.TestCase):
+    def test_moves_with_results_returns_to_zero_and_stays_in_range(self):
+        model = form_model()
+        unit = model.config['unit']
+        good = model.after_game(0.0, 7, on_base=4)
+        bad = model.after_game(0.0, 7, outs_made=4)
+        self.assertGreater(good, bad)
+        self.assertEqual(good, model.after_game(0.0, 7, on_base=4))
+        self.assertEqual(model.limit_units, model.after_game(0.0, 7, on_base=100))
+        self.assertEqual(-model.limit_units, model.after_game(0.0, 7, earned_runs=100))
+        value = model.value(model.limit_units, DAY, DAY)
+        self.assertAlmostEqual(model.config['limit'], value)
+        self.assertLess(abs(model.value(model.limit_units, DAY, DAY + timedelta(days=120))), 0.1)
+        # 乱数だけで動かしても、長い期間の平均は0の近く
+        form, values = 0.0, []
+        for seed in range(2000):
+            form = model.after_game(form, seed) * unit
+            values.append(form)
+        self.assertLess(abs(sum(values) / len(values)), 0.1)
+        self.assertLess(max(abs(v) for v in values), model.config['limit'] + 1e-9)
+
+    def test_ability_moves_a_few_points_on_the_main_abilities(self):
+        model = form_model()
+        snapshot = make_roster_abilities(school_id='FAKE-FORM')[0]
+        self.assertEqual(3, model.points(2.0))
+        self.assertEqual(-3, model.points(-2.0))
+        up = model.apply(snapshot, model.points(2.0))
+        self.assertEqual(snapshot.contact + 3, up.contact)
+        self.assertEqual(snapshot.control + 3, up.control)
+        self.assertEqual(snapshot.speed, up.speed)
+        self.assertIs(snapshot, model.apply(snapshot, 0))
+
+
+class RosterFormTests(unittest.TestCase):
+    def test_form_is_per_player_and_survives_save_and_load(self):
+        repo, coaches, reputation, rosters = books()
+        players = rosters.roster(2026, 'FAKE-A').players[:4]
+        rows = [(players[0], 3, 0, 0, 0), (players[1], 0, 4, 0, 0), (players[2], 0, 0, 27, 0),
+                (players[3], 0, 0, 3, 6)]
+        rosters.after_game_form(rows, day=DAY)
+        forms = [rosters.form(p, DAY) for p in players]
+        # 同じ選手・同じ日（同じ乱数）なら、結果が良いほど調子が上がる
+        swapped = books()[3]
+        swapped.after_game_form([(players[0], 0, 4, 0, 0), (players[1], 3, 0, 0, 0),
+                                 (players[2], 0, 0, 3, 6), (players[3], 0, 0, 27, 0)], day=DAY)
+        flipped = [swapped.form(p, DAY) for p in players]
+        self.assertGreater(forms[0], flipped[0])
+        self.assertLess(forms[1], flipped[1])
+        self.assertGreater(forms[2], flipped[2])
+        self.assertLess(forms[3], flipped[3])
+        # 並べる順を変えても同じ（選手・日ごとの乱数）
+        other = books()[3]
+        other.after_game_form(list(reversed(rows)), day=DAY)
+        self.assertEqual(forms, [other.form(p, DAY) for p in players])
+        loaded = pickle.loads(pickle.dumps(rosters))
+        loaded.bind(repo.team)
+        later = DAY + timedelta(days=5)
+        self.assertEqual([rosters.form(p, later) for p in players],
+                         [loaded.form(p, later) for p in players])
+        rosters.after_game_form(rows, day=later)
+        loaded.after_game_form(rows, day=later)
+        self.assertEqual([rosters.form(p, later) for p in players],
+                         [loaded.form(p, later) for p in players])
+        self.assertEqual(0.0, rosters.form(rosters.roster(2026, 'FAKE-B').players[0], DAY))
+
+
+class CoachFormTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.generator = TeamStrengthGenerator()
+        cls.roster = tuple(make_roster_abilities(school_id='FAKE-A'))
+
+    def scores(self):
+        return {p.player_id: self.generator._batting_composite(p)
+                for p in self.roster if p.primary_position != 'P'}
+
+    def test_low_reliance_ignores_form(self):
+        forms = {p.player_id: 2.0 for p in self.roster}
+        for value in (1, 30, 50):
+            self.assertEqual((), coach_book(value).form_reading('FAKE-A', DAY, forms, self.scores()))
+
+    def test_high_reliance_starts_a_hot_bench_player_and_moves_him_up(self):
+        plain = self.generator.select_starting_lineup(self.roster, order_style=BattingOrderStyle(50))
+        starters = set(plain.starter_ids)
+        bench = [p for p in self.roster if p.player_id not in starters and p.primary_position != 'P']
+        hot = max(bench, key=lambda p: (self.generator._selection_score(p, p.primary_position), p.player_id))
+        forms = {p.player_id: 0.0 for p in self.roster}
+        forms[hot.player_id] = 2.0
+        bonus = dict(coach_book(100).form_reading('FAKE-A', DAY, forms, self.scores()))
+        self.assertEqual({hot.player_id: 8.0}, bonus)
+        chosen = self.generator.select_starting_lineup(self.roster, order_style=BattingOrderStyle(50),
+                                                       form_bonus=bonus)
+        self.assertIn(hot.player_id, chosen.starter_ids)
+        # 同じ9人で比べても、調子の良い選手の打順が上がる
+        nine = [p for p in self.roster if p.player_id in chosen.starter_ids]
+        order = [p.player_id for p in self.generator._batting_order(nine, BattingOrderStyle(50))]
+        hot_order = [p.player_id for p in self.generator._batting_order(nine, BattingOrderStyle(50), bonus)]
+        self.assertLess(hot_order.index(hot.player_id), order.index(hot.player_id))
+
+    def test_cold_players_drop_but_core_players_are_protected(self):
+        scores = self.scores()
+        ranked = sorted(scores, key=lambda pid: (-scores[pid], pid))
+        star, regular = ranked[0], ranked[5]
+        forms = {pid: 0.0 for pid in scores}
+        forms[star] = forms[regular] = -2.0
+        bonus = dict(coach_book(100).form_reading('FAKE-A', DAY, forms, scores))
+        self.assertEqual(-8.0, bonus[regular])
+        self.assertEqual(-2.0, bonus[star])
+        chosen = self.generator.select_starting_lineup(self.roster, form_bonus=bonus)
+        self.assertIn(star, chosen.starter_ids)
+
+    def test_low_player_selection_misreads_the_form(self):
+        scores = self.scores()
+        forms = {pid: 1.0 for pid in scores}
+        sharp = dict(coach_book(100, 100).form_reading('FAKE-A', DAY, forms, scores))
+        self.assertEqual({4.0}, set(sharp.values()))
+        dull = dict(coach_book(100, 1).form_reading('FAKE-A', DAY, forms, scores))
+        self.assertGreater(len(set(dull.values())), 5)
+        self.assertTrue(any(v < 0 for v in dull.values()))
+        # 同じ監督・選手・日なら同じ読み違え
+        self.assertEqual(dull, dict(coach_book(100, 1).form_reading('FAKE-A', DAY, forms, scores)))
+
+
+if __name__ == '__main__':
+    unittest.main()

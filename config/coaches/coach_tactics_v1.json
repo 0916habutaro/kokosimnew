@@ -1,6 +1,6 @@
 {
   "config_id": "coach_tactics_v1",
-  "revision": 3,
+  "revision": 4,
   "status": "active",
   "first_match_date": "2027-04-01",
   "neutral_ability": 50,
@@ -10,6 +10,14 @@
   "max_abs_quick_hook_reduction": 1,
   "selection_bias_per_point": 0.01,
   "max_abs_selection_bias": 0.5,
+  "form": {
+    "description_ja": "調子の重視（段階F4）。監督が見た調子 × max(0, 調子の重視 − 50) × bonus_per_point を、投手以外の先発の選考点と打順の点に足す（新規開始から）。見た調子 = 本当の調子 + 平均0・標準偏差 misread_sd × (100 − 選手の見極め) ÷ 99 の読み違え（監督・選手・日ごとの乱数）。打撃の評価の上位 core_players 人は、マイナスの加点を core_negative_scale 倍にする（中心の選手を外しにくい）。ゲーム用の仮の値",
+    "neutral_reliance": 50,
+    "bonus_per_point": 0.08,
+    "misread_sd": 1.0,
+    "core_players": 3,
+    "core_negative_scale": 0.25
+  },
   "strategy": {
     "description_ja": "作戦・交代を試みる確率（または基準）の倍率 = exp(clamp((傾向 − 50) × 係数, −上限, +上限))。小技は犠打・スクイズ、機動力は盗塁・エンドラン、交代の積極性（段階F2）は代打・代走・守備固め・左右を見た起用（基準の能力差をこの倍率で割る）。新規開始から使う。ゲーム用の仮の値",
     "neutral_ability": 50,
