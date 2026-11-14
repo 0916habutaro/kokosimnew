@@ -32,7 +32,8 @@ class Stage12DSeasonEngineTests(unittest.TestCase):
         self.assertEqual(0, len(gaps))
         self.assertEqual(0, len(self.season.internal_structure_gaps))
         tokyo = next(r for r in self.season.prefectural_rows if r.competition_id == "CMP000016")
-        self.assertEqual(232, tokyo.entrant_count)
+        self.assertEqual(sum(r.get("prefecture_code") == "13" for r in self.repo.schools.values()),
+                         tokyo.entrant_count)
         self.assertEqual(64, tokyo.main_entrant_count)
 
     def test_all_23_access_rules_resolve(self):

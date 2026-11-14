@@ -82,15 +82,20 @@ class Stage12CEngineTests(unittest.TestCase):
                 competition_id="CMP000110", year=2026, entrant_school_ids=[], rng_seed=1
             ))
 
-    def test_odd_gate_count_gets_single_bye(self):
-        run = TournamentEngine(self.repo).run(AnnualCompetitionInput(
-            competition_id="CMP000110",
-            year=2026,
-            entrant_school_ids=self.entrants[:-1],
-            rng_seed=99,
-        ))
-        gate = run.stage_executions[1]
-        self.assertEqual(1, gate.metadata["bye_count"])
+    def test_first_tournament_keeps_21_second_stage_slots(self):
+        # 非シード校の数が変わっても、2次トーナメントへ進むのは21校（1回戦・不戦勝で合わせる）
+        every = sorted(sid for sid, row in self.repo.schools.items() if row.get("prefecture_code") == "21")
+        # 全校（非シード51校：1回戦から）と、岐阜地区から2校減らした56校（非シード40校：不戦勝）
+        for entrants in (every, self.entrants[2:]):
+            run = TournamentEngine(self.repo).run(AnnualCompetitionInput(
+                competition_id="CMP000110",
+                year=2026,
+                entrant_school_ids=entrants,
+                rng_seed=99,
+            ))
+            gate = run.stage_executions[1]
+            self.assertEqual(21, gate.metadata["gate_winner_count"])
+            self.assertEqual(37, len(run.main_entrant_school_ids))
 
     def test_annual_group_ranking_override(self):
         stage = self.repo.stage_by_code("CMP000110", "SEED_EVENT")

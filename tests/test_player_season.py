@@ -106,8 +106,9 @@ class PlayerSeasonServiceTests(unittest.TestCase):
 
             # セーブには名簿（選手の名前・出身・能力）が入る。試合の決め方は入れない
             save = Path(tmp) / "players" / "manual.json"
-            # 2026年度の春季県大会のシード（306校）の分で、前より約2万バイト大きい
-            self.assertLess(save.stat().st_size, 8_100_000)
+            # 2026年度の春季県大会のシード（306校）の分で、前より約2万バイト大きい。
+            # 県大会に学校がすべて出るようになった分（出場校・試合の予定）でさらに約1万バイト
+            self.assertLess(save.stat().st_size, 8_150_000)
             self.assertTrue(session.state.rosters.schools(2026))
 
             with patch.object(RosterBook, 'reset_appearance_counters', side_effect=AssertionError('load reset')):
