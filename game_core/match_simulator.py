@@ -618,7 +618,8 @@ class MatchSimulator:
         if actual_pitcher_id != planned_pitcher and lineup.designated_hitter_id is not None:
             lineup = self._strength_generator().select_starting_lineup(
                 team.player_abilities, starting_pitcher_id=actual_pitcher_id,
-                dh_mode='pitcher' if lineup.designated_hitter_id == planned_pitcher else 'normal')
+                dh_mode='pitcher' if lineup.designated_hitter_id == planned_pitcher else 'normal',
+                order_style=tactics.batting_order)
         elif actual_pitcher_id != planned_pitcher:
             position = next((entry.defensive_position for entry in lineup.entries
                              if entry.player_id == actual_pitcher_id), None)

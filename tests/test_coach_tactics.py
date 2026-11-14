@@ -9,18 +9,20 @@ from unittest.mock import patch
 from game_core.coaches import CoachEvent, CoachTactics
 from game_core.match_contract import MatchSimulationInput, TeamMatchInput, validate_match_simulation_result
 from game_core.match_simulator import GameRules, MatchSimulator
-from game_core.team_strength import PitcherForecast, TeamStrengthGenerator, validate_team_strength_snapshot
+from game_core.team_strength import BattingOrderStyle, PitcherForecast, TeamStrengthGenerator, validate_team_strength_snapshot
 from game_core.tournament_bridge import AbilityMatchResolver, _binomial_lower_tail
 from test_coach_intake import books, annual
 from test_stage13b3_team_strength import make_roster_abilities
 
 
-def policy(value=50, selection=50):
+def policy(value=50, selection=50, *, order=False):
     f=books(50)
     annual(f,2027)
     c=f[1].coaches['C-FAKE-A']
     f[1].coaches[c.coach_id]=replace(c,pitching_change=value,player_selection=selection)
-    return f[1].tactics_for('FAKE-A',date(2027,4,1))
+    tactics=f[1].tactics_for('FAKE-A',date(2027,4,1))
+    # 打順の型（段階F3）は別のテスト（test_coach_batting_order）で見る
+    return tactics if order else replace(tactics,batting_order=None)
 
 
 def resolver(f, day):
@@ -55,7 +57,7 @@ class CoachTacticsTests(unittest.TestCase):
         f=books();annual(f,2027)
         c=f[1].coaches['C-FAKE-A'];f[1].coaches[c.coach_id]=replace(c,pitching_change=100,player_selection=100)
         for d in (date(2026,7,1),date(2027,3,31)):
-            self.assertEqual(CoachTactics(),f[1].tactics_for('FAKE-A',d))
+            self.assertEqual(CoachTactics(batting_order=BattingOrderStyle()),f[1].tactics_for('FAKE-A',d))
         self.assertEqual(CoachTactics(),f[1].tactics_for('ABSENT',date(2027,4,1)))
         with self.assertRaises(ValueError):f[1].tactics_for('FAKE-A',date(2028,4,1))
 
@@ -172,14 +174,16 @@ class CoachTacticsTests(unittest.TestCase):
         r.season_state.current_date=date(2027,4,15)
         after=r.team_input(**kwargs)
         self.assertIsNot(before,after)
-        self.assertEqual(self.generator.generate(after.player_abilities,selection_grade_bias=-.3),after.team_strength)
+        self.assertEqual(self.generator.generate(after.player_abilities,selection_grade_bias=-.3,
+                         order_style=BattingOrderStyle()),after.team_strength)
         r.season_state.current_date=date(2027,4,14)
         self.assertEqual(before,r.team_input(**kwargs))
 
     def test_2026_bridge_and_stats_identical_with_or_without_coaches(self):
         f=books()
         for cid,c in list(f[1].coaches.items()):
-            f[1].coaches[cid]=replace(c,pitching_change=100,player_selection=100)
+            # 打順の型は新規開始から効く。1なら打てる順（監督なしと同じ）
+            f[1].coaches[cid]=replace(c,pitching_change=100,player_selection=100,lineup_style=1)
         # 新入生・成長は両側同じ。2026年の采配参照だけを有無で比較する。
         for sid in f[0].schools:f[3].roster(2026,sid)
         left=resolver(f,date(2026,7,5))

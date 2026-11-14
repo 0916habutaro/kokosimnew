@@ -1,6 +1,6 @@
 {
   "config_id": "team_strength_v1",
-  "revision": 3,
+  "revision": 4,
   "status": "design_default_not_tuned",
   "notes_ja": "学校能力は選手能力から導出する。Stage 13B-3でStartingLineup / PitchingStaff / TeamStrengthSnapshotを実装し、選抜重みもconfig管理する。現値は実在校正前の初期baseline。",
   "source_contract": {
@@ -126,6 +126,17 @@
       "strikeout_resistance": 0.1,
       "speed": 0.1,
       "baserunning": 0.05
+    },
+    "role_batting_order": {
+      "notes_ja": "監督の打順の型（1〜100）で「打てる順（batting_order_weights）」と「役割で組む」の2つの並べ方を混ぜる。役割で組む割合 = 0.5 + (傾向 − 50) × role_share_per_point を0〜1に収めたもの（50でちょうど半分。各選手の2つの打順を、この割合で平均した順に並べる）。役割で組むときは、先に3〜5番（cleanup_weights の上位3人。そのうち fourth_weights の最も高い選手が4番、残りは cleanup_weights の高い順に3番・5番）、次に1番（leadoff_weights）、2番（second_weights）、6番以下は打てる順。機動力の傾向は1番の speed、小技の傾向は2番の bunt の重みに (傾向 − 50) × 係数を上乗せする（0未満にはしない）。ゲーム用の仮の値",
+      "neutral_style": 50,
+      "role_share_per_point": 0.01,
+      "leadoff_weights": {"contact": 0.3, "plate_discipline": 0.3, "speed": 0.3, "baserunning": 0.1},
+      "second_weights": {"contact": 0.4, "bunt": 0.35, "strikeout_resistance": 0.25},
+      "cleanup_weights": {"power": 0.55, "contact": 0.45},
+      "fourth_weights": {"power": 0.8, "contact": 0.2},
+      "mobility_speed_weight_per_point": 0.012,
+      "small_ball_bunt_weight_per_point": 0.012
     }
   }
 }

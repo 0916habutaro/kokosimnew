@@ -227,6 +227,24 @@ class PlatoonAndAbilityTableTests(unittest.TestCase):
         self.assertEqual({"R": {"weight": 20.0, "opposite_minus_same": 0.2}},
                          tally.summary()[2026]["platoon_within"])
 
+    def test_leadoff_speed_and_cleanup_power_by_lineup_style(self):
+        from types import SimpleNamespace
+
+        tally = BalanceTally(lambda cid: KINDS[cid[:3]], {}, RANKINGS)
+        detail = match(2026, "LOC1", "FAKE-A", "FAKE-B", 2, 1, 9)
+        for part in detail["team_participation"]:
+            sid = part["school_id"]
+            part["starting_lineup"] = [dict(batting_order=n, player_id=f"{sid}-{n}", defensive_position="LF")
+                                       for n in range(1, 10)]
+        values = {"FAKE-A-1": (80, 30), "FAKE-A-4": (40, 90), "FAKE-B-1": (60, 30), "FAKE-B-4": (40, 70)}
+        coaches = {"FAKE-A": SimpleNamespace(lineup_style=90), "FAKE-B": SimpleNamespace(lineup_style=10)}
+        tally.add_match("LOC1", detail, coaches.get, ability_of=lambda school, player: values.get(player))
+        lineup = tally.summary()[2026]["lineup"]
+        self.assertEqual({"leadoff_speed": 70.0, "cleanup_power": 80.0, "teams": 2}, lineup["all"])
+        self.assertEqual({"leadoff_speed": 80.0, "cleanup_power": 90.0, "teams": 1}, lineup["by_tendency"]["高"])
+        self.assertEqual({"leadoff_speed": 60.0, "cleanup_power": 70.0, "teams": 1}, lineup["by_tendency"]["低"])
+        self.assertIn("1番の走力 70.0", format_report("x", tally.summary()))
+
     def test_ability_table_moves_in_the_intended_direction(self):
         from phase2_engine.balance_report import ability_table
 
