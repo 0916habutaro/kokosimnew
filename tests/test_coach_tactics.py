@@ -21,8 +21,9 @@ def policy(value=50, selection=50, *, order=False):
     c=f[1].coaches['C-FAKE-A']
     f[1].coaches[c.coach_id]=replace(c,pitching_change=value,player_selection=selection)
     tactics=f[1].tactics_for('FAKE-A',date(2027,4,1))
-    # 打順の型（段階F3）は別のテスト（test_coach_batting_order）で見る
-    return tactics if order else replace(tactics,batting_order=None)
+    # 打順の型（段階F3）は別のテスト（test_coach_batting_order）、投手の配置転換（段階F5）は
+    # test_pitcher_shuffle で見る
+    return tactics if order else replace(tactics,batting_order=None,shuffle_rate=0.0,return_misread=0.0)
 
 
 def resolver(f, day):
@@ -57,6 +58,7 @@ class CoachTacticsTests(unittest.TestCase):
         f=books();annual(f,2027)
         c=f[1].coaches['C-FAKE-A'];f[1].coaches[c.coach_id]=replace(c,pitching_change=100,player_selection=100)
         for d in (date(2026,7,1),date(2027,3,31)):
+            # 継投の傾向100の監督は、戻すときを読み違えない（段階F5）
             self.assertEqual(CoachTactics(batting_order=BattingOrderStyle()),f[1].tactics_for('FAKE-A',d))
         self.assertEqual(CoachTactics(),f[1].tactics_for('ABSENT',date(2027,4,1)))
         with self.assertRaises(ValueError):f[1].tactics_for('FAKE-A',date(2028,4,1))

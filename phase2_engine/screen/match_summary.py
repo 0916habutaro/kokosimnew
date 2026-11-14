@@ -23,6 +23,9 @@
 """
 from __future__ import annotations
 
+from collections import Counter
+from itertools import product
+
 REGULATION_INNINGS = 9
 _HALF_BATTING = {"t": 1, "b": 2}
 
@@ -79,6 +82,68 @@ def home_runs(detail: dict | None) -> list[dict]:
     ]
 
 
+def _charge_runs(highlights, order, allowed, starter, winner, team1, team2, caps):
+    """得点ごとに責任投手を決める。``caps`` の投手（守備から投手に戻る投手）には、降りるたびに
+    その回の失点を最大その数まで回す。数え直した失点が投手の成績と合わなければ None。"""
+    left: dict[tuple, int] = {}
+    current = dict(starter)
+    assigned = {key: 0 for key in allowed}
+    departed: dict[str, list[str]] = {team1: [], team2: []}
+    half_of: dict[str, tuple] = {}
+    score = {team1: 0, team2: 0}
+    runs = []  # (得点したチーム, 得点後の点, 責任投手のキー, 勝ったチームの責任投手)
+
+    for item in highlights:
+        kind, inning, half = item[0], item[1], item[2]
+        if kind not in ("P", "S", "W", "B"):
+            continue
+        if kind == "P":
+            team, pitcher = item[3], item[4]
+            if team not in current:
+                return None
+            # 回が変わったら、前の回に降りた投手の走者はもういない
+            if half_of.get(team) != (inning, half):
+                departed[team] = []
+                half_of[team] = (inning, half)
+            old = (team, current[team])
+            if allowed.get(old, 0) - assigned.get(old, 0) > 0 and caps.get(old, 1) > 0:
+                departed[team].append(current[team])
+                left[old] = caps.get(old, 3)
+            current[team] = pitcher
+            if (team, pitcher) not in allowed:
+                return None
+            continue
+        # 得点：打席の得点（S）、暴投・捕逸の得点（W）、本盗（B の盗塁成功で本塁へ）
+        if kind == "S" or kind == "W":
+            scored = int(item[5])
+        else:
+            scored = int(item[4] == "sb" and int(item[5]) == 4)
+        if not scored:
+            continue
+        offense = team1 if _HALF_BATTING[half] == 1 else team2
+        defense = team2 if offense == team1 else team1
+        if half_of.get(defense) != (inning, half):
+            departed[defense] = []
+            half_of[defense] = (inning, half)
+        for _ in range(scored):
+            charged = None
+            for pitcher in departed[defense]:
+                key = (defense, pitcher)
+                if allowed[key] - assigned[key] > 0 and left.get(key, 3) > 0:
+                    charged = key
+                    left[key] = left.get(key, 3) - 1
+                    break
+            if charged is None:
+                charged = (defense, current[defense])
+            assigned[charged] = assigned.get(charged, 0) + 1
+            score[offense] += 1
+            runs.append((offense, dict(score), charged, current[winner]))
+
+    if assigned != allowed:
+        return None
+    return score, runs
+
+
 def pitchers_of_record(detail: dict | None) -> dict | None:
     """勝利投手・敗戦投手 {"win": (学校ID, 選手ID), "loss": (学校ID, 選手ID)}。
 
@@ -105,59 +170,21 @@ def pitchers_of_record(detail: dict | None) -> dict | None:
     if not order[team1] or not order[team2]:
         return None
     starter = {team: order[team][0] for team in order}
-    current = dict(starter)
-    assigned = {key: 0 for key in allowed}
-    departed: dict[str, list[str]] = {team1: [], team2: []}
-    half_of: dict[str, tuple] = {}
-    score = {team1: 0, team2: 0}
-    runs = []  # (得点したチーム, 得点後の点, 責任投手のキー, 勝ったチームの責任投手)
-
-    for item in highlights:
-        kind, inning, half = item[0], item[1], item[2]
-        if kind not in ("P", "S", "W", "B"):
-            continue
-        if kind == "P":
-            team, pitcher = item[3], item[4]
-            if team not in current:
-                return None
-            # 回が変わったら、前の回に降りた投手の走者はもういない
-            if half_of.get(team) != (inning, half):
-                departed[team] = []
-                half_of[team] = (inning, half)
-            old = (team, current[team])
-            if allowed.get(old, 0) - assigned.get(old, 0) > 0:
-                departed[team].append(current[team])
-            current[team] = pitcher
-            if (team, pitcher) not in allowed:
-                return None
-            continue
-        # 得点：打席の得点（S）、暴投・捕逸の得点（W）、本盗（B の盗塁成功で本塁へ）
-        if kind == "S" or kind == "W":
-            scored = int(item[5])
-        else:
-            scored = int(item[4] == "sb" and int(item[5]) == 4)
-        if not scored:
-            continue
-        offense = team1 if _HALF_BATTING[half] == 1 else team2
-        defense = team2 if offense == team1 else team1
-        if half_of.get(defense) != (inning, half):
-            departed[defense] = []
-            half_of[defense] = (inning, half)
-        for _ in range(scored):
-            charged = None
-            for pitcher in departed[defense]:
-                key = (defense, pitcher)
-                if allowed[key] - assigned[key] > 0:
-                    charged = key
-                    break
-            if charged is None:
-                charged = (defense, current[defense])
-            assigned[charged] = assigned.get(charged, 0) + 1
-            score[offense] += 1
-            runs.append((offense, dict(score), charged, current[winner]))
-
-    if assigned != allowed:
+    # 守備から投手に戻った投手（段階F5）。降りたときに残した走者の失点を「失点の合計 − 数えた失点」で
+    # 見分けると、あとの登板の失点まで数えてしまう。合わなければ、降りたときに回す失点の上限
+    # （0〜3。塁の走者の数まで）を変えて、投手の成績と合う最初の割り当てを使う
+    appearances = Counter((item[3], item[4]) for item in highlights if item[0] == "P")
+    returning = sorted(key for key, n in appearances.items()
+                       if n > 1 or (order.get(key[0]) and key[1] == order[key[0]][0]))
+    result = None
+    for limits in [{}, *({key: n for key, n in zip(returning, combo)}
+                         for combo in product(range(4), repeat=len(returning)) if len(returning) <= 3)]:
+        result = _charge_runs(highlights, order, allowed, starter, winner, team1, team2, limits)
+        if result is not None:
+            break
+    if result is None:
         return None
+    score, runs = result
     if (score[team1], score[team2]) != (detail.get("team1_score"), detail.get("team2_score")):
         return None
 

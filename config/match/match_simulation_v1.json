@@ -1,6 +1,6 @@
 {
   "config_id": "match_simulation_v1",
-  "revision": 19,
+  "revision": 20,
   "status": "tuned_2026_11_03",
   "description_ja": "能力ベースの試合モデル（打席結果・走者進塁・投手運用）。能力の効きと球数は従来の調整を維持（game_definition.md §11）。打席の基準重みは新基準バット導入後の夏甲子園（2024〜2026年の本塁打7・10・8本）と全国進行の得点・コールドを比較して調整。本塁打0.0025・単打0.195・二塁打0.060、他はrevision 5の相対重みを使い、合計1に正規化した。抽選時には能力補正後に再び正規化する。 先発の継投判断は完投可能性・スタミナ差・失点・球数制限と全国進行を比較して調整。 能力の効き（ability_effect_scale）は、入部品質を選手ごとの素質に変えて学校の強さの差が縮んだ分を戻すため、失策を除いて1.35倍にした（2026-10-31、地方大会の得点・点差・コールド・完封と夏の甲子園の初出場に合わせた）。 型の調整で投手の能力の平均と打撃の学校差が変わった分、能力の効きをさらに1.06倍にした（2026-11-01）。 §11 の調整（2026-11-03、A〜Hのあと）：4つの乱数の種で2026年4月〜2028年8月を進め、夏の地方大会の得点・点差・コールド・完封と夏の甲子園の本塁打・盗塁・犠打・失策・初出場に合わせた。能力の効きは、ミートの効き（単打・凡退）を下げて投手の球速・変化球の質の単打への重みを上げ、ほかの能力の効きを上げて学校の差を戻した。失策の基準の重みを2.9倍、送りバントの無死一塁を下げ無死二塁などを上げた（game_definition.md §11）。",
   "score_source": "ability_model_v1",
@@ -187,7 +187,8 @@
     "relief": "relief_v1:{match_id}:{plate_appearance_no}",
     "tactic": "tactic_v1:{match_id}:{plate_appearance_no}",
     "wild_pitch": "wild_pitch_v1:{match_id}:{plate_appearance_no}",
-    "fielding": "fielding_v1:{match_id}:{plate_appearance_no}"
+    "fielding": "fielding_v1:{match_id}:{plate_appearance_no}",
+    "pitcher_shuffle": "pitcher_shuffle_v1:{match_id}:{plate_appearance_no}"
   },
   "outs_in_play": {
     "description_ja": "凡退（field_out）の中身（2026-11-01）。ゴロの割合 = base ＋ (投手のゴロ − 50)×per_groundball_point ＋ (打者の長打 − 50)×per_power_point ＋ (打者のミート − 50)×per_contact_point を min〜max に収める。ゴロで一塁に走者・2死未満なら、併殺の確率 = base − (打者の走力 − 50)×speed_effect_per_point ＋ (守備力 − 50)×defense_effect_per_point。advance は凡退の間に走者が進む確率の基準（baserunning と同じく走者の走塁・走力と守備力で増減）：ゴロで二塁→三塁（押し出しでないとき）、ゴロで三塁走者の生還（押し出しでないとき）、フライで二塁→三塁のタッチアップ。フライで三塁走者が生還するのは犠飛（situational_events.sacrifice_fly）。値は仮の値（実際の高校野球の打球の割合・進塁の割合の集計は見つからなかった）。併殺の回数の目安は game_definition.md §3.6",
@@ -509,6 +510,27 @@
       "min_same_side": 2,
       "max_quality_gap": 6.0,
       "min_batters_faced": 3
+    }
+  },
+  "pitcher_shuffle": {
+    "description_ja": "投手の配置転換（段階F5）。DHを宣言していない試合で、救援を出すときに、降りる投手が投手陣の能力の上位 candidate_quality_ranks 人で、疲れの段階が max_exit_fatigue_stage 以下、球数の残りが min_remaining_pitches 以上、点差 max_margin 以内、latest_inning 回までなら、監督の確率（coach_tactics_v1 の pitcher_shuffle）で守備に残す。球数の上限・代打で入った投手の交代では残さない。残す位置は positions のうち、その投手の守備の値（守備・送球・肩・適性をまとめた守備位置ごとの値。外野の本職は55前後、エースは35前後）が min_defense_value 以上の位置で、そこを守る打撃のいちばん低い野手が退き、救援がその打順に入る。1試合に max_per_game 回まで。守備にいる間は、チームが取ったアウト1つにつき rest_pitches_per_out 球分（max_rest_pitches まで）疲れが戻る。return：打席ごとに、late_inning_from 回以降・点差 close_margin 以内・得点圏に走者・次の打者が cleanup_slots の打順、をそれぞれ1点とし、min_points 点以上で戻す（監督の読み違いで ±1）。戻すには疲れの段階が max_fatigue_stage 以下、球数の残りが min_remaining_pitches 以上、その回にまだ戻っていないこと（公認野球規則：守備に移った投手は同じイニングに1度に限り投手に戻れる）。戻すと、投げていた投手はその守備位置に入る（守れなければ控えの野手と交代）。打順はそのまま。ゲーム用の仮の値",
+    "candidate_quality_ranks": 2,
+    "min_defense_value": 35,
+    "positions": ["1B", "LF", "CF", "RF"],
+    "max_exit_fatigue_stage": 1,
+    "min_remaining_pitches": 30,
+    "max_margin": 3,
+    "latest_inning": 8,
+    "max_per_game": 1,
+    "rest_pitches_per_out": 3,
+    "max_rest_pitches": 30,
+    "return": {
+      "late_inning_from": 7,
+      "close_margin": 2,
+      "max_fatigue_stage": 1,
+      "min_remaining_pitches": 15,
+      "cleanup_slots": [3, 4, 5],
+      "min_points": 3
     }
   },
   "wild_pitches": {

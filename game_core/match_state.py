@@ -78,7 +78,9 @@ class DHAction:
                    value['player_id'], value['medical_exception'], value['umpire_approved'])
 
 
-SUBSTITUTION_REASONS = ("pinch_hitter", "pinch_runner", "defensive_replacement")
+SUBSTITUTION_REASONS = ("pinch_hitter", "pinch_runner", "defensive_replacement",
+                        # 投手の配置転換（段階F5）：降りた投手を守備に残す・守備から投手に戻す
+                        "pitcher_to_field", "pitcher_return")
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,7 +94,8 @@ class LineupChange:
     defensive_changes: tuple[DefensiveChange, ...]
     moment: ChangeMoment | CompletedPlateAppearanceMoment | None = None
     dh_action: DHAction | None = None
-    # 采配の交代の理由（段階F2）：pinch_hitter 代打・pinch_runner 代走・defensive_replacement 守備固め
+    # 采配の交代の理由（段階F2）：pinch_hitter 代打・pinch_runner 代走・defensive_replacement 守備固め、
+    # （段階F5）pitcher_to_field 投手を守備に残す・pitcher_return 守備から投手に戻す
     reason: str | None = None
 
     def to_dict(self) -> dict:
@@ -580,9 +583,18 @@ class TeamMatchState:
         assert change is not None
         return change
 
-    def relieve_pitcher(self, incoming_player_id: str, *,
+    def relieve_pitcher(self, incoming_player_id: str, *, keep_in_field: str | None = None,
                         moment: ChangeMoment | None = None) -> LineupChange | None:
-        """本番の自動継投。野手登板で空く位置にはDHが入り、旧投手は退く。"""
+        """本番の自動継投。野手登板で空く位置にはDHが入り、旧投手は退く。
+
+        ``keep_in_field`` に出場中の野手を渡すと、旧投手はその守備位置に残り、その野手が退いて
+        控えの投手がその打順に入る（投手の配置転換。DHを宣言した試合では使わない）。"""
+        if keep_in_field is not None:
+            if self.initial_lineup.designated_hitter_id is not None:
+                raise ValueError('pitcher shuffle is not used with a declared DH')
+            if keep_in_field == self.current_pitcher_id or incoming_player_id in self.active_player_ids:
+                raise ValueError('pitcher shuffle requires a fielder to replace and a bench pitcher')
+            return self.change_pitcher(incoming_player_id, outgoing_player_id=keep_in_field, moment=moment)
         extra_defense = {}
         if self.designated_hitter_id is not None and self.current_pitcher_id != self.designated_hitter_id:
             vacated = next((a.defensive_position for a in self.defensive_alignment
