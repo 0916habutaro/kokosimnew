@@ -170,10 +170,15 @@ def bracket_layout(main: MainTournamentRuntimeState, scheduled) -> dict:
     """
     rows: list[dict] = []
     leaf_y: dict[int, float] = {}
+    seeds = seed_numbers(main)
     for index, school_id in enumerate(main.initial_slots):
         if school_id:
             leaf_y[index] = float(len(rows))
-            rows.append({"school_id": school_id, "y": float(len(rows))})
+            rows.append({
+                "school_id": school_id, "y": float(len(rows)),
+                # シードの順（第1シード＝1）。シードでない学校は None
+                "seed": seeds.get(school_id),
+            })
 
     scheduled_matches = scheduled.matches
     nodes: dict[str, dict] = {}
@@ -277,6 +282,17 @@ def bracket_layout(main: MainTournamentRuntimeState, scheduled) -> dict:
         "later_rounds": later,
         "champion_after_draw": main.champion_school_id if not final else "",
         "third_place": _third_place(main, scheduled_matches),
+    }
+
+
+def seed_numbers(main: MainTournamentRuntimeState) -> dict[str, int]:
+    """組み合わせを作ったときのシード校 → シードの順（1から）。
+
+    ``seed_slots`` はシードの順（``ordered_seed_ids``）に枠を入れたもので、
+    本戦の状態と一緒に保存されるので、読込のあとも同じ番号になる。"""
+    return {
+        school_id: number
+        for number, school_id in enumerate(main.seed_slots or {}, start=1)
     }
 
 

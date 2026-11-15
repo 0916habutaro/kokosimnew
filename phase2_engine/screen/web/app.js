@@ -978,7 +978,8 @@ async function renderBracketPage(content, view) {
       ${data.entrants.length ? `<div class="tabs">${[["bracket", "トーナメント表"], ["entrants", "出場校一覧"]].map(([key, label]) =>
         `<button class="tab ${(view.tab || "bracket") === key ? "on" : ""}" data-btab="${key}">${label}</button>`).join("")}</div>` : ""}
       <div class="spacer"></div>
-      ${view.tab !== "entrants" && data.main ? '<span class="muted bracket-hint">試合（交点）を押すとスコア、校名を押すと勝ち上がり</span>' : ""}
+      ${view.tab !== "entrants" && data.main ? `<span class="muted bracket-hint">試合（交点）を押すとスコア、校名を押すと勝ち上がり${
+        data.main.rows.some((row) => row.seed) ? "　校名の前の①②…はシード（数字はシードの順）" : ""}</span>` : ""}
       ${view.tab === "entrants" ? "" : `<div class="tabs"><button class="btn small" id="z-out" title="縮小">−</button>
       <button class="btn small" id="z-fit" title="全体">全体</button>
       <button class="btn small" id="z-in" title="拡大">＋</button></div>`}</div>
@@ -1097,7 +1098,7 @@ function drawPaper() {
 function bracketSvg(main, name) {
   const svg = svgEl("svg");
   // 校名の欄は、いちばん長い校名（都道府県つきを含む）に合わせる
-  const longest = Math.max(0, ...main.rows.map((row) => name(row.school_id).length));
+  const longest = Math.max(0, ...main.rows.map((row) => name(row.school_id).length + (row.seed ? 1 : 0)));
   const nameW = Math.max(NAME_W, Math.min(300, longest * 13 + 16));
   const X = (round) => nameW + round * COL_W;
   const Y = (y) => 26 + y * ROW + ROW / 2;
@@ -1118,7 +1119,10 @@ function bracketSvg(main, name) {
     const text = svgEl("text", {
       x: nameW - 8, y: Y(row.y) + 4, "text-anchor": "end",
       class: "tname" + (row.school_id === champion ? " champion" : ""),
-    }, name(row.school_id));
+    });
+    // シードの学校は校名の前に小さく番号（第1シード＝①）
+    if (row.seed) text.append(svgEl("tspan", { class: "seed" }, seedMark(row.seed) + " "));
+    text.append(document.createTextNode(name(row.school_id)));
     text.addEventListener("click", () => trace(row.school_id));
     texts.append(text);
   });
@@ -1148,6 +1152,14 @@ function bracketSvg(main, name) {
     texts.append(svgEl("text", { x: xf + 34, y: yf + 5, class: "tname champion" }, name(champion)));
   }
   return svg;
+}
+
+// シードの番号の丸数字（①〜㊿。それより大きい番号はそのまま）
+function seedMark(n) {
+  if (n >= 1 && n <= 20) return String.fromCodePoint(0x2460 + n - 1);
+  if (n >= 21 && n <= 35) return String.fromCodePoint(0x3251 + n - 21);
+  if (n >= 36 && n <= 50) return String.fromCodePoint(0x32B1 + n - 36);
+  return `(${n})`;
 }
 
 // 前の回戦のあとに抽選する回戦（夏の甲子園の準々決勝から）。抽選前は「抽選待ち」
@@ -1236,11 +1248,13 @@ function scoreboard(m, wide = false) {
   const cells = (line) => Array.from({ length: n }, (_, i) =>
     `<td>${line[i] === null ? (i < line.length ? "x" : "") : (line[i] ?? "")}</td>`).join("");
   const hasHits = board.some((b) => b.hits !== undefined && b.hits !== null);
+  // 校名は欄が狭いと省略する（マウスを乗せると全部）。回が多くて入らないときは
+  // 得点板の中だけ横に動かし、校名と計・安・失は端に留める（右の欄の得点板）
   const rows = board.map((b) => `<tr class="${m.winner_id && m.winner_id !== b.school_id ? "loser" : ""}">
-    <td class="team">${esc(b.name)}</td>${cells(b.innings)}<td class="total">${b.runs ?? ""}</td>
-    ${hasHits ? `<td class="sub">${b.hits ?? ""}</td><td class="sub">${b.errors ?? ""}</td>` : ""}</tr>`).join("");
-  return `<div class="board ${wide ? "wide" : ""}"><table><tr><th></th>${Array.from({ length: n }, (_, i) => `<th>${i + 1}</th>`).join("")}
-    <th>計</th>${hasHits ? "<th>安</th><th>失</th>" : ""}</tr>${rows}</table>${m.called ? `<div class="board-called">${esc(m.called)}</div>` : ""}</div>`;
+    <td class="team"><span title="${esc(b.name)}">${esc(b.name)}</span></td>${cells(b.innings)}<td class="total">${b.runs ?? ""}</td>
+    ${hasHits ? `<td class="sub hits">${b.hits ?? ""}</td><td class="sub errors">${b.errors ?? ""}</td>` : ""}</tr>`).join("");
+  return `<div class="board ${wide ? "wide" : ""} ${hasHits ? "" : "no-sub"}"><div class="board-scroll"><table><tr><th class="team"></th>${Array.from({ length: n }, (_, i) => `<th>${i + 1}</th>`).join("")}
+    <th class="total">計</th>${hasHits ? '<th class="sub hits">安</th><th class="sub errors">失</th>' : ""}</tr>${rows}</table></div>${m.called ? `<div class="board-called">${esc(m.called)}</div>` : ""}</div>`;
 }
 
 // 得点板の下の1行：「勝 〇〇　敗 〇〇　本塁打 〇〇（3回）」。選手名は選手の画面へのリンク

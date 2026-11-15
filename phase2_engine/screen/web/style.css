@@ -143,7 +143,8 @@ svg text { font-family: var(--ui); }
 .board table { border-collapse: collapse; width: 100%; font-family: var(--num); }
 .board td, .board th { text-align: center; padding: 4px 2px; font-size: 15px; color: #f6f1d8; min-width: 18px; }
 .board th { color: #9fc7ae; font-size: 11px; font-weight: 400; }
-.board td.team { text-align: left; font-family: var(--ui); font-size: 13px; padding-right: 6px; white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+.board td.team { text-align: left; font-family: var(--ui); font-size: 13px; padding-right: 6px; }
+.board td.team span { display: block; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .board td.total { color: var(--accent); font-size: 20px; font-weight: 700; border-left: 1px solid var(--board-line); }
 .board td.sub { color: #cfe3d4; font-size: 14px; }
 .board tr.loser td.team { color: #b7c9bc; }
@@ -377,6 +378,24 @@ details.coach-references[open] summary { margin-bottom: 8px; }
 .bracket-side[hidden] { display: none; }
 .bracket-side .side-close { float: right; }
 .bracket-hint { font-size: 12px; margin-right: 10px; }
+.seed { fill: #8a6d1f; font-size: 10px; font-weight: 700; }
+/* 右の欄の得点板：欄の幅に収める。校名は省略、回は詰める。延長で入らないときは
+   得点板の中だけ横に動き、校名（左）と計・安・失（右）は端に留める */
+.bracket-side .board { padding: 8px 6px; }
+.bracket-side .board-scroll { overflow-x: auto; }
+.bracket-side .board td, .bracket-side .board th { font-size: 13px; padding: 3px 0; min-width: 17px; }
+.bracket-side .board th { font-size: 10.5px; }
+.bracket-side .board td.team { font-size: 12px; padding-right: 4px; }
+.bracket-side .board td.team span { max-width: 76px; }
+.bracket-side .board td.total { font-size: 16px; border-left: none; }
+.bracket-side .board td.sub { font-size: 12px; }
+.bracket-side .board .team, .bracket-side .board .total, .bracket-side .board .sub { position: sticky; z-index: 1; background: var(--board); }
+.bracket-side .board .team { left: 0; }
+.bracket-side .board .total { right: 44px; width: 28px; min-width: 28px; max-width: 28px; box-shadow: inset 1px 0 var(--board-line); }
+.bracket-side .board .sub { width: 22px; min-width: 22px; max-width: 22px; }
+.bracket-side .board .hits { right: 22px; }
+.bracket-side .board .errors { right: 0; }
+.bracket-side .board.no-sub .total { right: 0; }
 /* コールドの札と、得点板の下の勝敗投手・本塁打 */
 small.called { color: var(--accent); font-size: 10.5px; font-family: var(--ui); }
 .board-called { margin-top: 6px; color: var(--accent); font-weight: 700; font-size: 13px; }
