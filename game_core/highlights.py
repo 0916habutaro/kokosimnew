@@ -3,7 +3,8 @@
 1打席ごとの記録は残さず、次だけを残す（履歴に保存する。セーブには入れない）。
 
 - 得点が入った打席：``["S", 回, 表裏, 打者ID, 打撃結果, 得点]``
-  （本塁打は打撃結果が ``home_run``）
+  （本塁打は打撃結果が ``home_run``）。前の投手が残した走者が生還したときだけ、最後に
+  その得点の責任投手IDの並び（得点の順）を足す（暴投・捕逸の ``W``、本盗の ``B`` も同じ）
 - 投手交代：``["P", 回, 表裏, 守備側の学校ID, 代わった投手ID]``
 - 併殺：``["D", 回, 表裏, 併殺打の打者ID]``（守った側は表裏から決まる）
 - 盗塁：``["B", 回, 表裏, 走者ID, 結果, 進もうとした塁]``（結果は ``sb`` 盗塁・``cs`` 盗塁死・
@@ -53,25 +54,36 @@ def game_highlights(events: Iterable) -> list[list]:
             if not (kind == "bunt" and result == "ok"):
                 out.append([TACTIC, event.inning, half, event.batter_id, kind, result])
         steals = [entry.split("|") for entry in metadata["steal"].split(";")] if metadata.get("steal") else []
+        charged = metadata["charged"].split("|") if metadata.get("charged") else None
         advance = metadata.get("advance")
         # 打席のあとの暴投・捕逸・本盗の得点は、打者の得点の要点に入れない
         after_play = metadata.get("bases_after_play", "||").split("|")
         advance_runs = int(advance is not None and after_play[2] != "")
         home_steals = sum(from_base == "3" and result == "sb" for _, from_base, result, _ in steals)
         play_runs = event.runs_scored - advance_runs - home_steals
+        def responsible(start, count):
+            # 責任投手の並び（今の投手と違う走者がいる分だけ。なければ足さない）
+            part = charged[start:start + count] if charged else []
+            return [part] if any(pid != event.pitcher_id for pid in part) else []
+
         if play_runs:
             out.append([
                 SCORE, event.inning, half,
-                event.batter_id, event.event_type, play_runs,
+                event.batter_id, event.event_type, play_runs, *responsible(0, play_runs),
             ])
         if event.event_type == "double_play":
             out.append([DOUBLE_PLAY, event.inning, half, event.batter_id])
         if advance is not None:
             kind, player_id = advance.split("|")
-            out.append([WILD_PITCH, event.inning, half, kind, player_id, advance_runs])
+            out.append([WILD_PITCH, event.inning, half, kind, player_id, advance_runs,
+                        *responsible(play_runs, advance_runs)])
+        stolen_home = play_runs + advance_runs
         for runner_id, from_base, result, _ in steals:
             if result in STEAL_RESULTS:
-                out.append([STEAL, event.inning, half, runner_id, result, int(from_base) + 1])
+                home = from_base == "3" and result == "sb"
+                out.append([STEAL, event.inning, half, runner_id, result, int(from_base) + 1,
+                            *(responsible(stolen_home, 1) if home else [])])
+                stolen_home += home
     return out
 
 
@@ -82,6 +94,10 @@ def validate_highlights(value) -> None:
         if not isinstance(item, list) or not item:
             raise ValueError("invalid highlight entry")
         kind = item[0]
+        if kind in (SCORE, WILD_PITCH, STEAL) and len(item) == 7:
+            if not isinstance(item[6], list) or not item[6] or not all(isinstance(p, str) for p in item[6]):
+                raise ValueError("invalid responsible pitchers in highlight")
+            item = item[:6]
         if kind == SCORE:
             if len(item) != 6 or not isinstance(item[5], int) or item[5] < 1:
                 raise ValueError("invalid scoring highlight")

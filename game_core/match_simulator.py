@@ -76,6 +76,15 @@ class _RunnerResponsibility:
     reached_on_error: bool = False
     tiebreak_placed: bool = False
     plate_appearance_no: int | None = None
+    # その回の登板区間の番号（投手が代わるたびに増える。守備から戻った投手は新しい区間。段階F5）
+    stint: int = 0
+
+
+def _next_stint(stints: list, pitcher_id: str) -> int:
+    """その回の登板区間 [(投手ID, 番号)...] を進め、``pitcher_id`` の今の区間の番号を返す。"""
+    if not stints or stints[-1][0] != pitcher_id:
+        stints.append((pitcher_id, len(stints)))
+    return stints[-1][1]
 
 
 class _DeferredEventRandom:
@@ -100,7 +109,8 @@ class _RunnerResponsibilityTracker:
 
     def __init__(self) -> None:
         self._active: dict[str, _RunnerResponsibility] = {}
-        self._pitcher_order: dict[str, int] = {}
+        # 登板区間の並び。同じ回に守備から投手に戻った投手は、新しい区間として後ろに並ぶ（9.16(g)）
+        self._stints: list[tuple[str, int]] = []
 
     def substitute_runner(self, outgoing: str, incoming: str) -> None:
         if outgoing not in self._active or incoming in self._active:
@@ -128,10 +138,10 @@ class _RunnerResponsibilityTracker:
                 player_id=player_id,
                 responsible_pitcher_id=pitcher_id,
                 tiebreak_placed=True,
+                stint=_next_stint(self._stints, pitcher_id),
             )
             for player_id in runners
         }
-        self._pitcher_order.setdefault(pitcher_id, len(self._pitcher_order))
 
     def record_play(
         self,
@@ -164,8 +174,8 @@ class _RunnerResponsibilityTracker:
             responsible_pitcher_id=pitcher_id,
             reached_on_error=event_type == "reached_on_error",
             plate_appearance_no=plate_appearance_no,
+            stint=_next_stint(self._stints, pitcher_id),
         )
-        self._pitcher_order.setdefault(pitcher_id, len(self._pitcher_order))
         if event_type == "fielder_choice":
             removed = set(before) - set(after) - set(scored_runner_ids)
             if len(removed) == 1 and batter_id in after:
@@ -190,7 +200,7 @@ class _RunnerResponsibilityTracker:
             return ()
         scoring = set(scored_runner_ids)
         ordered = sorted(origins, key=lambda pid: (
-            self._pitcher_order[origins[pid].responsible_pitcher_id],
+            origins[pid].stint,
             pid not in scoring, pid,
         ))
         selected = set(ordered[:len(scored_runner_ids)])
@@ -350,6 +360,8 @@ class _EarnedRunTracker:
         self._team: _ErrorFreeInning | None = None
         self._runs: list[tuple[_RunnerKey, _RunnerResponsibility]] = []
         self._unearned: set[_RunnerKey] = set()
+        # 失策のない再構成は登板区間ごと（守備から戻った投手は、戻ったときの塁・アウトから。9.16(i)）
+        self._stints: list[tuple[str, int]] = []
 
     def substitute_runner(self, outgoing: str, incoming: str) -> None:
         if outgoing not in self._active or incoming in self._active:
@@ -371,8 +383,9 @@ class _EarnedRunTracker:
         scored = {keys[runner.player_id] for runner in scored_runners}
         if self._team is None:
             self._team = _ErrorFreeInning(0, before)
-        if pitcher_id not in self._views:
-            self._views[pitcher_id] = _ErrorFreeInning(outs_before, before)
+        stint = _next_stint(self._stints, pitcher_id)
+        if stint not in self._views:
+            self._views[stint] = _ErrorFreeInning(outs_before, before)
         if event_type == "reached_on_error":
             self._unearned.add(batter)
         for view in (self._team, *self._views.values()):
@@ -392,7 +405,7 @@ class _EarnedRunTracker:
             runner.responsible_pitcher_id for key, runner in self._runs
             if key not in self._unearned
             and not (runner.reached_on_error or runner.tiebreak_placed)
-            and key in self._views[runner.responsible_pitcher_id].scored
+            and key in self._views[runner.stint].scored
         )
 
     @property
@@ -2127,8 +2140,12 @@ class MatchSimulator:
         fatigue_rule = self.params["fatigue"]
         tired_cache: dict[tuple[str, int, bool], PlayerAbilitySnapshot] = {}
 
+        # 守備に回した投手が守っている間に戻した疲れ（球数に直した分。段階F5）
+        rest_credit: dict[str, dict[str, int]] = {sid: {} for sid in teams}
+
         def fatigue_points(school_id: str, pitcher_id: str, pitches: int) -> float:
             stamina = player_maps[school_id][pitcher_id].stamina
+            pitches = max(0, pitches - rest_credit[school_id].get(pitcher_id, 0))
             return carry[school_id].get(pitcher_id, 0.0) + fatigue_model.in_game_fatigue(
                 pitches, stamina, fatigue_rule)
 
@@ -2222,9 +2239,20 @@ class MatchSimulator:
                 boundary_order += 1
             return ChangeMoment(inning, half, pa_no+1, boundary_order)
 
+        # 守備から投手に戻った回数（(学校, 選手, 回) → 回数。公認野球規則：同じイニングに1度まで）
+        pitcher_returns: Counter[tuple[str, str, int]] = Counter()
+
         def check_new_pitcher(school_id, incoming):
+            """登板できるか。一度投げた投手は、守備に残っていて（退いていない）、その回にまだ投手に
+            戻っていなければ戻れる。戻るときはその回の回数を数える。"""
             if incoming in pitcher_rows[school_id] and int(pitcher_rows[school_id][incoming]['batters_faced']) > 0:
-                raise ValueError(f'{school_id}: pitcher reentry is not supported: {incoming}')
+                state = states[school_id]
+                fielding = {a.player_id for a in state.defensive_alignment if a.defensive_position != 'P'}
+                if incoming in state.exited_player_ids or incoming not in fielding:
+                    raise ValueError(f'{school_id}: a pitcher who left the game cannot pitch again: {incoming}')
+                if pitcher_returns[(school_id, incoming, inning)] >= 1:
+                    raise ValueError(f'{school_id}: a pitcher may return to the mound once per inning: {incoming}')
+                pitcher_returns[(school_id, incoming, inning)] += 1
             if pitch_allowances is not None and pitch_allowances.get(incoming, math.inf) <= 0:
                 raise ValueError(f'{school_id}: incoming pitcher has no pitch allowance')
 
@@ -2260,6 +2288,105 @@ class MatchSimulator:
                     continue
                 out.append(pid)
             return out
+
+        shuffle_rule = self.params["pitcher_shuffle"]
+        shuffle_namespace = self.params["rng_namespace_policy"]["pitcher_shuffle"]
+        in_field: dict[str, str | None] = {sid: None for sid in teams}  # 守備に残した投手
+        field_since: dict[str, int] = {}       # 守備に残した投手 → そのときのチームの守備のアウト数
+        shuffle_counts: Counter[str] = Counter()
+        return_start: dict[tuple[str, str], int] = {}  # 投手に戻った投手 → 戻ったときの対戦打者数
+
+        def defense_outs(school_id):
+            return sum(int(row["outs_recorded"]) for row in pitcher_rows[school_id].values())
+
+        def pitches_left(pitcher_id, pitches):
+            return math.inf if pitch_allowances is None else pitch_allowances.get(pitcher_id, math.inf) - pitches
+
+        def shuffle_fielder(school_id, outgoing, incoming, margin):
+            """降りる投手を守備に残すなら、代わりに退く野手（残さないなら None）。段階F5。"""
+            state = states[school_id]
+            rate = policies[school_id].shuffle_rate
+            stat = pitcher_rows[school_id].get(outgoing)
+            if (rate <= 0 or stat is None
+                    # 投げながらDHも兼ねる投手（投・DH）は守備に残さない
+                    or outgoing == state.designated_hitter_id
+                    or outgoing == state.initial_lineup.designated_hitter_id
+                    or shuffle_counts[school_id] >= int(shuffle_rule["max_per_game"])
+                    or inning > int(shuffle_rule["latest_inning"])
+                    or abs(margin) > int(shuffle_rule["max_margin"])
+                    or incoming in state.active_player_ids
+                    or outgoing not in self._quality_order(teams[school_id])[:int(shuffle_rule["candidate_quality_ranks"])]
+                    or pitches_left(outgoing, int(stat["pitches"])) < int(shuffle_rule["min_remaining_pitches"])
+                    or fatigue_model.stage_of(fatigue_points(school_id, outgoing, int(stat["pitches"])), fatigue_rule)
+                    > int(shuffle_rule["max_exit_fatigue_stage"])):
+                return None
+            pitcher = player_maps[school_id][outgoing]
+            options = [a for a in state.defensive_alignment
+                       if a.defensive_position in shuffle_rule["positions"]
+                       and self._defense_value(pitcher, a.defensive_position)
+                       >= float(shuffle_rule["min_defense_value"])]
+            if not options:
+                return None
+            rng = rng_for(match_input.generation_seed, shuffle_namespace.format(
+                match_id=match_input.match_id, plate_appearance_no=pa_no + 1))
+            if rng.random() >= rate:
+                return None
+            # 一塁・外野のうち、その投手が最も守れる位置に入る（そこを守っていた野手が退く）
+            return max(options, key=lambda a: (self._defense_value(pitcher, a.defensive_position),
+                                               a.defensive_position)).player_id
+
+        def try_return(school_id, offense_id, bases):
+            """守備に残した投手を、投手に戻すか（戻したら True）。段階F5。"""
+            nonlocal fielding_pending
+            pid = in_field[school_id]
+            if pid is None:
+                return False
+            state = states[school_id]
+            fielding = {a.player_id: a.defensive_position for a in state.defensive_alignment
+                        if a.defensive_position != 'P'}
+            if pid not in fielding:
+                in_field[school_id] = None
+                return False
+            back = shuffle_rule["return"]
+            stat = pitcher_rows[school_id][pid]
+            rest = (defense_outs(school_id) - field_since[pid]) * float(shuffle_rule["rest_pitches_per_out"])
+            rest_credit[school_id][pid] = min(int(shuffle_rule["max_rest_pitches"]), int(rest))
+            if (pitcher_returns[(school_id, pid, inning)] >= 1
+                    or pitches_left(pid, int(stat["pitches"])) < int(back["min_remaining_pitches"])
+                    or fatigue_model.stage_of(fatigue_points(school_id, pid, int(stat["pitches"])), fatigue_rule)
+                    > int(back["max_fatigue_stage"])):
+                return False
+            margin = team_runs[school_id] - team_runs[offense_id]
+            points = ((inning >= int(back["late_inning_from"])) + (abs(margin) <= int(back["close_margin"]))
+                      + (bases[1] is not None or bases[2] is not None)
+                      + (lineup_index[offense_id] % 9 + 1 in back["cleanup_slots"]))
+            misread = policies[school_id].return_misread
+            if misread:
+                roll = rng_for(match_input.generation_seed, shuffle_namespace.format(
+                    match_id=match_input.match_id, plate_appearance_no=pa_no + 1) + ":return").random()
+                points += -1 if roll < misread / 2 else 1 if roll < misread else 0
+            if points < int(back["min_points"]):
+                return False
+            check_new_pitcher(school_id, pid)
+            old_pitcher = state.current_pitcher_id
+            position = fielding[pid]
+            state.change_pitcher(pid, moment=before_moment())
+            state.label_last_change("pitcher_return")
+            in_field[school_id] = None
+            return_start[(school_id, pid)] = int(stat["batters_faced"])
+            outing_runs[pid] = 0
+            refresh_after_change(school_id, old_pitcher)
+            # 投げていた投手がその位置を守れなければ、控えの野手と交代する（打順はそのまま）
+            mover = player_maps[school_id][old_pitcher]
+            if self._defense_value(mover, position) < float(shuffle_rule["min_defense_value"]):
+                bench = [p for p in self._bench(state, player_maps[school_id],
+                                                pitcher_orders[school_id][:staff_sizes[school_id]])
+                         if p.primary_position != "P"]
+                if bench:
+                    best = max(bench, key=lambda p: (self._defense_value(p, position), p.player_id))
+                    bench_substitute(school_id, old_pitcher, best.player_id, "defensive_replacement")
+            fielding_pending = True
+            return True
 
         def bench_substitute(school_id, outgoing, incoming, reason):
             """采配の交代（代打・代走・守備固め）。規則に合わなければ何もしない（False）。"""
@@ -2358,6 +2485,8 @@ class MatchSimulator:
                                 entered=entered_off_bench[defense_id], tactics=policies[defense_id]):
                             if bench_substitute(defense_id, outgoing, incoming, "defensive_replacement"):
                                 fielding_pending = True
+                    # 守備に残した投手を戻す（段階F5）
+                    try_return(defense_id, offense_id, bases)
                     current_index = pitcher_index[defense_id]
                     state = states[defense_id]
                     pitcher_id = state.current_pitcher_id
@@ -2407,8 +2536,12 @@ class MatchSimulator:
                         and int(pitcher_stat["batters_faced"]) >= int(platoon_rule["min_batters_faced"]))
                     if bench_pitcher or platoon_trigger or limit_reached or self._should_change_pitcher(
                         pitcher=pitcher,
-                        stats={**pitcher_stat, "runs_allowed": outing_runs[pitcher_id]},
-                        starter=pitcher_id == state.initial_lineup.player_for_position('P'),
+                        stats={**pitcher_stat, "runs_allowed": outing_runs[pitcher_id],
+                               # 守備から戻った投手は、戻ってからの対戦打者数で見る（段階F5）
+                               "batters_faced": int(pitcher_stat["batters_faced"])
+                               - return_start.get((defense_id, pitcher_id), 0)},
+                        starter=(pitcher_id == state.initial_lineup.player_for_position('P')
+                                 and (defense_id, pitcher_id) not in return_start),
                         has_next=next_index < staff_sizes[defense_id],
                         tactics=policies[defense_id],
                         fatigue=fatigue_points(defense_id, pitcher_id, int(pitcher_stat["pitches"])),
@@ -2451,7 +2584,15 @@ class MatchSimulator:
                         incoming = staff[current_index]
                         check_new_pitcher(defense_id, incoming)
                         old_pitcher = state.current_pitcher_id
-                        state.relieve_pitcher(incoming, moment=before_moment())
+                        # 降りる投手を守備に残すか（段階F5。球数の上限・代打で入った投手の交代では残さない）
+                        fielder = None if (limit_reached or bench_pitcher) else shuffle_fielder(
+                            defense_id, old_pitcher, incoming, team_runs[defense_id] - team_runs[offense_id])
+                        state.relieve_pitcher(incoming, keep_in_field=fielder, moment=before_moment())
+                        if fielder is not None:
+                            state.label_last_change("pitcher_to_field")
+                            in_field[defense_id] = old_pitcher
+                            field_since[old_pitcher] = defense_outs(defense_id)
+                            shuffle_counts[defense_id] += 1
                         refresh_after_change(defense_id, old_pitcher)
                         fielding_pending = True
                         state.validate(actual_pitcher_id=incoming)
@@ -2868,6 +3009,11 @@ class MatchSimulator:
                             responsible = pitcher_rows[defense_id][runner.responsible_pitcher_id]
                             responsible["runs_allowed"] = int(responsible["runs_allowed"]) + 1
 
+                    # 本塁を踏む順（打席の前に先の塁にいた走者から、打者は最後）に並べる
+                    crossing = {pid: (-bases_before.index(pid) if pid in bases_before else 1)
+                                for pid in (r.player_id for r in scored_runners)}
+                    charged_runners = [*sorted(scored_runners, key=lambda r: crossing[r.player_id]),
+                                       *baserunning_runners]
                     events.append(
                         MatchEvent(
                             event_no=event_no,
@@ -2908,6 +3054,11 @@ class MatchSimulator:
                                   if steal else ()),
                                 *((('advance', f"{advance}|{pitcher_id if advance == 'wp' else catcher_id}"),)
                                   if advance else ()),
+                                # 生還した走者の責任投手（得点の順。打席の得点・暴投と捕逸・本盗の順）。
+                                # 今の投手と違う走者がいるときだけ（前の投手が残した走者。段階F5）
+                                *((('charged', '|'.join(r.responsible_pitcher_id for r in charged_runners)),)
+                                  if any(r.responsible_pitcher_id != pitcher_id for r in charged_runners)
+                                  else ()),
                             ),
                         )
                     )

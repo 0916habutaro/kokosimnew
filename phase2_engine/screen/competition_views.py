@@ -44,7 +44,9 @@ EVENT_LABELS = {
     "line_drive_double_play": "併殺（走者戻れず）",
 }
 # 采配の交代の理由（段階F2。game_core/match_state.py の LineupChange.reason）
-REASON_LABELS = {"pinch_hitter": "代打", "pinch_runner": "代走", "defensive_replacement": "守備固め"}
+REASON_LABELS = {"pinch_hitter": "代打", "pinch_runner": "代走", "defensive_replacement": "守備固め",
+                 # 投手の配置転換（段階F5）
+                 "pitcher_to_field": "配置転換", "pitcher_return": "再登板"}
 # 作戦の要点（game_core/highlights.py の T）
 TACTIC_LABELS = {
     ("bunt", "foul"): "送りバント失敗（追い込まれて打つ）",
@@ -685,10 +687,18 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
             continue
         pair = (change["outgoing"], change["incoming"]) if change.get("incoming") else next(
             ((b["outgoing"], b["incoming"]) for b in change.get("batting_changes") or ()), (None, None))
+        label = f"{pair[0]['name']} → {pair[1]['name']}" if pair[0] and pair[1] else ""
+        if change["reason"] in ("pitcher_to_field", "pitcher_return"):
+            # 配置転換・再登板は、守備と投手を行き来した投手の名前と位置（例：○○（投 → 右））
+            mover = next((m for m in change.get("moves") or ()
+                          if POSITION_LABELS["P"] in (m["before"], m["after"])
+                          and (m["before"] == POSITION_LABELS["P"]) == (change["reason"] == "pitcher_to_field")), None)
+            if mover is not None:
+                label = f"{mover['name']}（{mover['before']} → {mover['after']}）"
         highlights.append({
             "kind": "substitution", "inning": change["inning"], "half": change["half"],
             "school_id": change["school_id"], "school_name": change["school_name"],
-            "player_name": (f"{pair[0]['name']} → {pair[1]['name']}" if pair[0] and pair[1] else ""),
+            "player_name": label,
             "event": REASON_LABELS[change["reason"]], "success": True,
         })
     highlights.sort(key=lambda h: (h["inning"], 0 if h["half"] == HALF_LABELS["t"] else 1))

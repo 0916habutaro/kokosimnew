@@ -33,6 +33,23 @@ class HighlightsTests(unittest.TestCase):
         ], highlights)
         validate_highlights(highlights)
 
+    def test_runs_by_runners_left_by_another_pitcher_keep_their_pitchers(self):
+        # 段階F5：前の投手が残した走者の生還は、得点の要点に責任投手の並びを足す
+        inherited = event(7, "top", "B", "PB1", "A5", "triple", 2)
+        inherited.metadata = (("charged", "PB1|PB2"),)
+        wild = event(7, "top", "B", "PB1", "A6", "strikeout", 1)
+        wild.metadata = (("advance", "wp|PB1"), ("bases_after_play", "||A5x"), ("charged", "PB2"))
+        own = event(8, "top", "B", "PB1", "A7", "single", 1)
+        highlights = game_highlights([inherited, wild, own])
+        self.assertEqual([
+            ["S", 7, "t", "A5", "triple", 2, ["PB1", "PB2"]],
+            ["W", 7, "t", "wp", "PB1", 1, ["PB2"]],
+            ["S", 8, "t", "A7", "single", 1],
+        ], highlights)
+        validate_highlights(highlights)
+        with self.assertRaises(ValueError):
+            validate_highlights([["S", 1, "t", "A", "single", 1, []]])
+
     def test_invalid_entries_are_rejected(self):
         with self.assertRaises(ValueError):
             validate_highlights([["S", 1, "t", "A", "single", 0]])

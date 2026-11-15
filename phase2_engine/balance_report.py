@@ -27,6 +27,8 @@
   監督の打順の型（低い〜40・中・61〜高い）ごとの同じ値
 - 調子（段階F4）：同じ学校の前の試合（同じ年度）から、先発の顔ぶれ・打順（9人の並び）が変わった割合を、
   監督の調子の重視（低い〜40・中・61〜高い）ごとに
+- 投手の配置転換（段階F5）：1チーム1試合あたりの、降りた投手を守備に残した数・守備から投手に戻した数を、
+  監督の投手の配置転換（低い〜40・中・61〜高い）ごとに（交代の数には含めない）
 - 左右別の打率（打者の左右は名簿から）：同じ側どうし・逆の側、右対右・左対左・両打ち
 - 暴投・捕逸・重盗・本盗の1試合あたりの数、1打席・1チーム1試合（9回あたり）の球数（段階H1）
 - 度胸（段階G）：投手の度胸の帯（〜44・45〜59・60〜）ごとの、ピンチ・終盤の接戦とそれ以外の被打率
@@ -155,6 +157,8 @@ class BalanceTally:
         self.tactics_koshien = defaultdict(Counter)  # 年度 → 作戦の数（夏の甲子園）
         self.substitutions = defaultdict(Counter)   # 年度 → 交代の数・代打の成績
         self.substitutions_by_band = defaultdict(lambda: defaultdict(lambda: [0, 0]))  # 年度 → 帯 → [チーム試合, 交代]
+        # 年度 → 帯（全体は "all"） → [チーム試合, 守備に残した, 投手に戻した]
+        self.shuffles = defaultdict(lambda: defaultdict(lambda: [0, 0, 0]))
         self.splits = defaultdict(lambda: defaultdict(lambda: [0, 0]))  # 年度 → 組み合わせ → [打数, 安打]
         # 年度 → 打順の型の帯（全体は "all"） → [1番の数, 1番の走力の合計, 4番の数, 4番のパワーの合計,
         #   9人そろったチーム試合, 1番が走力の上位2人, 4番がパワーの最上位]
@@ -243,8 +247,15 @@ class BalanceTally:
             tally["pinch_hit_hits"] += int(b.get("pinch_hit_hits", 0))
         for part in detail.get("team_participation") or []:
             reasons = Counter(c.get("reason") for c in part.get("changes") or () if c.get("reason"))
+            shuffled = {key: reasons.pop(key, 0) for key in ("pitcher_to_field", "pitcher_return")}
             tally.update(reasons)
             coach = coach_of(part["school_id"]) if coach_of else None
+            shuffle_band = tendency_band(getattr(coach, "pitcher_shuffle", None)) if coach is not None else None
+            for key in ("all", *((shuffle_band,) if shuffle_band else ())):
+                cell = self.shuffles[year][key]
+                cell[0] += 1
+                cell[1] += shuffled["pitcher_to_field"]
+                cell[2] += shuffled["pitcher_return"]
             band = tendency_band(getattr(coach, "substitutions", None)) if coach is not None else None
             if band is not None:
                 cell = self.substitutions_by_band[year][band]
@@ -331,6 +342,17 @@ class BalanceTally:
                 for key in (kind, f"{bats}v{hand}"):
                     cells[key][0] += at_bats
                     cells[key][1] += hits
+
+    def _shuffle_summary(self, year) -> dict:
+        rows = self.shuffles.get(year) or {}
+        if not rows.get("all", [0])[0]:
+            return {}
+
+        def per_game(cell):
+            return {"to_field": round(cell[1] / cell[0], 4), "returns": round(cell[2] / cell[0], 4),
+                    "team_games": cell[0]}
+        return {"all": per_game(rows["all"]),
+                "by_tendency": {band: per_game(cell) for band, cell in sorted(rows.items()) if band != "all"}}
 
     def _substitution_summary(self, year) -> dict:
         t = self.substitutions.get(year)
@@ -797,6 +819,9 @@ class BalanceTally:
             subs = self._substitution_summary(year)
             if subs:
                 row["substitutions"] = subs
+            shuffles = self._shuffle_summary(year)
+            if shuffles:
+                row["pitcher_shuffle"] = shuffles
             changes = self._lineup_change_summary(year)
             if changes:
                 row["lineup_changes"] = changes
@@ -1474,6 +1499,15 @@ def format_report(seed_label: str, report: dict) -> str:
                 lines.append("  監督 調子の重視（顔ぶれ・打順が変わった割合）: " + " / ".join(
                     f"{band} {cell['members']:.1%}・{cell['order']:.1%}（{cell['teams']}）"
                     for band, cell in lc["by_tendency"].items()))
+        ps = row.get("pitcher_shuffle")
+        if ps:
+            a = ps["all"]
+            lines.append(f"  投手の配置転換（1チーム1試合あたり）: 守備に残す {a['to_field']} / 再登板 {a['returns']}"
+                         f"（{a['team_games']}チーム試合）")
+            if ps.get("by_tendency"):
+                lines.append("  監督 投手の配置転換（守備に残す・再登板）: " + " / ".join(
+                    f"{band} {cell['to_field']}・{cell['returns']}（{cell['team_games']}）"
+                    for band, cell in ps["by_tendency"].items()))
         sp = row.get("splits")
         if sp:
             lines.append("  左右別の打率: " + " / ".join(

@@ -57,6 +57,18 @@ class PitchersOfRecordTests(unittest.TestCase):
         detail = game([S(1, "b", 1), S(5, "t", 2)], [("A", "a1", 27, 1), ("B", "b1", 27, 2)])
         self.assertEqual(("a1", "b1"), self.record(detail))
 
+    def test_runner_left_before_a_return_keeps_its_pitcher_for_the_decision(self):
+        # B の投手 b1 が二塁打を許す → b2 が四球 → b1 が守備から戻って三塁打で2者生還 → 2対0（段階F5）。
+        # 先に生還した b1 の走者が決勝点なので、敗戦は b1。要点に残した責任投手の並びで決める
+        highlights = [P(1, "t", "B", "b2"), P(1, "t", "B", "b1"),
+                      ["S", 1, "t", "x", "triple", 2, ["b1", "b2"]]]
+        detail = game(highlights, [("A", "a1", 27, 0), ("B", "b1", 26, 1), ("B", "b2", 1, 1)])
+        self.assertEqual(("a1", "b1"), self.record(detail))
+        # 責任投手の並びが逆なら、敗戦は b2
+        highlights[2] = ["S", 1, "t", "x", "triple", 2, ["b2", "b1"]]
+        self.assertEqual(("a1", "b2"), self.record(game(highlights, [
+            ("A", "a1", 27, 0), ("B", "b1", 26, 1), ("B", "b2", 1, 1)])))
+
     def test_double_play_highlights_do_not_change_the_record(self):
         detail = game([S(1, "b", 1), ["D", 3, "t", "x"], S(5, "t", 2, event="double_play")],
                       [("A", "a1", 27, 1), ("B", "b1", 27, 2)])
