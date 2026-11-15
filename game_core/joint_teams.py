@@ -181,3 +181,12 @@ def union_teams(season, competition_id: str) -> tuple[JointTeam, ...]:
                       if cid != competition_id and chains.get(type_of(cid)) == chain
                       for team in plan.teams if team.lead not in leads)
     return own + inherited
+
+
+def season_unions(season) -> list[tuple[str, tuple[str, ...]]]:
+    """年度の大会ごとの連合チーム（大会ID, 構成校の並び（代表校が先頭））。年度を閉じるときに
+    履歴の索引へ書く（``union_teams`` と同じ答えを、閉じた年度の状態を戻さずに引くため）。"""
+    if not getattr(season, "union_plans", None):
+        return []
+    cids = sorted(set(season.competitions) | set(season.union_plans))
+    return [(cid, tuple(team.schools)) for cid in cids for team in union_teams(season, cid)]

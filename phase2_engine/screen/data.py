@@ -12,7 +12,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Callable
 
-from game_core.joint_teams import team_name, union_teams
+from game_core.joint_teams import JointTeam, team_name, union_teams
 from game_core.players import Player
 from game_core.school_reputation import reputation_for
 
@@ -184,6 +184,7 @@ class GameScreenData:
         }
         self.abilities = self._new_abilities()
         self._closed_years: dict[int, dict] = {}
+        self._closed_union_cache: dict[int, dict] = {}
         # 年度 → 個人の記録の集計（player_records.PlayerTally）
         self._tallies: dict[int, player_records.PlayerTally] = {}
         # 進行中の年度として足している集計（閉じたら履歴の集計に入れ替える）
@@ -829,11 +830,27 @@ class GameScreenData:
 
     def union(self, school_id: str, competition_id: str, year: int | None = None):
         """その大会で ``school_id`` が代表校の連合チーム（なければ None）。"""
-        season = self._season_of(year or self._current_year())
-        if season is None or not school_id:
+        if not school_id:
             return None
-        return next((team for team in union_teams(season, competition_id)
+        return next((team for team in self._union_teams(year or self._current_year(), competition_id)
                      if team.lead == school_id), None)
+
+    def _union_teams(self, year: int, competition_id: str) -> tuple:
+        """その年度・大会の連合チーム。進行中の年度は年度の状態から、閉じた年度は
+        閉じたときに履歴に書いた連合の索引から引く（年度の状態は戻さない）。"""
+        season = _seasons(self.state).get(year)
+        if season is not None:
+            return union_teams(season, competition_id)
+        return self._closed_unions(year).get(competition_id, ())
+
+    def _closed_unions(self, year: int) -> dict[str, tuple]:
+        """閉じた年度の大会 → 連合チームの並び（セーブを切り替えるまで覚えておく）。"""
+        if year not in self._closed_union_cache:
+            self._closed_union_cache[year] = {
+                cid: tuple(JointTeam(schools[0], tuple(schools)) for schools in teams)
+                for cid, teams in self.service.closed_unions(self.session.slot_id, year).items()
+            }
+        return self._closed_union_cache[year]
 
     def union_name(
         self, school_id: str, competition_id: str, year: int | None = None, day: str = "",
@@ -2015,13 +2032,10 @@ class GameScreenData:
     def _add_union_results(self, year: int, results: dict[str, list[dict]]) -> None:
         """連合チームの成績：代表校の行に「連合」の印を付け、ほかの構成校にも同じ成績の行を
         「連合として」足す（勝敗・最高成績は構成校それぞれに付く）。"""
-        season = self._season_of(year)
-        if season is None or not getattr(season, "union_plans", None):
-            return
         extra: dict[str, list[dict]] = {}
         for school_id, rows in results.items():
             for row in rows:
-                team = next((t for t in union_teams(season, row["competition_id"])
+                team = next((t for t in self._union_teams(year, row["competition_id"])
                              if t.lead == school_id), None)
                 if team is None:
                     continue
@@ -2688,13 +2702,16 @@ class GameScreenData:
 
     def _union_leads(self, school_id: str, year: int) -> dict[str, str]:
         """大会 → 連合の代表校（その大会に ``school_id`` が代表校以外の構成校として出たとき）。"""
-        season = self._season_of(year) if year in self._years() or year in _seasons(self.state) else None
-        plans = getattr(season, "union_plans", None) or {}
-        if not plans:
-            return {}
+        season = _seasons(self.state).get(year)
+        if season is not None:
+            cids = season.competitions if getattr(season, "union_plans", None) else ()
+        elif year in self._years():
+            cids = self._closed_unions(year)
+        else:
+            cids = ()
         out = {}
-        for cid in season.competitions:
-            for team in union_teams(season, cid):
+        for cid in cids:
+            for team in self._union_teams(year, cid):
                 if school_id in team.partners:
                     out[cid] = team.lead
         return out
@@ -2774,6 +2791,7 @@ class GameScreenData:
         """別のセーブに切り替える。前のセーブの集計は捨てる。"""
         self.session = session
         self._closed_years = {}
+        self._closed_union_cache = {}
         self._tallies = {}
         self._live_tallies = set()
         self._records_players_memo = {}
