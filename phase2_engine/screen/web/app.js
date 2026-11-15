@@ -1794,10 +1794,12 @@ function schoolKoshien(d) {
   const record = (p) => p && p.appearances ? `${p.wins}-${p.losses}${p.draws ? `-${p.draws}` : ""}` : NONE;
   const champs = (p) => p && p.appearances ? String(p.championships || 0) : NONE;
   const best = (p) => esc((p && p.best) || NONE);
-  // 出場した年：分かっている年をすべて並べ、通算の回数に足りない分は「ほか◯回（年不明）」
+  // 出場した年：分かっている年をすべて並べ、通算の回数に足りない分は「ほか◯回（年不明）」。
+  // 年が回数より多い（資料が合わない）学校は、年を確定として並べず「資料の年が合わない」と出す
   const years = (p) => {
     if (!p || !p.appearances) return NONE;
     const listed = p.years || [];
+    if (p.years_conflict) return `資料の年が回数と合わない（${listed.join("、")}のうち${p.appearances}回）`;
     const unknown = p.unknown_years || 0;
     if (!listed.length) return unknown ? `${unknown}回（年不明）` : NONE;
     return listed.join("、") + (unknown ? `、ほか${unknown}回（年不明）` : "");

@@ -94,7 +94,9 @@ class ActualKoshienTests(unittest.TestCase):
                 "SCHX1,spring,98,2,0,2,,0,,初戦敗退,,,S1,2026-10-23,\n"
                 # 出場年の欄がなく、年は年ごとの出場にすべてある学校／一部しかない学校
                 "SCHX3,summer,107,3,1,3,,0,,1回戦,2015,,S1,2026-10-23,\n"
-                "SCHX4,summer,107,4,1,4,,0,,1回戦,2015,,S1,2026-10-23,\n",
+                "SCHX4,summer,107,4,1,4,,0,,1回戦,2015,,S1,2026-10-23,\n"
+                # 年ごとの出場と最終出場年を合わせると回数より多い（資料が合わない）
+                "SCHX5,summer,107,2,0,2,,0,,1回戦,2005,,S1,2026-10-23,\n",
                 encoding="utf-8",
             )
             # 通算の行がない学校は、年ごとの出場から回数だけ数える（予備）
@@ -107,7 +109,9 @@ class ActualKoshienTests(unittest.TestCase):
                 "summer,2005,87,13,架空三,SCHX3,played,S1\n"
                 "summer,2010,92,13,架空三,SCHX3,played,S1\n"
                 "summer,2015,97,13,架空三,SCHX3,played,S1\n"
-                "summer,2010,92,13,架空四,SCHX4,played,S1\n",
+                "summer,2010,92,13,架空四,SCHX4,played,S1\n"
+                "summer,2002,84,13,架空五,SCHX5,played,S1\n"
+                "summer,2004,86,13,架空五,SCHX5,played,S1\n",
                 encoding="utf-8",
             )
             actual = load_actual_koshien(path)
@@ -131,6 +135,12 @@ class ActualKoshienTests(unittest.TestCase):
         ))
         self.assertEqual(([2010, 2015], 2), (
             actual["SCHX4"]["summer"]["years"], actual["SCHX4"]["summer"]["unknown_years"],
+        ))
+        self.assertFalse(actual["SCHX4"]["summer"]["years_conflict"])
+        # 年が回数より多いときは、資料が合わない印を付ける（年を確定として扱わない）
+        conflict = actual["SCHX5"]["summer"]
+        self.assertEqual(([2002, 2004, 2005], 0, True), (
+            conflict["years"], conflict["unknown_years"], conflict["years_conflict"],
         ))
         game = {"appearances": 2, "wins": 6, "losses": 1, "championships": 1,
                 "best": "優勝", "years": [2027, 2028]}

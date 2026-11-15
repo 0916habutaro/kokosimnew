@@ -67,6 +67,14 @@ class ActualHistoryTests(unittest.TestCase):
         self.assertEqual(2023, _champion_uncertain_until(2023, set(), {}, "FAKE-A"))
         self.assertEqual((0, set(), None), actual_history(None, "summer"))
 
+    def test_years_more_than_count_are_not_trusted(self):
+        # 年ごとの出場（2002・2004）と最終出場年（2005）が合わず、回数2に対して年が3つ
+        conflict = {"appearances": 2, "entrant_years": [2002, 2004], "last_year": 2005}
+        count, years, until = actual_history(conflict, "summer")
+        self.assertEqual((2, {2002, 2004, 2005}, 2025), (count, years, until))
+        # 実際の記録の年からは連続・ぶりを言わない
+        self.assertEqual("3回目", nth_label(count, years, 2026, uncertain_until=until))
+
 
 class EntryLabelTests(unittest.TestCase):
     """実際の記録とゲームの中の出場を、表示のときに足す（甲子園）。ほかの大会はゲームの中だけ。"""

@@ -65,12 +65,16 @@ def load_actual(path: str | Path) -> dict[str, dict[str, dict]]:
 
 def _merge_years(record: dict) -> None:
     """画面の「出場した年」：年ごとの出場・通算の出場年・最終出場年を合わせて ``years`` にし、
-    通算の回数に足りない分を ``unknown_years``（年の分からない回数）に持つ。"""
+    通算の回数に足りない分を ``unknown_years``（年の分からない回数）に持つ。
+
+    年の数が回数より多い学校は資料どうしが合っていない（どの年が違うか分からない）ので、
+    ``years_conflict`` を付け、年を確定した出場として扱わない。"""
     years = set(record.get("entrant_years") or ()) | set(record.get("years") or ())
     if record.get("last_year"):
         years.add(int(record["last_year"]))
     record["years"] = sorted(years)
     record["unknown_years"] = max(0, record["appearances"] - len(years))
+    record["years_conflict"] = len(years) > record["appearances"]
 
 
 def _add_entrant_counts(out: dict, path: Path) -> None:
@@ -168,7 +172,9 @@ def actual_history(actual: dict | None, kind: str, *, champion: bool = False):
     合わせたもの。年の数が回数より少ない学校は年が欠けている。出場の欠けは最終出場年より前
     だけ（最終出場年は前回の出場そのもの）なので、前回からの「ぶり」は言える。優勝の欠けは
     ``champion_uncertain_until``（``_champion_uncertain_until``）まで。最終出場年がなければ
-    実際の記録の期間（〜``ACTUAL_UNTIL``）すべて。"""
+    実際の記録の期間（〜``ACTUAL_UNTIL``）すべて。年の数が回数より多い学校は資料どうしが
+    合っていないので、実際の記録の期間すべてを欠けているかもしれないとする（連続・ぶりを
+    実際の記録の年からは言わない）。"""
     if not actual:
         return 0, set(), None
     last = actual.get("last_year")
@@ -182,7 +188,9 @@ def actual_history(actual: dict | None, kind: str, *, champion: bool = False):
         if last:
             years.add(int(last))
         until = int(last) - 1 if last else None
-    if len(years) >= count:
+    if len(years) > count:
+        return count, years, ACTUAL_UNTIL[kind]
+    if len(years) == count:
         return count, years, None
     return count, years, (ACTUAL_UNTIL[kind] if until is None else until)
 
