@@ -118,10 +118,7 @@ class Best8ScreenTests(unittest.TestCase):
         current.seasons = {2146: SimpleNamespace(year=2146, annual_templates={}, competitions={})}
         current.current_date = date(2146, 4, 1)
         self.data.session = SimpleNamespace(state=current, slot_id='fake')
-        # 閉じた年度の状態（選抜の選考の記録を引く）はこのテストでは残っていない
-        self.data.service = SimpleNamespace(repo=self.repo, _history_archive=lambda slot: self.archive,
-                                            closed_season=lambda *args: None)
-        self.data.session = SimpleNamespace(state=current, slot_id='fake', plan=SimpleNamespace(rng_seed=1))
+        self.data.service = SimpleNamespace(repo=self.repo, _history_archive=lambda slot: self.archive)
         self.data.prefectures = {'01': '架空県'}
         # 回数の文言：ゲームの中の出場と実際の記録（このテストでは空）
         self.data.actual_koshien = {}

@@ -639,8 +639,14 @@ class GameScreenData:
         return sorted(rows, key=lambda row: (row["prefecture_code"], row["name"]))
 
     def _selection_basis(self, year: int, competition_id: str) -> dict[str, str]:
-        """選抜の出場校 → 選ばれた枠（jingu・century）。選考の記録から。"""
-        season = self._season_of(year)
+        """選抜の出場校 → 選ばれた枠（jingu・century）。
+
+        進行中の年度は選考の記録から、閉じた年度は閉じたときに残した小さな索引から
+        引く（年度のスナップショットは戻さない）。"""
+        season = _seasons(self.state).get(year)
+        if season is None:
+            archive = self.service._history_archive(self.session.slot_id)
+            return archive.selection_basis(competition_id, year)
         for entry in getattr(season, "history", None) or ():
             if (
                 entry.get("action") == "select_invitational"

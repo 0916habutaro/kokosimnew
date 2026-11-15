@@ -91,6 +91,11 @@ def entrants_record(season, cid, repo, name=''):
                     routes.setdefault(sid, []).append({
                         'competition_id': resolution.source_competition_id,
                         'prefecture_code': getattr(resolution, 'source_prefecture_code', '')})
+    # 選抜の21世紀枠・神宮枠（選考の記録から。年度を閉じたあとは小さな索引に残す）
+    basis = next((dict(entry.get('selection_basis') or {})
+                  for entry in getattr(season, 'history', None) or ()
+                  if entry.get('action') == 'select_invitational'
+                  and entry.get('competition_id') == cid), {})
     for sid in dict.fromkeys(main.entrant_school_ids):
         days = [m.match_date for m in scheduled.matches.values() if m.stage_code == 'MAIN'
                 and m.status == 'completed' and sid in (m.team1_id, m.team2_id) and m.match_date]
@@ -98,6 +103,8 @@ def entrants_record(season, cid, repo, name=''):
             'prefecture_code': repo.schools.get(sid, {}).get('prefecture_code', ''),
             'entry_type': 'MAIN', 'routes': routes.get(sid, []),
             'finish': _finish(main, sid)[0] if record['status'] == '完了' else ''})
+        if basis.get(sid):
+            record['entrants'][-1]['selection_basis'] = basis[sid]
     return record
 
 

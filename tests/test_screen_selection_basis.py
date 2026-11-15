@@ -48,6 +48,29 @@ class SelectionBasisRecordTests(unittest.TestCase):
         self.assertEqual('神宮枠', best8['FAKE-04'])
         self.assertEqual('', best8['FAKE-08'])
 
+    def test_closed_year_reads_small_index_without_snapshot(self):
+        from phase2_engine.competition_history import best8_record, entrants_record
+
+        main = self.use_season(self.selection({'A': 'century', 'FAKE-04': 'jingu'}))
+        season = self.data.state.seasons[2026]
+        entrants = entrants_record(season, SENBATSU, self.repo)
+        self.assertEqual('century', entrants['entrants'][0]['selection_basis'])
+        # 2026年度を閉じる（閉じたときに書く索引だけを残し、進行中から外す）
+        self.archive.store_closed_season(2026, b'not a snapshot', {},
+            best8_records=[best8_record(season, SENBATSU)], entrant_records=[entrants])
+        self.data.state.seasons = {2027: SimpleNamespace(year=2027, annual_templates={}, competitions={})}
+        # 年度のスナップショットは戻さない
+        self.data.service.closed_season = lambda *args: self.fail('閉じた年度の状態を戻した')
+        filters = {'competition_id': SENBATSU, 'start': 2026, 'end': 2026}
+        rows = self.data.records_entrants(filters)['rows'][0]['entrants']
+        self.assertEqual({'A': '21世紀枠', 'FAKE-04': '神宮枠'},
+                         {e['school_id']: e['basis_label'] for e in rows if e['basis_label']})
+        groups = self.data.records_best8(filters)['rows'][0]['groups']
+        self.assertEqual({'A': '21世紀枠', 'FAKE-04': '神宮枠'},
+                         {s['school_id']: s['basis_label'] for g in groups.values() for s in g
+                          if s['basis_label']})
+        self.assertTrue(main.champion_school_id)
+
     def test_no_labels_without_selection_record(self):
         self.use_season([])
         filters = {'competition_id': SENBATSU, 'start': 2026, 'end': 2026}
