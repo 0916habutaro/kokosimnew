@@ -1794,11 +1794,13 @@ function schoolKoshien(d) {
   const record = (p) => p && p.appearances ? `${p.wins}-${p.losses}${p.draws ? `-${p.draws}` : ""}` : NONE;
   const champs = (p) => p && p.appearances ? String(p.championships || 0) : NONE;
   const best = (p) => esc((p && p.best) || NONE);
-  // 出場した年：一覧がある学校は年を並べ、ない学校は「最近の出場 YYYY年」
+  // 出場した年：分かっている年をすべて並べ、通算の回数に足りない分は「ほか◯回（年不明）」
   const years = (p) => {
     if (!p || !p.appearances) return NONE;
-    if (p.years && p.years.length) return p.years.join("、");
-    return p.last_year ? `最近の出場 ${p.last_year}年` : NONE;
+    const listed = p.years || [];
+    const unknown = p.unknown_years || 0;
+    if (!listed.length) return unknown ? `${unknown}回（年不明）` : NONE;
+    return listed.join("、") + (unknown ? `、ほか${unknown}回（年不明）` : "");
   };
   const block = (label, until, k) => {
     const t = k.total;

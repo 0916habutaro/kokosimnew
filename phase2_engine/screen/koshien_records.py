@@ -57,7 +57,20 @@ def load_actual(path: str | Path) -> dict[str, dict[str, dict]]:
                 "years": years,
             }
     _add_entrant_counts(out, path.parent / ENTRANTS_NAME)
+    for kinds in out.values():
+        for kind, record in kinds.items():
+            _merge_years(record)
     return out
+
+
+def _merge_years(record: dict) -> None:
+    """画面の「出場した年」：年ごとの出場・通算の出場年・最終出場年を合わせて ``years`` にし、
+    通算の回数に足りない分を ``unknown_years``（年の分からない回数）に持つ。"""
+    years = set(record.get("entrant_years") or ()) | set(record.get("years") or ())
+    if record.get("last_year"):
+        years.add(int(record["last_year"]))
+    record["years"] = sorted(years)
+    record["unknown_years"] = max(0, record["appearances"] - len(years))
 
 
 def _add_entrant_counts(out: dict, path: Path) -> None:
