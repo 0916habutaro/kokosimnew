@@ -82,9 +82,13 @@ def home_runs(detail: dict | None) -> list[dict]:
     ]
 
 
-def _charge_runs(highlights, order, allowed, starter, winner, team1, team2, caps):
-    """得点ごとに責任投手を決める。``caps`` の投手（守備から投手に戻る投手）には、降りるたびに
-    その回の失点を最大その数まで回す。数え直した失点が投手の成績と合わなければ None。"""
+def _charge_runs(highlights, order, allowed, starter, winner, team1, team2, caps, *, exact=False):
+    """得点ごとに責任投手を決める。数え直した失点が投手の成績と合わなければ None。
+
+    ``exact`` なら、要点に残した責任投手の並び（前の投手が残した走者の生還。段階F5）を使い、
+    並びのない得点はそのときの投手に付ける。そうでなければ（並びのない古い記録）、降りた投手の
+    走者の失点を「失点の合計 − 数えた失点」で推し量る。``caps`` の投手（守備から投手に戻る投手）
+    には、降りるたびにその回の失点を最大その数まで回す。"""
     left: dict[tuple, int] = {}
     current = dict(starter)
     assigned = {key: 0 for key in allowed}
@@ -110,8 +114,6 @@ def _charge_runs(highlights, order, allowed, starter, winner, team1, team2, caps
                 departed[team].append(current[team])
                 left[old] = caps.get(old, 3)
             current[team] = pitcher
-            # 同じ回に守備から戻った投手は、また今の投手になる（降りた投手の並びから外す。段階F5）
-            departed[team] = [p for p in departed[team] if p != pitcher]
             if (team, pitcher) not in allowed:
                 return None
             continue
@@ -127,7 +129,18 @@ def _charge_runs(highlights, order, allowed, starter, winner, team1, team2, caps
         if half_of.get(defense) != (inning, half):
             departed[defense] = []
             half_of[defense] = (inning, half)
-        for _ in range(scored):
+        listed = item[6] if len(item) > 6 else None
+        if exact and listed is not None and len(listed) != scored:
+            return None
+        for index in range(scored):
+            if exact:
+                charged = (defense, listed[index] if listed else current[defense])
+                if charged not in allowed:
+                    return None
+                assigned[charged] = assigned.get(charged, 0) + 1
+                score[offense] += 1
+                runs.append((offense, dict(score), charged, current[winner]))
+                continue
             charged = None
             for pitcher in departed[defense]:
                 key = (defense, pitcher)
@@ -178,8 +191,10 @@ def pitchers_of_record(detail: dict | None) -> dict | None:
     appearances = Counter((item[3], item[4]) for item in highlights if item[0] == "P")
     returning = sorted(key for key, n in appearances.items()
                        if n > 1 or (order.get(key[0]) and key[1] == order[key[0]][0]))
-    result = None
-    for limits in [{}, *({key: n for key, n in zip(returning, combo)}
+    # 責任投手の並びのある記録はそれを使う。合わなければ（並びのない古い記録で、前の投手の走者が
+    # 生還した試合）、降りた投手の失点を推し量る
+    result = _charge_runs(highlights, order, allowed, starter, winner, team1, team2, {}, exact=True)
+    for limits in [] if result is not None else [{}, *({key: n for key, n in zip(returning, combo)}
                          for combo in product(range(4), repeat=len(returning)) if len(returning) <= 3)]:
         result = _charge_runs(highlights, order, allowed, starter, winner, team1, team2, limits)
         if result is not None:

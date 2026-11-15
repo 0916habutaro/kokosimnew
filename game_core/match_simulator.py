@@ -3009,6 +3009,7 @@ class MatchSimulator:
                             responsible = pitcher_rows[defense_id][runner.responsible_pitcher_id]
                             responsible["runs_allowed"] = int(responsible["runs_allowed"]) + 1
 
+                    charged_runners = [*scored_runners, *baserunning_runners]
                     events.append(
                         MatchEvent(
                             event_no=event_no,
@@ -3049,6 +3050,11 @@ class MatchSimulator:
                                   if steal else ()),
                                 *((('advance', f"{advance}|{pitcher_id if advance == 'wp' else catcher_id}"),)
                                   if advance else ()),
+                                # 生還した走者の責任投手（得点の順。打席の得点・暴投と捕逸・本盗の順）。
+                                # 今の投手と違う走者がいるときだけ（前の投手が残した走者。段階F5）
+                                *((('charged', '|'.join(r.responsible_pitcher_id for r in charged_runners)),)
+                                  if any(r.responsible_pitcher_id != pitcher_id for r in charged_runners)
+                                  else ()),
                             ),
                         )
                     )
