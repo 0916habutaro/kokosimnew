@@ -164,14 +164,41 @@ class DHGameShuffleTests(unittest.TestCase):
         self.assertGreater(returned, 0)
 
 
+class ReturnResponsibilityTests(unittest.TestCase):
+    """同じ回に投手A → B → A（再登板）と代わったときの走者の責任と自責点（9.16(g)(i)）。"""
+
+    def test_runner_put_on_by_the_reliever_is_charged_to_the_reliever(self):
+        from game_core.match_simulator import _EarnedRunTracker, _RunnerResponsibilityTracker
+
+        responsibility, earned = _RunnerResponsibilityTracker(), _EarnedRunTracker()
+        plays = [  # (投手, 打者, 結果, 前の塁, 後の塁, 生還, アウト)
+            ('A', 'X1', 'strikeout', [None, None, None], [None, None, None], [], 1),
+            ('B', 'X2', 'triple', [None, None, None], [None, None, 'X2'], [], 0),
+            ('A', 'X3', 'single', [None, None, 'X2'], ['X3', None, None], ['X2'], 0),
+        ]
+        outs = 0
+        charged = []
+        for no, (pitcher, batter, event, before, after, scored, made) in enumerate(plays, start=1):
+            runners = responsibility.record_play(
+                bases_before=before, bases_after=after, scored_runner_ids=scored, batter_id=batter,
+                pitcher_id=pitcher, event_type=event, plate_appearance_no=no)
+            earned.record_play(bases_before=before, bases_after=after, scored_runners=runners,
+                               batter_id=batter, pitcher_id=pitcher, event_type=event,
+                               plate_appearance_no=no, outs_before=outs, outs_on_play=made)
+            charged += [r.responsible_pitcher_id for r in runners]
+            outs += made
+        self.assertEqual(['B'], charged)
+        self.assertEqual(Counter({'B': 1}), earned.earned_runs())
+
+
 class CoachShufflePolicyTests(unittest.TestCase):
     def test_rate_from_pitcher_shuffle_and_misread_from_pitching_change(self):
         from test_coach_intake import books
 
         book = books(50)[1]
         coach = book.coaches['C-FAKE-A']
-        self.assertEqual((0.17, round(0.4 * 50 / 99, 6)), book.shuffle_policy(coach))
-        for low in (1, 30, 40):
+        self.assertEqual((0.112, round(0.4 * 50 / 99, 6)), book.shuffle_policy(coach))
+        for low in (1, 30, 40, 43):
             self.assertEqual(0.0, book.shuffle_policy(replace(coach, pitcher_shuffle=low))[0])
         self.assertEqual(0.9, book.shuffle_policy(replace(coach, pitcher_shuffle=100))[0])
         self.assertEqual(0.0, book.shuffle_policy(replace(coach, pitching_change=100))[1])

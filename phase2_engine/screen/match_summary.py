@@ -110,6 +110,8 @@ def _charge_runs(highlights, order, allowed, starter, winner, team1, team2, caps
                 departed[team].append(current[team])
                 left[old] = caps.get(old, 3)
             current[team] = pitcher
+            # 同じ回に守備から戻った投手は、また今の投手になる（降りた投手の並びから外す。段階F5）
+            departed[team] = [p for p in departed[team] if p != pitcher]
             if (team, pitcher) not in allowed:
                 return None
             continue

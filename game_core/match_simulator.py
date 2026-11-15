@@ -76,6 +76,15 @@ class _RunnerResponsibility:
     reached_on_error: bool = False
     tiebreak_placed: bool = False
     plate_appearance_no: int | None = None
+    # その回の登板区間の番号（投手が代わるたびに増える。守備から戻った投手は新しい区間。段階F5）
+    stint: int = 0
+
+
+def _next_stint(stints: list, pitcher_id: str) -> int:
+    """その回の登板区間 [(投手ID, 番号)...] を進め、``pitcher_id`` の今の区間の番号を返す。"""
+    if not stints or stints[-1][0] != pitcher_id:
+        stints.append((pitcher_id, len(stints)))
+    return stints[-1][1]
 
 
 class _DeferredEventRandom:
@@ -100,7 +109,8 @@ class _RunnerResponsibilityTracker:
 
     def __init__(self) -> None:
         self._active: dict[str, _RunnerResponsibility] = {}
-        self._pitcher_order: dict[str, int] = {}
+        # 登板区間の並び。同じ回に守備から投手に戻った投手は、新しい区間として後ろに並ぶ（9.16(g)）
+        self._stints: list[tuple[str, int]] = []
 
     def substitute_runner(self, outgoing: str, incoming: str) -> None:
         if outgoing not in self._active or incoming in self._active:
@@ -128,10 +138,10 @@ class _RunnerResponsibilityTracker:
                 player_id=player_id,
                 responsible_pitcher_id=pitcher_id,
                 tiebreak_placed=True,
+                stint=_next_stint(self._stints, pitcher_id),
             )
             for player_id in runners
         }
-        self._pitcher_order.setdefault(pitcher_id, len(self._pitcher_order))
 
     def record_play(
         self,
@@ -164,8 +174,8 @@ class _RunnerResponsibilityTracker:
             responsible_pitcher_id=pitcher_id,
             reached_on_error=event_type == "reached_on_error",
             plate_appearance_no=plate_appearance_no,
+            stint=_next_stint(self._stints, pitcher_id),
         )
-        self._pitcher_order.setdefault(pitcher_id, len(self._pitcher_order))
         if event_type == "fielder_choice":
             removed = set(before) - set(after) - set(scored_runner_ids)
             if len(removed) == 1 and batter_id in after:
@@ -190,7 +200,7 @@ class _RunnerResponsibilityTracker:
             return ()
         scoring = set(scored_runner_ids)
         ordered = sorted(origins, key=lambda pid: (
-            self._pitcher_order[origins[pid].responsible_pitcher_id],
+            origins[pid].stint,
             pid not in scoring, pid,
         ))
         selected = set(ordered[:len(scored_runner_ids)])
@@ -350,6 +360,8 @@ class _EarnedRunTracker:
         self._team: _ErrorFreeInning | None = None
         self._runs: list[tuple[_RunnerKey, _RunnerResponsibility]] = []
         self._unearned: set[_RunnerKey] = set()
+        # 失策のない再構成は登板区間ごと（守備から戻った投手は、戻ったときの塁・アウトから。9.16(i)）
+        self._stints: list[tuple[str, int]] = []
 
     def substitute_runner(self, outgoing: str, incoming: str) -> None:
         if outgoing not in self._active or incoming in self._active:
@@ -371,8 +383,9 @@ class _EarnedRunTracker:
         scored = {keys[runner.player_id] for runner in scored_runners}
         if self._team is None:
             self._team = _ErrorFreeInning(0, before)
-        if pitcher_id not in self._views:
-            self._views[pitcher_id] = _ErrorFreeInning(outs_before, before)
+        stint = _next_stint(self._stints, pitcher_id)
+        if stint not in self._views:
+            self._views[stint] = _ErrorFreeInning(outs_before, before)
         if event_type == "reached_on_error":
             self._unearned.add(batter)
         for view in (self._team, *self._views.values()):
@@ -392,7 +405,7 @@ class _EarnedRunTracker:
             runner.responsible_pitcher_id for key, runner in self._runs
             if key not in self._unearned
             and not (runner.reached_on_error or runner.tiebreak_placed)
-            and key in self._views[runner.responsible_pitcher_id].scored
+            and key in self._views[runner.stint].scored
         )
 
     @property
