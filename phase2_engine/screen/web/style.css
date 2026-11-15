@@ -379,6 +379,9 @@ details.coach-references[open] summary { margin-bottom: 8px; }
 .bracket-side .side-close { float: right; }
 .bracket-hint { font-size: 12px; margin-right: 10px; }
 .seed { fill: #8a6d1f; font-size: 10px; font-weight: 700; }
+/* 選抜の21世紀枠・神宮枠の札（.basis と同じ色） */
+.basis-mark rect { fill: #7a3cc2; }
+.basis-mark text { fill: #fff; font-size: 10px; pointer-events: none; }
 /* 右の欄の得点板：欄の幅に収める。校名は省略、回は詰める。延長で入らないときは
    得点板の中だけ横に動き、校名（左）と計・安・失（右）は端に留める */
 .bracket-side .board { padding: 8px 6px; }
@@ -475,3 +478,7 @@ table.list.rankings td.strong { font-weight: 700; color: var(--text); }
 .rank-key { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; margin-right: 8px; white-space: nowrap; }
 .rank-key i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
 label.toggle.off { opacity: .45; }
+/* 記録・学校の画面の行の中の札（校名の横） */
+.basis.inline { display: inline-block; margin: 0 4px; line-height: 1.45; vertical-align: 1px; }
+.entrant .basis.inline { margin: 0; }
+.b8-slot .b8-notes .basis.inline { margin: 0 6px 0 0; font-size: 10px; line-height: 14px; vertical-align: 0; }

@@ -413,6 +413,11 @@ function countTag(label) {
   return label ? `<small class="count${/初(出場|優勝)$/.test(label) ? " first" : ""}">${esc(label)}</small>` : "";
 }
 
+// 選抜の21世紀枠・神宮枠の札（出場校一覧と同じ形）
+function basisTag(label) {
+  return label ? `<span class="basis inline">${esc(label)}</span>` : "";
+}
+
 // 年度の見出し：「2027年度」と回数・状態の札。正式名と日付はマウスを当てたときに出す
 function recordYearHead(r, data) {
   const name = r.competition_name || data.competition_name;
@@ -431,7 +436,7 @@ function entrantsTable(data) {
     const routes = e.routes.map(routeName).join("・");
     const pref = withPref ? `<small class="muted">${esc(prefName(data, e.prefecture_code))}</small>` : "";
     const tip = [e.champion_label, routes ? `進出元：${routes}` : ""].filter(Boolean).join("\n");
-    return `<span class="entrant"${tip ? ` title="${esc(tip)}"` : ""}><button class="link" data-school="${esc(e.school_id)}">${esc(e.name)}</button>${pref}${finishBadge(e.finish)}${countTag(e.count_label)}</span>`;
+    return `<span class="entrant"${tip ? ` title="${esc(tip)}"` : ""}><button class="link" data-school="${esc(e.school_id)}">${esc(e.name)}</button>${basisTag(e.basis_label)}${pref}${finishBadge(e.finish)}${countTag(e.count_label)}</span>`;
   };
   if (!data.matrix) {
     return `<table class="list zebra entrants-years"><thead><tr><th>年度</th><th>出場校</th></tr></thead><tbody>${data.rows.map((r) =>
@@ -474,9 +479,9 @@ function best8Table(data) {
   const school = (s) => {
     // 3位決定戦をした大会は、ベスト4の2校に「3位」「4位」
     const notes = [s.place, showPref && s.prefecture ? s.prefecture.replace(/[都府県]$/, "") : "", s.best8_label].filter(Boolean);
-    const tip = [s.name, ...notes, s.champion_label].filter(Boolean).join("\n");
+    const tip = [s.name, s.basis_label, ...notes, s.champion_label].filter(Boolean).join("\n");
     return `<div class="b8-slot" title="${esc(tip)}"><button class="link b8-name" data-school="${esc(s.school_id)}">${esc(s.name)}</button>
-      <small class="b8-notes">${notes.map((n) => `<span class="muted">${esc(n)}</span>`).join("")}</small>
+      <small class="b8-notes">${basisTag(s.basis_label)}${notes.map((n) => `<span class="muted">${esc(n)}</span>`).join("")}</small>
       ${s.champion_label ? `<small class="b8-champion">${countTag(s.champion_label)}</small>` : ""}</div>`;
   };
   const cell = (schools, n) => `<div class="b8-slots" style="--slots:${n}">${Array.from({ length: n }, (_, i) =>
@@ -879,7 +884,7 @@ async function renderRecords(content) {
   if (!data) return;
   state.recordsYear = data.school_year;
   refreshLocation();
-  const school = (e) => `<span class="link" data-school="${esc(e.school_id)}">${esc(e.name)}</span><span class="muted">（${esc(e.prefecture)}）</span>`
+  const school = (e) => `<span class="link" data-school="${esc(e.school_id)}">${esc(e.name)}</span><span class="muted">（${esc(e.prefecture)}）</span>${basisTag(e.basis_label)}`
     + (e.championship_count ? `<span class="muted">　${e.championship_count.total}回目の優勝${breakdown(e.championship_count)}</span>` : "");
   // 「12回目」と内訳（実際の記録＋ゲーム内）
   const breakdown = (c) => c.actual ? `（実際${c.actual}＋ゲーム${c.game}）` : "";
@@ -892,7 +897,7 @@ async function renderRecords(content) {
     <td>${r.school_id ? `<span class="link" data-school="${esc(r.school_id)}">${esc(r.name)}</span>` : '<span class="muted">未定</span>'}</td>
     <td>${nth(r.appearance)}</td>
     <td>${finishBadge(r.koshien)}</td></tr>`).join("");
-  const senbatsu = data.senbatsu.map((r) => `<tr><td>${esc(r.prefecture)}</td><td><span class="link" data-school="${esc(r.school_id)}">${esc(r.name)}</span></td><td>${nth(r.appearance)}</td><td>${finishBadge(r.finish)}</td></tr>`).join("");
+  const senbatsu = data.senbatsu.map((r) => `<tr><td>${esc(r.prefecture)}</td><td><span class="link" data-school="${esc(r.school_id)}">${esc(r.name)}</span>${basisTag(r.basis_label)}</td><td>${nth(r.appearance)}</td><td>${finishBadge(r.finish)}</td></tr>`).join("");
   content.innerHTML = `<div class="head"><h2>記録</h2>${recordsTabs()}
       <select id="r-year">${data.years.map((y) => `<option value="${y}" ${y === data.school_year ? "selected" : ""}>${y}年度</option>`).join("")}</select></div>
     <div class="scroll">
@@ -1085,20 +1090,22 @@ function drawPaper() {
   } else {
     const row = document.createElement("div");
     row.className = "paper-row";
-    row.append(bracketSvg(main, name));
+    row.append(bracketSvg(main, name, data.basis_labels || {}));
     if ((main.later_rounds || []).length) row.append(laterRounds(main.later_rounds, name));
     // 3位決定戦は組み合わせの線の外に、別の枠で出す
     if (main.third_place) row.append(laterRounds([main.third_place], name));
     paper.append(row);
   }
   wrap.replaceChildren(paper);
+  placeBasisTags(paper);
   if (data.other_matches.length) wrap.append(otherMatches(data.other_matches, name));
 }
 
-function bracketSvg(main, name) {
+function bracketSvg(main, name, basis = {}) {
   const svg = svgEl("svg");
   // 校名の欄は、いちばん長い校名（都道府県つきを含む）に合わせる
-  const longest = Math.max(0, ...main.rows.map((row) => name(row.school_id).length + (row.seed ? 1 : 0)));
+  const longest = Math.max(0, ...main.rows.map((row) => name(row.school_id).length + (row.seed ? 1 : 0)
+    + (basis[row.school_id] ? basis[row.school_id].length + 1 : 0)));
   const nameW = Math.max(NAME_W, Math.min(300, longest * 13 + 16));
   const X = (round) => nameW + round * COL_W;
   const Y = (y) => 26 + y * ROW + ROW / 2;
@@ -1122,6 +1129,8 @@ function bracketSvg(main, name) {
     });
     // シードの学校は校名の前に小さく番号（第1シード＝①）
     if (row.seed) text.append(svgEl("tspan", { class: "seed" }, seedMark(row.seed) + " "));
+    // 選抜の21世紀枠・神宮枠は校名の前に札（描いたあとに placeBasisTags で置く）
+    if (basis[row.school_id]) text.dataset.basis = basis[row.school_id];
     text.append(document.createTextNode(name(row.school_id)));
     text.addEventListener("click", () => trace(row.school_id));
     texts.append(text);
@@ -1152,6 +1161,21 @@ function bracketSvg(main, name) {
     texts.append(svgEl("text", { x: xf + 34, y: yf + 5, class: "tname champion" }, name(champion)));
   }
   return svg;
+}
+
+// トーナメント表の校名の前に、選抜の21世紀枠・神宮枠の札（出場校一覧の札と同じ色・形）。
+// 校名の幅は描いたあとでないと分からないので、画面に置いてから校名の左に並べる
+function placeBasisTags(root) {
+  root.querySelectorAll("svg text[data-basis]").forEach((text) => {
+    const box = text.getBBox();
+    const label = text.dataset.basis;
+    const w = label.length * 10 + 8, h = 14;
+    const x = box.x - w - 4, y = box.y + (box.height - h) / 2;
+    const g = svgEl("g", { class: "basis-mark" });
+    g.append(svgEl("rect", { x, y, width: w, height: h, rx: 3 }));
+    g.append(svgEl("text", { x: x + w / 2, y: y + h - 3.5, "text-anchor": "middle" }, label));
+    text.before(g);
+  });
 }
 
 // シードの番号の丸数字（①〜㊿。それより大きい番号はそのまま）
@@ -1838,7 +1862,7 @@ function schoolKoshien(d) {
       </table>
       ${k.entries.length ? `<h4>ゲームの中の出場</h4><table class="list zebra koshien-entries"><thead><tr><th>年</th><th>回数（実際の記録＋ゲーム）</th><th>成績</th></tr></thead><tbody>
         ${k.entries.map((e) => `<tr><td class="num"><button class="link" data-koshien-year="${e.school_year}" data-koshien-cid="${esc(e.competition_id)}">${e.year}年</button></td>
-          <td>${countTag(e.label)}${e.champion_label ? ` ${countTag(e.champion_label)}` : ""}</td><td>${finishBadge(e.finish)}</td></tr>`).join("")}</tbody></table>` : ""}</div>`;
+          <td>${basisTag(e.basis_label)}${countTag(e.label)}${e.champion_label ? ` ${countTag(e.champion_label)}` : ""}</td><td>${finishBadge(e.finish)}</td></tr>`).join("")}</tbody></table>` : ""}</div>`;
   };
   return block("夏の甲子園", "2025年", d.koshien.summer) + block("春の選抜", "2026年", d.koshien.spring);
 }
