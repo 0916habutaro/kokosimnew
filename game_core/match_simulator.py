@@ -3009,7 +3009,11 @@ class MatchSimulator:
                             responsible = pitcher_rows[defense_id][runner.responsible_pitcher_id]
                             responsible["runs_allowed"] = int(responsible["runs_allowed"]) + 1
 
-                    charged_runners = [*scored_runners, *baserunning_runners]
+                    # 本塁を踏む順（打席の前に先の塁にいた走者から、打者は最後）に並べる
+                    crossing = {pid: (-bases_before.index(pid) if pid in bases_before else 1)
+                                for pid in (r.player_id for r in scored_runners)}
+                    charged_runners = [*sorted(scored_runners, key=lambda r: crossing[r.player_id]),
+                                       *baserunning_runners]
                     events.append(
                         MatchEvent(
                             event_no=event_no,

@@ -191,6 +191,51 @@ class ReturnResponsibilityTests(unittest.TestCase):
         self.assertEqual(Counter({'B': 1}), earned.earned_runs())
 
 
+class ReturnDecisionThroughAGameTests(unittest.TestCase):
+    """生成した試合から勝敗判定まで：A が二塁打 → B が四球 → A が再登板して三塁打 → 2対0。"""
+
+    def test_runner_left_by_the_returning_pitcher_decides_the_loss(self):
+        from unittest.mock import patch
+
+        generator = TeamStrengthGenerator()
+        teams = []
+        for sid in ('FAKE-A', 'FAKE-B'):
+            players = tuple(replace(p, player_id=f'{sid}-{p.player_id}')
+                            for p in make_roster_abilities(school_id=sid, seed=SEED))
+            teams.append(TeamMatchInput(sid, generator.generate(players), players))
+        defense = teams[1]
+        lineup = defense.team_strength.starting_lineup
+        ace, right = lineup.player_for_position('P'), lineup.player_for_position('RF')
+        reliever = next(e.player_id for e in defense.team_strength.pitching_staff.entries
+                        if e.player_id not in lineup.starter_ids)
+        slot = next(e.batting_order for e in lineup.entries if e.player_id == right)
+        changes = (
+            # 2人目の前に A を右翼へ、B が投手（右翼手の打順）。3人目の前に A が投手に戻る
+            LineupAdjustment(2, 'FAKE-B', batting_changes=((slot, reliever),),
+                             defensive_changes=(('P', reliever), ('RF', ace))),
+            LineupAdjustment(3, 'FAKE-B', defensive_changes=(('P', ace), ('RF', reliever))),
+        )
+        script = iter(['double', 'walk', 'triple'])
+        sim = MatchSimulator()
+        match = MatchSimulationInput('MATCH-RETURN', 'FAKE-CUP', 2026, SEED, *teams)
+        with patch.object(MatchSimulator, '_weighted_choice',
+                          staticmethod(lambda rng, weights: next(script, 'strikeout'))), \
+                patch.object(MatchSimulator, '_field_ball', lambda self, e, **k: (e, None)), \
+                patch.object(MatchSimulator, '_choose_tactic', return_value=None), \
+                patch.object(MatchSimulator, '_wild_pitch_or_passed_ball', return_value=None), \
+                patch.object(MatchSimulator, '_attempt_steal', return_value=None):
+            result = sim.simulate(match, lineup_changes=changes)
+        validate_match_simulation_result(result, match)
+        self.assertEqual((2, 0), (result.team1_score, result.team2_score))
+        runs = {r.player_id: r.runs_allowed for r in result.pitcher_stats if r.school_id == 'FAKE-B'}
+        self.assertEqual(1, runs[ace])
+        self.assertEqual(1, runs[reliever])
+        detail = result.to_dict()
+        detail['highlights'] = game_highlights(result.events)
+        # 先に本塁を踏んだのは A の走者（二塁走者）。決勝点なので敗戦は A
+        self.assertEqual(('FAKE-B', ace), pitchers_of_record(detail)['loss'])
+
+
 class CoachShufflePolicyTests(unittest.TestCase):
     def test_rate_from_pitcher_shuffle_and_misread_from_pitching_change(self):
         from test_coach_intake import books
