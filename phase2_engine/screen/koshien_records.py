@@ -87,12 +87,20 @@ def _add_entrant_counts(out: dict, path: Path) -> None:
             if row["school_id"] and row["kind"] in KINDS and row["status"] != "withdrawn":
                 years.setdefault((row["school_id"], row["kind"]), set()).add(int(row["year"]))
     champions: dict[tuple[str, str], set[int]] = {}
+    # 成績が分かっている年（学校ごと）と、優勝校が分かっている年（大会ごと、学校→年）
+    known: dict[tuple[str, str], set[int]] = {}
+    winners: dict[str, dict[int, str]] = {}
     appearances = path.parent / APPEARANCES_NAME
     if appearances.is_file():
         with appearances.open(encoding="utf-8-sig", newline="") as handle:
             for row in csv.DictReader(handle):
-                if row["school_id"] and row["kind"] in KINDS and row["result"] == "優勝":
-                    champions.setdefault((row["school_id"], row["kind"]), set()).add(int(row["year"]))
+                if not row["school_id"] or row["kind"] not in KINDS:
+                    continue
+                key, year = (row["school_id"], row["kind"]), int(row["year"])
+                known.setdefault(key, set()).add(year)
+                if row["result"] == "優勝":
+                    champions.setdefault(key, set()).add(year)
+                    winners.setdefault(row["kind"], {})[year] = row["school_id"]
     for (school_id, kind), listed in years.items():
         if kind in out.get(school_id, {}):
             out[school_id][kind]["entrant_years"] = sorted(listed)
@@ -105,6 +113,25 @@ def _add_entrant_counts(out: dict, path: Path) -> None:
     for (school_id, kind), listed in champions.items():
         if kind in out.get(school_id, {}):
             out[school_id][kind]["champion_years"] = sorted(listed)
+    for school_id, kinds in out.items():
+        for kind, record in kinds.items():
+            if record.get("last_year"):
+                record["champion_uncertain_until"] = _champion_uncertain_until(
+                    record["last_year"], known.get((school_id, kind), set()),
+                    winners.get(kind, {}), school_id,
+                )
+
+
+def _champion_uncertain_until(last_year: int, known: set[int], winners: dict[int, str],
+                              school_id: str) -> int:
+    """優勝の年が欠けているかもしれない最後の年。
+
+    欠けている優勝は最終出場年までのどこか。最終出場年からさかのぼり、その学校の成績が
+    分かっている年と、ほかの学校の優勝が分かっている年は飛ばす。"""
+    year = last_year
+    while year in known or winners.get(year, school_id) != school_id:
+        year -= 1
+    return year
 
 
 def combined(actual: dict | None, game: dict) -> dict:
@@ -138,19 +165,26 @@ def actual_history(actual: dict | None, kind: str, *, champion: bool = False):
     """実際の記録の（回数, 年, 年が欠けているかもしれない最後の年）。
 
     回数は通算（koshien_records.csv）。年は年ごとの出場・優勝と通算の出場年・最終出場年を
-    合わせたもの。年の数が回数より少ない学校は、実際の記録の期間（〜``ACTUAL_UNTIL``）の年が
-    欠けているので、そこにかかる「連続」「ぶり」は言わない。"""
+    合わせたもの。年の数が回数より少ない学校は年が欠けている。出場の欠けは最終出場年より前
+    だけ（最終出場年は前回の出場そのもの）なので、前回からの「ぶり」は言える。優勝の欠けは
+    ``champion_uncertain_until``（``_champion_uncertain_until``）まで。最終出場年がなければ
+    実際の記録の期間（〜``ACTUAL_UNTIL``）すべて。"""
     if not actual:
         return 0, set(), None
+    last = actual.get("last_year")
     if champion:
         count = actual.get("championships", 0)
         years = set(actual.get("champion_years") or ())
+        until = actual.get("champion_uncertain_until")
     else:
         count = actual.get("appearances", 0)
         years = set(actual.get("entrant_years") or ()) | set(actual.get("years") or ())
-        if actual.get("last_year"):
-            years.add(int(actual["last_year"]))
-    return count, years, (ACTUAL_UNTIL[kind] if len(years) < count else None)
+        if last:
+            years.add(int(last))
+        until = int(last) - 1 if last else None
+    if len(years) >= count:
+        return count, years, None
+    return count, years, (ACTUAL_UNTIL[kind] if until is None else until)
 
 
 def nth_label(count_before: int, past_years, this_year: int, *, uncertain_until: int | None = None,
@@ -159,8 +193,9 @@ def nth_label(count_before: int, past_years, this_year: int, *, uncertain_until:
     優勝は「初優勝」「2年ぶり5回目の優勝」。
 
     ``count_before`` はこの年より前の回数、``past_years`` は分かっている年。
-    ``uncertain_until`` までの年は欠けているかもしれないので、そこにかかる連続・ぶりは言わず
-    「15回目」だけにする。``game_only`` はゲームの中の回数だけの大会（「ゲームで3回目」）。"""
+    ``uncertain_until`` までの年は欠けているかもしれないので、さかのぼった連続がそこに届くとき、
+    前回の年がそこに入るときは連続・ぶりを言わず「15回目」だけにする。``game_only`` は
+    ゲームの中の回数だけの大会（「ゲームで3回目」）。"""
     prefix = "ゲームで" if game_only else ""
     suffix = "の優勝" if champion else ""
     total = count_before + 1
@@ -174,7 +209,7 @@ def nth_label(count_before: int, past_years, this_year: int, *, uncertain_until:
         while this_year - streak - 1 in years:
             streak += 1
         # 連続が欠けているかもしれない年に届くと、もっと長いかもしれない
-        if not certain(this_year - streak - 1):
+        if not certain(this_year - streak):
             return plain
         return f"{prefix}{streak + 1}年連続{total}回目{suffix}"
     if not years or not certain(max(years)) or not certain(this_year - 1):
