@@ -904,10 +904,10 @@ summer,1948,30,04,石巻,SCH001864,played,HS0291
 summer,1948,30,10,前橋,SCH002950,played,HS0291
 summer,1948,30,12,成田,SCH001033,played,HS0291
 summer,1948,30,13,慶応,,played,HS0291
-summer,1948,30,14,浅野学園,,played,HS0291
+summer,1948,30,14,浅野学園,SCH003252,played,HS0291
 summer,1948,30,17,金沢一,SCH001733,played,HS0291
 summer,1948,30,20,穂高農,SCH001710,played,HS0291
-summer,1948,30,21,岐阜一,,played,HS0291
+summer,1948,30,21,岐阜一,SCH000229,played,HS0291
 summer,1948,30,22,静岡一,SCH002503,played,HS0291
 summer,1948,30,23,享栄商,SCH001427,played,HS0291
 summer,1948,30,26,西京商,SCH001344,played,HS0291
@@ -955,7 +955,7 @@ summer,1949,31,28,芦屋,SCH003465,played,HS0482
 summer,1949,31,30,海南,SCH001186,played,HS0482
 summer,1949,31,33,倉敷工,SCH001110,played,HS0482
 summer,1949,31,35,柳井,SCH002620,played,HS0482
-summer,1949,31,36,城東,,played,HS0482
+summer,1949,31,36,城東,SCH001145,played,HS0482
 summer,1949,31,37,高松一,SCH002326,played,HS0482
 summer,1949,31,40,小倉北,,played,HS0482
 summer,1949,31,42,長崎東,SCH002674,played,HS0482
@@ -995,7 +995,7 @@ summer,1950,32,30,新宮,SCH001204,played,HS0482
 summer,1950,32,31,米子東,SCH000310,played,HS0482
 summer,1950,32,34,呉阿賀,,played,HS0482
 summer,1950,32,36,鳴門,SCH001152,played,HS0482
-summer,1950,32,38,松山東,,played,HS0482
+summer,1950,32,38,松山東,SCH001238,played,HS0482
 summer,1950,32,40,小倉,,played,HS0482
 summer,1950,32,43,済々黌,SCH002213,played,HS0482
 summer,1950,32,44,別府一,,played,HS0482
@@ -1005,7 +1005,7 @@ spring,1951,23,14,湘南,SCH003336,played,HS0481
 spring,1951,23,21,長良,SCH000230,played,HS0481
 spring,1951,23,22,静岡城内,SCH002503,played,HS0481
 spring,1951,23,23,中京商,SCH001430,played,HS0481
-spring,1951,23,25,八幡,,played,HS0481
+spring,1951,23,25,八幡,SCH002432,played,HS0481
 spring,1951,23,26,平安,SCH001354,played,HS0481
 spring,1951,23,27,扇町商,,played,HS0481
 spring,1951,23,28,鳴尾,SCH003547,played,HS0481
@@ -1037,7 +1037,7 @@ summer,1951,33,37,高松一,SCH002326,played,HS0482
 summer,1951,33,39,高知商,SCH003011,played,HS0482
 summer,1951,33,40,小倉,,played,HS0482
 summer,1951,33,42,長崎西,SCH002686,played,HS0482
-summer,1951,33,44,大分城崎,,played,HS0482
+summer,1951,33,44,大分城崎,SCH001287,played,HS0482
 spring,1952,24,01,函館西,,played,HS0481
 spring,1952,24,10,桐生工,SCH002966,played,HS0481
 spring,1952,24,13,日大三,SCH000898,played,HS0481
@@ -1303,7 +1303,7 @@ spring,1958,30,22,清水東,SCH002498,played,HS0299
 spring,1958,30,23,中京商,SCH001430,played,HS0299
 spring,1958,30,26,立命館,SCH001352,played,HS0299
 spring,1958,30,27,興国商,SCH003172,played,HS0299
-spring,1958,30,28,県兵庫工,,played,HS0299
+spring,1958,30,28,県兵庫工,SCH003562,played,HS0299
 spring,1958,30,28,芦屋,SCH003465,played,HS0299
 spring,1958,30,29,御所実,SCH002153,played,HS0299
 spring,1958,30,30,和歌山工,SCH001183,played,HS0299
@@ -1667,7 +1667,7 @@ spring,1964,36,30,海南,SCH001186,played,HS0344
 spring,1964,36,33,倉敷工,SCH001110,played,HS0344
 spring,1964,36,34,尾道商,SCH001812,played,HS0344
 spring,1964,36,35,下関商,SCH002656,played,HS0344
-spring,1964,36,36,徳島海南,,played,HS0344
+spring,1964,36,36,徳島海南,SCH001151,played,HS0344
 spring,1964,36,39,土佐,SCH003031,played,HS0344
 spring,1964,36,39,安芸,SCH003035,played,HS0344
 spring,1964,36,40,博多工,SCH000583,played,HS0344
@@ -1704,7 +1704,7 @@ summer,1964,46,45,宮崎商,SCH002380,played,HS0292
 summer,1964,46,46,玉龍,SCH000431,played,HS0292
 spring,1965,37,01,苫小牧東,SCH003627,played,HS0344
 spring,1965,37,05,秋田,SCH001940,played,HS0344
-spring,1965,37,10,農大二,,played,HS0344
+spring,1965,37,10,農大二,SCH002951,played,HS0344
 spring,1965,37,13,明治,SCH000843,played,HS0344
 spring,1965,37,13,荏原,SCH000671,played,HS0344
 spring,1965,37,20,塚原天竜,SCH001690,played,HS0344
@@ -1838,7 +1838,7 @@ summer,1967,49,01,北海,SCH003660,played,HS0292
 summer,1967,49,01,網走南ヶ丘,SCH003670,played,HS0292
 summer,1967,49,02,東奥義塾,SCH000018,played,HS0292
 summer,1967,49,04,仙台商,SCH001893,played,HS0292
-summer,1967,49,05,本庄,,played,HS0292
+summer,1967,49,05,本庄,SCH001946,played,HS0292
 summer,1967,49,09,鹿沼農商,,played,HS0292
 summer,1967,49,11,大宮,SCH002101,played,HS0292
 summer,1967,49,12,習志野,SCH000940,played,HS0292
@@ -2134,7 +2134,7 @@ spring,1972,44,38,今治西,SCH001223,played,HS0345
 spring,1972,44,39,高知,SCH003016,played,HS0345
 spring,1972,44,39,高知商,SCH003011,played,HS0345
 spring,1972,44,40,戸畑商,SCH000525,played,HS0345
-spring,1972,44,42,諌早,,played,HS0345
+spring,1972,44,42,諌早,SCH002676,played,HS0345
 spring,1972,44,46,鹿児島実,SCH000424,played,HS0345
 spring,1972,44,47,名護,SCH002762,played,HS0345
 summer,1972,54,01,北見工,SCH003671,played,HS0293
@@ -2682,7 +2682,7 @@ spring,1980,52,05,秋田商,SCH001945,played,HS0450
 spring,1980,52,10,東農大二,SCH002951,played,HS0450
 spring,1980,52,11,上尾,SCH002081,played,HS0450
 spring,1980,52,12,八千代松陰,SCH001013,played,HS0450
-spring,1980,52,13,二松学舎,,played,HS0450
+spring,1980,52,13,二松学舎,SCH000759,played,HS0450
 spring,1980,52,13,帝京,SCH000648,played,HS0450
 spring,1980,52,20,東海大三,SCH001696,played,HS0450
 spring,1980,52,22,富士宮北,SCH002494,played,HS0450
@@ -2703,7 +2703,7 @@ spring,1980,52,36,鳴門,SCH001152,played,HS0450
 spring,1980,52,37,丸亀商,SCH002297,played,HS0450
 spring,1980,52,39,高知商,SCH003011,played,HS0450
 spring,1980,52,40,柳川,SCH000627,played,HS0450
-spring,1980,52,42,諌早,,played,HS0450
+spring,1980,52,42,諌早,SCH002676,played,HS0450
 spring,1980,52,43,九州学院,SCH002191,played,HS0450
 spring,1980,52,46,鹿児島商工,SCH000429,played,HS0450
 summer,1980,62,01,旭川大,SCH003708,played,HS0451
@@ -3160,7 +3160,7 @@ spring,1986,58,01,函館有斗,SCH003669,played,HS0452
 spring,1986,58,05,秋田,SCH001940,played,HS0452
 spring,1986,58,06,東海大山形,SCH002233,played,HS0452
 spring,1986,58,09,宇都宮南,SCH000056,played,HS0452
-spring,1986,58,10,関東学園付,,played,HS0452
+spring,1986,58,10,関東学園付,SCH003000,played,HS0452
 spring,1986,58,12,拓大紅陵,SCH001076,played,HS0452
 spring,1986,58,13,帝京,SCH000648,played,HS0452
 spring,1986,58,13,関東一,SCH000654,played,HS0452
@@ -3265,7 +3265,7 @@ spring,1987,59,36,池田,SCH001164,played,HS0452
 spring,1987,59,37,丸亀商,SCH002297,played,HS0452
 spring,1987,59,38,松山北,SCH001235,played,HS0452
 spring,1987,59,39,明徳義塾,SCH003025,played,HS0452
-spring,1987,59,40,西日本短付,,played,HS0452
+spring,1987,59,40,西日本短付,SCH000622,played,HS0452
 spring,1987,59,42,海星,SCH002669,played,HS0452
 spring,1987,59,43,熊本工,SCH002161,played,HS0452
 spring,1987,59,45,日向学院,SCH002390,played,HS0452
@@ -3410,7 +3410,7 @@ spring,1989,61,09,宇都宮工,SCH000061,played,HS0454
 spring,1989,61,12,市立柏,SCH000978,played,HS0454
 spring,1989,61,13,帝京,SCH000648,played,HS0454
 spring,1989,61,14,横浜商,SCH003241,played,HS0454
-spring,1989,61,14,横浜商大高,,played,HS0454
+spring,1989,61,14,横浜商大高,SCH003235,played,HS0454
 spring,1989,61,18,北陸,SCH002263,played,HS0454
 spring,1989,61,18,福井商,SCH002289,played,HS0454
 spring,1989,61,21,県岐阜商,SCH000232,played,HS0454
@@ -3712,7 +3712,7 @@ summer,1992,74,31,倉吉北,SCH000309,played,HS0455
 summer,1992,74,32,大社,SCH000339,played,HS0455
 summer,1992,74,33,倉敷商,SCH001109,played,HS0455
 summer,1992,74,34,広島工,SCH001817,played,HS0455
-summer,1992,74,35,山口鴻城,,played,HS0455
+summer,1992,74,35,山口鴻城,SCH002635,played,HS0455
 summer,1992,74,36,池田,SCH001164,played,HS0455
 summer,1992,74,37,尽誠学園,SCH002293,played,HS0455
 summer,1992,74,38,西条,SCH001215,played,HS0455
@@ -3974,7 +3974,7 @@ spring,1996,68,01,駒大岩見沢,,played,HS0456
 spring,1996,68,03,釜石南,SCH002799,played,HS0456
 spring,1996,68,05,秋田,SCH001940,played,HS0456
 spring,1996,68,09,宇都宮工,SCH000061,played,HS0456
-spring,1996,68,10,太田市商,,played,HS0456
+spring,1996,68,10,太田市商,SCH002961,played,HS0456
 spring,1996,68,11,浦和学院,SCH001969,played,HS0456
 spring,1996,68,12,拓大紅陵,SCH001076,played,HS0456
 spring,1996,68,13,国士舘,SCH000730,played,HS0456
@@ -3986,7 +3986,7 @@ spring,1996,68,22,浜松工,SCH002553,played,HS0456
 spring,1996,68,23,東邦,SCH001432,played,HS0456
 spring,1996,68,24,津田学園,SCH000362,played,HS0456
 spring,1996,68,25,比叡山,SCH002442,played,HS0456
-spring,1996,68,27,大阪学院大高,,played,HS0456
+spring,1996,68,27,大阪学院大高,SCH003153,played,HS0456
 spring,1996,68,27,東海大仰星,SCH003183,played,HS0456
 spring,1996,68,28,姫路工,SCH003405,played,HS0456
 spring,1996,68,28,滝川第二,SCH003554,played,HS0456
@@ -4072,7 +4072,7 @@ spring,1997,69,28,報徳学園,SCH003517,played,HS0456
 spring,1997,69,28,育英,SCH003518,played,HS0456
 spring,1997,69,29,天理,SCH002129,played,HS0456
 spring,1997,69,29,郡山,SCH002146,played,HS0456
-spring,1997,69,30,日高・中津分校,,played,HS0456
+spring,1997,69,30,日高・中津分校,SCH001193,played,HS0456
 spring,1997,69,33,岡山南,SCH001086,played,HS0456
 spring,1997,69,35,西京,SCH002642,played,HS0456
 spring,1997,69,35,豊浦,SCH002646,played,HS0456
@@ -4485,7 +4485,7 @@ spring,2002,74,23,愛工大名電,SCH001440,played,HS0150
 spring,2002,74,24,津田学園,SCH000362,played,HS0150
 spring,2002,74,26,平安,SCH001354,played,HS0150
 spring,2002,74,27,大体大浪商,SCH003161,played,HS0150
-spring,2002,74,27,金光第一,,played,HS0150
+spring,2002,74,27,金光第一,SCH003173,played,HS0150
 spring,2002,74,28,三木,SCH003450,played,HS0150
 spring,2002,74,28,報徳学園,SCH003517,played,HS0150
 spring,2002,74,30,智弁和歌山,SCH001185,played,HS0150
@@ -4510,7 +4510,7 @@ summer,2002,84,06,酒田南,SCH002261,played,HS0457
 summer,2002,84,07,日大東北,SCH001594,played,HS0457
 summer,2002,84,08,常総学院,SCH002893,played,HS0457
 summer,2002,84,09,小山西,SCH000084,played,HS0457
-summer,2002,84,10,桐生商,,played,HS0457
+summer,2002,84,10,桐生商,SCH002964,played,HS0457
 summer,2002,84,11,浦和学院,SCH001969,played,HS0457
 summer,2002,84,12,拓大紅陵,SCH001076,played,HS0457
 summer,2002,84,13,帝京,SCH000648,played,HS0457
@@ -4904,7 +4904,7 @@ spring,2007,79,39,室戸,SCH003019,played,HS0458
 spring,2007,79,39,高知,SCH003016,played,HS0458
 spring,2007,79,40,大牟田,SCH000630,played,HS0458
 spring,2007,79,41,小城,SCH002345,played,HS0458
-spring,2007,79,43,熊本工業,,played,HS0458
+spring,2007,79,43,熊本工業,SCH002161,played,HS0458
 spring,2007,79,45,都城泉ケ丘,SCH002401,played,HS0458
 spring,2007,79,46,鹿児島商,SCH000430,played,HS0458
 summer,2007,89,01,駒大岩見沢,,played,HS0459
@@ -5409,7 +5409,7 @@ spring,2013,85,46,尚志館,SCH000482,played,HS0460
 spring,2013,85,47,沖縄尚学,SCH002747,played,HS0460
 summer,2013,95,01,北照,SCH003614,played,HS0247
 summer,2013,95,01,帯広大谷,SCH003707,played,HS0247
-summer,2013,95,02,聖愛,,played,HS0247
+summer,2013,95,02,聖愛,SCH000020,played,HS0247
 summer,2013,95,03,花巻東,SCH002782,played,HS0247
 summer,2013,95,04,仙台育英,SCH001901,played,HS0247
 summer,2013,95,05,秋田商,SCH001945,played,HS0247
@@ -5564,7 +5564,7 @@ spring,2015,87,33,岡山理大付,SCH001092,played,HS0461
 spring,2015,87,35,宇部鴻城,SCH002658,played,HS0461
 spring,2015,87,37,英明,SCH002294,played,HS0461
 spring,2015,87,38,今治西,SCH001223,played,HS0461
-spring,2015,87,38,松山東,,played,HS0461
+spring,2015,87,38,松山東,SCH001232,played,HS0461
 spring,2015,87,40,九産大九州,SCH000565,played,HS0461
 spring,2015,87,43,九州学院,SCH002191,played,HS0461
 spring,2015,87,46,神村学園,SCH000459,played,HS0461
@@ -6186,7 +6186,7 @@ spring,2023,95,30,智辯和歌山,SCH001185,played,HS0029
 spring,2023,95,31,鳥取城北,SCH000303,played,HS0029
 spring,2023,95,34,広陵,SCH001850,played,HS0029
 spring,2023,95,35,光,SCH002623,played,HS0029
-spring,2023,95,36,城東,,played,HS0029
+spring,2023,95,36,城東,SCH001137,played,HS0029
 spring,2023,95,37,英明,SCH002294,played,HS0029
 spring,2023,95,37,高松商,SCH002316,played,HS0029
 spring,2023,95,39,高知,SCH003016,played,HS0029
