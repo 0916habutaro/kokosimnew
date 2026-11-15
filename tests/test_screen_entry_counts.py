@@ -3,7 +3,9 @@ from types import SimpleNamespace
 import unittest
 
 from phase2_engine.screen.data import GameScreenData
-from phase2_engine.screen.koshien_records import actual_history, nth_label
+from phase2_engine.screen.koshien_records import (
+    _champion_uncertain_until, actual_history, nth_label,
+)
 
 
 class NthLabelTests(unittest.TestCase):
@@ -34,7 +36,14 @@ class NthLabelTests(unittest.TestCase):
         self.assertEqual("2年ぶり16回目", nth_label(15, {2026, 1990}, 2028, uncertain_until=2025))
         self.assertEqual("2年連続16回目", nth_label(15, {2027, 1990}, 2028, uncertain_until=2025))
         # 連続が欠けているかもしれない年まで続くと、もっと長いかもしれない
-        self.assertEqual("16回目", nth_label(15, {2026, 2027}, 2028, uncertain_until=2025))
+        self.assertEqual("16回目", nth_label(15, {2025, 2026, 2027}, 2028, uncertain_until=2025))
+
+    def test_since_last_appearance_with_missing_old_years(self):
+        # 年の一覧が回数より少なくても、欠けは最終出場年より前だけ（uncertain_until＝最終出場年−1）
+        self.assertEqual("8年ぶり35回目", nth_label(34, {1990, 2018}, 2026, uncertain_until=2017))
+        # 最終出場年が前年なら2年連続まで。さかのぼって最終出場年より前に届く連続は言わない
+        self.assertEqual("2年連続10回目", nth_label(9, {2025}, 2026, uncertain_until=2024))
+        self.assertEqual("10回目", nth_label(9, {2024, 2025}, 2026, uncertain_until=2024))
 
 
 class ActualHistoryTests(unittest.TestCase):
@@ -44,9 +53,27 @@ class ActualHistoryTests(unittest.TestCase):
         self.assertEqual((3, {2001, 2024, 2025}, None), actual_history(listed, "summer"))
         self.assertEqual((1, {2001}, None), actual_history(listed, "summer", champion=True))
         partial = {"appearances": 5, "entrant_years": [2024], "last_year": 2025, "championships": 2}
-        self.assertEqual((5, {2024, 2025}, 2025), actual_history(partial, "summer"))
+        # 出場の欠けは最終出場年より前だけ
+        self.assertEqual((5, {2024, 2025}, 2024), actual_history(partial, "summer"))
+        # 優勝の欠けが分からなければ実際の記録の期間すべて
         self.assertEqual((2, set(), 2026), actual_history(partial, "spring", champion=True))
+        partial["champion_uncertain_until"] = 2003
+        self.assertEqual((2, set(), 2003), actual_history(partial, "spring", champion=True))
+
+    def test_champion_uncertain_until_skips_known_years(self):
+        # 最終出場年からさかのぼり、成績が分かっている年・ほかの学校の優勝が分かっている年は飛ばす
+        self.assertEqual(2020, _champion_uncertain_until(
+            2023, {2023, 2022}, {2021: "FAKE-B"}, "FAKE-A"))
+        self.assertEqual(2023, _champion_uncertain_until(2023, set(), {}, "FAKE-A"))
         self.assertEqual((0, set(), None), actual_history(None, "summer"))
+
+    def test_years_more_than_count_are_not_trusted(self):
+        # 年ごとの出場（2002・2004）と最終出場年（2005）が合わず、回数2に対して年が3つ
+        conflict = {"appearances": 2, "entrant_years": [2002, 2004], "last_year": 2005}
+        count, years, until = actual_history(conflict, "summer")
+        self.assertEqual((2, {2002, 2004, 2005}, 2025), (count, years, until))
+        # 実際の記録の年からは連続・ぶりを言わない
+        self.assertEqual("3回目", nth_label(count, years, 2026, uncertain_until=until))
 
 
 class EntryLabelTests(unittest.TestCase):
@@ -64,6 +91,10 @@ class EntryLabelTests(unittest.TestCase):
             "summer": {"appearances": 14, "entrant_years": list(range(2012, 2026)), "last_year": 2025,
                        "championships": 4, "champion_years": [2001, 2005, 2010, 2025]},
             "spring": {"appearances": 2, "entrant_years": [2015, 2026], "last_year": 2026,
+                       "championships": 0},
+        }, "FAKE-C": {
+            # 旧校名の時代の出場が一覧に結び付いていない（34回のうち年が分かるのは3回）
+            "summer": {"appearances": 34, "entrant_years": [2010, 2014, 2018], "last_year": 2018,
                        "championships": 0},
         }}
         # ゲームの中（大会ごと）：2026年夏に出場・優勝、2027年夏に出場、神宮は2026・2027年度
@@ -83,6 +114,11 @@ class EntryLabelTests(unittest.TestCase):
         # 選抜は年度の翌年3月（2026年度 → 2027年）。実際の記録は2026年の選抜まで
         self.assertEqual("2年連続3回目", self.label("FAKE-SPRING", 2026))
         self.assertEqual("初出場", self.label("FAKE-SUMMER", 2027, school="FAKE-B"))
+
+    def test_since_last_appearance_when_old_years_are_missing(self):
+        self.history["FAKE-SUMMER"]["FAKE-C"] = {"appear": {2026}, "champion": set()}
+        self.assertEqual("8年ぶり35回目", self.label("FAKE-SUMMER", 2026, school="FAKE-C"))
+        self.assertEqual("2年連続36回目", self.label("FAKE-SUMMER", 2027, school="FAKE-C"))
 
     def test_other_competitions_count_only_in_game(self):
         self.assertEqual("ゲームで初出場", self.label("FAKE-JINGU", 2026))
