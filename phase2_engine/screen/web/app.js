@@ -469,25 +469,29 @@ function best8Table(data) {
   const showPref = data.matrix && prefs.length !== 1;
   const total = Object.values(BEST8_SLOTS).reduce((a, b) => a + b, 0);
   const width = (n) => `${((100 - BEST8_YEAR_WIDTH) * n / total).toFixed(3)}%`;
-  // 1行目に校名、2行目に県名・8強以上の回数・優勝の回数。入らなければ省略し、マウスを当てたら全部出す
+  // 1行目に校名、2行目に県名・8強以上の回数（折り返さない）、3行目に優勝校の「◯回目の優勝」。
+  // 入らなければ文字を小さくし、それでも入らなければ省略して、マウスを当てたら全部出す
   const school = (s) => {
     // 3位決定戦をした大会は、ベスト4の2校に「3位」「4位」
-    const notes = [s.place, showPref && s.prefecture ? s.prefecture.replace(/[都府県]$/, "") : "", s.best8_label, s.champion_label].filter(Boolean);
-    const tip = [s.name, ...notes].join("\n");
+    const notes = [s.place, showPref && s.prefecture ? s.prefecture.replace(/[都府県]$/, "") : "", s.best8_label].filter(Boolean);
+    const tip = [s.name, ...notes, s.champion_label].filter(Boolean).join("\n");
     return `<div class="b8-slot" title="${esc(tip)}"><button class="link b8-name" data-school="${esc(s.school_id)}">${esc(s.name)}</button>
-      <small class="b8-notes">${notes.map((n) => n === s.champion_label ? countTag(n) : `<span class="muted">${esc(n)}</span>`).join("")}</small></div>`;
+      <small class="b8-notes">${notes.map((n) => `<span class="muted">${esc(n)}</span>`).join("")}</small>
+      ${s.champion_label ? `<small class="b8-champion">${countTag(s.champion_label)}</small>` : ""}</div>`;
   };
   const cell = (schools, n) => `<div class="b8-slots" style="--slots:${n}">${Array.from({ length: n }, (_, i) =>
     schools[i] ? school(schools[i]) : '<div class="b8-slot empty"></div>').join("")}</div>`;
+  // 優勝校の3行目がある年は、その行の枠をみな3行の高さにそろえる
+  const third = (r) => BEST8_COLUMNS.some(([finish]) => (r.groups[finish] || []).some((s) => s.champion_label));
   return `<table class="list zebra best8-table"><colgroup><col style="width:${BEST8_YEAR_WIDTH}%">${BEST8_COLUMNS.map(([finish]) => `<col style="width:${width(BEST8_SLOTS[finish])}">`).join("")}</colgroup>
     <thead><tr><th>年度</th>${BEST8_COLUMNS.map(([finish, label]) => `<th>${finishBadge(finish, label)}</th>`).join("")}</tr></thead>
-    <tbody>${data.rows.map((r) => `<tr><td>${recordYearHead(r, data)}</td>
+    <tbody>${data.rows.map((r) => `<tr${third(r) ? ' class="b8-third"' : ""}><td>${recordYearHead(r, data)}</td>
       ${BEST8_COLUMNS.map(([finish]) => `<td>${cell(r.groups[finish], BEST8_SLOTS[finish])}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
 }
 
-// 枠に入らない校名は文字を小さくする（それでも入らなければ「…」で省略。title に全部ある）
+// 枠に入らない校名・2行目・3行目は文字を小さくする（それでも入らなければ「…」で省略。title に全部ある）
 function fitBest8Names(root) {
-  root.querySelectorAll(".best8-table .b8-name").forEach((el) => {
+  root.querySelectorAll(".best8-table .b8-name, .best8-table .b8-notes, .best8-table .b8-champion").forEach((el) => {
     el.classList.remove("small");
     if (el.scrollWidth > el.clientWidth) el.classList.add("small");
   });
