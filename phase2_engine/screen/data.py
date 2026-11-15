@@ -481,7 +481,8 @@ class GameScreenData:
         out = {"competition": listing[competition_id]}
         scheduled = season.competitions.get(competition_id)
         if scheduled is None:
-            return {**out, "main": None, "entrants": [], "other_matches": [], "names": {}}
+            return {**out, "main": None, "entrants": [], "other_matches": [], "names": {},
+                    "basis_labels": {}}
         main = main_runtime(scheduled)
         layout = (
             bracket_layout(main, scheduled) if main is not None else None
@@ -503,6 +504,8 @@ class GameScreenData:
         return {
             **out,
             "main": layout,
+            # 選抜の21世紀枠・神宮枠（校名の横の札）
+            "basis_labels": self._basis_labels(int(school_year), competition_id),
             "entrants": self._national_entrants(
                 int(school_year), competition_id, main,
             ),
@@ -637,8 +640,14 @@ class GameScreenData:
         return sorted(rows, key=lambda row: (row["prefecture_code"], row["name"]))
 
     def _selection_basis(self, year: int, competition_id: str) -> dict[str, str]:
-        """選抜の出場校 → 選ばれた枠（jingu・century）。選考の記録から。"""
-        season = self._season_of(year)
+        """選抜の出場校 → 選ばれた枠（jingu・century）。
+
+        進行中の年度は選考の記録から、閉じた年度は閉じたときに残した小さな索引から
+        引く（年度のスナップショットは戻さない）。"""
+        season = _seasons(self.state).get(year)
+        if season is None:
+            archive = self.service._history_archive(self.session.slot_id)
+            return archive.selection_basis(competition_id, year)
         for entry in getattr(season, "history", None) or ():
             if (
                 entry.get("action") == "select_invitational"
@@ -646,6 +655,18 @@ class GameScreenData:
             ):
                 return dict(entry.get("selection_basis") or {})
         return {}
+
+    def _basis_labels(self, year: int, competition_id: str) -> dict[str, str]:
+        """選抜の出場校 → 枠の札（「21世紀枠」「神宮枠」）。一般の選考の学校は入れない。
+
+        選抜でない大会と、選考の記録のない年度（ゲーム開始より前）は空。"""
+        if self._kind(competition_id) != "spring":
+            return {}
+        return {
+            school_id: BASIS_LABELS[basis]
+            for school_id, basis in self._selection_basis(year, competition_id).items()
+            if basis in BASIS_LABELS
+        }
 
     def entrant(self, school_year, competition_id: str, school_id: str) -> dict:
         """出場校一覧の右の詳細：総合ランク・レーダー・予選の成績と勝ち上がり。
@@ -1308,6 +1329,12 @@ class GameScreenData:
                     if school.get('finish') == '優勝':
                         school['champion_label'] = self.entry_label(
                             cid, row['school_year'], school['school_id'], history, champion=True)
+        # 選抜の21世紀枠・神宮枠。選考の記録を年度ごとに1回だけ引く
+        if labelled and self._kind(cid) == 'spring':
+            for row in labelled:
+                labels = self._basis_labels(row['school_year'], cid)
+                for school in schools_of(row):
+                    school['basis_label'] = labels.get(school['school_id'], '')
         # 「8強以上3回目」：ゲーム開始からその年度までのベスト8以上の回数（実際の記録は足さない）
         if labelled and not entrants:
             top = max(row['school_year'] for row in labelled)
@@ -1718,6 +1745,12 @@ class GameScreenData:
                     (school_id, row)
                 )
         competitions = self.service.repo.competitions
+        # 選抜の21世紀枠・神宮枠（選抜の大会ID → 学校ID → 札）
+        basis = {
+            cid: self._basis_labels(year, cid)
+            for cid in by_competition
+            if competitions.get(cid, {}).get("competition_type") == "national_invitational"
+        }
 
         def entry(school_id, row):
             return {
@@ -1729,6 +1762,7 @@ class GameScreenData:
                 ),
                 "finish": row["finish"],
                 "wins": row["wins"], "losses": row["losses"],
+                "basis_label": basis.get(row["competition_id"], {}).get(school_id, ""),
             }
 
         nationals = []
@@ -1759,7 +1793,7 @@ class GameScreenData:
             for sid, row in items
         }
         senbatsu = {
-            sid: row["finish"]
+            sid: (row["finish"], basis.get(cid, {}).get(sid, ""))
             for cid, items in by_competition.items()
             if competitions.get(cid, {}).get("competition_type") == "national_invitational"
             for sid, row in items
@@ -1810,9 +1844,10 @@ class GameScreenData:
                     ),
                     "prefecture_code": schools.get(sid, {}).get("prefecture_code", ""),
                     "finish": finish,
+                    "basis_label": label,
                     "appearance": koshien_count(sid, "spring"),
                 }
-                for sid, finish in senbatsu.items()
+                for sid, (finish, label) in senbatsu.items()
             ),
             key=lambda row: (row["prefecture_code"], row["name"]),
         )
@@ -2279,14 +2314,20 @@ class GameScreenData:
                 if r["finish"] == "優勝":
                     entry["champion"].add(self._series_year(r["competition_id"], each))
         koshien_entries = {kind: [] for kind in KOSHIEN_KINDS}
+        basis: dict[tuple, dict] = {}  # (年度, 大会ID) → 選抜の枠の札（年度ごとに1回だけ引く）
         for each, results in sorted(by_year.items(), reverse=True):
             for r in results:
                 kind = KOSHIEN_SERIES.get(r["type"])
                 if not kind:
                     continue
+                key = (each, r["competition_id"])
+                if key not in basis:
+                    basis[key] = self._basis_labels(*key)
                 koshien_entries[kind].append({
                     "school_year": each, "year": self._series_year(r["competition_id"], each),
                     "competition_id": r["competition_id"], "finish": r["finish"],
+                    # 選抜の21世紀枠・神宮枠
+                    "basis_label": basis[key].get(school_id, ""),
                     "label": self.entry_label(r["competition_id"], each, school_id,
                                               history.get(r["competition_id"], {})),
                     "champion_label": self.entry_label(
