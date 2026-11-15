@@ -213,6 +213,9 @@ class PitcherRunAccountingTests(unittest.TestCase):
             for p in value['pitcher_stats']:
                 p.pop('runs_allowed')
                 p.pop('earned_runs')
+            # 生還した走者の責任投手（段階F5）も責任の付け方の記録なので比べない
+            for e in value['events']:
+                e['metadata'].pop('charged', None)
             return value
 
         for number in range(16):
