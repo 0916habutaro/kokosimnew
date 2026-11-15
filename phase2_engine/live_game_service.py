@@ -967,6 +967,7 @@ class LiveGameService:
                      for cid, entry in (plan.entries.items() if plan is not None else ())
                      if entry.display_name}
             from .competition_history import season_best8, season_entrants
+            from game_core.joint_teams import season_unions
             archive.store_closed_season(
                 year,
                 dump_runtime_state(season),
@@ -974,6 +975,7 @@ class LiveGameService:
                 school_records=season_records(season, self.repo, names),
                 best8_records=season_best8(season, names),
                 entrant_records=season_entrants(season, self.repo, names),
+                union_records=season_unions(season),
             )
             # 閉じた年度の名簿（年度末の能力つき）を履歴に書き出す。セーブの名簿から
             # 手放すのは、その年度に始まった大会が終わってから（_release_rosters）
@@ -1234,6 +1236,11 @@ class LiveGameService:
                 if stored is not None else None
             )
         return self._closed_seasons[key]
+
+    def closed_unions(self, slot_id: str, year: int) -> dict[str, list[tuple[str, ...]]]:
+        """閉じた年度の連合チーム（大会ID → 構成校の並び、代表校が先頭）。
+        年度を閉じたときに書いた索引だけを読み、年度の状態は戻さない。"""
+        return self._history_archive(slot_id).closed_unions(year)
 
     def historical_match_scores(self, slot_id: str, year: int, keys) -> dict[tuple, dict]:
         """試合の一覧用：(大会ID, 試合ID) → 点と半イニングの記録だけ。"""

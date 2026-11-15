@@ -20,6 +20,7 @@ def _season():
         repo=SimpleNamespace(competitions=competitions),
         union_plans={"PREF": UnionPlan((JointTeam("SCH-A", ("SCH-A", "SCH-B")),), ("SCH-C",))},
         competitions={"PREF": None, "REGION": None, "SUMMER": None},
+        year=2026,
     )
 
 
@@ -29,9 +30,9 @@ def _screen(season):
         _season_of=lambda year: season,
         _current_year=lambda: 2026,
         _years=lambda: [2026],
-        state=SimpleNamespace(seasons={2026: season}),
+        state=season,
     )
-    for name in ("union", "union_name", "_add_union_results", "_union_leads"):
+    for name in ("union", "union_name", "_union_teams", "_add_union_results", "_union_leads"):
         setattr(screen, name, getattr(GameScreenData, name).__get__(screen))
     return screen
 

@@ -84,6 +84,15 @@ CREATE TABLE IF NOT EXISTS competition_appearances (
     champion INTEGER NOT NULL,
     PRIMARY KEY (competition_id, school_id, year)
 );
+-- 閉じた年度の連合チーム（大会ごとの代表校と構成校。schools_json は代表校が先頭の学校IDの並び）。
+-- 学校の画面の成績で、閉じた年度のスナップショットを戻さずに構成校の行を足すための最小索引
+CREATE TABLE IF NOT EXISTS competition_unions (
+    year INTEGER NOT NULL,
+    competition_id TEXT NOT NULL,
+    lead_school_id TEXT NOT NULL,
+    schools_json TEXT NOT NULL,
+    PRIMARY KEY (year, competition_id, lead_school_id)
+);
 -- 大会の確定結果への学校別索引。人物・監督IDや大会全体のコピーは保存しない。
 CREATE TABLE IF NOT EXISTS school_competition_records (
     year INTEGER NOT NULL,
@@ -1001,8 +1010,11 @@ class HistoricalMatchArchive:
     def store_closed_season(self, year: int, snapshot: bytes, names: Mapping[str, str],
                             *, school_records: Iterable[Mapping] = (),
                             best8_records: Iterable[Mapping] = (),
-                            entrant_records: Iterable[Mapping] = ()) -> None:
-        """閉じた年度の大会の進行（``runtime_snapshot.dump_runtime_state``）と大会名。"""
+                            entrant_records: Iterable[Mapping] = (),
+                            union_records: Iterable[tuple[str, Iterable[str]]] = ()) -> None:
+        """閉じた年度の大会の進行（``runtime_snapshot.dump_runtime_state``）と大会名。
+
+        ``union_records`` は（大会ID, 構成校の並び（代表校が先頭））。"""
         records = []
         for record in school_records:
             if (record.get('year') != year or not record.get('competition_id')
@@ -1024,6 +1036,16 @@ class HistoricalMatchArchive:
             for school in record.get('entrants', ()):
                 key = (record['competition_id'], school['school_id'], year)
                 appearances[key] = max(appearances.get(key, 0), int(school.get('finish') == '優勝'))
+        unions = []
+        seen = set()
+        for cid, schools in union_records:
+            schools = list(schools)
+            if not cid or not schools:
+                raise ValueError('invalid union record identity')
+            if (cid, schools[0]) in seen:  # 同じ大会の同じ代表校は最初の連合（union_teams の順）
+                continue
+            seen.add((cid, schools[0]))
+            unions.append((year, cid, schools[0], _canonical(schools)))
         with self._connection() as conn:
             conn.executescript(_SCHEMA)
             with conn:
@@ -1036,6 +1058,8 @@ class HistoricalMatchArchive:
                 conn.execute('DELETE FROM competition_appearances WHERE year=?', (year,))
                 conn.executemany('INSERT INTO competition_appearances VALUES (?, ?, ?, ?)',
                                  [(*key, champion) for key, champion in appearances.items()])
+                conn.execute('DELETE FROM competition_unions WHERE year=?', (year,))
+                conn.executemany('INSERT INTO competition_unions VALUES (?, ?, ?, ?)', unions)
                 conn.execute('DELETE FROM competition_best8 WHERE year=?', (year,))
                 conn.executemany('INSERT INTO competition_best8 VALUES (?, ?, ?)', best8)
                 conn.execute('DELETE FROM school_competition_records WHERE year=?', (year,))
@@ -1079,6 +1103,24 @@ class HistoricalMatchArchive:
                     entry['appear'].add(year)
                     if champion:
                         entry['champion'].add(year)
+        return out
+
+    def closed_unions(self, year: int) -> dict[str, list[tuple[str, ...]]]:
+        """閉じた年度の連合チーム：大会ID → 構成校の並び（代表校が先頭）の一覧。
+
+        連合の最小索引だけを読む。年度スナップショットは読まない。"""
+        out: dict[str, list[tuple[str, ...]]] = {}
+        if not self.db_path.is_file():
+            return out
+        with closing(sqlite3.connect(self.db_path.resolve().as_uri() + '?mode=ro',
+                                    uri=True, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
+            if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='competition_unions'").fetchone():
+                return out
+            rows = conn.execute('SELECT competition_id, schools_json FROM competition_unions '
+                                'WHERE year=? ORDER BY competition_id, lead_school_id',
+                                (year,)).fetchall()
+        for cid, schools in rows:
+            out.setdefault(cid, []).append(tuple(json.loads(schools)))
         return out
 
     def competition_best8_years(self, cid: str, last: int) -> dict[str, set[int]]:
