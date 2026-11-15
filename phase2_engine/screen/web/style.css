@@ -325,17 +325,26 @@ table.list.zebra tbody tr:nth-child(odd) td { background: var(--bg); }
 .entrant small { font-size:11px; }
 .best8-table { table-layout:fixed; }
 .best8-table td { vertical-align:top; }
-/* 1校ごとに同じ幅の枠（列の枠の数は BEST8_SLOTS）。1行目に校名、2行目に小さく県名・回数 */
-/* 枠の間は点線で区切る（罫線なしより、長い校名が並んでも境目が分かりやすい） */
+/* 1校ごとに同じ幅の枠（列の枠の数は BEST8_SLOTS）。1行目に校名、2行目に小さく県名・回数、
+   優勝校は3行目に「◯回目の優勝」。どの行も折り返さず、枠の高さは行ごとにそろえる */
+/* 列（年度｜優勝｜準優勝｜ベスト4｜準々決勝敗退）の境目は実線、同じ列の中の枠どうしは点線。
+   枠の列は上下の余白を枠に持たせ、点線が行の上から下まで届くようにする */
+.best8-table th + th, .best8-table td + td { border-left:1px solid var(--line); }
+.best8-table td + td { padding-top:0; padding-bottom:0; }
 .b8-slots { display:grid; grid-template-columns:repeat(var(--slots), minmax(0, 1fr)); }
-.b8-slot { min-width:0; display:flex; flex-direction:column; padding:1px 6px; border-left:1px dashed var(--line); }
+.b8-slot { min-width:0; display:flex; flex-direction:column; padding:7px 6px; border-left:1px dashed var(--line);
+  min-height:calc(14px + 18px + 15px); }
+.b8-third .b8-slot { min-height:calc(14px + 18px + 15px + 15px); }
 .b8-slot:first-child { border-left:0; padding-left:0; }
-.b8-slot .b8-name { display:block; max-width:100%; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.b8-slot .b8-name { display:block; max-width:100%; line-height:18px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .b8-slot .b8-name.small { font-size:11px; }
-/* 2行目（県名・8強以上の回数・優勝の回数）は枠の中で折り返す */
-.b8-slot .b8-notes { display:block; font-size:10.5px; line-height:1.35; overflow-wrap:anywhere; color:var(--muted); }
-.b8-slot .b8-notes > * { margin-right:6px; white-space:nowrap; }
-.b8-slot .b8-notes small.count { font-size:10.5px; }
+.b8-slot .b8-notes, .b8-slot .b8-champion { display:block; font-size:10.5px; line-height:15px; height:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--muted); }
+.b8-slot .b8-notes.small, .b8-slot .b8-champion.small small.count { font-size:9.5px; }
+/* 年度の列が狭いときは「第◯回」「完了」を次の行に送り、隣の列にはみ出さない */
+.best8-table td:first-child .record-year { white-space:normal; }
+.b8-slot .b8-notes > * { margin-right:6px; }
+.b8-slot .b8-notes > :last-child { margin-right:0; }
+.b8-slot small.count { font-size:10.5px; }
 .entrants-matrix { width:max-content !important; }
 .entrants-matrix th, .entrants-matrix td { min-width:170px; vertical-align:top; }
 /* 年度の列が多いときは横に動かし、都道府県の列は .scroll の左の余白（18px）ごと固定する */
