@@ -1242,6 +1242,10 @@ class LiveGameService:
         年度を閉じたときに書いた索引だけを読み、年度の状態は戻さない。"""
         return self._history_archive(slot_id).closed_unions(year)
 
+    def historical_day_match_stats(self, slot_id: str, year: int, day: str, keys) -> dict[tuple, dict]:
+        """その日の (大会ID, 試合ID) → 点・回ごとの点・成績（まとめて読む）。"""
+        return self._history_archive(slot_id).day_match_stats(year, day, keys)
+
     def historical_match_scores(self, slot_id: str, year: int, keys) -> dict[tuple, dict]:
         """試合の一覧用：(大会ID, 試合ID) → 点と半イニングの記録だけ。"""
         return self._history_archive(slot_id).match_scores(year, keys)

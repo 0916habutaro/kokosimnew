@@ -143,6 +143,15 @@ class CompetitionScreenTests(unittest.TestCase):
         script = (ROOT / "phase2_engine" / "screen" / "web" / "app.js").read_text(encoding="utf-8")
         self.assertIn('$("m-bracket").addEventListener("click", () => openBracketAt(', script)
 
+    def test_today_has_headlines(self):
+        """今日の見出しは前の試合日の出来事。押すと開く画面（試合か学校）を持つ。"""
+        out = self.data.today()["headlines"]
+        self.assertEqual(self.data.previous_day_results()["date"], out["date"])
+        self.assertLessEqual(out["shown"], 8)
+        for item in out["items"]:
+            self.assertTrue(item["label"] and item["text"])
+            self.assertIn(item["target"]["type"], ("match", "school"))
+
     def test_matches_on_a_day(self):
         latest = self.data.matches_on()
         self.assertEqual("2026-05-10", latest["date"])

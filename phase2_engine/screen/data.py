@@ -31,6 +31,7 @@ from .competition_views import (
 )
 from .competition_names import CompetitionNames
 from .match_summary import called_label
+from ..match_facts import actual_match_date
 from .coach_views import CoachHistory, official_record, tournament_record
 from ..competition_records import competition_records
 from .koshien_records import (
@@ -57,7 +58,7 @@ from .player_views import (
     snapshot_values,
     trend_keys,
 )
-from . import player_records, rankings, record_filters
+from . import headlines as headline_rules, player_records, rankings, record_filters
 from .save_views import next_slot_id, recovery_rows, slot_rows
 from .school_names import EditedNames, SchoolNames, prefecture_names
 from .school_views import (
@@ -149,6 +150,28 @@ def _seasons(state) -> dict[int, object]:
     return {state.year: state}
 
 
+class _LazyNames:
+    """(大会ID, 学校ID, 年度) → 試合に出す校名。見出しになる学校の分だけ引く。"""
+
+    def __init__(self, lookup):
+        self._lookup = lookup
+        self._cache: dict[tuple, str] = {}
+
+    def get(self, key: tuple) -> str:
+        if key not in self._cache:
+            self._cache[key] = self._lookup(key)
+        return self._cache[key]
+
+    def scope(self, competition_id: str, year: int):
+        names = self
+
+        class Scoped(dict):
+            def __missing__(self, school_id):
+                return names.get((competition_id, school_id, year))
+
+        return Scoped()
+
+
 class GameScreenData:
     """遊んでいるセーブ（``LiveGameService`` のセッション）を画面用に読む。"""
 
@@ -198,6 +221,8 @@ class GameScreenData:
             (config_root / "match" / "game_rules_v1.json").read_text(encoding="utf-8")
         )["mercy_rule"]["thresholds"]
         self._stage_names = stage_names(service.repo, self.config)
+        self.headline_config = headline_rules.load_config(config_root)
+        self._headline_lookups: dict[int, player_records.RosterLookup] = {}
 
     @property
     def state(self):
@@ -990,12 +1015,14 @@ class GameScreenData:
     # ---- 今日 ----
 
     def today(self) -> dict:
-        """今日の画面：今日の試合数、注目の試合、前の試合日の結果、直近の大きな結果。"""
+        """今日の画面：今日の見出し、今日の試合数、注目の試合、前の試合日の結果、直近の大きな結果。"""
         abilities = self._today_abilities()
+        previous = self._previous_day_rows()
         return {
             "header": self.header(),
             "featured": self.featured_matches(abilities),
-            "previous_day": self.previous_day_results(abilities),
+            "previous_day": self.previous_day_results(abilities, previous),
+            "headlines": self.headlines(previous),
             "recent_results": self.recent_results(),
         }
 
@@ -1084,19 +1111,25 @@ class GameScreenData:
             and row.match_date
         ]
 
-    def previous_day_results(self, abilities: dict | None = None) -> dict:
+    def _previous_day_rows(self) -> tuple[str, list[dict]]:
+        """前の試合日（今日より前で最後に試合があった日）と、その日の終わった試合。"""
+        today = self.state.current_date.isoformat()
+        rows = [row for row in self._completed_rows() if row["match_date"] < today]
+        if not rows:
+            return "", []
+        day = max(row["match_date"] for row in rows)
+        return day, [row for row in rows if row["match_date"] == day]
+
+    def previous_day_results(self, abilities: dict | None = None, previous=None) -> dict:
         """前の試合日（今日より前で最後に試合があった日）の結果。
 
         全国大会と地区大会の本大会（config の show_all_*）はその日の全試合、
         それ以外は注目の試合と同じ点の順に other_count 試合まで。
         """
         rule = self.config["previous_day_results"]
-        today = self.state.current_date.isoformat()
-        rows = [row for row in self._completed_rows() if row["match_date"] < today]
+        day, rows = previous if previous is not None else self._previous_day_rows()
         if not rows:
             return {"date": "", "date_label": "", "matches": []}
-        day = max(row["match_date"] for row in rows)
-        rows = [row for row in rows if row["match_date"] == day]
         if abilities is None:
             abilities = self._today_abilities()
 
@@ -1185,6 +1218,253 @@ class GameScreenData:
             {**self._match_summary(row), "qualifier_final": is_qualifier_final(row)}
             for row in rows[: int(rule["count"])]
         ]
+
+    # ---- 今日の見出し ----
+
+    def headlines(self, previous=None) -> dict:
+        """前の試合日の出来事を、新聞の見出しのように大事な順に並べる（headlines.py）。
+
+        その日の試合の記録は1回だけまとめて読み、評判のランクも1回だけ引く。学校の名前・
+        選手の名前・過去の出場は、見出しになる学校の分だけ引く。"""
+        cfg = self.headline_config
+        day, rows = previous if previous is not None else self._previous_day_rows()
+        rows = [row for row in rows if row.get("winner_id")]
+        if not rows:
+            return {"date": "", "items": [], "shown": 0}
+        matches = [self._headline_match(row) for row in rows]
+        details = self._day_details(rows)
+        names = _LazyNames(lambda key: self.team_name(key[1], key[0], day, key[2]))
+        ranks = self._reputation_ranks()
+        order = self._reputation_labels()
+        items = []
+        for match in matches:
+            key = (match["competition_id"], match["match_id"])
+            team_names = names.scope(match["competition_id"], match["school_year"])
+            items += headline_rules.match_headlines(
+                cfg, match, details.get(key), team_names, ranks, order,
+                self._headline_player(match),
+            )
+        items += self._competition_headlines(matches, day, names, ranks)
+        items += self._coach_headlines(matches, day, names)
+        out = headline_rules.arrange(cfg, items)
+        return {"date": day, **out}
+
+    def _headline_match(self, row: dict) -> dict:
+        cid = row["competition_id"]
+        year = row["school_year"]
+        competition = self.service.repo.competitions.get(cid, {})
+        season = _seasons(self.state).get(year)
+        name = (
+            self._competition_name(season, cid, row.get("competition_name", ""))
+            if season is not None else row.get("competition_name", "")
+        )
+        main = row.get("stage_code") == "MAIN"
+        level = competition.get("competition_level", "")
+        if not main and level == "regional":
+            # 地区大会の予選（北海道の支部予選など）は都道府県大会と同じ格に扱う
+            level = "prefectural"
+        return {
+            "school_year": year, "competition_id": cid, "match_id": row["match_id"],
+            "match_date": row["match_date"], "stage_code": row.get("stage_code", ""),
+            "round_name": row.get("round_name", "") if main
+            else self.stage_label(row["match_id"], row.get("group_name", "")),
+            "competition_name": self.competition_names(cid, name),
+            "level": level,
+            "ctype": competition.get("competition_type", ""),
+            "team1_id": row["team1_id"], "team2_id": row["team2_id"],
+            "team1_score": row.get("team1_score"), "team2_score": row.get("team2_score"),
+            "winner_id": row.get("winner_id", ""),
+        }
+
+    def _day_details(self, rows: list[dict]) -> dict[tuple, dict]:
+        """(大会ID, 試合ID) → 試合の記録。保存前はセーブの中、保存したものは履歴から年度ごとに1回で読む。"""
+        out, rest = {}, {}
+        live = _seasons(self.state)
+        for row in rows:
+            key = (row["competition_id"], row["match_id"])
+            season = live.get(row["school_year"])
+            detail = season.pending_match_details.get(f"{key[0]}:{key[1]}") if season is not None else None
+            if detail is not None:
+                out[key] = detail
+            else:
+                rest.setdefault(row["school_year"], []).append(key)
+        for year, keys in rest.items():
+            try:
+                out.update(self.service.historical_day_match_stats(
+                    self.session.slot_id, year, rows[0]["match_date"], keys))
+            except (OSError, ValueError):
+                pass
+        return out
+
+    def _headline_player(self, match: dict):
+        """見出しの選手の（名前, 学年）。名簿は必要になった学校の分だけ引く。"""
+        season = _seasons(self.state).get(match["school_year"])
+        roster_year = player_records._school_year(match["match_date"])
+        cid = match["competition_id"]
+
+        def player(school_id: str, player_id: str):
+            lookup = self._headline_lookups.get(match["school_year"])
+            if lookup is None:
+                lookup = self._headline_lookups[match["school_year"]] = self._roster_lookup(season)
+            found = lookup.member(roster_year, school_id, player_id, cid)
+            if not found:
+                return None
+            return lookup.name(roster_year, found[0], player_id), found[1]
+
+        return player
+
+    def _competition_headlines(self, matches: list[dict], day: str, names, ranks: dict) -> list[dict]:
+        """優勝・夏の甲子園の出場決定・連続出場が途切れた・強豪の早い敗退。"""
+        cfg = self.headline_config
+        out = []
+        finals = [m for m in matches if m["stage_code"] == "MAIN" and m["round_name"] == "決勝"]
+        for m in finals:
+            team_names = names.scope(m["competition_id"], m["school_year"])
+            if m["level"] in ("national", "regional"):
+                out.append(headline_rules.champion_headline(
+                    cfg, m, team_names, national=m["level"] == "national",
+                    nth=self._champion_nth(m),
+                ))
+        summer = [m for m in matches if m["ctype"] == "summer_local_qualifier"]
+        if not summer:
+            return out
+        summer_cid = next((cid for cid, c in self.service.repo.competitions.items()
+                           if c.get("competition_type") == "national_championship"), "")
+        year = summer[0]["school_year"]
+        alive = self._still_playing({m["competition_id"] for m in summer}, year)
+        losers = {}
+        for m in summer:
+            loser = m["team2_id"] if m["winner_id"] == m["team1_id"] else m["team1_id"]
+            if loser not in alive.get(m["competition_id"], set()):
+                losers[loser] = m
+        champions = {m["winner_id"]: m for m in summer
+                     if m["stage_code"] == "MAIN" and m["round_name"] == "決勝"}
+        history = self._appearance_history(summer_cid, set(losers) | set(champions), year) if summer_cid else {}
+
+        def koshien(school_id):
+            count, years, uncertain = actual_history(
+                self.actual_koshien.get(school_id, {}).get("summer"), "summer")
+            game = {y for y in history.get(school_id, {}).get("appear", ()) if y < year}
+            return count + len(game), years | game, uncertain
+
+        for school_id, m in champions.items():
+            count, years, uncertain = koshien(school_id)
+            kind, n = headline_rules.qualify_kind(cfg, count, years, year, uncertain)
+            out.append(headline_rules.qualify_headline(
+                cfg, m, names.scope(m["competition_id"], year), school_id, kind, n,
+                self.entry_label(summer_cid, year, school_id, history),
+            ))
+        early = cfg["early_exit"]
+        games = None
+        for school_id, m in losers.items():
+            team_names = names.scope(m["competition_id"], year)
+            _, years, uncertain = koshien(school_id)
+            streak = headline_rules.koshien_streak(years, year, uncertain)
+            if streak and streak >= int(cfg["koshien"]["broken_streak_years"]):
+                out.append(headline_rules.streak_broken_headline(cfg, m, team_names, school_id, streak))
+                continue
+            if m["ctype"] not in early["competition_types"] or ranks.get(school_id) not in early["ranks"]:
+                continue
+            if games is None:
+                games = self._games_played({x["competition_id"] for x in summer}, year, day)
+            if games.get((m["competition_id"], school_id), 0) <= int(early["max_games"]):
+                out.append(headline_rules.early_exit_headline(cfg, m, team_names, school_id, ranks[school_id]))
+        return out
+
+    def _champion_nth(self, match: dict) -> str:
+        """全国大会・地区大会の優勝に添える「初優勝」「2年連続3回目の優勝」。
+
+        甲子園は実際の記録＋ゲームの中で数える。ほかの大会はゲームの中の記録しかないので、
+        連続・◯年ぶりのときだけ添える（「初優勝」はゲームを始める前を知らないので言わない）。"""
+        cid, year, winner = match["competition_id"], match["school_year"], match["winner_id"]
+        history = self._appearance_history(cid, [winner], year)
+        label = self.entry_label(cid, year, winner, history, champion=True)
+        if self._kind(cid):
+            return label
+        if "連続" in label or "ぶり" in label:
+            return label
+        return ""
+
+    def _still_playing(self, competition_ids, year: int) -> dict[str, set]:
+        """大会 → まだ試合が残っている学校（負けても次がある予選の組など）。"""
+        season = _seasons(self.state).get(year)
+        out = {}
+        for cid in competition_ids:
+            scheduled = season.competitions.get(cid) if season is not None else None
+            out[cid] = {
+                team for row in (scheduled.matches.values() if scheduled is not None else ())
+                if row.status != "completed" for team in (row.team1_id, row.team2_id) if team
+            }
+        return out
+
+    def _games_played(self, competition_ids, year: int, day: str) -> dict[tuple, int]:
+        """(大会, 学校) → その日までに終わった試合の数。"""
+        season = _seasons(self.state).get(year)
+        out: dict[tuple, int] = {}
+        for cid in competition_ids:
+            scheduled = season.competitions.get(cid) if season is not None else None
+            for row in (scheduled.matches.values() if scheduled is not None else ()):
+                if row.status == "completed" and row.match_date and row.match_date <= day:
+                    for team in (row.team1_id, row.team2_id):
+                        out[cid, team] = out.get((cid, team), 0) + 1
+        return out
+
+    def _coach_headlines(self, matches: list[dict], day: str, names) -> list[dict]:
+        """監督の甲子園の勝利・公式戦の通算勝利の区切り（ゲームを始めてからの試合だけ）。"""
+        book = getattr(self.state, "coaches", None)
+        if book is None:
+            return []
+        cfg = self.headline_config["coach"]
+        on = date.fromisoformat(day)
+        winners = {}
+        for m in matches:
+            coach = book.for_school(m["winner_id"], on=on)
+            if coach is not None:
+                winners[coach.coach_id] = (m, coach.display_name)
+        if not winners:
+            return []
+        index = self._coach_index()
+        schools = {p["school_id"] for cid in winners for p in index.by_coach.get(cid, [])}
+        live = _seasons(self.state)
+        archive = self.service._history_archive(self.session.slot_id)
+        first = f"{book.first_year}-04-01"
+        facts = {}
+        # 進行中の年度はセーブの中から数えるので、履歴は閉じた年度だけ読む
+        closed_until = (f"{min(live)}-03-31" if live else day)
+        for row in archive.schools_match_facts(schools, first, min(day, closed_until)):
+            if row["year"] not in live:
+                facts[row["year"], row["competition_id"], row["match_id"]] = row
+        for year, season in live.items():
+            for cid, scheduled in season.competitions.items():
+                for row in scheduled.matches.values():
+                    # 監督の記録はゲームを始めた年度の4月1日から（監督の画面と同じ。3月の試合は数えない）
+                    if (row.status == "completed" and row.match_date and first <= row.match_date <= day
+                            and (row.team1_id in schools or row.team2_id in schools)):
+                        facts[year, cid, row.match_id] = row.public_dict()
+        wins, koshien = {}, {}
+        for (_, cid, _), row in facts.items():
+            played = actual_match_date(row)
+            if played is None or not first <= played.isoformat() <= day:
+                continue
+            school = row["team1_id"] if row["team1_score"] > row["team2_score"] else row["team2_id"]
+            coach = book.for_school(school, on=played)
+            if coach is None or coach.coach_id not in winners:
+                continue
+            wins[coach.coach_id] = wins.get(coach.coach_id, 0) + 1
+            if self._kind(cid):
+                koshien[coach.coach_id] = koshien.get(coach.coach_id, 0) + 1
+        out = []
+        for coach_id, (m, coach_name) in winners.items():
+            team_names = names.scope(m["competition_id"], m["school_year"])
+            count = koshien.get(coach_id, 0)
+            if self._kind(m["competition_id"]) and count and count % int(cfg["koshien_win_step"]) == 0:
+                out.append(headline_rules.coach_headline(
+                    self.headline_config, m, team_names, m["winner_id"], coach_name, koshien=True, wins=count))
+            count = wins.get(coach_id, 0)
+            if count and count % int(cfg["win_step"]) == 0:
+                out.append(headline_rules.coach_headline(
+                    self.headline_config, m, team_names, m["winner_id"], coach_name, koshien=False, wins=count))
+        return out
 
     def _match_summary(self, row: dict) -> dict:
         cid = row["competition_id"]
@@ -2797,6 +3077,7 @@ class GameScreenData:
         self._records_players_memo = {}
         self._ranking_years = {}
         self._coach_history = None
+        self._headline_lookups = {}
         self.service.forget_closed_seasons()
         self.names.edits = self._load_edits()
         self.abilities = self._new_abilities()

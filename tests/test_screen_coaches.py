@@ -188,4 +188,30 @@ class CoachScreenTests(unittest.TestCase):
         self.assertTrue(self.data.coach(self.book.for_school('A').coach_id)['periods'])
 
 
+    def test_headline_wins_start_on_the_first_april(self):
+        """今日の見出しの監督の甲子園◯勝目は、監督の画面と同じくゲームを始めた4月1日から数える。
+        開始前の3月の選抜の勝ちは数えない。"""
+        from phase2_engine.screen import headlines
+        rows={'MARCH':('SPRING','2026-03-28'),'AUG1':('SUMMER','2026-08-10'),'AUG2':('SUMMER','2026-08-15')}
+        comps={}
+        for mid,(cid,day) in rows.items():
+            row={**match(mid,day,status='completed'),'competition_id':cid}
+            comps.setdefault(cid,{})[mid]=SimpleNamespace(**row,public_dict=lambda row=row:dict(row))
+        self.data.state.seasons={2026:SimpleNamespace(competitions={c:SimpleNamespace(matches=m) for c,m in comps.items()})}
+        self.data.state.current_date=date(2026,8,16)
+        config=headlines.load_config(Path(__file__).resolve().parents[1]/'config')
+        config['coach']={'koshien_win_step':2,'win_step':1000}
+        self.data.headline_config=config
+        self.data._kind=lambda cid:{'SPRING':'spring','SUMMER':'summer'}.get(cid,'')
+        names=SimpleNamespace(scope=lambda cid,year:{'A':'架空校A','B':'架空校B'})
+        game=lambda mid,cid,day:{'school_year':2026,'competition_id':cid,'match_id':mid,'match_date':day,
+                                 'stage_code':'MAIN','round_name':'2回戦','competition_name':'夏の架空大会',
+                                 'level':'national','winner_id':'A','team1_id':'A','team2_id':'B'}
+        # 8/10 は開始後1勝目（3月を数えると2勝目＝区切りになってしまう）
+        self.assertEqual([],self.data._coach_headlines([game('AUG1','SUMMER','2026-08-10')],'2026-08-10',names))
+        out=self.data._coach_headlines([game('AUG2','SUMMER','2026-08-15')],'2026-08-15',names)
+        self.assertEqual(['架空校Aの'+self.book.coaches['COACH-A'].display_name+'監督、甲子園2勝目 ― 夏の架空大会 2回戦'],
+                         [h['text'] for h in out if h['kind']=='coach_koshien_wins'])
+
+
 if __name__=='__main__':unittest.main()

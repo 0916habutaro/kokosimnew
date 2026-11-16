@@ -484,3 +484,15 @@ label.toggle.off { opacity: .45; }
 .basis.inline { display: inline-block; margin: 0 4px; line-height: 1.45; vertical-align: 1px; }
 .entrant .basis.inline { margin: 0; }
 .b8-slot .b8-notes .basis.inline { margin: 0 6px 0 0; font-size: 10px; line-height: 14px; vertical-align: 0; }
+
+/* 今日の見出し（札の色は .badge・.basis・.badge.injury に合わせる） */
+.headlines .headline-list { list-style: none; margin: 0 0 4px; padding: 0; }
+.headline { display: flex; align-items: baseline; gap: 10px; padding: 5px 4px; border-bottom: 1px solid var(--line, #22303d); }
+.headline:hover { background: #18242f; }
+.headline.click { cursor: pointer; }
+.hl-tag { flex: none; min-width: 6.5em; text-align: center; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 10px; background: #22303d; color: var(--muted); }
+.hl-tag.hl-gold { background: var(--accent); color: var(--accent-ink); }
+.hl-tag.hl-green { background: #3b4f2f; color: #d6f0c4; }
+.hl-tag.hl-purple { background: #7a3cc2; color: #fff; }
+.hl-tag.hl-red { background: #5a2330; color: #ffb3c0; }
+.hl-text { font-size: 14px; }
