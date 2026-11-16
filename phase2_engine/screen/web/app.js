@@ -1012,6 +1012,7 @@ async function renderBracketPage(content, view) {
     setZoom(state.zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1));
   }, { passive: false });
   drawPaper();
+  if (view.focus) selectMatch(view.focus, true);
 }
 
 // 全国大会の出場校一覧：左に一覧（2列、スクロールなしで全校）、右に選んだ学校の詳細
@@ -1099,6 +1100,9 @@ function drawPaper() {
   wrap.replaceChildren(paper);
   placeBasisTags(paper);
   if (data.other_matches.length) wrap.append(otherMatches(data.other_matches, name));
+  // 拡大・縮小で描き直しても、選んでいる試合の印は残す
+  const focus = state.competitions.view && state.competitions.view.focus;
+  if (focus) markMatch(focus);
 }
 
 function bracketSvg(main, name, basis = {}) {
@@ -1245,20 +1249,42 @@ function showBracketSide(html) {
   side.querySelector(".side-close").addEventListener("click", () => { side.hidden = true; });
 }
 
-async function selectMatch(matchId) {
+// トーナメント表の中のその試合（交点・抽選で決める回戦の枠・予選の組の行）に印を付ける。
+// scroll なら画面の外にあるときそこまで動かす。見つからなければ null
+function markMatch(matchId, scroll = false) {
+  const wrap = $("paper-wrap");
+  if (!wrap) return null;
+  wrap.querySelectorAll(".sel[data-id]").forEach((e) => e.classList.remove("sel"));
+  const target = wrap.querySelector(`.hit[data-id="${CSS.escape(matchId)}"], .later-match[data-id="${CSS.escape(matchId)}"], .others tr[data-id="${CSS.escape(matchId)}"]`);
+  if (!target) return null;
+  target.classList.add("sel");
+  if (scroll) {
+    const box = target.getBoundingClientRect(), view = wrap.getBoundingClientRect();
+    const outside = box.top < view.top || box.bottom > view.bottom || box.left < view.left || box.right > view.right;
+    if (outside) target.scrollIntoView({ block: "center", inline: "center" });
+  }
+  return target;
+}
+
+async function selectMatch(matchId, scroll = false) {
   const data = state.bracket;
-  document.querySelectorAll("#paper-wrap .hit.sel").forEach((e) => e.classList.remove("sel"));
-  const hit = document.querySelector(`#paper-wrap .hit[data-id="${CSS.escape(matchId)}"]`);
-  if (hit) hit.classList.add("sel");
+  const view = state.competitions.view;
+  if (view) {
+    view.focus = matchId;
+    refreshLocation();
+  }
+  markMatch(matchId);
   const m = await call("match", data.competition.school_year, data.competition.competition_id, matchId);
   if (!m) return;
   showBracketSide(`<div class="muted">${esc(m.competition_name)}</div>
-    <h2 style="margin:6px 0 2px">${esc(m.round_name || m.group_name)}</h2>
+    <h2 style="margin:6px 0 2px">${esc((data.other_matches.find((o) => o.match_id === matchId) || {}).round_name || m.round_name || m.group_name)}</h2>
     <div class="muted num">${fmtDate(m.match_date)}</div>
     ${scoreboard(m)}
     ${m.status === "completed" ? `<p><span class="link" id="to-match">試合の画面で見る →</span></p>` : '<p class="muted">まだ試合をしていません。</p>'}`);
   const link = $("to-match");
   if (link) link.addEventListener("click", () => openMatch(m.school_year, m.competition_id, m.match_id));
+  // 右の欄を開いて表の幅が狭くなってから、外にあれば動かす
+  if (scroll) markMatch(matchId, true);
 }
 
 // ---- 得点板 ----
@@ -1296,6 +1322,14 @@ function openMatch(year, competitionId, matchId) {
   state.matches.detail = { year, competitionId, matchId };
   state.matches.tab = "lineups";
   state.page = "matches";
+  renderMenu();
+  renderPage();
+}
+
+// 大会の画面でトーナメント表を開き、その試合に印を付けて右の欄にスコアを出す
+function openBracketAt(year, competitionId, matchId) {
+  state.competitions.view = { year: Number(year), id: competitionId, tab: "bracket", focus: matchId };
+  state.page = "competitions";
   renderMenu();
   renderPage();
 }
@@ -1369,7 +1403,8 @@ async function renderMatchDetail(content, detail) {
   const tabs = [["lineups", "先発打順・守備配置"], ["changes", "交代履歴"], ["stats", "個人成績"]];
   content.innerHTML = `<div class="head"><button class="btn small" id="m-back">← 試合の一覧</button>
       <h2>${esc(m.competition_name)}　${esc(m.round_name || m.group_name)}</h2>
-      <span class="muted num">${fmtDate(m.match_date)}</span></div>
+      <span class="muted num">${fmtDate(m.match_date)}</span>
+      <div class="spacer"></div><button class="btn small" id="m-bracket">トーナメント表で見る</button></div>
     <div class="scroll match-detail">
       ${scoreboard(m, true)}
       ${decisionsLine(m)}
@@ -1381,6 +1416,7 @@ async function renderMatchDetail(content, detail) {
         : `<p class="muted">${m.status === "completed" ? "この試合の詳しい記録はありません。" : "まだ試合をしていません。"}</p>`}
     </div>`;
   $("m-back").addEventListener("click", () => { state.matches.detail = null; renderPage(); });
+  $("m-bracket").addEventListener("click", () => openBracketAt(m.school_year, m.competition_id, m.match_id));
   content.querySelectorAll(".link[data-school]").forEach((a) => a.addEventListener("click", () => openSchool(a.dataset.school)));
   if (!m.has_detail) return;
   const renderTab = (key) => {

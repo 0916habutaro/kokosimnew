@@ -120,6 +120,7 @@ table.list td.n, table.list th.n { text-align: right; font-family: var(--num); }
 .later-match { border: 1px solid var(--paper-line); border-radius: 4px; padding: 4px 8px; cursor: pointer; background: #fffdf6; }
 .later-match div { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
 .later-match div.w { color: var(--red); font-weight: 700; }
+.later-match.sel { background: #fbe7b5; box-shadow: 0 0 0 2px rgba(242,178,51,.8); }
 .later-match small { color: #7a756a; font-size: 11px; }
 .later-wait { color: #7a756a; border: 1px dashed var(--paper-line); border-radius: 4px; padding: 10px; text-align: center; font-size: 13px; }
 svg text { font-family: var(--ui); }
@@ -137,6 +138,7 @@ svg text { font-family: var(--ui); }
 .hit:hover, .hit.sel { fill: rgba(242,178,51,.35); }
 .rlabel { font-size: 11px; fill: #7a756a; }
 .others { margin-top: 16px; }
+.others tr.sel td { background: #243444; box-shadow: inset 0 -1px 0 var(--accent); }
 
 /* 得点板 */
 .board { margin-top: 10px; background: var(--board); border: 2px solid var(--board-line); border-radius: 6px; padding: 10px; }
