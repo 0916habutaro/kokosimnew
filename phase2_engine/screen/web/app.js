@@ -806,6 +806,63 @@ function rankMapLegend(map, metric) {
     <span class="rank-key"><i style="background:${RANK_EMPTY.bg}"></i>${metric === "rate" ? "試合なし・0" : "0"}</span>`;
 }
 
+// ---- ランキング：都道府県別の対戦成績（甲子園。ゲーム開始後の試合だけ） ----
+
+function wl(w, l) {
+  return `<span class="num">${w}勝${l}敗</span>`;
+}
+
+function matchupOpponent(o) {
+  return o ? `<span class="link" data-mu-area="${esc(o.area)}">${esc(o.name)}</span> <span class="muted num">${o.wins}-${o.losses}</span>` : '<span class="muted">−</span>';
+}
+
+function matchupBody(mu) {
+  const sel = mu.selected;
+  // 地図：選んでいなければ勝率の濃さ、選んでいれば相手ごとの勝ち越し（緑）・負け越し（赤）
+  // 試合のない地域は灰色（地方の色のままだと成績のように見える）
+  const colors = Object.fromEntries(mu.rows.map((r) => [r.area, RANK_EMPTY])), values = {};
+  if (sel) {
+    for (const o of sel.opponents) {
+      if (o.same) continue;
+      colors[o.area] = o.wins > o.losses ? { bg: "#6fbf73", ink: "#10161d" } : o.wins < o.losses ? { bg: "#d9676c", ink: "#10161d" } : { bg: "#c9b26b", ink: "#10161d" };
+      values[o.area] = `${o.wins}-${o.losses}`;
+    }
+  } else {
+    const rates = mu.rows.filter((r) => r.rate != null).map((r) => r.rate);
+    const low = Math.min(...rates), top = Math.max(...rates);
+    for (const r of mu.rows) {
+      if (r.rate == null) continue;
+      const step = top > low ? Math.min(4, Math.floor((r.rate - low) / (top - low) * 5)) : 2;
+      colors[r.area] = RANK_COLORS[step];
+      values[r.area] = `${r.wins}-${r.losses}`;
+    }
+  }
+  const map = `<div class="panel rank-map"><h3>${sel ? `${esc(sel.name)}から見た相手の地域` : "地域ごとの勝敗（色は勝率）"}</h3>
+    ${tileMapHtml({ colors, values, tile: sel ? sel.area : "" })}
+    <p class="muted record-note">${sel ? "緑は勝ち越し、赤は負け越し、黄は五分。もう一度押すと選択を外します。" : "マスを押すと、その地域の対戦成績を出します。"}</p></div>`;
+  if (!sel) {
+    return `<div class="rank-split"><table class="list zebra rankings matchups"><thead><tr><th>地域</th><th class="n">勝</th><th class="n">敗</th><th class="n">勝率</th>
+      <th>いちばん勝ち越している相手</th><th>いちばん負け越している相手</th></tr></thead>
+      <tbody>${mu.rows.map((r) => `<tr><td><span class="link" data-mu-area="${esc(r.area)}">${esc(r.name)}</span></td>
+        <td class="n">${r.wins}</td><td class="n">${r.losses}</td><td class="n">${rankRate(r.rate)}</td>
+        <td>${matchupOpponent(r.best)}</td><td>${matchupOpponent(r.worst)}</td></tr>`).join("")}</tbody></table>${map}</div>`;
+  }
+  const opponents = sel.opponents.map((o) => `<tr><td>${o.same ? `${esc(o.name)} <span class="badge">同じ地域どうし</span>` : `<span class="link" data-mu-area="${esc(o.area)}">${esc(o.name)}</span>`}</td>
+    <td class="n">${o.wins}</td><td class="n">${o.losses}</td><td class="n">${rankRate(o.rate)}</td></tr>`).join("");
+  const games = sel.games.map((g) => `<tr class="click" data-year="${g.school_year}" data-cid="${esc(g.competition_id)}" data-mu-match="${esc(g.match_id)}">
+    <td class="num nowrap">${g.school_year}</td><td class="nowrap">${esc(g.competition_name)}</td><td class="nowrap">${esc(g.round_name)}</td>
+    <td class="${g.won ? "w" : ""}">${esc(g.school_name)}</td><td class="n">${g.score ?? ""}−${g.opponent_score ?? ""}</td>
+    <td class="${g.won ? "" : "w"}">${esc(g.opponent_name)}<small class="muted">（${esc(g.opponent_area)}${g.same_area ? "・同じ地域" : ""}）</small></td></tr>`).join("");
+  return `<div class="rank-split"><div>
+      <div class="panel"><h3>${esc(sel.name)}の対戦成績　${wl(sel.wins, sel.losses)}　<span class="muted">勝率 ${rankRate(sel.rate)}</span>
+        <button class="btn small" id="mu-clear" style="margin-left:12px">選択を外す</button></h3>
+        ${opponents ? `<table class="list zebra rankings matchups"><thead><tr><th>相手の地域</th><th class="n">勝</th><th class="n">敗</th><th class="n">勝率</th></tr></thead><tbody>${opponents}</tbody></table>`
+          : '<p class="muted">この条件では試合がありません。</p>'}</div>
+      ${games ? `<div class="panel"><h3>試合（${sel.games.length}）<small class="muted">　押すと試合の画面へ</small></h3>
+        <table class="list zebra matchup-games"><thead><tr><th class="nowrap">年度</th><th>大会</th><th>回戦</th><th>学校</th><th class="n">スコア</th><th>相手</th></tr></thead><tbody>${games}</tbody></table></div>` : ""}
+    </div>${map}</div>`;
+}
+
 async function renderRankings(content) {
   const requested = JSON.stringify(state.recordsRankings);
   const sort = state.recordsRankings.sort || { key: "K.appearances", dir: -1 };
@@ -820,13 +877,17 @@ async function renderRankings(content) {
   const opt = (value, text, on) => `<option value="${esc(value)}" ${String(on ?? "") === String(value) ? "selected" : ""}>${esc(text)}</option>`;
   const select = (key, label, items, extra = "") => `<label>${label}<select id="rk-${key}" ${extra}>${items.map(([v, t]) => opt(v, t, f[key])).join("")}</select></label>`;
   const schoolsView = f.view === "schools";
-  const sourceNote = data.use_actual
+  const matchupView = !schoolsView && f.pref_view === "matchups";
+  const sourceNote = matchupView ? "ゲーム開始後の甲子園の試合だけを数えています（実際の記録には1試合ずつの結果がないため）。"
+    : data.use_actual
     ? "甲子園は実際の記録（ゲーム開始前）とゲームの記録の合計です。神宮・地区・県大会の優勝はゲームの記録だけです。"
     : (f.period === "game" ? "ゲーム開始後の記録だけを数えています。"
       : "直近の期間は、ゲームの記録だけを数えます（実際の記録には年ごとの勝敗がないため）。");
   const period = data.years.length ? `ゲームの記録：${data.years[0]}〜${data.years[1]}年度。` : "";
   let body;
-  if (schoolsView) {
+  if (matchupView) {
+    body = matchupBody(data.matchups);
+  } else if (schoolsView) {
     const rows = rankedRows(data.schools, sort, kind);
     body = `<table class="list zebra rankings"><thead><tr><th class="n">順位</th>${rankHead("name", "学校", sort)}${rankHead("prefecture", "都道府県", sort)}<th>設置者</th>
       ${RANK_SCHOOL_COLUMNS.map(([k, label, note]) => rankHead(k, label, sort, note)).join("")}</tr></thead>
@@ -858,6 +919,9 @@ async function renderRankings(content) {
     <div class="best8-filters">
       <button class="chip ${schoolsView ? "on" : ""}" data-rk-view="schools">学校別</button>
       <button class="chip ${schoolsView ? "" : "on"}" data-rk-view="prefectures">都道府県別</button>
+      ${schoolsView ? "" : `<span class="sep"></span>
+        <button class="chip ${matchupView ? "" : "on"}" data-rk-pview="totals">通算</button>
+        <button class="chip ${matchupView ? "on" : ""}" data-rk-pview="matchups">対戦成績</button>`}
       <span class="sep"></span>
       ${select("kind", "甲子園", RANK_KINDS)}
       ${select("period", "期間", data.periods)}
@@ -866,10 +930,10 @@ async function renderRankings(content) {
         ${select("prefecture", "都道府県", [["", "すべて"], ...data.prefectures])}
         <button class="btn small" type="button" id="rk-map">地図から選ぶ</button>
         ${select("owner", "設置者", [["", "すべて"], ["private", "私立"], ["public", "公立"]])}`
-        : `${select("metric", "地図の色", RANK_METRICS)}`}
+        : (matchupView ? "" : `${select("metric", "地図の色", RANK_METRICS)}`)}
     </div>
     <div class="scroll">
-      <p class="muted record-note">${esc(period + sourceNote)}${schoolsView ? esc(data.basis_note) : ""}${!schoolsView || (mapTile(f.prefecture) || {}).area_id ? SPLIT_NOTE : ""}見出しを押すと並べ替えます。</p>
+      <p class="muted record-note">${esc(period + sourceNote)}${schoolsView ? esc(data.basis_note) : ""}${!schoolsView || (mapTile(f.prefecture) || {}).area_id ? SPLIT_NOTE : ""}${matchupView ? "地域を押すと、相手の地域ごとの成績と試合を出します。" : "見出しを押すと並べ替えます。"}</p>
       ${body}
     </div>`;
   bindRecordsTabs(content);
@@ -891,6 +955,24 @@ async function renderRankings(content) {
     state.recordsRankings.view = b.dataset.rkView;
     renderPage();
   }));
+  content.querySelectorAll("[data-rk-pview]").forEach((b) => b.addEventListener("click", () => {
+    state.recordsRankings.pref_view = b.dataset.rkPview;
+    renderPage();
+  }));
+  if (matchupView) {
+    // 地域を選ぶ（表の行・地図のマス。同じ地域をもう一度押すと外す）
+    const pick = (code) => {
+      state.recordsRankings.area = state.recordsRankings.area === code ? "" : code;
+      renderPage();
+    };
+    content.querySelectorAll("[data-mu-area]").forEach((a) => a.addEventListener("click", () => pick(a.dataset.muArea)));
+    content.querySelectorAll(".rank-map [data-map-pref]").forEach((b) => b.addEventListener("click", () => pick(b.dataset.mapPref)));
+    const clear = $("mu-clear");
+    if (clear) clear.addEventListener("click", () => pick(""));
+    content.querySelectorAll("tr[data-mu-match]").forEach((tr) => tr.addEventListener("click", () =>
+      openMatch(Number(tr.dataset.year), tr.dataset.cid, tr.dataset.muMatch)));
+    return;
+  }
   content.querySelectorAll("[data-rank-sort]").forEach((th) => th.addEventListener("click", () => {
     const key = th.dataset.rankSort;
     // 数は多い順から、校名・都道府県は並びの順から
