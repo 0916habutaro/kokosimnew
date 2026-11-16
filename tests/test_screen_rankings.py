@@ -170,10 +170,23 @@ class RecordsRankingsTests(unittest.TestCase):
         data._current_year = lambda: 2030
         data._regions = {"90": "R1"}
         data.prefectures = {"90": "架空県"}
-        data.names = lambda sid: sid
+        data.names = lambda sid, day="": sid
+        data.union_name = lambda sid, cid, year, day="": ""
+        data.competition_names = lambda cid, name: name
+        # 甲子園の試合（対戦成績）：北の S-L が南の S-J に勝ち、南どうし（S-J と S-N）の選抜
+        data.koshien_game_years = lambda: {2030: [
+            {"competition_id": "SUMMER", "match_id": "G1", "match_date": "2030-08-08", "kind": "summer",
+             "round_name": "1回戦", "team1_id": "S-L", "team2_id": "S-J", "team1_score": 3,
+             "team2_score": 2, "winner_id": "S-L"},
+            {"competition_id": "SPRING", "match_id": "G2", "match_date": "2031-03-25", "kind": "spring",
+             "round_name": "2回戦", "team1_id": "S-J", "team2_id": "S-N", "team1_score": 4,
+             "team2_score": 0, "winner_id": "S-J"},
+        ]}
         data._ownership = lambda sid: "私立"
         data.actual_koshien = {"S-A": {"summer": {"appearances": 3, "wins": 2, "losses": 3, "championships": 0}}}
         repo = SimpleNamespace(schools={sid: {"prefecture_code": "90"} for sid in ("S-L", "S-J", "S-N", "S-A")},
+                               competitions={"SUMMER": {"competition_name": "夏の架空大会"},
+                                             "SPRING": {"competition_name": "春の架空大会"}},
                                data_dir=Path(__file__).resolve().parents[1] / "data")
         data.service = SimpleNamespace(repo=repo)
         # 地図のマス：架空県90を夏の代表区分で2つに分ける（S-L は北、ほかは南）
@@ -211,6 +224,33 @@ class RecordsRankingsTests(unittest.TestCase):
         # 学校別で北のマスを選ぶと、その区分の学校だけ
         self.assertEqual(["S-L"], self.ids(period="game", kind="koshien", prefecture="90N"))
         self.assertEqual([["90N", "架空北"], ["90S", "架空南"]], out["prefectures"])
+
+
+    def test_matchups_view(self):
+        """都道府県別の対戦成績：期間はゲーム開始後だけ。地域を選ぶと相手ごとの勝敗と試合。"""
+        out = self.screen().records_rankings({"view": "prefectures", "pref_view": "matchups", "period": "all"})
+        self.assertEqual("game", out["filters"]["period"])
+        self.assertEqual(["game", "5", "10", "20"], [p[0] for p in out["periods"]])
+        rows = {r["area"]: r for r in out["matchups"]["rows"]}
+        self.assertEqual((1, 0), (rows["90N"]["wins"], rows["90N"]["losses"]))
+        self.assertEqual((1, 2), (rows["90S"]["wins"], rows["90S"]["losses"]))
+        self.assertEqual("架空南", rows["90N"]["best"]["name"])
+        self.assertIsNone(out["matchups"]["selected"])
+        out = self.screen().records_rankings({"view": "prefectures", "pref_view": "matchups", "area": "90S",
+                                              "kind": "koshien"})
+        selected = out["matchups"]["selected"]
+        self.assertEqual([("90S", 1, 1, True), ("90N", 0, 1, False)],
+                         [(o["area"], o["wins"], o["losses"], o["same"]) for o in selected["opponents"]])
+        self.assertEqual(["G2", "G1"], [g["match_id"] for g in selected["games"]])
+        self.assertTrue(selected["games"][0]["same_area"])
+        self.assertEqual(("S-J", "S-L", False), (selected["games"][1]["school_id"], selected["games"][1]["opponent_id"],
+                                                 selected["games"][1]["won"]))
+        # 夏だけにすると選抜の試合は入らない
+        out = self.screen().records_rankings({"view": "prefectures", "pref_view": "matchups", "area": "90S",
+                                              "kind": "summer"})
+        self.assertEqual(["G1"], [g["match_id"] for g in out["matchups"]["selected"]["games"]])
+        # 通算の都道府県別には出さない
+        self.assertIsNone(self.screen().records_rankings({"view": "prefectures"})["matchups"])
 
 
 if __name__ == "__main__":

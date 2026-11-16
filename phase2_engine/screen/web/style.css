@@ -496,3 +496,7 @@ label.toggle.off { opacity: .45; }
 .hl-tag.hl-purple { background: #7a3cc2; color: #fff; }
 .hl-tag.hl-red { background: #5a2330; color: #ffb3c0; }
 .hl-text { font-size: 14px; }
+
+/* ランキング：都道府県別の対戦成績 */
+.matchup-games td.nowrap, .matchup-games th.nowrap { white-space: nowrap; }
+.matchup-games td small { white-space: nowrap; }

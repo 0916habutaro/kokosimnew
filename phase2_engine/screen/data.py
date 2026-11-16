@@ -215,6 +215,8 @@ class GameScreenData:
         self._records_players_memo: dict[tuple, dict] = {}
         # 閉じた年度 → ランキングの集計（rankings.year_tally）
         self._ranking_years: dict[int, dict] = {}
+        # 閉じた年度 → 甲子園の試合（rankings.koshien_games。都道府県別の対戦成績）
+        self._koshien_game_years: dict[int, list[dict]] = {}
         self._coach_history = None
         # コールドの規則（[回, 点差]）。試合の行に「7回コールド」を付けるのに使う
         self._mercy = json.loads(
@@ -1923,6 +1925,80 @@ class GameScreenData:
             )
         return out
 
+    def koshien_game_years(self) -> dict[int, list[dict]]:
+        """年度 → 甲子園（夏・選抜）の試合（ゲームの記録だけ）。
+
+        閉じた年度は試合の要約の索引から一度だけ読んで覚えておく。進行中の年度は、終わった大会の
+        試合だけを毎回読む（ランキングの ``ranking_tallies`` と同じ）。"""
+        competitions = self.service.repo.competitions
+        live = _seasons(self.state)
+        for year in self._years():
+            if year in live or year in self._koshien_game_years:
+                continue
+            self._koshien_game_years[year] = rankings.koshien_games(self._year_rows(year)[0], competitions)
+        out = {y: g for y, g in self._koshien_game_years.items() if y not in live}
+        for year, season in live.items():
+            out[year] = rankings.koshien_games(
+                self._year_rows(year)[0], competitions,
+                lambda cid, season=season: cid in season.competitions and season.competitions[cid].is_complete,
+            )
+        return out
+
+    def _matchups(self, f: dict, years, tile_of, tiles) -> dict:
+        """都道府県別の対戦成績（49の地域。北海道・東京は夏の代表区分）。
+
+        地域を選んでいなければ地域ごとの通算といちばん勝ち越し・負け越している相手、選んでいれば
+        相手の地域ごとの勝敗と試合の一覧。"""
+        games = self.koshien_game_years()
+        names = dict(tiles)
+        order = {code: i for i, (code, _) in enumerate(tiles)}
+        table = rankings.matchups(games, years, f["kind"], tile_of)
+
+        def opponent(found):
+            return None if found is None else {**found, "name": names.get(found["area"], "")}
+
+        rows = []
+        for code, name in tiles:
+            entry = table.get(code, {"wins": 0, "losses": 0, "rate": None, "opponents": {}})
+            best, worst = rankings.best_and_worst(entry["opponents"], order)
+            rows.append({"area": code, "name": name, "order": order[code], "wins": entry["wins"],
+                         "losses": entry["losses"], "rate": entry["rate"],
+                         "best": opponent(best), "worst": opponent(worst)})
+        out = {"rows": rows, "selected": None, "years": sorted(games)}
+        area = f.get("area")
+        if area in table or area in names:
+            entry = table.get(area, {"wins": 0, "losses": 0, "rate": None, "opponents": {}})
+            opponents = sorted(
+                ({"area": code, "name": names.get(code, code), "wins": w, "losses": l,
+                  "rate": w / (w + l), "same": code == area}
+                 for code, (w, l) in entry["opponents"].items()),
+                key=lambda r: (-(r["wins"] + r["losses"]), -(r["wins"] - r["losses"]), order.get(r["area"], 99)))
+            listed = []
+            for game in rankings.area_games(games, years, f["kind"], tile_of, area):
+                cid, year, day = game["competition_id"], game["school_year"], game["match_date"]
+                competition = self.service.repo.competitions.get(cid, {})
+                mine = game["side"]
+                listed.append({
+                    "school_year": year, "competition_id": cid, "match_id": game["match_id"],
+                    "match_date": day, "round_name": game["round_name"],
+                    "competition_name": self.competition_names(cid, competition.get("competition_name", cid)),
+                    "school_id": game[f"team{mine}_id"],
+                    "school_name": self.union_name(game[f"team{mine}_id"], cid, year, day) or self.names(game[f"team{mine}_id"], day),
+                    "opponent_id": game[f"team{3 - mine}_id"],
+                    "opponent_name": (self.union_name(game[f"team{3 - mine}_id"], cid, year, day)
+                                      or self.names(game[f"team{3 - mine}_id"], day)),
+                    "opponent_area": names.get(game[f"team{3 - mine}_area"], ""),
+                    "same_area": game["team1_area"] == game["team2_area"],
+                    "score": game[f"team{mine}_score"], "opponent_score": game[f"team{3 - mine}_score"],
+                    "won": game["winner_id"] == game[f"team{mine}_id"],
+                })
+            out["selected"] = {"area": area, "name": names.get(area, ""), "wins": entry["wins"],
+                               "losses": entry["losses"], "rate": entry["rate"],
+                               "opponents": opponents, "games": listed}
+        else:
+            f["area"] = ""
+        return out
+
     def records_rankings(self, filters=None) -> dict:
         """記録の画面の「ランキング」：学校別と都道府県別の回数。
 
@@ -1930,15 +2006,20 @@ class GameScreenData:
         直近◯年はゲームの記録だけ。学校別は、並べ替えの項目（``sort_key``）と甲子園の種類で
         記録のある学校だけを出す（``rankings.has_record``）。"""
         f = dict(filters or {})
-        tallies = self.ranking_tallies()
         current = self._current_year()
-        periods = [key for key, _ in self.RANKING_PERIODS]
+        f["view"] = f.get("view") if f.get("view") in ("schools", "prefectures") else "schools"
+        # 都道府県別の「対戦成績」は、1試合ずつの結果があるゲームの記録だけ（期間に「通算（実際＋ゲーム）」はない）
+        f["pref_view"] = f.get("pref_view") if f.get("pref_view") in ("totals", "matchups") else "totals"
+        matchup_view = f["view"] == "prefectures" and f["pref_view"] == "matchups"
+        period_list = rankings.MATCHUP_PERIODS if matchup_view else self.RANKING_PERIODS
+        periods = [key for key, _ in period_list]
         if str(f.get("period")) not in periods:
-            f["period"] = "all"
+            f["period"] = periods[0]
         f["period"] = str(f["period"])
+        # 対戦成績は学校ごとの回数を使わないので、ランキングの集計は読まない
+        tallies = {} if matchup_view else self.ranking_tallies()
         years, use_actual = rankings.period_years(f["period"], current)
         f.pop("actual", None)
-        f["view"] = f.get("view") if f.get("view") in ("schools", "prefectures") else "schools"
         if f.get("owner") not in ("", "private", "public"):
             f["owner"] = ""
         regions = sorted(set(self._regions.values()))
@@ -1992,13 +2073,15 @@ class GameScreenData:
         steps = rankings.color_steps(value)
         region_names = {r["region_id"]: r["region_name"]
                         for r in _csv_rows(self.service.repo.data_dir, "baseball_regions.csv")}
-        game_years = sorted(tallies)
+        matchups = self._matchups(f, years, tile_of, tiles) if matchup_view else None
+        game_years = sorted(matchups["years"] if matchup_view else tallies)
         return {
             "filters": f,
             "use_actual": use_actual,
             "basis": basis,
             "basis_note": rankings.basis_note(f["kind"], basis),
-            "periods": [list(p) for p in self.RANKING_PERIODS],
+            "periods": [list(p) for p in period_list],
+            "matchups": matchups,
             "years": [min(years), max(years)] if years else ([game_years[0], game_years[-1]] if game_years else []),
             "regions": [[r, region_names.get(r, r)] for r in regions],
             "prefectures": prefectures,
@@ -3076,6 +3159,7 @@ class GameScreenData:
         self._live_tallies = set()
         self._records_players_memo = {}
         self._ranking_years = {}
+        self._koshien_game_years = {}
         self._coach_history = None
         self._headline_lookups = {}
         self.service.forget_closed_seasons()

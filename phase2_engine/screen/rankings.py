@@ -187,3 +187,97 @@ def color_steps(values: dict[str, float | None], steps: int = 5) -> dict:
         bounds = [[low + width * i, low + width * (i + 1)] for i in range(steps)]
         classes = {key: (None if not v else min(steps - 1, int((v - low) / width))) for key, v in values.items()}
     return {"classes": classes, "bounds": bounds, "integer": integer}
+
+
+# ---- 都道府県別の対戦成績（甲子園。ゲーム開始後の試合だけ） ----
+
+MATCHUP_PERIODS = (("game", "ゲーム開始後の通算"), ("5", "直近5年"), ("10", "直近10年"), ("20", "直近20年"))
+
+
+def koshien_games(rows: list[dict], competitions: dict, finished=None) -> list[dict]:
+    """1年度の試合の要約（``school_views.normalized_rows`` の形）から甲子園（夏・選抜）の試合だけ。
+
+    数え方は学校の通算の勝敗（``year_results``）と同じ：勝ちの決まった試合だけ（引き分けは
+    数えず、再試合はその試合を1試合、不戦勝は勝ち・負けに数える）。``finished(大会ID)`` が偽の
+    大会（まだ終わっていない）は数えない（ランキングと同じ）。回戦名は本大会の回戦の数から。"""
+    games = [row for row in rows
+             if KOSHIEN.get(competitions.get(row["competition_id"], {}).get("competition_type"))
+             and (finished is None or finished(row["competition_id"]))]
+    rounds: dict[str, int] = {}
+    for row in games:
+        if row["main"]:
+            rounds[row["competition_id"]] = max(rounds.get(row["competition_id"], 0), row["round_no"])
+    out = []
+    for row in games:
+        cid = row["competition_id"]
+        if row.get("third_place"):
+            round_name = "3位決定戦"
+        elif row["main"]:
+            round_name = {0: "決勝", 1: "準決勝", 2: "準々決勝"}.get(
+                rounds[cid] - row["round_no"], f"{row['round_no']}回戦")
+        else:
+            round_name = ""
+        out.append({
+            "competition_id": cid, "match_id": row["match_id"], "match_date": row["match_date"],
+            "kind": KOSHIEN[competitions[cid]["competition_type"]], "round_name": round_name,
+            "team1_id": row["team1_id"], "team2_id": row["team2_id"],
+            "team1_score": row["team1_score"], "team2_score": row["team2_score"],
+            "winner_id": row["winner_id"],
+        })
+    return out
+
+
+def _picked(games_by_year: dict[int, list[dict]], years, kind: str):
+    for year, games in sorted(games_by_year.items()):
+        if years is not None and year not in years:
+            continue
+        for game in games:
+            if kind == "koshien" or game["kind"] == kind:
+                yield year, game
+
+
+def matchups(games_by_year: dict[int, list[dict]], years, kind: str, area_of) -> dict[str, dict]:
+    """地域 → {"wins", "losses", "rate", "opponents": {相手の地域: [勝, 敗]}}。
+
+    同じ地域どうしの試合は、その地域に1勝1敗（相手の欄は自分の地域）。地域の分からない学校の
+    試合は数えない。"""
+    out: dict[str, dict] = {}
+    for _, game in _picked(games_by_year, years, kind):
+        one, two = area_of(game["team1_id"]), area_of(game["team2_id"])
+        if not one or not two:
+            continue
+        for me, other, won in ((one, two, game["winner_id"] == game["team1_id"]),
+                               (two, one, game["winner_id"] == game["team2_id"])):
+            entry = out.setdefault(me, {"wins": 0, "losses": 0, "opponents": {}})
+            entry["wins" if won else "losses"] += 1
+            entry["opponents"].setdefault(other, [0, 0])[0 if won else 1] += 1
+    for entry in out.values():
+        games = entry["wins"] + entry["losses"]
+        entry["rate"] = entry["wins"] / games if games else None
+    return out
+
+
+def best_and_worst(opponents: dict[str, list[int]], order: dict[str, int]):
+    """いちばん勝ち越している相手と、いちばん負け越している相手（勝ち越し・負け越しがなければ None）。
+
+    差が同じなら試合の多い方、それも同じなら地図の並びの順。"""
+    def pick(sign):
+        rows = [(sign * (w - l), w + l, -order.get(a, 99), a) for a, (w, l) in opponents.items() if sign * (w - l) > 0]
+        if not rows:
+            return None
+        area = max(rows)[3]
+        return {"area": area, "wins": opponents[area][0], "losses": opponents[area][1]}
+    return pick(1), pick(-1)
+
+
+def area_games(games_by_year: dict[int, list[dict]], years, kind: str, area_of, area: str) -> list[dict]:
+    """その地域の学校が出た試合（新しい順）。``side`` はその地域の学校の側（1か2。両方なら1）。"""
+    out = []
+    for year, game in _picked(games_by_year, years, kind):
+        one, two = area_of(game["team1_id"]), area_of(game["team2_id"])
+        if area not in (one, two) or not one or not two:
+            continue
+        out.append({**game, "school_year": year, "side": 1 if one == area else 2,
+                    "team1_area": one, "team2_area": two})
+    out.sort(key=lambda g: (g["match_date"], g["match_id"]), reverse=True)
+    return out
