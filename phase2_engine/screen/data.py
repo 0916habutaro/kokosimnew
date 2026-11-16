@@ -1437,13 +1437,14 @@ class GameScreenData:
         for year, season in live.items():
             for cid, scheduled in season.competitions.items():
                 for row in scheduled.matches.values():
-                    if (row.status == "completed" and row.match_date and row.match_date <= day
+                    # 監督の記録はゲームを始めた年度の4月1日から（監督の画面と同じ。3月の試合は数えない）
+                    if (row.status == "completed" and row.match_date and first <= row.match_date <= day
                             and (row.team1_id in schools or row.team2_id in schools)):
                         facts[year, cid, row.match_id] = row.public_dict()
         wins, koshien = {}, {}
         for (_, cid, _), row in facts.items():
             played = actual_match_date(row)
-            if played is None:
+            if played is None or not first <= played.isoformat() <= day:
                 continue
             school = row["team1_id"] if row["team1_score"] > row["team2_score"] else row["team2_id"]
             coach = book.for_school(school, on=played)
@@ -3076,6 +3077,7 @@ class GameScreenData:
         self._records_players_memo = {}
         self._ranking_years = {}
         self._coach_history = None
+        self._headline_lookups = {}
         self.service.forget_closed_seasons()
         self.names.edits = self._load_edits()
         self.abilities = self._new_abilities()

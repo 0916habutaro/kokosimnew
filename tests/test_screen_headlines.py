@@ -247,3 +247,33 @@ class ArchiveReadTests(unittest.TestCase):
             self.assertNotIn("highlights", out["CMP_X", "M1"])
             facts = archive.schools_match_facts(["SCH_A", "SCH_C"], "2027-04-01", "2027-07-31")
             self.assertEqual(["M1", "M2", "M3"], sorted(f["match_id"] for f in facts))
+
+
+class SessionSwitchTests(unittest.TestCase):
+    def test_roster_cache_is_dropped_when_switching_saves(self):
+        """見出しの選手の名前を引く名簿は、別のセーブに切り替えたら引き直す。"""
+        from types import SimpleNamespace
+        from phase2_engine.school_edits import SchoolEdits
+        from phase2_engine.screen.data import GameScreenData
+        from phase2_engine.screen.player_records import RosterLookup
+
+        def session(name):
+            state = SimpleNamespace(year=2027, seasons={})
+            return SimpleNamespace(state=state, slot_id=name, name=name)
+
+        data = GameScreenData.__new__(GameScreenData)
+        data.service = SimpleNamespace(forget_closed_seasons=lambda: None,
+                                       school_edits=lambda s: SchoolEdits())
+        data.names = SimpleNamespace(edits=None)
+        data.config_root = ROOT / "config"
+        data.config = {"school_overall_weights": {}}
+        data._headline_lookups = {}
+        data._roster_lookup = lambda season: RosterLookup(
+            closed_roster=lambda year, school, slot=data.session.slot_id: [
+                {"player_id": "P1", "display_name": f"{slot} 太郎", "academic_year": 3}])
+        data._new_abilities = lambda: None
+        game = match()
+        data.session = session("前のセーブ")
+        self.assertEqual(("前のセーブ 太郎", 3), data._headline_player(game)("SCH_A", "P1"))
+        data.use_session(session("次のセーブ"))
+        self.assertEqual(("次のセーブ 太郎", 3), data._headline_player(game)("SCH_A", "P1"))
