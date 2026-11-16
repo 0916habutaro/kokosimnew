@@ -57,6 +57,11 @@
 - 地区大会（春は8月31日、秋は12月1日）：地区ごとの開催県・出場校数・都道府県ごとの校数、
   同じ県どうしの初戦・県1位どうしの初戦（``regional_draw_rules.csv`` で当てない地区の数も）・
   1回戦免除の校数・決まりをゆるめた地区の数（``regional_draw.py``）
+- 通し（年をまたぐ指標。``balance_power.py``。実際の値は ``historical_data`` から同じ物差しで並べる）：
+  評判のランクの差ごとの上のランクの勝率（県大会・地区大会・甲子園）、夏の甲子園の連続出場・出場回数の分布と
+  都道府県ごとの出場校の数、都道府県ごとの甲子園の勝率の散らばり、夏・選抜の優勝校の評判のランクと連覇・初優勝、
+  先発の1試合の球数の分布、準決勝・決勝でのエースの登板の間隔、7日間の球数の上限に届いた投手の数、
+  監督の在任年数・勇退の年齢、甲子園で勝った監督が去ったあとの学校の評判の変化
 - ``--ability-table``：打者・守備・投手が全部50の相手に、能力を30・80・95にしたときの三振・四球・打率・長打率・本塁打
   （打席の結果の重みから計算する。試合は進めない）
 """
@@ -75,12 +80,15 @@ import sys
 import tempfile
 import time
 
+from .balance_power import PowerTally, actual_metrics, format_power, merge_seeds, rounds_left
+
 ROOT = Path(__file__).resolve().parents[1]
 LOCAL = "summer_local_qualifier"
 KOSHIEN = "national_championship"
 VELOCITY_BANDS = ((0, "〜129"), (130, "130〜134"), (135, "135〜139"),
                   (140, "140〜144"), (145, "145〜149"), (150, "150〜"))
 TOP = 5
+POWER_KEY = "通し"
 TENDENCY_BANDS = ((0, "低"), (41, "中"), (61, "高"))
 COMPOSURE_BANDS = ((0, "〜44"), (45, "45〜59"), (60, "60〜"))
 FIELDING_BANDS = ((0, "〜44"), (45, "45〜54"), (55, "55〜"))
@@ -1282,6 +1290,8 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
                          _load_json(ROOT / "config" / "stats" / "player_rankings_v1.json"),
                          min_team_games)
     situations = SituationCounter(tally.kind_of)
+    limit = _load_json(ROOT / "config" / "match" / "game_rules_v1.json").get("pitch_limit")
+    power = PowerTally(repo, tally.kind_of, (int(limit["pitches"]), int(limit["days"])) if limit else None)
     entry_scope = prefectural_entry_scope(repo)
     hands = HandLookup()
     with tempfile.TemporaryDirectory() as saves, situations.watching():
@@ -1314,12 +1324,17 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
                     return hands.side(state.rosters, school_year_of(on), schools, player_id)
 
                 for key in list(pending):
-                    tally.add_match(key.split(":", 1)[0], pending.pop(key), coach_of, bats_of, ability_of)
+                    competition_id, match_id = key.split(":", 1)
+                    detail = pending.pop(key)
+                    tally.add_match(competition_id, detail, coach_of, bats_of, ability_of)
+                    power.add_match(competition_id, detail, played_on,
+                                    rounds_left(season, competition_id, match_id), coach_of)
             if (today.month, today.day) == (4, 1):
                 sizes = list(size_rows(state.rosters, today.year, repo))
                 tally.add_sizes(today.year, sizes, state.rosters.floor_hits.get(today.year, 0))
                 if getattr(state, "reputation", None) is not None:
                     tally.add_top_reputation(today.year, state.reputation.values)
+                    power.set_reputation(today.year, state.reputation)
             if (today.month, today.day) == (11, 1) and today.year in state.seasons:
                 tally.add_unions(today.year, state.seasons[today.year], tally.kind_of)
             if (today.month, today.day) == (8, 31):
@@ -1348,7 +1363,9 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
         year = school_year_of(state.current_date)
         if last_snapshot is None or last_snapshot < year:
             tally.add_rosters(year, roster_rows(state.rosters, year))
+        power_summary = power.summary(getattr(state, "coaches", None))
     report = tally.summary()
+    report[POWER_KEY] = power_summary
     for year, scopes in situations.summary().items():
         if year in report:
             report[year]["situations"] = scopes
@@ -1377,13 +1394,17 @@ def average(reports: list[dict]) -> dict:
         if all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in values):
             return round(statistics.mean(values), 3)
         return None
-    years = set.intersection(*(set(r) for r in reports))
-    return {year: merge([r[year] for r in reports]) for year in sorted(years)}
+    years = set.intersection(*(set(r) for r in reports)) - {POWER_KEY}
+    out = {year: merge([r[year] for r in reports]) for year in sorted(years)}
+    powers = [r[POWER_KEY] for r in reports if r.get(POWER_KEY)]
+    if powers:
+        out[POWER_KEY] = {**merge(powers), **merge_seeds(powers)}
+    return out
 
 
-def format_report(seed_label: str, report: dict) -> str:
+def format_report(seed_label: str, report: dict, actual: dict | None = None) -> str:
     lines = [f"== {seed_label}"]
-    for year, row in sorted(report.items()):
+    for year, row in sorted((y, r) for y, r in report.items() if y != POWER_KEY):
         lines.append(f"-- {year}年度")
         local = row.get("local") or {}
         if local:
@@ -1617,6 +1638,8 @@ def format_report(seed_label: str, report: dict) -> str:
             total = sum(bench.values())
             lines.append("  夏の甲子園のベンチ入り: " + " / ".join(
                 f"{g}年 {bench[g]}人（{bench[g] / total:.1%}）" for g in ("1", "2", "3")))
+    if report.get(POWER_KEY):
+        lines.append(format_power(report[POWER_KEY], actual))
     return "\n".join(lines)
 
 
@@ -1717,6 +1740,8 @@ def main(argv=None) -> int:
                         help="能力ごとの効きの表だけを出す（試合は進めない）")
     parser.add_argument("--min-team-games", type=int, default=8,
                         help="個人成績の上位に入れる選手のチームの最少試合数（年度ごと）")
+    parser.add_argument("--actual-tournaments", type=int, default=10,
+                        help="実際の値に使う直近の夏の甲子園の大会の数（進める年数にそろえる）")
     parser.add_argument("--json", type=Path, help="結果をJSONで書く先（リポジトリの外に置く）")
     args = parser.parse_args(argv)
     if args.ability_table:
@@ -1731,6 +1756,13 @@ def main(argv=None) -> int:
     def progress(seed, day):
         print(f"[{seed}] {day} {time.time() - started:.0f}秒", file=sys.stderr, flush=True)
 
+    from .repository import DataRepository
+    from game_core.school_reputation import reputation_for
+
+    # 実際の値：ゲームと同じ大会の数にそろえる（開始時の評判のランクは最初の乱数の種のもの）
+    initial = reputation_for(str(ROOT))
+    actual = actual_metrics(DataRepository(ROOT / "data"), args.actual_tournaments,
+                            lambda school: initial.rank(school, seeds[0]))
     reports = {}
     if args.workers > 1 and len(seeds) > 1:
         from concurrent.futures import ProcessPoolExecutor
@@ -1739,16 +1771,16 @@ def main(argv=None) -> int:
             for seed, report in pool.map(_run_one, [(s, until, args.min_team_games) for s in seeds]):
                 reports[seed] = report
         for seed in seeds:
-            print(format_report(f"seed {seed}", reports[seed]), flush=True)
+            print(format_report(f"seed {seed}", reports[seed], actual), flush=True)
     else:
         for seed in seeds:
             reports[seed] = run_seed(seed, until, min_team_games=args.min_team_games, progress=progress)
-            print(format_report(f"seed {seed}", reports[seed]), flush=True)
+            print(format_report(f"seed {seed}", reports[seed], actual), flush=True)
     if args.json:
-        args.json.write_text(json.dumps({str(k): v for k, v in reports.items()},
+        args.json.write_text(json.dumps({**{str(k): v for k, v in reports.items()}, "actual": actual},
                                         ensure_ascii=False, indent=1), encoding="utf-8")
     if len(seeds) > 1:
-        print(format_report("平均", average(list(reports.values()))))
+        print(format_report("平均", average(list(reports.values())), actual))
     return 0
 
 
