@@ -117,6 +117,32 @@ class CompetitionScreenTests(unittest.TestCase):
         self.assertFalse(detail["has_detail"])
         self.assertTrue(detail["team1_name"])
 
+    def test_every_played_match_has_a_place_in_the_bracket_page(self):
+        """試合の画面の「トーナメント表で見る」は、試合をトーナメント表の交点・
+        抽選で決める回戦・3位決定戦・予選の組の表のどれかで目立たせる。
+        終わった試合はどれかに必ず載っている。"""
+        season = self.session.state.seasons[2026]
+        checked = 0
+        for row in self.listing["competitions"]:
+            cid = row["competition_id"]
+            scheduled = season.competitions.get(cid)
+            if scheduled is None:
+                continue
+            bracket = self.data.bracket(2026, cid)
+            shown = {m["match_id"] for m in bracket["other_matches"]}
+            main = bracket["main"]
+            if main:
+                shown |= {m["match_id"] for m in main["matches"]}
+                for later in main["later_rounds"] + [main["third_place"] or {"matches": []}]:
+                    shown |= {m["match_id"] for m in later["matches"]}
+            for match in scheduled.matches.values():
+                if match.status == "completed":
+                    self.assertIn(match.match_id, shown, cid)
+                    checked += 1
+        self.assertGreater(checked, 0)
+        script = (ROOT / "phase2_engine" / "screen" / "web" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('$("m-bracket").addEventListener("click", () => openBracketAt(', script)
+
     def test_matches_on_a_day(self):
         latest = self.data.matches_on()
         self.assertEqual("2026-05-10", latest["date"])
