@@ -250,7 +250,7 @@ async function renderToday(content) {
   const competitions = header.active_competitions.slice(0, 12).map((row) =>
     `<tr class="click" data-open-year="${row.school_year}" data-open-id="${esc(row.competition_id)}"><td title="${esc(row.name)}">${esc(row.short_name)}</td><td class="muted">${row.next_date ? "次の試合 " + fmtDate(row.next_date, { today: true }) : ""}</td></tr>`).join("");
   content.innerHTML = `<div class="head"><h2>今日</h2><span class="muted">${fmtDate(header.date)}</span></div>
-    <div class="scroll"><div class="split">
+    <div class="scroll">${headlinesPanel(data.headlines)}<div class="split">
       <div>
         <div class="panel"><h3>今日の全国の試合</h3><div class="big">${header.today_match_count}<small class="muted" style="font-size:16px"> 試合</small></div></div>
         <div class="panel"><h3>注目の試合</h3>${data.featured.length
@@ -269,6 +269,45 @@ async function renderToday(content) {
     openMatch(Number(tr.dataset.year), tr.dataset.cid, tr.dataset.id)));
   content.querySelectorAll("tr.click[data-open-id]").forEach((tr) => tr.addEventListener("click", () =>
     openCompetition(Number(tr.dataset.openYear), tr.dataset.openId)));
+  bindHeadlines(content, data.headlines);
+}
+
+// ---- 今日の見出し ----
+// 見出しの種類 → 札の色（優勝は金、甲子園の出場は緑、記録は紫、番狂わせ・途切れは赤、ほかは灰）
+const HEADLINE_TAGS = {
+  national_champion: "hl-gold", regional_champion: "hl-gold",
+  first_appearance: "hl-green", long_gap: "hl-green", streak: "hl-green", qualified: "hl-green",
+  streak_broken: "hl-red", upset: "hl-red", early_exit: "hl-red",
+  perfect: "hl-purple", no_hitter: "hl-purple", cycle: "hl-purple",
+};
+
+function headlineRow(h, i) {
+  return `<li class="headline click" data-hl="${i}"><span class="hl-tag ${HEADLINE_TAGS[h.kind] || ""}">${esc(h.label)}</span><span class="hl-text">${esc(h.text)}</span></li>`;
+}
+
+function headlinesPanel(data) {
+  if (!data || !data.items.length) return "";
+  const rest = data.items.length - data.shown;
+  return `<div class="panel headlines"><h3>今日の見出し<small class="muted">　${fmtDate(data.date)}の出来事</small></h3>
+    <ul class="headline-list">${data.items.slice(0, data.shown).map(headlineRow).join("")}</ul>
+    ${rest > 0 ? `<span class="link" id="hl-more">ほか${rest}件</span>` : ""}</div>`;
+}
+
+function bindHeadlines(content, data) {
+  if (!data || !data.items.length) return;
+  const list = content.querySelector(".headline-list");
+  const bind = () => list.querySelectorAll("li[data-hl]").forEach((li) => li.addEventListener("click", () => {
+    const t = data.items[Number(li.dataset.hl)].target;
+    if (t.type === "school") openSchool(t.school_id);
+    else openMatch(t.school_year, t.competition_id, t.match_id);
+  }));
+  bind();
+  const more = $("hl-more");
+  if (more) more.addEventListener("click", () => {
+    list.innerHTML = data.items.map(headlineRow).join("");
+    more.remove();
+    bind();
+  });
 }
 
 // 大会の画面（トーナメント表）を開く

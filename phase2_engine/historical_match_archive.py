@@ -1266,6 +1266,38 @@ class HistoricalMatchArchive:
                     continue
                 yield cid, mid, self._read_match_payload(conn, year, cid, mid, raw, digest, validate=False)
 
+    def day_match_stats(self, year: int, day: str, keys) -> dict[tuple, dict]:
+        """その日の試合の点・回ごとの点・チームと個人の成績だけ（今日の見出し）。
+
+        日付の索引で1回だけ読み、記録のハッシュは確かめる。出場の経過・場面の記録は戻さない
+        （1日に数百試合ある日でも軽く読むため）。``keys`` にない試合と、ない試合は入れない。"""
+        wanted = set(keys)
+        if not wanted or not self.db_path.is_file():
+            return {}
+        out = {}
+        with closing(sqlite3.connect(self.db_path, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
+            rows = conn.execute(
+                """SELECT competition_id, match_id, payload_json, record_sha256 FROM historical_matches
+                   WHERE year=? AND match_date=?""",
+                (year, day),
+            ).fetchall()
+            for cid, mid, raw, digest in rows:
+                if (cid, mid) not in wanted:
+                    continue
+                raw = raw or self._packed(conn, year, cid).get(mid)
+                if not isinstance(raw, str) or _digest(raw) != digest:
+                    continue
+                payload = json.loads(raw)
+                payload.pop("team_participation", None)
+                payload.pop("highlights", None)
+                for name in _TABLE_FIELDS:
+                    table = payload.get(name)
+                    if isinstance(table, dict) and set(table) == {"columns", "rows"}:
+                        # ハッシュを確かめた記録なので、表の形の検証は省いて戻す
+                        payload[name] = [dict(zip(table["columns"], row)) for row in table["rows"]]
+                out[cid, mid] = payload
+        return out
+
     def store_closed_rosters(self, year: int, rosters: Mapping[str, bytes]) -> None:
         """閉じた年度の名簿（学校ID → ``RosterBook.closed_record``）。"""
         with self._connection() as conn:
@@ -1307,6 +1339,29 @@ class HistoricalMatchArchive:
         keys = ('year', 'competition_id', 'match_id', 'match_date', 'date_source',
                 'team1_id', 'team2_id', 'team1_score', 'team2_score', 'score_source')
         return [dict(zip(keys, row)) for row in rows]
+
+    def schools_match_facts(self, school_ids, first: str, last: str) -> list[dict]:
+        """``school_match_facts`` を複数の学校まとめて（1つの接続で読む。同じ試合は1回）。"""
+        school_ids = sorted(set(school_ids))
+        if not school_ids or not self.db_path.is_file():
+            return []
+        keys = ('year', 'competition_id', 'match_id', 'match_date', 'date_source',
+                'team1_id', 'team2_id', 'team1_score', 'team2_score', 'score_source')
+        out = {}
+        with closing(sqlite3.connect(self.db_path.resolve().as_uri() + '?mode=ro',
+                                    uri=True, timeout=BUSY_TIMEOUT_SECONDS)) as conn:
+            for column in ('team1_id', 'team2_id'):
+                for start in range(0, len(school_ids), 500):
+                    chunk = school_ids[start:start + 500]
+                    rows = conn.execute(
+                        f"""SELECT {', '.join(keys)} FROM historical_matches
+                            WHERE {column} IN ({','.join('?' * len(chunk))})
+                              AND match_date >= ? AND match_date <= ?""",
+                        (*chunk, first, last),
+                    ).fetchall()
+                    for row in rows:
+                        out[row[:3]] = dict(zip(keys, row))
+        return list(out.values())
 
     def match_index(self, year: int) -> list[dict]:
         """その年度の全試合の要約（成績表用。個人成績などは読まない）。"""

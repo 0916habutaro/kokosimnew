@@ -1,0 +1,68 @@
+{
+  "config_id": "headlines_v1",
+  "description_ja": "今日の画面の「今日の見出し」（phase2_engine/screen/headlines.py）。前の試合日の試合から、新聞の見出しのように出来事を選ぶ判定の値と並べ方。",
+  "max_lines": 8,
+  "level_order": ["national", "regional", "prefectural", "local"],
+  "round_weights": {"決勝": 6, "準決勝": 5, "準々決勝": 4, "3位決定戦": 3},
+  "tiers": {
+    "national_champion": 0,
+    "first_appearance": 1, "long_gap": 1, "streak": 1, "qualified": 1, "streak_broken": 1,
+    "perfect": 2, "no_hitter": 2, "cycle": 2,
+    "upset": 3,
+    "regional_champion": 4, "early_exit": 4, "comeback": 4, "walk_off": 4, "extra_innings": 4,
+    "strikeouts": 4, "home_runs": 4, "big_score": 4, "coach_koshien_wins": 4, "coach_wins": 4
+  },
+  "labels": {
+    "national_champion": "優勝", "regional_champion": "優勝",
+    "first_appearance": "初出場", "long_gap": "{years}年ぶり", "streak": "{years}年連続", "qualified": "甲子園へ",
+    "streak_broken": "途切れる",
+    "perfect": "完全試合", "no_hitter": "ノーヒットノーラン", "cycle": "サイクル安打",
+    "upset": "番狂わせ",
+    "early_exit": "早くも敗退", "comeback": "大逆転", "walk_off": "サヨナラ", "extra_innings": "延長",
+    "strikeouts": "奪三振", "home_runs": "本塁打", "big_score": "大量得点",
+    "coach_koshien_wins": "監督", "coach_wins": "監督"
+  },
+  "upset": {
+    "rules": [
+      {"levels": ["national", "regional"], "min_gap": 1, "loser_ranks": ["S", "A", "B"]},
+      {"levels": ["prefectural", "local"], "round_names": ["準々決勝", "準決勝", "決勝"], "min_gap": 1, "loser_ranks": ["S"]},
+      {"levels": ["prefectural", "local"], "min_gap": 2, "loser_ranks": ["S", "A"]}
+    ]
+  },
+  "drama": {
+    "levels": ["national", "regional"],
+    "local_round_names": ["準々決勝", "準決勝", "決勝"],
+    "comeback_runs": 5,
+    "comeback_runs_elsewhere": 8
+  },
+  "feat_min_outs": 27,
+  "records": {"strikeouts": 15, "home_runs": 3, "runs": 20},
+  "koshien": {
+    "long_gap_years": 20,
+    "streak_years": 5,
+    "broken_streak_years": 3
+  },
+  "early_exit": {
+    "competition_types": ["summer_local_qualifier"],
+    "ranks": ["S"],
+    "max_games": 2
+  },
+  "coach": {
+    "koshien_win_step": 10,
+    "win_step": 100
+  },
+  "notes_ja": {
+    "max_lines": "最初に出す行数。残りは「ほか◯件」を押すと全部出す",
+    "level_order": "大会の格（並べる順）。competition_level の値",
+    "round_weights": "同じ順位の中で回戦の重さ（大きいほど上）。本大会（MAIN）の回戦名だけ",
+    "tiers": "大事さの順（小さいほど上）：全国の優勝 → 甲子園の出場決定・途切れ → 記録 → 番狂わせ → その他",
+    "labels": "先頭の【 】の文字。{years} は年数",
+    "upset.rules": "上から順に、大会の格（と回戦）が合う最初の決まりを使う。評判のランクの差（rank_labels の並びの段数）が min_gap 以上で、負けた学校の評判が loser_ranks に入るとき番狂わせ",
+    "drama": "サヨナラ・延長・大量得点は levels の大会の本大会と、それ以外の大会の local_round_names の回戦だけ。大逆転は、その大会・回戦では comeback_runs 点差以上、ほかでは comeback_runs_elsewhere 点差以上を勝った学校がひっくり返した試合。地区大会の予選（北海道の支部予選など）は都道府県大会と同じに扱う",
+    "feat_min_outs": "ノーヒットノーラン・完全試合は、投げ切ったアウトの数がこれ以上の試合だけ（コールドの試合は見出しにしない。サイクル安打はコールドでも出す）",
+    "records": "1人の投手の1試合の奪三振、1人の打者の1試合の本塁打、1チームの1試合の得点がこれ以上。得点は drama と同じ大会・回戦だけ",
+    "koshien": "夏の地方大会の優勝（夏の甲子園の出場決定）：前回からの年数が long_gap_years 以上なら「◯年ぶり」、連続が streak_years 以上なら「◯年連続」。夏の甲子園に broken_streak_years 年以上続けて出ていた学校が夏の地方大会で負けて終わったら「途切れる」",
+    "early_exit": "competition_types の大会で、評判が ranks の学校がその大会の max_games 試合目までに負けて終わった",
+    "coach": "監督の甲子園の勝利が koshien_win_step の倍数、公式戦の通算勝利が win_step の倍数になった日（監督の記録はゲームを始めてからの試合だけ）"
+  }
+}
