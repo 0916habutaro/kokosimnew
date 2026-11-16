@@ -6,7 +6,7 @@
 
 出す指標（年度ごと・シードごと。シードが2つ以上なら平均も）
 
-- §11：地方大会の1チーム1試合の得点・コールドの割合・完封の割合、
+- §11：地方大会の1チーム1試合の得点・コールドの割合・完封の割合・大差（20点・30点以上）の割合、
   夏の甲子園の初出場の学校の数（割合）・2年続けて出る学校の数
 - 先発の平均球数・完投の割合、盗塁・併殺の1試合あたりの数（両チームの合計）
 - 個人成績の上位（打率・本塁打・防御率。規定は ``config/stats/player_rankings_v1.json``。
@@ -881,6 +881,9 @@ def _game_metrics(games) -> dict:
         "extra_share": round(sum(inning >= 10 for *_, inning in games) / len(games), 3),
         "margin": {label: round(sum(low <= m <= high for m in margins) / len(games), 3)
                    for label, low, high in (("0-2", 0, 2), ("3-5", 3, 5), ("6-9", 6, 9), ("10+", 10, 999))},
+        # 大差の試合（部員の少ない学校が大量点を取られる試合）。10以上の帯では見えない
+        "blowout": {"20+": round(sum(m >= 20 for m in margins) / len(games), 4),
+                    "30+": round(sum(m >= 30 for m in margins) / len(games), 4), "max": max(margins)},
     }
 
 
@@ -1414,6 +1417,9 @@ def format_report(seed_label: str, report: dict, actual: dict | None = None) -> 
                 lines.append(f"  地方大会 点差 0〜2／3〜5／6〜9／10以上: " + "／".join(
                     f"{local['margin'][k]:.1%}" for k in ("0-2", "3-5", "6-9", "10+"))
                     + f" / 延長 {local['extra_share']:.1%}")
+            if local.get("blowout"):
+                lines.append(f"  地方大会 大差 20点以上 {local['blowout']['20+']:.2%} / 30点以上 "
+                             f"{local['blowout']['30+']:.2%} / 最大 {local['blowout']['max']}点差")
         ko = row.get("koshien")
         if ko:
             lines.append(f"  夏の甲子園 {ko['teams']}校: 初出場 {ko['first_time']}校"

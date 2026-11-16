@@ -47,7 +47,8 @@ class BalanceTallyTests(unittest.TestCase):
         row = tally.summary()[2026]
         self.assertEqual({"games": 2, "runs_per_team": 3.75, "called_share": 0.5,
                           "shutout_share": 0.5, "extra_share": 0.0,
-                          "margin": {"0-2": 0.5, "3-5": 0.0, "6-9": 0.0, "10+": 0.5}}, row["local"])
+                          "margin": {"0-2": 0.5, "3-5": 0.0, "6-9": 0.0, "10+": 0.5},
+                          "blowout": {"20+": 0.0, "30+": 0.0, "max": 10}}, row["local"])
         self.assertEqual({"starts": 4, "pitches_mean": 100.0, "complete_game_share": 0.75},
                          row["starters"])
         self.assertEqual({"games": 2, "stolen_bases": 1.0, "double_plays": 0.5, "wild_pitches": 1.0,
