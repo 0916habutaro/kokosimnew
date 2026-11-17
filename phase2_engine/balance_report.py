@@ -20,6 +20,9 @@
   （低い〜40・中・61〜高い）ごとの1チーム1試合あたりの数も出す
 - 場面ごとの作戦の試み（無死一塁・無死二塁・無死一二塁・一死一塁で、送りバント・エンドランを
   試みた打席の割合。全試合と夏の甲子園）。試合の計算の作戦の判断（``_choose_tactic``）を数える
+- 大差の場面（``match_simulation_v1`` の ``blowout.thresholds``。勝っている側が手を緩める）：勝っている側の打席の数と
+  そのうちの作戦（スクイズ・送りバント・エンドラン）・盗塁の試みの数（0のはず）、休ませた先発と代わった控えの
+  1試合あたりの数（交代の理由 ``blowout_rest``。代打・代走・守備固めの数には入れない）と、控えを出したチーム試合の数
 - 交代（段階F2）：代打・代走・守備固めの1試合あたりの数（交代の記録の理由から）、代打の打率、
   監督の交代の積極性（低い〜40・中・61〜高い）ごとの1チーム1試合あたりの交代の数
 - 打順（段階F3）：先発の1番打者の走力・4番打者のパワーの平均（能力は試合の翌日の名簿の値）、
@@ -256,6 +259,10 @@ class BalanceTally:
         for part in detail.get("team_participation") or []:
             reasons = Counter(c.get("reason") for c in part.get("changes") or () if c.get("reason"))
             shuffled = {key: reasons.pop(key, 0) for key in ("pitcher_to_field", "pitcher_return")}
+            # 大差で休ませた先発と代わった控え（代打・代走・守備固めの数には入れない）
+            rested = reasons.pop("blowout_rest", 0)
+            tally["blowout_rest"] += rested
+            tally["blowout_rest_team_games"] += rested > 0
             tally.update(reasons)
             coach = coach_of(part["school_id"]) if coach_of else None
             shuffle_band = tendency_band(getattr(coach, "pitcher_shuffle", None)) if coach is not None else None
@@ -375,6 +382,8 @@ class BalanceTally:
             "pinch_hit_average": (round(t["pinch_hit_hits"] / t["pinch_hit_at_bats"], 3)
                                   if t["pinch_hit_at_bats"] else None),
             "pinch_hit_at_bats": t["pinch_hit_at_bats"],
+            "blowout_rest": round(t["blowout_rest"] / games, 3),
+            "blowout_rest_team_games": t["blowout_rest_team_games"],
             "by_tendency": {band: {"team_games": cell[0], "substitutions": round(cell[1] / cell[0], 3)}
                             for band, cell in sorted(self.substitutions_by_band.get(year, {}).items())
                             if cell[0]},
@@ -1123,6 +1132,7 @@ class SituationCounter:
         self.pressure = defaultdict(lambda: defaultdict(lambda: [0, 0]))  # 年度 → (場面, 帯) → [打数, 安打]
         self.pressed = False
         self.fielding = defaultdict(Counter)  # 年度 → 守備位置・帯ごとの打球・単打・失策
+        self.blowout = defaultdict(Counter)   # 年度 → 大差で勝っている側の打席・作戦・盗塁の試み
 
     @contextmanager
     def watching(self):
@@ -1134,8 +1144,14 @@ class SituationCounter:
         field = getattr(MatchSimulator, "_field_ball", None)
         counter = self
 
+        def easing(sim, kwargs):
+            check = getattr(sim, "_easing_off", None)
+            return check is not None and check(kwargs.get("inning", 0), kwargs.get("margin", 0))
+
         def watched_attempt(sim, *, bases, **kwargs):
             result = attempt(sim, bases=bases, **kwargs)
+            if result and easing(sim, kwargs):
+                counter.blowout[counter.year]["steal_attempts"] += 1
             if result:
                 row = counter.steals[counter.year]
                 lead = result[0]
@@ -1165,6 +1181,9 @@ class SituationCounter:
 
         def watched_choose(sim, *, bases, outs, **kwargs):
             tactic = choose(sim, bases=bases, outs=outs, **kwargs)
+            if easing(sim, kwargs):
+                counter.blowout[counter.year]["plate_appearances"] += 1
+                counter.blowout[counter.year]["tactics"] += tactic is not None
             name = SITUATIONS.get((outs, MatchSimulator._runner_shape(bases))) if bases[2] is None else None
             if name is not None:
                 for scope in ("all", "koshien") if counter.kind == KOSHIEN else ("all",):
@@ -1221,6 +1240,8 @@ class SituationCounter:
                             + ["apt:primary", "apt:out_of_position", "all"])
                 if row[f"{key}:balls"]
             }
+        for year, row in self.blowout.items():
+            out[year]["blowout"] = {key: row[key] for key in ("plate_appearances", "tactics", "steal_attempts")}
         for year, cells in self.pressure.items():
             out[year]["composure"] = {f"{scene}:{band}": {"at_bats": ab, "average": round(h / ab, 3)}
                                       for (scene, band), (ab, h) in sorted(cells.items()) if ab}
@@ -1384,6 +1405,8 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
                 report[year]["composure"] = extra["composure"]
             if "fielding" in extra:
                 report[year]["fielding"] = extra["fielding"]
+            if "blowout" in extra:
+                report[year]["blowout"] = extra["blowout"]
     return report
 
 
@@ -1499,6 +1522,13 @@ def format_report(seed_label: str, report: dict, actual: dict | None = None) -> 
             average = "−" if su["pinch_hit_average"] is None else f"{su['pinch_hit_average']:.3f}"
             lines.append(f"  交代（1試合あたり）: 代打 {su['pinch_hitters']} / 代走 {su['pinch_runners']} / "
                          f"守備固め {su['defensive_replacements']} / 代打の打率 {average}（{su['pinch_hit_at_bats']}打数）")
+            bl = row.get("blowout")
+            if bl or su.get("blowout_rest"):
+                bl = bl or {}
+                lines.append(f"  大差の場面（勝っている側）: 打席 {bl.get('plate_appearances', 0)} / "
+                             f"作戦 {bl.get('tactics', 0)} / 盗塁の試み {bl.get('steal_attempts', 0)} / "
+                             f"出た控え 1試合あたり {su.get('blowout_rest', 0)}"
+                             f"（控えを出した {su.get('blowout_rest_team_games', 0)}チーム試合）")
             if su.get("by_tendency"):
                 lines.append("  監督 交代の積極性（1チーム1試合あたりの交代）: " + " / ".join(
                     f"{band} {cell['substitutions']}（{cell['team_games']}）" for band, cell in su["by_tendency"].items()))

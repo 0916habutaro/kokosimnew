@@ -46,7 +46,9 @@ EVENT_LABELS = {
 # 采配の交代の理由（段階F2。game_core/match_state.py の LineupChange.reason）
 REASON_LABELS = {"pinch_hitter": "代打", "pinch_runner": "代走", "defensive_replacement": "守備固め",
                  # 投手の配置転換（段階F5）
-                 "pitcher_to_field": "配置転換", "pitcher_return": "再登板"}
+                 "pitcher_to_field": "配置転換", "pitcher_return": "再登板",
+                 # 大差で勝っている側が先発を休ませて控えを出す
+                 "blowout_rest": "控えと交代"}
 # 作戦の要点（game_core/highlights.py の T）
 TACTIC_LABELS = {
     ("bunt", "foul"): "送りバント失敗（追い込まれて打つ）",

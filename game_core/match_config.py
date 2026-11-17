@@ -191,6 +191,11 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         raise ValueError(
             "match simulation: probability_floor must be in (0, 0.05)"
         )
+    min_out = model.get("min_out_share")
+    if (not isinstance(min_out, dict) or not _number(min_out.get("pivot"))
+            or not 0 < float(min_out["pivot"]) <= 0.6
+            or not _number(min_out.get("strength")) or not 0 <= float(min_out["strength"]) <= 1):
+        raise ValueError("match simulation: min_out_share needs pivot in (0, 0.6] and strength in [0, 1]")
 
     situational = payload.get("situational_events")
     if not isinstance(situational, dict):
@@ -265,6 +270,7 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
     _validate_strategy(payload.get("strategy"))
     _validate_substitutions(payload.get("substitutions"))
     _validate_pitcher_shuffle(payload.get("pitcher_shuffle"))
+    _validate_blowout(payload.get("blowout"))
     _validate_h1(payload)
     _validate_fielding(payload.get("fielding"))
 
@@ -591,6 +597,20 @@ def _validate_substitutions(subs) -> None:
     relief = subs["platoon_relief"]
     if relief["min_same_side"] > relief["lookahead"]:
         raise ValueError("match simulation: platoon_relief.min_same_side exceeds lookahead")
+
+
+def _validate_blowout(rule) -> None:
+    """大差で手を緩める場面：［回, リード］の並び（回は1以上、リードは1以上）と、1回に休ませる人数。"""
+    def whole(value, minimum):
+        return isinstance(value, int) and not isinstance(value, bool) and value >= minimum
+
+    if not isinstance(rule, dict) or not isinstance(rule.get("thresholds"), list):
+        raise ValueError("match simulation: blowout required")
+    if not all(isinstance(row, list) and len(row) == 2 and whole(row[0], 1) and whole(row[1], 1)
+               for row in rule["thresholds"]):
+        raise ValueError("match simulation: invalid blowout.thresholds")
+    if not whole(rule.get("per_half_inning"), 0):
+        raise ValueError("match simulation: invalid blowout.per_half_inning")
 
 
 def _validate_pitcher_shuffle(rule) -> None:
