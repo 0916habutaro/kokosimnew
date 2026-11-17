@@ -272,6 +272,66 @@ def _unpack_states(first_year: int, data: bytes,
     return states
 
 
+def _with_cohorts(newcomers):
+    """新入部員ごとの (選手, 同じ入学年度の部員番号)。"""
+    cohorts: dict[int, list[int]] = {}
+    for player in newcomers:
+        cohorts.setdefault(player.entry_year, []).append(player.roster_no)
+    return [(player, cohorts[player.entry_year]) for player in newcomers]
+
+
+def new_player_state(generator, growth: PlayerGrowth, pitch_types: list[str], *, first_year: int,
+                     career_seed: int, player: Player, year: int, cohort: Iterable[int] = (),
+                     profile=None) -> PlayerState:
+    """入学（新規開始の部員を含む）：能力と成長の型・潜在能力をつくる。
+
+    ``cohort`` は同じ学校・入学年度の部員番号（有望な新入生の割り当て）。新規開始の
+    2・3年生も1年の4月の能力でつくり、開始の前の月までの成長を進める。
+    ``profile`` はその学校・入学年度の入部品質（省くと ``generator.intake_model`` で求める）。
+    名簿の状態を読まず、選手と入部品質だけで決まるので、別のプロセスで計算しても同じ結果になる。"""
+    from .school_intake import IntakeAdjustedPlayerAbilitySnapshot, SchoolAwarePlayerAbilityGenerator
+
+    # 選手ごとの乱数は1人に1個。能力 → 成長の型・潜在能力 → 開始前の成長の順に同じ列から引く
+    # （入学のときに1度だけ、いつも同じ順で引くので、保存・読込や処理の順で変わらない）
+    rng = None
+    if isinstance(generator, SchoolAwarePlayerAbilityGenerator):
+        if generator.source is None:
+            rng = generator.player_rng(player, career_seed)
+        snapshot = generator.generate(
+            player, year, career_seed, cohort=tuple(cohort) or None, rng=rng, profile=profile,
+        )
+    else:
+        snapshot = generator.generate(player, year, career_seed)
+    if (type(generator) is SchoolAwarePlayerAbilityGenerator and generator.source is None
+            and type(snapshot) is IntakeAdjustedPlayerAbilitySnapshot):
+        # 今まさに能力へ適用した学校成分を使う。別の選手・年度へは保持しない。
+        program_z = snapshot.intake_program_quality_z
+    else:
+        program_z = (profile if profile is not None else generator.intake_model.profile(
+            school_id=player.school_id, entry_year=player.entry_year, base_seed=career_seed,
+        )).program_quality_z
+    if rng is None:
+        rng = rng_for(career_seed, growth.config["rng_namespaces"]["player"].format(
+            entry_year=player.entry_year, school_id=player.school_id,
+            roster_no=player.roster_no,
+        ))
+    growth_type, potential, velocity_potential = growth.draw(rng, program_z)
+    values = bytearray(pack_abilities(snapshot, pitch_types))
+    held = dict(getattr(snapshot, "intake_deferred", ()) or ())
+    deferred = bytearray(min(255, held.get(name, 0)) for name in SCALARS) if held else bytearray()
+    if player.entry_year < first_year and (
+            type(generator) is SchoolAwarePlayerAbilityGenerator and generator.source is None):
+        growth.bootstrap(
+            values, position=player.primary_position, entry_year=player.entry_year,
+            first_year=first_year, type_index=growth_type, potential=potential,
+            velocity_potential=velocity_potential, deferred=deferred, rng=rng,
+        )
+    return PlayerState(
+        values, growth_type, potential, velocity_potential=velocity_potential,
+        trait=TRAITS.index(snapshot.platoon_trait), deferred=deferred,
+    )
+
+
 class RosterBook:
     """年度ごとの名簿と、選手ごとの能力・成長の状態。
 
@@ -279,6 +339,11 @@ class RosterBook:
     入れず、読み込んだあとに ``bind`` でつなぎ直す。``school_ids`` を渡すと、毎月の
     成長の前にその全校の名簿をつくる（名簿をつくった時期で成長が変わらないように）。
     """
+
+    # 名簿づくりのプロセスの数（None なら CPU の数と config/runtime/parallel_v1.json から決める。
+    # テスト用）と、最後に全校ぶんつくったときに使った数（画面の起動の確認用）。どちらも保存しない
+    parallel_workers: int | None = None
+    last_build_workers: int | None = None
 
     def __init__(
         self,
@@ -416,52 +481,10 @@ class RosterBook:
         return list(self._base().params["pitch_repertoire"]["pitch_types"])
 
     def _new_state(self, player: Player, year: int, cohort: Iterable[int] = ()) -> PlayerState:
-        """入学（新規開始の部員を含む）：能力と成長の型・潜在能力をつくる。
-
-        ``cohort`` は同じ学校・入学年度の部員番号（有望な新入生の割り当て）。新規開始の
-        2・3年生も1年の4月の能力でつくり、開始の前の月までの成長を進める。"""
-        from .school_intake import IntakeAdjustedPlayerAbilitySnapshot, SchoolAwarePlayerAbilityGenerator
-
-        generator = self.ability_generator
-        # 選手ごとの乱数は1人に1個。能力 → 成長の型・潜在能力 → 開始前の成長の順に同じ列から引く
-        # （入学のときに1度だけ、いつも同じ順で引くので、保存・読込や処理の順で変わらない）
-        rng = None
-        if isinstance(generator, SchoolAwarePlayerAbilityGenerator):
-            if generator.source is None:
-                rng = generator.player_rng(player, self.career_seed)
-            snapshot = generator.generate(
-                player, year, self.career_seed, cohort=tuple(cohort) or None, rng=rng,
-            )
-        else:
-            snapshot = generator.generate(player, year, self.career_seed)
-        if (type(generator) is SchoolAwarePlayerAbilityGenerator and generator.source is None
-                and type(snapshot) is IntakeAdjustedPlayerAbilitySnapshot):
-            # 今まさに能力へ適用した学校成分を使う。別の選手・年度へは保持しない。
-            program_z = snapshot.intake_program_quality_z
-        else:
-            program_z = generator.intake_model.profile(
-                school_id=player.school_id, entry_year=player.entry_year,
-                base_seed=self.career_seed,
-            ).program_quality_z
-        if rng is None:
-            rng = rng_for(self.career_seed, self.growth.config["rng_namespaces"]["player"].format(
-                entry_year=player.entry_year, school_id=player.school_id,
-                roster_no=player.roster_no,
-            ))
-        growth_type, potential, velocity_potential = self.growth.draw(rng, program_z)
-        values = bytearray(pack_abilities(snapshot, self._pitch_types()))
-        held = dict(getattr(snapshot, "intake_deferred", ()) or ())
-        deferred = bytearray(min(255, held.get(name, 0)) for name in SCALARS) if held else bytearray()
-        if player.entry_year < self.first_year and (
-                type(generator) is SchoolAwarePlayerAbilityGenerator and generator.source is None):
-            self.growth.bootstrap(
-                values, position=player.primary_position, entry_year=player.entry_year,
-                first_year=self.first_year, type_index=growth_type, potential=potential,
-                velocity_potential=velocity_potential, deferred=deferred, rng=rng,
-            )
-        return PlayerState(
-            values, growth_type, potential, velocity_potential=velocity_potential,
-            trait=TRAITS.index(snapshot.platoon_trait), deferred=deferred,
+        """入学（新規開始の部員を含む）：能力と成長の型・潜在能力をつくる（``new_player_state``）。"""
+        return new_player_state(
+            self.ability_generator, self.growth, self._pitch_types(), first_year=self.first_year,
+            career_seed=self.career_seed, player=player, year=year, cohort=cohort,
         )
 
     # ---- 部員の人数 ----
@@ -553,34 +576,66 @@ class RosterBook:
             return self._before_first_year(school_id)
         if key in self._packed:
             return self._unpack(year, school_id)
+        roster, newcomers = self._members(year, school_id)
+        states = [
+            self._new_state(player, year, cohort)
+            for player, cohort in _with_cohorts(newcomers)
+        ]
+        return self._keep(year, school_id, roster, newcomers, states)
+
+    def _members(self, year: int, school_id: str):
+        """名簿の顔ぶれ（新入生の人数・守備位置・名前・退部）と、能力をつくる新入部員。"""
         team = self.team_for(school_id)
-        states = self._states.setdefault(school_id, {})
         if year == self.first_year:
             roster = self.generator.generate_school(
                 team, year, self.career_seed, size=self.size_context(team))
-            newcomers = roster.players
-        else:
-            if (year - 1, school_id) not in self._packed and year - 1 != self.first_year:
-                raise ValueError(f"{school_id}: roster {year - 1} is not kept")
-            transition = advance_school_roster(
-                self.roster(year - 1, school_id), team, next_year=year,
-                career_seed=self.career_seed, generator=self.generator,
-                size=self.size_context(team),
-            )
-            roster = transition.roster
-            newcomers = transition.newcomers
-        cohorts: dict[int, list[int]] = {}
-        for player in newcomers:
-            cohorts.setdefault(player.entry_year, []).append(player.roster_no)
-        for player in newcomers:
-            states[(player.entry_year, player.roster_no)] = self._new_state(
-                player, year, cohorts[player.entry_year],
-            )
+            return roster, roster.players
+        if (year - 1, school_id) not in self._packed and year - 1 != self.first_year:
+            raise ValueError(f"{school_id}: roster {year - 1} is not kept")
+        transition = advance_school_roster(
+            self.roster(year - 1, school_id), team, next_year=year,
+            career_seed=self.career_seed, generator=self.generator,
+            size=self.size_context(team),
+        )
+        return transition.roster, transition.newcomers
+
+    def _keep(self, year: int, school_id: str, roster: SchoolRoster, newcomers, states) -> SchoolRoster:
+        held = self._states.setdefault(school_id, {})
+        for player, state in zip(newcomers, states):
+            held[(player.entry_year, player.roster_no)] = state
         if roster.floor_hit:
             self.floor_hits[year] = self.floor_hits.get(year, 0) + 1
-        self._packed[key] = pack_school(roster, first_year=self.first_year)
-        self._rosters[key] = roster
+        self._packed[(year, school_id)] = pack_school(roster, first_year=self.first_year)
+        self._rosters[(year, school_id)] = roster
         return roster
+
+    def build_rosters(self, year: int) -> int:
+        """その年度のまだない名簿を全校ぶんつくる。新入部員の能力は学校ごとに複数のプロセスで
+        計算し、学校の順に組み立て直す（1校ずつつくるのと同じ結果）。使ったプロセスの数を返す。"""
+        from .roster_parallel import build_states
+
+        with self._lock:
+            if year == self.first_year - 1:
+                # 開始の前の年度（3月の大会）は最初の年度の名簿を1学年戻したもの
+                workers = self.build_rosters(self.first_year)
+                for school_id in self.school_ids:
+                    self.roster(year, school_id)
+                return workers
+            if year < self.first_year or year <= self.closed_through:
+                for school_id in self.school_ids:
+                    self.roster(year, school_id)  # 今までどおり（つくれない年度はエラー）
+                return 0
+            todo = [sid for sid in self.school_ids
+                    if (year, sid) not in self._rosters and (year, sid) not in self._packed]
+            jobs = []
+            for school_id in todo:
+                roster, newcomers = self._members(year, school_id)
+                jobs.append((school_id, roster, newcomers))
+            computed, workers = build_states(self, year, jobs)
+            for (school_id, roster, newcomers), states in zip(jobs, computed):
+                self._keep(year, school_id, roster, newcomers, states)
+            self.last_build_workers = workers
+            return workers
 
     def _player_id(self, school_id: str, entry_year: int, roster_no: int) -> str:
         # 最初の年度の部員と新入生で作り方が違う（players.py・career_rosters.py）
@@ -792,8 +847,7 @@ class RosterBook:
         if not model.rate(self.injury_level):
             return
         year = school_year_of(first)
-        for school_id in self.school_ids:
-            self.roster(year, school_id)
+        self.build_rosters(year)
         days = ((first + timedelta(days=32)).replace(day=1) - first).days
         namespace = model.config["rng_namespaces"]["practice"]
         for school_id in self.schools(year):
@@ -872,8 +926,7 @@ class RosterBook:
             year = school_year_of(month)
             if year <= self.closed_through:
                 return
-            for school_id in self.school_ids:
-                self.roster(year, school_id)
+            self.build_rosters(year)
             namespace = self.growth.config["rng_namespaces"]["month"]
             for school_id in self.schools(year):
                 practice_multiplier = (self.coaches.practice_for(school_id, first)[2]

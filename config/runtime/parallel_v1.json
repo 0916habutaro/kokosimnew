@@ -1,0 +1,9 @@
+{
+  "config_id": "parallel_v1",
+  "revision": 1,
+  "description_ja": "名簿づくり（新規開始・年度替わりの新入部員の能力）を学校ごとに複数のプロセスで計算する（2026-11-17）。プロセスの数は CPU の数と max_workers の小さい方。つくる学校が min_schools より少なければ1プロセスで計算する（プロセスを起こす時間のほうが長いため）。並列でも1プロセスでも結果は同じ。",
+  "roster_build": {
+    "max_workers": 8,
+    "min_schools": 200
+  }
+}

@@ -783,6 +783,9 @@ class LiveGameService:
             rosters.coaches = coaches
         if rosters is not None and injury_level:
             rosters.injury_level = injury_level
+        if rosters is not None:
+            # 最初の年度の名簿を全校ぶん先につくる（学校ごとに複数のプロセスで。結果は同じ）
+            rosters.build_rosters(rosters.first_year)
         # 開始前の試合（3月に始まる春季大会など）にも球数制限・コールドを使う
         first = plan.build_runtime(
             engine=engine,
