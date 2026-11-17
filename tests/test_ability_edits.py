@@ -155,7 +155,9 @@ class AbilityEditServiceTests(unittest.TestCase):
             old = resolver._competition_team_input(match['competition_id'], sid, 2026, 7)
             service.edit_player(session, sid, p.player_id, {'contact': 99})
             new = resolver._competition_team_input(match['competition_id'], sid, 2026, 7)
-            self.assertEqual(99, next(s.contact for s in new.player_abilities if s.player_id == p.player_id))
+            # 編集した値は調子を入れない能力で確かめる（試合の能力はその日の調子で上下する）
+            edited = new.selection_abilities or new.player_abilities
+            self.assertEqual(99, next(s.contact for s in edited if s.player_id == p.player_id))
             self.assertNotEqual(old.player_abilities, new.player_abilities)
             service.edit_reputation(session, sid, 2.0, 'fixed')
             before_failure = bytes(session.state.rosters.state(p).values)

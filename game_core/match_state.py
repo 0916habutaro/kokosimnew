@@ -80,7 +80,9 @@ class DHAction:
 
 SUBSTITUTION_REASONS = ("pinch_hitter", "pinch_runner", "defensive_replacement",
                         # 投手の配置転換（段階F5）：降りた投手を守備に残す・守備から投手に戻す
-                        "pitcher_to_field", "pitcher_return")
+                        "pitcher_to_field", "pitcher_return",
+                        # 大差で勝っている側が先発を休ませて控えを出す
+                        "blowout_rest")
 
 
 @dataclass(frozen=True, slots=True)
