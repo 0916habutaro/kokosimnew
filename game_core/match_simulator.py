@@ -451,6 +451,10 @@ class _FieldingProfile:
 
 
 class MatchSimulator:
+    # 終わった試合の結果を契約どおりか検査するか。テスト・直接の計算では検査する。
+    # ゲームの入口（画面・CLI）だけ省く（同じ乱数の種なら結果は検査の有無で変わらない）
+    check_results: bool = True
+
     def __init__(
         self,
         config_dir: str | Path = "config/match",
@@ -835,15 +839,25 @@ class MatchSimulator:
     def _platoon_batter(
         self, batter: PlayerAbilitySnapshot, pitcher: PlayerAbilitySnapshot,
     ) -> PlayerAbilitySnapshot:
+        # 左右の差は投手の腕・本職・特性だけで決まる。疲れで投手の写しが変わっても、
+        # 1試合の中では同じ打者の入れ替えを使い回す（打者の写しも持つので番号の取り違えはない）
+        cache = self.__dict__.setdefault("_value_cache", {})
+        memo_key = ("platoon", id(batter), pitcher.throws, pitcher.primary_position, pitcher.platoon_trait)
+        held = cache.get(memo_key)
+        if held is not None and held[0] is batter:
+            return held[1]
         points = self._platoon_points(batter, pitcher)
         if not points:
-            return batter
-        weights = self.params["platoon"]["ability_weights"]
-        return replace(batter, **{
-            # 打席の結果の計算だけに使う写し（端数を丸めない）
-            key: min(100.0, max(1.0, getattr(batter, key) + points * float(weight)))
-            for key, weight in weights.items()
-        })
+            platooned = batter
+        else:
+            weights = self.params["platoon"]["ability_weights"]
+            platooned = replace(batter, **{
+                # 打席の結果の計算だけに使う写し（端数を丸めない）
+                key: min(100.0, max(1.0, getattr(batter, key) + points * float(weight)))
+                for key, weight in weights.items()
+            })
+        cache[memo_key] = (batter, platooned)
+        return platooned
 
     def _event_weights(
         self,
@@ -2131,7 +2145,8 @@ class MatchSimulator:
         届いたら次の打者から投げない。None なら制限なし。
         state_sink指定時は、成功した試合の開始配置・最終状態・交代履歴を返す。
         lineup_changesは直接計算の明示交代。全国進行からは渡さない。
-        validated_history_sinkは厳密検証した入力・結果そのものとA詳細を一時的に返す。
+        validated_history_sinkは厳密検証した入力・結果そのものとA詳細を一時的に返す
+        （check_results が False なら検査を省いたまま返す）。
         この計算経路から永続保存は行わない。"""
         validate_match_simulation_input(match_input)
         # 交代の判断に使う能力の値は1試合の中だけ覚えておく（選手の写しのidで引くので試合ごとに捨てる）
@@ -3279,12 +3294,13 @@ class MatchSimulator:
                 for row in pitcher_rows[school_id].values()
             ),
         )
-        validate_match_simulation_result(
-            result,
-            match_input,
-            config_dir=self.config_dir,
-            final_states=states,
-        )
+        if self.check_results:
+            validate_match_simulation_result(
+                result,
+                match_input,
+                config_dir=self.config_dir,
+                final_states=states,
+            )
         if validated_history_sink is not None and dh_game:
             validated_history_sink.update(
                 match_input=match_input, result=result, history=_history_after_validation(result))

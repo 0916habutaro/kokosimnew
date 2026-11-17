@@ -562,6 +562,70 @@ class TeamStrengthGenerator:
                 -min(self._batting_composite(p), self._pitcher_quality(p)),
                 -self._pitcher_quality(p), -self._batting_composite(p), p.player_id)).player_id
 
+        picked = self._starting_picks(players, school_id, selection_grade_bias, form_bonus,
+                                      starting_pitcher_id)
+        used = {player.player_id for player in picked.values()}
+        chosen: list[tuple[str, PlayerAbilitySnapshot, float]] = [
+            (
+                position,
+                picked[position],
+                self._selection_score(picked[position], position),
+            )
+            for position in STARTING_POSITIONS
+        ]
+        defense = ()
+        dh_id = None
+        if dh_mode != 'none':
+            defense = tuple(DefensiveAssignment(pos, picked[pos].player_id) for pos in STARTING_POSITIONS)
+            if designated_hitter_id is not None:
+                pool = [p for p in players if p.player_id == designated_hitter_id and p.player_id not in used]
+                if len(pool) != 1:
+                    raise ValueError('explicit DH candidate must be available and outside defense')
+                dh = pool[0]
+            else:
+                dh = (picked['P'] if dh_mode == 'pitcher' else
+                      self._normal_designated_hitter(players, used, selection_grade_bias))
+            dh_id = dh.player_id
+            chosen[0] = ('DH', dh, self._batting_composite(dh))
+
+        batting_order = {
+            player.player_id: index
+            for index, player in enumerate(
+                self._batting_order([player for _, player, _ in chosen], order_style, form_bonus), start=1)
+        }
+        entries = tuple(
+            LineupEntry(
+                batting_order=batting_order[player.player_id],
+                defensive_position=position,
+                player_id=player.player_id,
+                selection_score=round(score, 4),
+            )
+            for position, player, score in chosen
+        )
+        lineup = StartingLineup(
+            school_id=school_id,
+            reference_year=reference_year,
+            entries=entries,
+            defense=defense,
+            designated_hitter_id=dh_id,
+        )
+        validate_starting_lineup(lineup)
+        return lineup
+
+    def _starting_picks(self, players, school_id, selection_grade_bias, form_bonus,
+                        starting_pitcher_id) -> dict[str, PlayerAbilitySnapshot]:
+        """守備位置ごとの先発（打順・DHの前の部分）。同じ選手・同じ条件なら覚えておいた選び方を
+        使い回す（1試合の中で、DHの比較・DHの先発・試合の開始で何度も選ばないため）。
+
+        先発投手を指定しなくても、本職の投手から選んだ先発は、その投手を指定したときと同じ。"""
+        memo = self.__dict__.setdefault("_picks_memo", {})
+        memo_key = (tuple(map(id, players)), selection_grade_bias,
+                    tuple(sorted(form_bonus.items())), starting_pitcher_id)
+        held = memo.get(memo_key)
+        # 選手そのものも持つので、捨てられた選手の番号が別の選手に使われても取り違えない
+        if held is not None and all(a is b for a, b in zip(held[0], players)):
+            return dict(held[1])
+
         def best(position, pool):
             def key(player):
                 score = self._selection_score(player, position)
@@ -616,52 +680,12 @@ class TeamStrengthGenerator:
                 player = best(position, nonpitchers or pool)
             picked[position] = player
             used.add(player.player_id)
-        chosen: list[tuple[str, PlayerAbilitySnapshot, float]] = [
-            (
-                position,
-                picked[position],
-                self._selection_score(picked[position], position),
-            )
-            for position in STARTING_POSITIONS
-        ]
-        defense = ()
-        dh_id = None
-        if dh_mode != 'none':
-            defense = tuple(DefensiveAssignment(pos, picked[pos].player_id) for pos in STARTING_POSITIONS)
-            if designated_hitter_id is not None:
-                pool = [p for p in players if p.player_id == designated_hitter_id and p.player_id not in used]
-                if len(pool) != 1:
-                    raise ValueError('explicit DH candidate must be available and outside defense')
-                dh = pool[0]
-            else:
-                dh = (picked['P'] if dh_mode == 'pitcher' else
-                      self._normal_designated_hitter(players, used, selection_grade_bias))
-            dh_id = dh.player_id
-            chosen[0] = ('DH', dh, self._batting_composite(dh))
-
-        batting_order = {
-            player.player_id: index
-            for index, player in enumerate(
-                self._batting_order([player for _, player, _ in chosen], order_style, form_bonus), start=1)
-        }
-        entries = tuple(
-            LineupEntry(
-                batting_order=batting_order[player.player_id],
-                defensive_position=position,
-                player_id=player.player_id,
-                selection_score=round(score, 4),
-            )
-            for position, player, score in chosen
-        )
-        lineup = StartingLineup(
-            school_id=school_id,
-            reference_year=reference_year,
-            entries=entries,
-            defense=defense,
-            designated_hitter_id=dh_id,
-        )
-        validate_starting_lineup(lineup)
-        return lineup
+        if len(memo) >= 256:
+            memo.clear()
+        memo[memo_key] = (tuple(players), dict(picked))
+        if starting_pitcher_id is None and picked["P"].primary_position == "P":
+            memo[memo_key[:3] + (picked["P"].player_id,)] = memo[memo_key]
+        return picked
 
     def select_pitching_staff(
         self,

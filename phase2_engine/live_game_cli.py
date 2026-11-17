@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from game_core.match_simulator import MatchSimulator
+
 from .live_game_service import LiveGameService
 from .live_season_save import (
     PLAYER_RESOLVER_CONTRACT,
@@ -348,6 +350,8 @@ def main(
 ) -> int:
     args = build_parser().parse_args(argv)
     data_dir = Path(args.data_dir)
+    # 遊ぶときは終わった試合の結果の検査を省く（テストでは検査する。同じ種なら結果は同じ）
+    MatchSimulator.check_results = False
     repo = DataRepository(data_dir)
     service = LiveGameService(
         repo,
@@ -358,7 +362,7 @@ def main(
             args.resolver_contract
         ),
         max_backups=args.max_backups,
-        # 試合シミュレーターが検査した直後の記録を、履歴に書くときにもう一度検査しない
+        # 試合シミュレーターの記録を、履歴に書くときにもう一度検査しない
         recheck_simulated_records=False,
     )
     payload = run_command(

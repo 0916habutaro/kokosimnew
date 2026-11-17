@@ -10,6 +10,7 @@ import types
 import unittest
 from unittest.mock import patch
 
+from game_core.match_simulator import MatchSimulator
 from phase2_engine import DataRepository, LiveGameService
 from phase2_engine.screen.app import ScreenApi, main as screen_main
 from phase2_engine.screen.data import GameScreenData
@@ -172,8 +173,11 @@ class StartupCheckTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, \
                 patch.dict(sys.modules, {"webview": fake}), \
                 contextlib.redirect_stdout(out), \
-                patch("os.chdir"):
+                patch("os.chdir"), \
+                patch.object(MatchSimulator, "check_results", True):
             screen_main(["--check", "--save-root", tmp])
+            # 遊ぶときの入口では、終わった試合の結果の検査を省く
+            self.assertFalse(MatchSimulator.check_results)
         self.assertIn("起動の確認", out.getvalue())
         self.assertIn("'slots': 0", out.getvalue())
 

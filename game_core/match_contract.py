@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Iterable
 
 from .abilities import PlayerAbilitySnapshot
-from .match_config import load_and_validate_match_configs
+from .match_config import shared_match_configs
 from .team_strength import TeamStrengthSnapshot, validate_starting_lineup, validate_pitching_staff
 from .match_state import TeamMatchParticipation, TeamMatchState, validate_match_participation
 
@@ -293,7 +293,7 @@ class MatchContractProvenance:
 def match_contract_provenance(
     config_dir: str | Path = "config/match",
 ) -> MatchContractProvenance:
-    configs = load_and_validate_match_configs(config_dir)
+    configs = shared_match_configs(config_dir)
     match = configs["match_simulation_v1"]
     events = configs["event_catalog_v1"]
     stats = configs["game_stats_contract_v1"]
@@ -562,7 +562,7 @@ def validate_team_game_stats(stats: TeamGameStats) -> None:
 def _event_type_map(
     config_dir: str | Path,
 ) -> dict[str, dict]:
-    configs = load_and_validate_match_configs(config_dir)
+    configs = shared_match_configs(config_dir)
     return {
         str(item["event_type"]): item
         for item in configs["event_catalog_v1"].payload["event_types"]
