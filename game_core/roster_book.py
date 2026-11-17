@@ -681,8 +681,13 @@ class RosterBook:
             packed.append(bytearray(pack_abilities(snapshot, self._pitch_types())))
         with self._lock:
             for player, snapshot, values in zip(players, snapshots, packed):
-                self.state(player).values = values
-                self.state(player).trait = TRAITS.index(snapshot.platoon_trait)
+                state = self.state(player)
+                # 値を変えた能力は、入学時に抑えた点を後から足さない（編集した値をそのまま使う）。
+                for index, held in enumerate(state.deferred):
+                    if held and state.values[index] != values[index]:
+                        state.deferred[index] = 0
+                state.values = values
+                state.trait = TRAITS.index(snapshot.platoon_trait)
                 self.ability_edits.setdefault(player.player_id, []).append({
                     "date": day, "school_id": player.school_id, "source": source,
                     "abilities": snapshot.to_dict(),
