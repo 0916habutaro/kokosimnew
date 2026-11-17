@@ -96,6 +96,21 @@ class Stage43CHistoricalArchiveTests(unittest.TestCase):
             ).fetchone()[0]
             self.assertNotIn('"events"', raw)
 
+    def test_simulator_checked_records_skip_only_the_participation_recheck(self):
+        module = "phase2_engine.historical_match_archive._validate_participation_payload"
+        first, second = make_record("M1"), make_record("M2")
+        for row in (first, second):
+            row["ability_detail"]["team_participation"] = []
+        with patch(module) as recheck:
+            self.sync([first, second], simulator_checked=frozenset({("CMP-1", "M1")}))
+        # 検査済みと渡した試合だけ省く。渡さなければ（テストの既定）検査する
+        self.assertEqual(["M2"], [call.args[0]["match_id"] for call in recheck.call_args_list])
+        # 点の照合は省かない
+        broken = make_record("M3")
+        broken["ability_detail"]["team1_score"] = 9
+        with self.assertRaisesRegex(ValueError, "mismatched team1_score"):
+            self.sync([broken], simulator_checked=frozenset({("CMP-1", "M3")}))
+
     def test_repeat_is_idempotent_even_after_reopen(self):
         self.sync([make_record()])
         self.assertEqual(
@@ -366,7 +381,7 @@ class Stage43CHistoricalArchiveTests(unittest.TestCase):
             self.sync([make_record(), make_record()])
         self.assertFalse(self.path.exists())
 
-    def test_service_save_calls_history_sync_after_json_save(self):
+    def _service_session(self):
         service = LiveGameService.__new__(LiveGameService)
         service.slots = SaveSlotManager(Path(self.temp.name) / "saves")
         match = SimpleNamespace(**make_record())
@@ -378,32 +393,55 @@ class Stage43CHistoricalArchiveTests(unittest.TestCase):
             slot_id="career", state=state, plan=object(),
             resolver_contract="deterministic_test",
         )
-        with patch.object(service.slots, "save", return_value={
-            "kind": "manual", "payload_checksum": "fake-json-checksum",
-        }) as saved:
+        return service, session
+
+    def test_service_save_writes_history_before_the_json_save(self):
+        service, session = self._service_session()
+        archived_at_json_save = []
+
+        def json_save(*args, **kwargs):
+            archived_at_json_save.append(len(service.historical_matches("career", 2026)))
+            return {"kind": "manual", "payload_checksum": "fake-json-checksum"}
+
+        with patch.object(service.slots, "save", side_effect=json_save) as saved:
             with patch("phase2_engine.live_game_service.plan_fingerprint", return_value="plan123"):
                 first = service.save_game(session)
                 second = service.save_game(session)
+        # JSONは1回の保存で1回だけ書き、そのときには試合が履歴に入っている
         self.assertEqual(2, saved.call_count)
+        self.assertEqual([1, 1], archived_at_json_save)
         self.assertEqual(1, first["historical_archive"]["inserted"])
         self.assertEqual(0, second["historical_archive"]["inserted"])
         self.assertEqual(1, len(service.historical_matches("career", 2026)))
         self.assertIsNotNone(service.historical_match("career", 2026, "CMP-1", "M1"))
 
-    def test_service_does_not_archive_unsaved_action(self):
-        service = LiveGameService.__new__(LiveGameService)
-        service.slots = SaveSlotManager(Path(self.temp.name) / "saves")
-        session = SimpleNamespace(
-            slot_id="career",
-            state=SimpleNamespace(year=2026, rng_seed=42, competitions={}),
-            resolver_contract="test", plan=object(),
-        )
-        self.assertFalse(service._history_archive("career").db_path.exists())
-        with patch("phase2_engine.live_game_service.plan_fingerprint", return_value="plan"):
+    def test_json_failure_after_history_commit_keeps_history_and_can_be_retried(self):
+        service, session = self._service_session()
+        with patch("phase2_engine.live_game_service.plan_fingerprint", return_value="plan123"):
             with patch.object(service.slots, "save", side_effect=OSError("disk full")):
                 with self.assertRaisesRegex(OSError, "disk full"):
                     service.save_game(session)
-        self.assertFalse(service._history_archive("career").db_path.exists())
+            self.assertEqual(1, len(service.historical_matches("career", 2026)))
+            with patch.object(service.slots, "save", return_value={
+                "kind": "manual", "payload_checksum": "fake-json-checksum",
+            }):
+                retried = service.save_game(session)
+        self.assertEqual({"inserted": 0, "already_archived": 0}, retried["historical_archive"])
+        self.assertEqual(1, len(service.historical_matches("career", 2026)))
+
+    def test_history_failure_writes_no_json_and_can_be_retried(self):
+        service, session = self._service_session()
+        with patch("phase2_engine.live_game_service.plan_fingerprint", return_value="plan123"):
+            with patch.object(service.slots, "save", return_value={
+                "kind": "manual", "payload_checksum": "fake-json-checksum",
+            }) as saved:
+                with patch.object(HistoricalMatchArchive, "sync", side_effect=OSError("locked")):
+                    with self.assertRaisesRegex(OSError, "locked"):
+                        service.save_game(session)
+                saved.assert_not_called()
+                retried = service.save_game(session)
+        self.assertEqual(1, retried["historical_archive"]["inserted"])
+        self.assertEqual(1, saved.call_count)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Stage 43C-2: long advances checkpoint every week and at the end."""
+"""まとめて進めるときの自動セーブは、止まったときに1回だけ（履歴を先に書く）。"""
 from __future__ import annotations
 
 import tempfile
@@ -106,7 +106,7 @@ class Stage43C2IncrementalCheckpointTests(unittest.TestCase):
         self.save_points.append((self.state.current_date.isoformat(), count))
         return {"kind": kwargs.get("kind"), "payload_checksum": "fake-json-checksum"}
 
-    def test_long_jump_checkpoints_match_days_before_final_date(self):
+    def test_long_jump_saves_once_when_it_stops(self):
         with patch("phase2_engine.live_game_service.plan_fingerprint",
                    return_value="plan123"):
             with patch.object(self.service.slots, "save",
@@ -115,40 +115,65 @@ class Stage43C2IncrementalCheckpointTests(unittest.TestCase):
                 again = self.service.advance_to(self.session, "2026-07-24")
         self.assertEqual(14, result["advanced_days"])
         self.assertEqual(3, result["played_match_count"])
-        # 1週間ごと（7日目）と最後に1回
+        # 途中（1週間ごと）では保存せず、止まったときに1回
         self.assertEqual(
-            [("2026-07-17", 2), ("2026-07-24", 3), ("2026-07-24", 3)],
+            [("2026-07-24", 3), ("2026-07-24", 3)],
             self.save_points,
         )
+        self.assertEqual(3, result["autosave"]["historical_archive"]["inserted"])
         # 保存済みの試合は送り直さない（増分だけ履歴へ）
         self.assertEqual(0, again["autosave"]["historical_archive"]["inserted"])
         self.assertEqual(0, again["autosave"]["historical_archive"]["already_archived"])
         self.assertEqual(3, len(self.archive.list_matches(2026)))
 
-    def test_crash_on_second_json_checkpoint_retains_only_prior_commits(self):
-        call_count = 0
+    def test_history_is_written_before_the_json_save(self):
+        seen = []
 
-        def fail_after_first(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 2:
-                raise OSError("simulated disk full")
+        def json_save(*args, **kwargs):
+            seen.append([r["match_id"] for r in self.archive.list_matches(2026)])
             return self._save_checkpoint(*args, **kwargs)
 
         with patch("phase2_engine.live_game_service.plan_fingerprint",
                    return_value="plan123"):
-            with patch.object(self.service.slots, "save",
-                              side_effect=fail_after_first):
-                with self.assertRaisesRegex(OSError, "disk full"):
-                    self.service.advance_to(self.session, "2026-07-24")
+            with patch.object(self.service.slots, "save", side_effect=json_save):
+                self.service.advance_to(self.session, "2026-07-24")
+        self.assertEqual([["M1", "M2", "M3"]], seen)
 
-        self.assertEqual(["M1", "M2"], [r["match_id"] for r in
-                                        self.archive.list_matches(2026)])
-        # The next sync sends only the match not yet archived (M3).
+    def test_crash_on_json_save_keeps_history_and_next_save_adds_nothing(self):
         with patch("phase2_engine.live_game_service.plan_fingerprint",
                    return_value="plan123"):
-            repaired = self.service._sync_history(self.session)
-        self.assertEqual({"inserted": 1, "already_archived": 0}, repaired)
+            with patch.object(self.service.slots, "save",
+                              side_effect=OSError("simulated disk full")):
+                with self.assertRaisesRegex(OSError, "disk full"):
+                    self.service.advance_to(self.session, "2026-07-24")
+            # 履歴は先に書いてある。JSONの保存をやり直しても試合は増えない
+            self.assertEqual(["M1", "M2", "M3"], [r["match_id"] for r in
+                                                 self.archive.list_matches(2026)])
+            with patch.object(self.service.slots, "save",
+                              side_effect=self._save_checkpoint):
+                retried = self.service.save_game(self.session)
+        self.assertEqual({"inserted": 0, "already_archived": 0},
+                         retried["historical_archive"])
+        self.assertEqual([("2026-07-24", 3)], self.save_points)
+        self.assertEqual(3, len(self.archive.list_matches(2026)))
+
+    def test_replay_after_crash_resends_the_same_matches_without_conflict(self):
+        """JSONより履歴が先に進んだまま落ちた場合：前の状態から進め直すと同じ試合になり、
+        履歴は同じ内容として受け入れる（増やさない・書き換えない）。"""
+        with patch("phase2_engine.live_game_service.plan_fingerprint",
+                   return_value="plan123"):
+            with patch.object(self.service.slots, "save",
+                              side_effect=OSError("simulated power loss")):
+                with self.assertRaises(OSError):
+                    self.service.advance_to(self.session, "2026-07-24")
+            # 落ちる前のセーブ（7月10日）を読み込んだのと同じ状態から進め直す
+            self.state = DeterministicCalendarState()
+            self.session.state = self.state
+            with patch.object(self.service.slots, "save",
+                              side_effect=self._save_checkpoint):
+                replayed = self.service.advance_to(self.session, "2026-07-24")
+        self.assertEqual({"inserted": 0, "already_archived": 3},
+                         replayed["autosave"]["historical_archive"])
         self.assertEqual(["M1", "M2", "M3"], [r["match_id"] for r in
                                              self.archive.list_matches(2026)])
 
@@ -163,7 +188,7 @@ class Stage43C2IncrementalCheckpointTests(unittest.TestCase):
         self.assertEqual(2, result["advanced_days"])
         self.assertEqual(2, result["played_match_count"])
         self.assertEqual("2026-07-12", result["processed_through"])
-        # 1週間に満たないので最後の1回だけ
+        # 止まったときの1回だけ
         self.assertEqual(
             [("2026-07-12", 2)],
             self.save_points,

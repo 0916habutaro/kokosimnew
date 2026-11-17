@@ -559,10 +559,6 @@ class Yamanashi33FixturePersistence(SharedSchoolYearPersistence):
         super().prepare(plan, engine, contract)
 
 
-# まとめて進めるときの自動セーブの間隔（日）
-CHECKPOINT_DAYS = 7
-
-
 class _BuiltPlanner:
     """作った計画を使い回す（読込で計画を2回作らない）。"""
 
@@ -580,6 +576,9 @@ class LiveGameService:
 
     # Preserve the opt-out default for existing lightweight facade fixtures too.
     career_persistence: InitialCareerPersistence | None = None
+    # 履歴に書くとき、試合シミュレーターが検査した直後の記録の出場の経過をもう一度
+    # 検査するか。ゲームの入口（画面・CLI）だけ省く。テストでつくるサービスは検査を残す
+    recheck_simulated_records: bool = True
 
     def __init__(
         self,
@@ -593,6 +592,7 @@ class LiveGameService:
         ),
         max_backups: int = 3,
         autosave_after_action: bool = True,
+        recheck_simulated_records: bool = True,
         planner_factory: (
             Callable[
                 [
@@ -624,6 +624,7 @@ class LiveGameService:
         self.planner_factory = (
             planner_factory
         )
+        self.recheck_simulated_records = recheck_simulated_records
         self.slots = SaveSlotManager(
             save_root,
             max_backups=max_backups,
@@ -758,6 +759,7 @@ class LiveGameService:
             year=self.year,
         )
         plan = planner.build_plan()
+        self._forget_player_record_parts(slot)
         self._use_school_edits(SchoolEdits())
         if self.career_persistence is not None:
             if self.slots.slot_dir(slot).exists():
@@ -834,6 +836,7 @@ class LiveGameService:
             slot_id,
             source=source,
         )
+        self._forget_player_record_parts(metadata["slot_id"])
         self._use_school_edits(SchoolEdits.load(self.slots.slot_dir(slot_id)))
         if metadata[
             "resolver_contract"
@@ -904,8 +907,9 @@ class LiveGameService:
                 self.resolver_contract
             ),
         )
-        # Repair a crash between the JSON save and archive commit.
-        # Older backup loads never delete matches written by newer saves.
+        # 履歴の年度の登録と、終わった大会の圧縮をそろえる。セーブのJSONは履歴の
+        # あとに書くので、読み込んだ状態に履歴へ未保存の試合はふつう残っていない。
+        # 古いセーブを読んでも、新しいセーブが書いた試合は履歴から消さない。
         self._sync_history(session)
         return session
 
@@ -1000,16 +1004,24 @@ class LiveGameService:
     def _store_player_records(self, session, archive, year: int) -> None:
         """閉じた年度の個人の記録の集計を一度だけつくって履歴に残す（記録の画面が読む）。
 
-        作れなくても年度は閉じる（画面を開いたときに試合の記録から作り直す）。"""
-        from .screen.player_records import RosterLookup, build_tally, union_partners
+        履歴に書くたびに積み上げた1試合分の集計（``_collect_player_records``）を
+        試合の順（大会ID・試合ID）に足す。積み上げていない試合（読み込む前に履歴に
+        書いた分）だけ、試合の履歴から読む。履歴の試合を順に足すのと同じ結果になる。
 
-        lookup = RosterLookup(
-            getattr(session.state, "rosters", None),
-            lambda y, school_id: self.closed_roster(session.slot_id, y, school_id),
-            union_partners(session.state.seasons.get(year)),
-        )
+        作れなくても年度は閉じる（画面を開いたときに試合の記録から作り直す）。"""
+        from .screen.player_records import PlayerTally
+
+        lookup = self._roster_lookup(session, session.state.seasons.get(year))
+        collected = self.__dict__.setdefault("_tally_parts", {}).pop((session.slot_id, year), {})
         try:
-            tally = build_tally(year, archive.year_matches(year), lookup.member)
+            parts = {key: PlayerTally(json.loads(text)) for key, text in collected.items()}
+            for cid, match_id, detail in archive.year_matches(year, collected.keys()):
+                single = PlayerTally(year=year)
+                single.add(cid, match_id, detail, lookup.member)
+                parts[cid, match_id] = single
+            tally = PlayerTally(year=year)
+            for key in sorted(parts):
+                tally.absorb(parts[key])
             archive.store_player_records(year, tally.to_blob())
         except (ValueError, KeyError, OSError, sqlite3.Error) as exc:
             LOGGER.warning("個人の記録の集計を残せませんでした（%s年度）: %s", year, exc)
@@ -1102,8 +1114,7 @@ class LiveGameService:
             result['career_outcomes'] = persistence.sync_outcomes(session, slot) if sealed else []
         return result
 
-    @staticmethod
-    def _sync_season_history(archive, session, season, fingerprint) -> dict:
+    def _sync_season_history(self, archive, session, season, fingerprint) -> dict:
         # まだ履歴に保存していない試合だけを送る。選手で試合をするときの
         # スコア・個人成績は状態の pending_match_details にあり、保存したら消す。
         details = getattr(season, "pending_match_details", {})
@@ -1115,23 +1126,66 @@ class LiveGameService:
             and not getattr(match, "archived", False)
         ]
         completed = []
+        simulated = set()
         for cid, match in new:
             row = dict(match.__dict__)
             detail = details.get(f"{cid}:{match.match_id}")
             if detail is not None:
                 row["ability_detail"] = detail
+                simulated.add((cid, match.match_id))
             completed.append(row)
+        payloads: list = []
         result = archive.sync(
             year=season.year,
             rng_seed=season.rng_seed,
             resolver_contract=session.resolver_contract,
             plan_fingerprint=fingerprint,
             completed=completed,
+            # pending_match_details の記録は、試合シミュレーターが全打席で検査した直後のもの
+            simulator_checked=(
+                frozenset() if self.recheck_simulated_records else frozenset(simulated)
+            ),
+            payloads=payloads,
         )
         for cid, match in new:
             match.archived = True
             details.pop(f"{cid}:{match.match_id}", None)
+        self._collect_player_records(session, season, payloads)
         return result
+
+    def _player_record_parts(self, slot_id: str, year: int) -> dict:
+        """年度を閉じるまで積み上げる個人の記録（(大会ID, 試合ID) → 1試合分の集計のJSON）。
+        このサービスで履歴に書いた試合の分だけ。セーブには入れない。"""
+        return self.__dict__.setdefault("_tally_parts", {}).setdefault((slot_id, year), {})
+
+    def _forget_player_record_parts(self, slot_id: str) -> None:
+        parts = self.__dict__.setdefault("_tally_parts", {})
+        for key in [key for key in parts if key[0] == slot_id]:
+            del parts[key]
+
+    def _collect_player_records(self, session, season, payloads) -> None:
+        """履歴に書いた試合の個人の記録を1試合ずつ集計しておく（年度を閉じるとき、
+        書いたばかりの1年分の試合を履歴から読み直さないため）。"""
+        if not payloads or not isinstance(session.state, CareerState):
+            return
+        from .screen.player_records import PlayerTally
+
+        lookup = self._roster_lookup(session, season)
+        parts = self._player_record_parts(session.slot_id, season.year)
+        for cid, match_id, payload in payloads:
+            single = PlayerTally(year=season.year)
+            single.add(cid, match_id, payload, lookup.member)
+            parts[cid, match_id] = json.dumps(
+                single.to_dict(), ensure_ascii=False, separators=(",", ":"))
+
+    def _roster_lookup(self, session, season):
+        from .screen.player_records import RosterLookup, union_partners
+
+        return RosterLookup(
+            getattr(session.state, "rosters", None),
+            lambda y, school_id: self.closed_roster(session.slot_id, y, school_id),
+            union_partners(season),
+        )
 
     def save_game(
         self,
@@ -1139,11 +1193,14 @@ class LiveGameService:
         *,
         kind: str = SAVE_KIND_MANUAL,
     ) -> dict:
-        # JSON first: if the archive operation fails or the process exits,
-        # the saved state still holds the unarchived match records and the
-        # next save archives them.
+        # 履歴（SQLite）を先に書き、セーブのJSONはそのあと1回だけ書く。JSONには
+        # 履歴に保存済みの印が付いた状態が入り、試合の記録（スコア・個人成績）は入らない。
+        # 途中で落ちたら、履歴が前のJSONより先に進んでいることがある。読み込んで
+        # 進め直すと同じ乱数の種から同じ試合になり、同じ内容の試合は履歴が受け入れる
+        # （game_definition.md §6「保存の順序と復旧」）。
         if self.career_persistence is not None:
             self.career_persistence.validate(session, self.slots.slot_dir(session.slot_id))
+        archive = self._sync_history(session)
         saved = self.slots.save(
             session.slot_id,
             session.plan,
@@ -1151,17 +1208,6 @@ class LiveGameService:
             kind=kind,
             resolver_contract=session.resolver_contract,
         )
-        archive = self._sync_history(session)
-        if archive.get('inserted', 0) or archive.get('already_archived', 0):
-            # 履歴のコミット後だけarchivedフラグと詳細の解放をJSONへ反映する。
-            # 中断時は先に書いた完全なJSONから従来どおり復旧できる。
-            refreshed = self.slots.refresh_after_archive(
-                session.slot_id, session.plan, session.state, kind=kind,
-                resolver_contract=session.resolver_contract,
-                expected_checksum=saved['payload_checksum'],
-            )
-            if refreshed is not None:
-                saved = refreshed
         return {**saved, "historical_archive": archive}
 
     def autosave_game(self, session: LiveGameSession) -> dict:
@@ -1313,9 +1359,15 @@ class LiveGameService:
             session.state.next_day()
         )
         result["closed_seasons"] = self._close_finished_seasons(session)
-        save = self._maybe_autosave(
-            session,
-            autosave,
+        # 試合のない日は保存しない（年度を閉じた日は、履歴を封印したので保存する）。
+        # 保存していない日は、読み込んだあと同じように進め直せる。autosave=True と
+        # 明示されたとき（CLI は1回ごとに読み込んで終わる）は、試合がなくても保存する
+        save = (
+            self._maybe_autosave(session, autosave)
+            if autosave
+            or result["played_match_count"]
+            or result["closed_seasons"]
+            else None
         )
         return {
             "action": "next_day",
@@ -1333,13 +1385,11 @@ class LiveGameService:
         stop_before=None,
         on_day=None,
     ) -> dict:
-        """Checkpoint completed match days during a long calendar jump.
+        """まとめて進める。自動セーブは止まったとき（指定の日・大会の終わり・
+        大きな場面の前など、まとめて進めるのが終わったとき）に1回だけ。
 
-        A single save at the end of a multi-day advance loses every game
-        simulated since the previous save if the process stops mid-jump.
-        Save every CHECKPOINT_DAYS days (when games were played since the
-        last save) and once more at the end. Explicit autosave=False retains
-        the caller's manual-save contract.
+        途中で落ちたら、最後に止まったところ（最後のセーブ）からやり直しになる。
+        ``autosave=False`` なら保存しない。
 
         ``stop_before(state)`` は2日目から毎日、その日の試合をする前に呼ぶ。
         理由（文字列）を返したら、その日の前で止まる。``on_day(step)`` は
@@ -1373,10 +1423,6 @@ class LiveGameService:
 
         advanced_days = 0
         played_match_count = 0
-        last_save = None
-        checkpoint_date = None
-        unsaved_matches = 0
-        days_since_save = 0
         stopped = ""
         while session.state.current_date < target_date:
             if advanced_days and stop_before is not None:
@@ -1386,22 +1432,9 @@ class LiveGameService:
             step = session.state.next_day()
             self._close_finished_seasons(session)
             advanced_days += 1
-            days_since_save += 1
-            new_matches = int(step["played_match_count"])
-            played_match_count += new_matches
-            unsaved_matches += new_matches
+            played_match_count += int(step["played_match_count"])
             if on_day is not None:
                 on_day(step)
-            # まとめて進めるときは1週間ごとに自動セーブ（最後にもう1回）
-            if (
-                enabled
-                and unsaved_matches
-                and days_since_save >= CHECKPOINT_DAYS
-            ):
-                last_save = self.autosave_game(session)
-                checkpoint_date = session.state.current_date
-                unsaved_matches = 0
-                days_since_save = 0
 
         result = {
             "current_date": session.state.current_date.isoformat(),
@@ -1417,11 +1450,8 @@ class LiveGameService:
                 session.state.current_date.isoformat()
             )
 
-        if enabled and (
-            through or checkpoint_date != session.state.current_date
-        ):
-            last_save = self.autosave_game(session)
-        return {"action": action, **result, "autosave": last_save}
+        save = self.autosave_game(session) if enabled else None
+        return {"action": action, **result, "autosave": save}
 
     def advance_to(
         self,

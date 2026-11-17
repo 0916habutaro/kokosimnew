@@ -220,6 +220,19 @@ class PlayerCareerYearTests(unittest.TestCase):
         self.assertTrue(any(r['competition_id'] == champion['competition_id'] and r['personal_finish'] == '優勝'
                             for r in before['records']))
 
+    def test_player_records_stored_at_year_end_equal_the_history(self):
+        """年度を閉じるときに積み上げた個人の記録は、履歴の試合を順に足したものと同じ。"""
+        from phase2_engine.screen.player_records import PlayerTally, build_tally
+
+        archive = self.service._history_archive("year")
+        stored = PlayerTally.from_blob(archive.player_records(2026)).to_dict()
+        season = self.service.closed_season("year", 2026, 20261021)[0]
+        lookup = self.service._roster_lookup(self.session, season)
+        rebuilt = build_tally(2026, archive.year_matches(2026), lookup.member).to_dict()
+        rebuilt["seen"] = stored["seen"] = []
+        self.assertTrue(stored["batters"] and stored["pitchers"])
+        self.assertEqual(rebuilt, stored)
+
     def test_previous_roster_is_kept_until_its_competitions_end(self):
         self.assertEqual([2026], self.march_rosters)
         self.assertIn(2026, self.april_rosters)

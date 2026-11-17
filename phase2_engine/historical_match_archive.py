@@ -394,8 +394,12 @@ def _score(value: object, label: str) -> int | None:
     return value
 
 
-def _history_payload(year: int, record: Mapping[str, object]) -> dict:
-    """Normalize a completed runtime record; events are deliberately excluded."""
+def _history_payload(year: int, record: Mapping[str, object], *, recheck: bool = True) -> dict:
+    """Normalize a completed runtime record; events are deliberately excluded.
+
+    ``recheck=False`` は、出場の経過（開始配置・交代履歴）をもう一度たどる検査だけを省く。
+    試合シミュレーターが全打席のイベントで検査した直後の記録に使う（同じ検査の
+    やり直しになるため）。点・回ごとの点・チーム成績の照合は省かない。"""
     if not isinstance(year, int) or isinstance(year, bool) or year < 1:
         raise ValueError("history year must be positive integer")
     if record.get("status") != "completed":
@@ -564,7 +568,8 @@ def _history_payload(year: int, record: Mapping[str, object]) -> dict:
         payload["team_participation"] = participation
         if detail.get('dh_verification') is not None:
             payload['dh_verification'] = detail['dh_verification']
-        _validate_participation_payload(payload)
+        if recheck:
+            _validate_participation_payload(payload)
     return payload
 
 
@@ -758,7 +763,12 @@ class HistoricalMatchArchive:
         resolver_contract: str,
         plan_fingerprint: str,
         completed: Iterable[Mapping[str, object]],
+        simulator_checked: frozenset = frozenset(),
+        payloads: list | None = None,
     ) -> dict:
+        """``simulator_checked`` は、試合シミュレーターが検査した直後の記録の
+        (大会ID, 試合ID)。出場の経過の再検査だけを省く（``_history_payload``）。
+        ``payloads`` に list を渡すと、保存する形の記録（(大会ID, 試合ID, 記録)）を足す。"""
         identity = self._identity(
             year, rng_seed, resolver_contract, plan_fingerprint
         )
@@ -770,7 +780,13 @@ class HistoricalMatchArchive:
         normalized = []
         seen = set()
         for source in completed:
-            payload = _history_payload(year, source)
+            payload = _history_payload(
+                year, source,
+                recheck=(
+                    (source.get("competition_id"), source.get("match_id"))
+                    not in simulator_checked
+                ),
+            )
             key = (
                 payload["year"], payload["competition_id"], payload["match_id"]
             )
@@ -866,6 +882,8 @@ class HistoricalMatchArchive:
                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     pending,
                 )
+        if payloads is not None:
+            payloads.extend((key[1], key[2], payload) for key, payload, _, _ in normalized)
         return {"inserted": len(pending), "already_archived": same}
 
     def get_match(self, year: int, competition_id: str, match_id: str) -> dict | None:
