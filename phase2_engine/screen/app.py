@@ -21,6 +21,8 @@ import sys
 import threading
 import traceback
 
+from game_core.match_simulator import MatchSimulator
+
 from .. import PLAYER_RESOLVER_CONTRACT, DataRepository, LiveGameService
 from .data import GameScreenData, load_screen_config
 
@@ -325,11 +327,13 @@ def main(argv=None) -> None:
         sys.stderr = sys.stderr or log
     # 能力・試合の設定（config/）はいまの作業フォルダから読むので、そろえておく
     os.chdir(app_root())
+    # 遊ぶときは終わった試合の結果の検査を省く（テストでは検査する。同じ種なら結果は同じ）
+    MatchSimulator.check_results = False
     repo = DataRepository(data_dir)
     service = LiveGameService(
         repo, data_dir, save_root=save_root,
         resolver_contract=PLAYER_RESOLVER_CONTRACT,
-        # 試合シミュレーターが検査した直後の記録を、履歴に書くときにもう一度検査しない
+        # 試合シミュレーターの記録を、履歴に書くときにもう一度検査しない
         recheck_simulated_records=False,
     )
     session = (

@@ -39,7 +39,10 @@ PlayerAbility / TeamStrength
 
 `MatchSimulationResult`
 
-出力前に必ずStage 13C-1の `validate_match_simulation_result()` を通す。
+出力前にStage 13C-1の `validate_match_simulation_result()` を通す。
+テスト・直接の計算では必ず通す。遊ぶときの入口（画面・CLI）だけ
+`MatchSimulator.check_results = False` にして省く（進める速さのため。検査は
+結果を読むだけなので、同じ乱数の種なら結果は変わらない）。
 
 したがって、得点だけ生成できても
 

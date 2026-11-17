@@ -786,6 +786,15 @@ _VALIDATED: dict[tuple, dict[str, ConfigDocument]] = {}
 def load_and_validate_match_configs(
     config_dir: str | Path = "config/match",
 ) -> dict[str, ConfigDocument]:
+    # 呼び出し側が params を書き換えても、覚えておいた設定（ほかの試合計算）に漏れないよう写しを返す
+    return copy.deepcopy(shared_match_configs(config_dir))
+
+
+def shared_match_configs(
+    config_dir: str | Path = "config/match",
+) -> dict[str, ConfigDocument]:
+    """検査済みの設定そのもの（写さない）。読むだけの所（出所の記録・結果の種類の一覧）で使い、
+    書き換えない。書き換える場合は ``load_and_validate_match_configs`` の写しを使う。"""
     root = Path(config_dir)
     key = (str(root.resolve()),) + tuple(
         (root / name).stat().st_mtime_ns for name in MATCH_CONFIG_FILES
@@ -794,8 +803,7 @@ def load_and_validate_match_configs(
     if cached is None:
         cached = _load_and_validate_match_configs(root)
         _VALIDATED[key] = cached
-    # 呼び出し側が params を書き換えても、覚えておいた設定（ほかの試合計算）に漏れないよう写しを返す
-    return copy.deepcopy(cached)
+    return cached
 
 
 def _load_and_validate_match_configs(
