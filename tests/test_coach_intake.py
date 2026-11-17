@@ -8,7 +8,7 @@ import unittest
 
 from game_core.annual_reputation import AnnualReputation
 from game_core.coaches import Coach, CoachBook
-from game_core.roster_book import RosterBook
+from game_core.roster_book import SCALARS, RosterBook
 from phase2_engine.models import Team
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -193,16 +193,33 @@ class CoachIntakeTests(unittest.TestCase):
         for f in (high, low):
             annual(f, 2027)
         a, b = freshmen(high[3], 2027)[0], freshmen(low[3], 2027)[0]
-        edited = replace(low[3].base_ability(b), contact=75, power=73)
+        # 評判の高い監督の学校の1年生は入学時の頭打ちで点を抑えている状態にする
+        # （打撃・長打は編集する能力、選球眼は編集しない能力）。
+        contact, power, eye = (SCALARS.index(n) for n in ('contact', 'power', 'plate_discipline'))
+        held = bytearray(len(SCALARS))
+        held[contact], held[power], held[eye] = 9, 6, 4
+        high[3].state(a).deferred = held
+        edited = replace(low[3].base_ability(b), contact=75, power=73,
+                         plate_discipline=high[3].base_ability(a).plate_discipline)
         for f, player in ((high, a), (low, b)):
             f[3].edit_abilities([player], [edited], day='2027-04-02', source='test')
             self.assertEqual(75, f[3].base_ability(player).contact)
+        self.assertEqual((0, 0, 4), tuple(high[3].state(a).deferred[i] for i in (contact, power, eye)))
+        saved = pickle.loads(pickle.dumps(high[3]))
+        saved.bind(high[0].team)
+        self.assertEqual(high[3].state(a).deferred, saved.state(a).deferred)
+        for f in (high, low):
             f[3].grow(date(2027, 4, 30))
-        self.assertEqual(high[3].state(a).values, low[3].state(b).values)
+        grown_high, grown_low = high[3].state(a).values, low[3].state(b).values
+        # 編集した能力は抑えた点を足さないので、同じ値に編集した2人は同じに伸びる
+        self.assertEqual(grown_low[contact], grown_high[contact])
+        self.assertEqual(grown_low[power], grown_high[power])
+        self.assertLess(high[3].state(a).deferred[eye], 4)  # 編集しない能力は今までどおり戻る
         self.assertEqual(high[3].state(a).potential, low[3].state(b).potential)
         saved = pickle.loads(pickle.dumps(high[3]))
         saved.bind(high[0].team)
-        self.assertEqual(high[3].state(a).values, saved.state(a).values)
+        self.assertEqual(grown_high, saved.state(a).values)
+        self.assertEqual(high[3].state(a).deferred, saved.state(a).deferred)
 
     def test_unfinalized_future_is_rejected_and_combined_clip_is_unchanged(self):
         f = books(100)
