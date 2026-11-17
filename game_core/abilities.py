@@ -139,25 +139,12 @@ def _clamp_round(value: float, low: int, high: int) -> int:
     return min(high, max(low, int(round(value))))
 
 
-def _normalized_usage_weights(
-    pitch_types: list[str],
-    *,
-    base_seed: int,
-    namespace_template: str,
-    reference_year: int,
-    player_id: str,
-) -> list[int]:
-    if not pitch_types:
+def _normalized_usage_weights(raw: list[float]) -> list[int]:
+    """球種ごとの乱数（0〜1）から、合計100の投げる割合。"""
+    if not raw:
         return []
-
-    raw: list[float] = []
-    for pitch_type in pitch_types:
-        namespace = namespace_template.format(
-            reference_year=reference_year,
-            player_id=player_id,
-            pitch_type=pitch_type,
-        )
-        raw.append(max(1e-12, rng_for(base_seed, namespace + ":usage").random()))
+    pitch_types = list(range(len(raw)))
+    raw = [max(1e-12, value) for value in raw]
 
     available = 100 - len(pitch_types)
     total = sum(raw)
@@ -199,16 +186,21 @@ class PlayerAbilityGenerator:
             document.canonical_sha256,
         )
 
+    def player_rng(self, player: Player, reference_year: int, base_seed: int):
+        """選手ごとの乱数（1人に1個）。能力はこの列から決まった順に引く。"""
+        return rng_for(base_seed, self.params["rng_namespace_policy"]["player"].format(
+            reference_year=reference_year, player_id=player.player_id,
+        ))
+
     def _scalar(
         self,
         player: Player,
-        reference_year: int,
-        base_seed: int,
-        ability_id: str,
+        rng,
         params: dict,
         *,
         grade_adjustment: dict | None = None,
     ) -> int:
+        """``rng`` が None なら乱数を引かず平均（学校ごとの生成で上書きする値）。"""
         defaults = self.params["scalar_defaults"]
         mean = float(params.get("mean", defaults["mean"]))
         stddev = float(params.get("stddev", defaults["stddev"]))
@@ -221,24 +213,10 @@ class PlayerAbilityGenerator:
             else self.params["grade_adjustment"]
         )
         mean += float(grade_map[str(player.academic_year)])
-
-        namespace = self.params["rng_namespace_policy"][
-            "scalar_ability"
-        ].format(
-            reference_year=reference_year,
-            player_id=player.player_id,
-            ability_id=ability_id,
-        )
-        value = rng_for(base_seed, namespace).gauss(mean, stddev)
+        value = rng.gauss(mean, stddev) if rng is not None else mean
         return _clamp_round(value, low, high)
 
-    def _position_aptitudes(
-        self,
-        player: Player,
-        reference_year: int,
-        base_seed: int,
-    ) -> tuple[tuple[str, int], ...]:
-        policy = self.params["rng_namespace_policy"]["position_aptitude"]
+    def _position_aptitudes(self, player: Player, rng) -> tuple[tuple[str, int], ...]:
         settings = self.params["position_aptitude"]
         out: list[tuple[str, int]] = []
         for position in FIELD_POSITIONS:
@@ -247,162 +225,91 @@ class PlayerAbilityGenerator:
                 if position == player.primary_position
                 else settings["untrained"]
             )
-            namespace = policy.format(
-                reference_year=reference_year,
-                player_id=player.player_id,
-                position=position,
-            )
-            value = rng_for(base_seed, namespace).gauss(
-                float(source["mean"]),
-                float(source["stddev"]),
-            )
-            out.append(
-                (
-                    position,
-                    _clamp_round(
-                        value,
-                        int(source["min"]),
-                        int(source["max"]),
-                    ),
-                )
-            )
+            value = rng.gauss(float(source["mean"]), float(source["stddev"]))
+            out.append((position, _clamp_round(value, int(source["min"]), int(source["max"]))))
         return tuple(out)
 
-    def _pitch_repertoire(
-        self,
-        player: Player,
-        reference_year: int,
-        base_seed: int,
-    ) -> tuple[PitchAbility, ...]:
+    def _pitch_repertoire(self, player: Player, rng, *, draw_quality: bool = True,
+                          ) -> tuple[PitchAbility, ...]:
+        """球種。投手でなくても、どの選手も同じ数だけ乱数を引く（守備位置が変わっても、
+        このあとに同じ列から引く値が変わらない）。"""
+        settings = self.params["pitch_repertoire"]
+        count_settings = settings["pitch_count"]
+        low, high = int(count_settings["min"]), int(count_settings["max"])
+        all_types = list(settings["pitch_types"])
+        mandatory = ["four_seam"] if "four_seam" in all_types else []
+        remaining = [pitch_type for pitch_type in all_types if pitch_type not in mandatory]
+        field_params = settings["per_pitch_fields"]
+
+        count_roll = rng.random()
+        order = {pitch_type: rng.random() for pitch_type in remaining}
+        usage_roll = {pitch_type: rng.random() for pitch_type in all_types}
+        drawn = {}
+        for pitch_type in all_types:
+            values = []
+            for name in ("quality", "command"):
+                rule = field_params[name]
+                value = (rng.gauss(float(rule["mean"]), float(rule["stddev"]))
+                         if draw_quality else float(rule["mean"]))
+                values.append(_clamp_round(value, int(rule["min"]), int(rule["max"])))
+            drawn[pitch_type] = values
         if player.primary_position != "P":
             return ()
 
-        settings = self.params["pitch_repertoire"]
-        count_settings = settings["pitch_count"]
-        latent_template = self.params["rng_namespace_policy"]["latent_trait"]
-        count_namespace = latent_template.format(
-            reference_year=reference_year,
-            player_id=player.player_id,
-            trait_id="pitch_count",
+        count = min(high, low + int(count_roll * (high - low + 1)))
+        selected = mandatory + sorted(remaining, key=lambda t: (order[t], t))[
+            :max(0, count - len(mandatory))]
+        usages = _normalized_usage_weights([usage_roll[t] for t in selected])
+        return tuple(
+            PitchAbility(pitch_type=pitch_type, quality=drawn[pitch_type][0],
+                         command=drawn[pitch_type][1], usage=usage)
+            for pitch_type, usage in zip(selected, usages)
         )
-        count = rng_for(base_seed, count_namespace).randint(
-            int(count_settings["min"]),
-            int(count_settings["max"]),
-        )
-
-        all_types = list(settings["pitch_types"])
-        mandatory = ["four_seam"] if "four_seam" in all_types else []
-        remaining = [
-            pitch_type for pitch_type in all_types
-            if pitch_type not in mandatory
-        ]
-        select_namespace = latent_template.format(
-            reference_year=reference_year,
-            player_id=player.player_id,
-            trait_id="pitch_types",
-        )
-        selected = mandatory + rng_for(
-            base_seed,
-            select_namespace,
-        ).sample(
-            remaining,
-            k=max(0, count - len(mandatory)),
-        )
-
-        pitch_template = self.params["rng_namespace_policy"][
-            "pitch_repertoire"
-        ]
-        field_params = settings["per_pitch_fields"]
-        usages = _normalized_usage_weights(
-            selected,
-            base_seed=base_seed,
-            namespace_template=pitch_template,
-            reference_year=reference_year,
-            player_id=player.player_id,
-        )
-
-        out: list[PitchAbility] = []
-        for pitch_type, usage in zip(selected, usages):
-            base_namespace = pitch_template.format(
-                reference_year=reference_year,
-                player_id=player.player_id,
-                pitch_type=pitch_type,
-            )
-            quality_params = field_params["quality"]
-            command_params = field_params["command"]
-            quality = _clamp_round(
-                rng_for(base_seed, base_namespace + ":quality").gauss(
-                    float(quality_params["mean"]),
-                    float(quality_params["stddev"]),
-                ),
-                int(quality_params["min"]),
-                int(quality_params["max"]),
-            )
-            command = _clamp_round(
-                rng_for(base_seed, base_namespace + ":command").gauss(
-                    float(command_params["mean"]),
-                    float(command_params["stddev"]),
-                ),
-                int(command_params["min"]),
-                int(command_params["max"]),
-            )
-            out.append(
-                PitchAbility(
-                    pitch_type=pitch_type,
-                    quality=quality,
-                    command=command,
-                    usage=usage,
-                )
-            )
-        return tuple(out)
 
     def generate(
         self,
         player: Player,
         reference_year: int,
         base_seed: int,
+        *,
+        rng=None,
+        draw_scalars: bool = True,
     ) -> PlayerAbilitySnapshot:
+        """``rng`` は選手ごとの乱数（省くと ``player_rng``）。``draw_scalars=False`` なら
+        能力の値（打撃・捕手・投手・球種の質と制球）は乱数を引かず平均にする（学校ごとの
+        生成が同じ乱数の続きで上書きする）。守備位置の適性・球種と割合は乱数で決める。"""
+        rng = rng if rng is not None else self.player_rng(player, reference_year, base_seed)
+        scalar_rng = rng if draw_scalars else None
         batter = {
             ability_id: self._scalar(
-                player,
-                reference_year,
-                base_seed,
-                ability_id,
-                self.params["batter_abilities"][ability_id],
+                player, scalar_rng, self.params["batter_abilities"][ability_id],
             )
             for ability_id in BATTER_ABILITIES
         }
 
-        catcher: dict[str, int | None] = {
-            ability_id: None for ability_id in CATCHER_ABILITIES
+        # 捕手・投手の能力は、その守備位置でなくても引いて捨てる（どの選手も同じ数だけ引く）
+        catcher_drawn = {
+            ability_id: self._scalar(
+                player, scalar_rng, self.params["catcher_only_abilities"][ability_id],
+            )
+            for ability_id in CATCHER_ABILITIES
         }
-        if player.primary_position == "C":
-            catcher = {
-                ability_id: self._scalar(
-                    player,
-                    reference_year,
-                    base_seed,
-                    ability_id,
-                    self.params["catcher_only_abilities"][ability_id],
-                )
-                for ability_id in CATCHER_ABILITIES
-            }
+        pitcher_drawn = {}
+        for ability_id in PITCHER_ABILITIES:
+            params = self.params["pitcher_abilities"][ability_id]
+            pitcher_drawn[ability_id] = self._scalar(
+                player, scalar_rng, params, grade_adjustment=params.get("grade_adjustment"),
+            )
+        catcher: dict[str, int | None] = (
+            catcher_drawn if player.primary_position == "C"
+            else {ability_id: None for ability_id in CATCHER_ABILITIES})
+        pitcher: dict[str, int | None] = (
+            pitcher_drawn if player.primary_position == "P"
+            else {ability_id: None for ability_id in PITCHER_ABILITIES})
 
-        pitcher: dict[str, int | None] = {
-            ability_id: None for ability_id in PITCHER_ABILITIES
-        }
-        if player.primary_position == "P":
-            pitcher = {}
-            for ability_id in PITCHER_ABILITIES:
-                params = self.params["pitcher_abilities"][ability_id]
-                pitcher[ability_id] = self._scalar(
-                    player,
-                    reference_year,
-                    base_seed,
-                    ability_id,
-                    params,
-                    grade_adjustment=params.get("grade_adjustment"),
-                )
+        # 打撃 → 捕手 → 投手 → 守備位置の適性 → 球種 の順に同じ列から引く
+        aptitudes = self._position_aptitudes(player, rng)
+        repertoire = self._pitch_repertoire(player, rng, draw_quality=draw_scalars)
 
         catalog_id, catalog_rev, catalog_sha = self._config_fields(
             self.catalog
@@ -433,16 +340,8 @@ class PlayerAbilityGenerator:
             **pitcher,
             bats=player.bats,
             throws=player.throws,
-            position_aptitude=self._position_aptitudes(
-                player,
-                reference_year,
-                base_seed,
-            ),
-            pitch_repertoire=self._pitch_repertoire(
-                player,
-                reference_year,
-                base_seed,
-            ),
+            position_aptitude=aptitudes,
+            pitch_repertoire=repertoire,
         )
         validate_ability_snapshot(snapshot)
         return snapshot

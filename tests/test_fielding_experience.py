@@ -264,7 +264,8 @@ class FieldingExperienceTests(unittest.TestCase):
                         book, bridge = make_bridge(seed=seed, year=year, book=book)
                         bridge.season_state = season
             return outputs, state_snapshot(book)
-        for seed in (7, 31):
+        # 2校とも3年間9人以上いる種
+        for seed in (7, 41):
             with self.subTest(seed=seed):
                 self.assertEqual(run(seed, False), run(seed, True))
 

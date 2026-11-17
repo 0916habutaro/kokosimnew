@@ -115,14 +115,11 @@ class Stage13B1AbilityDesignGovernanceTests(unittest.TestCase):
             ]
         )
 
-    def test_rng_namespaces_are_versioned_and_ability_specific(self):
+    def test_rng_namespace_is_one_versioned_stream_per_player(self):
         policy = self.generation.payload["rng_namespace_policy"]
-        self.assertIn("{ability_id}", policy["scalar_ability"])
-        self.assertIn("{position}", policy["position_aptitude"])
-        self.assertIn("{pitch_type}", policy["pitch_repertoire"])
-        self.assertTrue(
-            all("_v1:" in template for template in policy.values())
-        )
+        self.assertEqual({"player"}, set(policy))
+        self.assertIn("{player_id}", policy["player"])
+        self.assertIn("_v2:", policy["player"])
 
     def test_config_hash_is_stable_across_key_order(self):
         left = {"b": 2, "a": 1}

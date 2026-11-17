@@ -220,19 +220,15 @@ class PlayerRosterGenerator:
         taken: set[str] = set()
         for entry_year, roster_no, position in members:
             academic_year = reference_year - entry_year + 1
+            # 選手ごとの乱数は1人に1個。投打を先に引き、名前はその続き
+            # （名前を選び直しても投打が変わらない）
             player_rng = rng_for(
                 base_seed,
                 f"player_roster_v1:{reference_year}:{school_id}:player:{roster_no}",
             )
-            # 名前は別の乱数（名前を選び直しても投打が変わらない）
-            identity = draw_identity(
-                self.name_provider, team, base_seed,
-                rng_for(base_seed,
-                        f"player_names_v1:{reference_year}:{school_id}:player:{roster_no}"),
-                taken,
-            )
-            taken.add(identity.display_name)
             throws, bats = draw_hands(position, player_rng)
+            identity = draw_identity(self.name_provider, team, base_seed, player_rng, taken)
+            taken.add(identity.display_name)
             players.append(Player(
                 player_id=_player_id(base_seed, reference_year, school_id, roster_no),
                 school_id=school_id,

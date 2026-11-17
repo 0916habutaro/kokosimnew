@@ -904,20 +904,23 @@ class DHSimulationTests(unittest.TestCase):
             result = MatchSimulator().simulate(self.match('normal'))
         self.assertEqual([e.batter_id for e in result.events], calls)
 
-    def test_deferred_advance_random_preserves_the_original_independent_stream(self):
-        from game_core.match_simulator import _DeferredEventRandom
-        from phase2_engine.randomness import rng_for
+    def test_one_random_generator_per_match(self):
+        import random
 
-        for seed in (20261022, 20261027):
-            namespace = 'FAKE-ADVANCE:1'
-            reference = rng_for(seed, namespace)
-            with patch('game_core.match_simulator.rng_for', wraps=rng_for) as factory:
-                deferred = _DeferredEventRandom(seed, namespace)
-                self.assertEqual(0, factory.call_count)
-                self.assertEqual(reference.random(), deferred.random())
-                self.assertEqual(reference.randint(1, 6), deferred.randint(1, 6))
-                self.assertEqual(reference.getstate(), deferred.getstate())
-                self.assertEqual(1, factory.call_count)
+        created = []
+        original = random.Random.__init__
+
+        def counted(rng, *args, **kwargs):
+            created.append(rng)
+            return original(rng, *args, **kwargs)
+
+        simulator = MatchSimulator()
+        match = self.match('normal')
+        with patch.object(random.Random, '__init__', counted):
+            first = simulator.simulate(match)
+        self.assertEqual(1, len(created))
+        # 同じ入力なら同じ試合（乱数の列が試合の入力だけで決まる）
+        self.assertEqual(first, MatchSimulator().simulate(match))
 
     def test_selection_uses_best_available_dh_batting_and_two_way_pitcher(self):
         players = self.by_mode['normal'][0].player_abilities

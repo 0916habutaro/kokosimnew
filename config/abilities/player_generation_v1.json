@@ -1,6 +1,6 @@
 {
   "config_id": "player_generation_v1",
-  "revision": 4,
+  "revision": 5,
   "status": "tuned_2026_11_01",
   "catalog_id": "ability_catalog_v1",
   "scale_id": "ability_scale_v1",
@@ -168,9 +168,5 @@
     "recruiting_strength_influence": "reserved_for_later_stage"
   },
   "rng_namespace_policy": {
-    "latent_trait": "player_trait_v1:{reference_year}:{player_id}:{trait_id}",
-    "scalar_ability": "player_ability_v1:{reference_year}:{player_id}:{ability_id}",
-    "position_aptitude": "player_ability_v1:{reference_year}:{player_id}:position:{position}",
-    "pitch_repertoire": "player_pitch_v1:{reference_year}:{player_id}:{pitch_type}"
-  }
-}
+    "player": "player_ability_v2:{reference_year}:{player_id}"
+  }}

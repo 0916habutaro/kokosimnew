@@ -18,8 +18,8 @@ TEAMS = {
 }
 
 
-def _book(level="normal"):
-    book = RosterBook(TEAMS.__getitem__, first_year=2026, career_seed=7, school_ids=tuple(TEAMS))
+def _book(level="normal", seed=7):
+    book = RosterBook(TEAMS.__getitem__, first_year=2026, career_seed=seed, school_ids=tuple(TEAMS))
     book.injury_level = level
     return book
 
@@ -169,7 +169,7 @@ class RosterInjuryTests(unittest.TestCase):
         """練習の怪我は選手ごとの乱数。ほかの部員（新入部員の人数など）が変わっても、
         その選手の怪我は変わらない。"""
         def injuries(busy):
-            book = _book("high")
+            book = _book("high", seed=5)  # 部員が多く、残りの部員にも怪我が出る種
             players = book.roster(2026, "SCH-A").players
             for p in players[:busy]:
                 book.state(p).season_games = 255  # 怪我をしやすい部員がいる

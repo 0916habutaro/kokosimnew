@@ -1,6 +1,6 @@
 # ADR-004 能力乱数namespaceを能力単位で分離する
 
-- Status: Accepted
+- Status: Superseded by ADR-045（2026-11-17）
 - Date: 2026-10-07
 
 ## Context

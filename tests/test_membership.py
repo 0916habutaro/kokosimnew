@@ -25,7 +25,8 @@ TEAM = Team(
 
 
 def _book():
-    return RosterBook(lambda school_id: TEAM, first_year=2026, career_seed=7)
+    # 部員が30人以上いる種（ベンチ入りの20人・投手のいない9人などを組める）
+    return RosterBook(lambda school_id: TEAM, first_year=2026, career_seed=14)
 
 
 class SchoolYearOfTests(unittest.TestCase):
@@ -191,7 +192,7 @@ class SmallRosterLineupTests(unittest.TestCase):
         ][:10]
         other = RosterBook(
             lambda school_id: Team("SCH-OTHER", "PRG-OTHER", "架空第二高校", "13"),
-            first_year=2026, career_seed=7,
+            first_year=2026, career_seed=14,
         ).roster(2026, "SCH-OTHER")
         other_team = TeamMatchInput(
             school_id="SCH-OTHER",

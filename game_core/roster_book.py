@@ -423,9 +423,14 @@ class RosterBook:
         from .school_intake import IntakeAdjustedPlayerAbilitySnapshot, SchoolAwarePlayerAbilityGenerator
 
         generator = self.ability_generator
+        # 選手ごとの乱数は1人に1個。能力 → 成長の型・潜在能力 → 開始前の成長の順に同じ列から引く
+        # （入学のときに1度だけ、いつも同じ順で引くので、保存・読込や処理の順で変わらない）
+        rng = None
         if isinstance(generator, SchoolAwarePlayerAbilityGenerator):
+            if generator.source is None:
+                rng = generator.player_rng(player, self.career_seed)
             snapshot = generator.generate(
-                player, year, self.career_seed, cohort=tuple(cohort) or None,
+                player, year, self.career_seed, cohort=tuple(cohort) or None, rng=rng,
             )
         else:
             snapshot = generator.generate(player, year, self.career_seed)
@@ -438,13 +443,12 @@ class RosterBook:
                 school_id=player.school_id, entry_year=player.entry_year,
                 base_seed=self.career_seed,
             ).program_quality_z
-        namespace = self.growth.config["rng_namespaces"]["player"].format(
-            entry_year=player.entry_year, school_id=player.school_id,
-            roster_no=player.roster_no,
-        )
-        growth_type, potential, velocity_potential = self.growth.draw(
-            rng_for(self.career_seed, namespace), program_z,
-        )
+        if rng is None:
+            rng = rng_for(self.career_seed, self.growth.config["rng_namespaces"]["player"].format(
+                entry_year=player.entry_year, school_id=player.school_id,
+                roster_no=player.roster_no,
+            ))
+        growth_type, potential, velocity_potential = self.growth.draw(rng, program_z)
         values = bytearray(pack_abilities(snapshot, self._pitch_types()))
         held = dict(getattr(snapshot, "intake_deferred", ()) or ())
         deferred = bytearray(min(255, held.get(name, 0)) for name in SCALARS) if held else bytearray()
@@ -453,11 +457,7 @@ class RosterBook:
             self.growth.bootstrap(
                 values, position=player.primary_position, entry_year=player.entry_year,
                 first_year=self.first_year, type_index=growth_type, potential=potential,
-                velocity_potential=velocity_potential, deferred=deferred,
-                rng=rng_for(self.career_seed, self.growth.config["rng_namespaces"]["bootstrap"].format(
-                    entry_year=player.entry_year, school_id=player.school_id,
-                    roster_no=player.roster_no,
-                )),
+                velocity_potential=velocity_potential, deferred=deferred, rng=rng,
             )
         return PlayerState(
             values, growth_type, potential, velocity_potential=velocity_potential,

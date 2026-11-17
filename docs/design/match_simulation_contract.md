@@ -123,10 +123,9 @@ ResultViewはwinner consistencyを検証し、矛盾時はエラーとする。
 `match_simulation_v1.json` でnamespaceを固定する。
 
 - match: `match_v1:{competition_id}:{reference_year}:{match_id}`
-- plate appearance: `plate_appearance_v1:{match_id}:{plate_appearance_no}`
-- event: `event_v1:{match_id}:{event_no}`
 
-後続Stageで打席確率ロジックを変更しても、別試合や別イベントへ不要な乱数連鎖を起こしにくくする。
+乱数の生成器は1試合に1個。打席・作戦・打球・球数・暴投・盗塁・継投は試合の進みの順にこの列から引く
+（ADR-045）。別の試合へは乱数の連鎖が起きない。
 
 ## TeamStrengthの扱い
 
