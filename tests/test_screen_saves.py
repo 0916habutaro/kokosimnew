@@ -79,6 +79,69 @@ class SaveScreenTests(unittest.TestCase):
             )
             self.assertEqual({"running": False}, api.progress())
 
+    def test_closing_the_screen_saves_only_when_days_are_unsaved(self):
+        repo = DataRepository(DATA_ROOT)
+        with tempfile.TemporaryDirectory() as tmp:
+            service = LiveGameService(repo, DATA_ROOT, save_root=tmp)
+            session = service.new_game("slot01", rng_seed=11, title="はじめ")
+            data = GameScreenData(service, session)
+            api = ScreenApi(data)
+            slot = Path(tmp) / "slot01"
+
+            def files():
+                return {path.name: path.read_bytes() for path in slot.rglob("*.json")}
+
+            # 新しく始めて保存したまま：閉じても何も書かない
+            before = files()
+            self.assertIsNone(api.save_on_close())
+            self.assertEqual(before, files())
+
+            # 試合のない日を1日ずつ進めると保存されない → 閉じるときに保存する
+            for _ in range(400):
+                moved = data.advance("day")
+                if not moved["played_match_count"]:
+                    break
+            self.assertEqual(0, moved["played_match_count"])
+            quiet_day = moved["to_date"]
+            self.assertNotEqual(
+                quiet_day, service.slots.inspect("slot01")["current_date"])
+            saved = api.save_on_close()
+            self.assertEqual("autosave", saved["kind"])
+            self.assertEqual(quiet_day, saved["current_date"])
+            self.assertEqual(quiet_day, service.slots.inspect("slot01")["current_date"])
+            self.assertEqual(quiet_day, service.load_game("slot01").state.current_date.isoformat())
+
+            # 保存したあとは、もう一度閉じても書かない
+            before = files()
+            self.assertIsNone(api.save_on_close())
+            self.assertEqual(before, files())
+
+            # 試合のある日はその日に保存されるので、閉じるときは書かない
+            for _ in range(400):
+                moved = data.advance("day")
+                if moved["played_match_count"]:
+                    break
+            self.assertGreater(moved["played_match_count"], 0)
+            self.assertEqual(moved["to_date"], service.slots.inspect("slot01")["current_date"])
+            before = files()
+            self.assertIsNone(api.save_on_close())
+            self.assertEqual(before, files())
+
+            # 日付を進めている途中で閉じたら保存しない
+            session.unsaved_progress = True
+            api._advancing = True
+            self.assertIsNone(api.save_on_close())
+            self.assertEqual(before, files())
+            api._advancing = False
+            self.assertIsNotNone(api.save_on_close())
+
+    def test_closing_without_a_save_chosen_does_nothing(self):
+        repo = DataRepository(DATA_ROOT)
+        with tempfile.TemporaryDirectory() as tmp:
+            service = LiveGameService(repo, DATA_ROOT, save_root=tmp)
+            self.assertIsNone(ScreenApi(GameScreenData(service)).save_on_close())
+            self.assertEqual([], list(Path(tmp).iterdir()))
+
     def test_choose_save_at_startup(self):
         repo = DataRepository(DATA_ROOT)
         with tempfile.TemporaryDirectory() as tmp:

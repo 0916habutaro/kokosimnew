@@ -48,6 +48,8 @@ class LiveGameSession:
         self._plan = plan
         self.state = state
         self.resolver_contract = resolver_contract
+        # 最後の保存のあとに進めた日・試合があるか（画面を閉じるときに保存するかを決める）
+        self.unsaved_progress = False
 
     @property
     def plan(self):
@@ -1208,10 +1210,20 @@ class LiveGameService:
             kind=kind,
             resolver_contract=session.resolver_contract,
         )
+        session.unsaved_progress = False
         return {**saved, "historical_archive": archive}
 
     def autosave_game(self, session: LiveGameSession) -> dict:
         return self.save_game(session, kind=SAVE_KIND_AUTOSAVE)
+
+    def save_if_unsaved(self, session: LiveGameSession) -> dict | None:
+        """最後の保存のあとに進めた日があれば自動セーブする（画面を閉じるとき）。
+
+        1日ずつ進めるとき、試合のない日は保存しないので、そのまま閉じると最後に
+        保存した日に戻ってしまう。進めていなければ何も書かない。"""
+        if not getattr(session, "unsaved_progress", False):
+            return None
+        return self.autosave_game(session)
 
     def year_end_status(self, session: LiveGameSession) -> dict:
         """Report blockers to sealing the finished year's match history."""
@@ -1332,6 +1344,7 @@ class LiveGameService:
         results = (
             session.state.play_today()
         )
+        session.unsaved_progress = True
         save = self._maybe_autosave(
             session,
             autosave,
@@ -1358,6 +1371,7 @@ class LiveGameService:
         result = (
             session.state.next_day()
         )
+        session.unsaved_progress = True
         result["closed_seasons"] = self._close_finished_seasons(session)
         # 試合のない日は保存しない（年度を閉じた日は、履歴を封印したので保存する）。
         # 保存していない日は、読み込んだあと同じように進め直せる。autosave=True と
@@ -1385,11 +1399,14 @@ class LiveGameService:
         stop_before=None,
         on_day=None,
     ) -> dict:
-        """まとめて進める。自動セーブは止まったとき（指定の日・大会の終わり・
-        大きな場面の前など、まとめて進めるのが終わったとき）に1回だけ。
+        """まとめて進める。自動セーブは、止まったとき（指定の日・大会の終わり・
+        大きな場面の前など、まとめて進めるのが終わったとき）と、月が替わったとき
+        （毎月1日になったとき）。どちらも履歴 → JSON の順で両方を書く。
 
-        途中で落ちたら、最後に止まったところ（最後のセーブ）からやり直しになる。
-        ``autosave=False`` なら保存しない。
+        月ごとに保存するのは、試合の記録を止まるまでメモリに置き続けないため
+        （1年を止めずに進めると、保存までの記録でメモリが増え続ける）。
+        途中で落ちたら、最後のセーブ（その月の1日か、最後に止まったところ）から
+        やり直しになる。``autosave=False`` なら保存しない。
 
         ``stop_before(state)`` は2日目から毎日、その日の試合をする前に呼ぶ。
         理由（文字列）を返したら、その日の前で止まる。``on_day(step)`` は
@@ -1406,6 +1423,7 @@ class LiveGameService:
                 session.state.advance_through(target)
                 if through else session.state.advance_to(target)
             )
+            session.unsaved_progress = True
             self._close_finished_seasons(session)
             return {"action": action, **result, "autosave": None}
 
@@ -1423,6 +1441,7 @@ class LiveGameService:
 
         advanced_days = 0
         played_match_count = 0
+        save = None
         stopped = ""
         while session.state.current_date < target_date:
             if advanced_days and stop_before is not None:
@@ -1430,11 +1449,15 @@ class LiveGameService:
                 if stopped:
                     break
             step = session.state.next_day()
+            session.unsaved_progress = True
             self._close_finished_seasons(session)
             advanced_days += 1
             played_match_count += int(step["played_match_count"])
             if on_day is not None:
                 on_day(step)
+            # 月が替わったら保存する（試合の記録を履歴に書いてメモリから手放す）
+            if enabled and session.state.current_date.day == 1:
+                save = self.autosave_game(session)
 
         result = {
             "current_date": session.state.current_date.isoformat(),
@@ -1446,11 +1469,14 @@ class LiveGameService:
         elif through:
             # Include games on the target day in the final replayable save.
             result["played_match_count"] += len(session.state.play_today())
+            session.unsaved_progress = True
             result["processed_through"] = (
                 session.state.current_date.isoformat()
             )
 
-        save = self.autosave_game(session) if enabled else None
+        # 止まったときの保存。ちょうど月の1日に保存したところで止まったら、もう書かない
+        if enabled and (save is None or getattr(session, "unsaved_progress", True)):
+            save = self.autosave_game(session)
         return {"action": action, **result, "autosave": save}
 
     def advance_to(
