@@ -177,6 +177,7 @@ class Stage13E3E3CliMetadataMigrationTests(
 
             service.next_day(
                 session,
+                autosave=True,
             )
             updated = (
                 service.slots
@@ -227,8 +228,8 @@ class Stage13E3E3CliMetadataMigrationTests(
                 start_date="2026-07-01",
                 title="復旧確認",
             )
-            service.next_day(session)
-            service.next_day(session)
+            service.next_day(session, autosave=True)
+            service.next_day(session, autosave=True)
 
             auto_path = (
                 service.slots.save_path(

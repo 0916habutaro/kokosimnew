@@ -154,11 +154,22 @@ class Stage13E3E2SaveSlotsGameServiceTests(
                 ],
             )
 
+            # 試合のない日は保存しない
+            quiet = service.next_day(session)
+            self.assertEqual(0, quiet["played_match_count"])
+            self.assertIsNone(quiet["autosave"])
+            self.assertFalse(
+                service.slots.slot_summary("slot01").autosave.exists
+            )
+            service.advance_to(session, "2026-07-11", autosave=False)
+
+            # 試合のある日は毎日保存する
             action = service.next_day(
                 session
             )
+            self.assertGreater(action["played_match_count"], 0)
             self.assertEqual(
-                "2026-07-02",
+                "2026-07-12",
                 session.state.current_date
                 .isoformat(),
             )
@@ -177,7 +188,7 @@ class Stage13E3E2SaveSlotsGameServiceTests(
                 summary.latest_source,
             )
             self.assertEqual(
-                "2026-07-02",
+                "2026-07-12",
                 summary.autosave.metadata[
                     "current_date"
                 ],
@@ -195,13 +206,17 @@ class Stage13E3E2SaveSlotsGameServiceTests(
                 loaded.state.history,
             )
 
-    def test_archive_commit_refresh_avoids_reimport_and_keeps_one_backup_per_save(self):
+    def test_one_json_write_per_save_avoids_reimport_and_keeps_one_backup_per_save(self):
         with tempfile.TemporaryDirectory() as tmp:
             service = self._service(tmp, autosave_after_action=False)
             session = service.new_game('compact', rng_seed=self.seed,
                                        start_date='2026-07-01', save_initial=False)
             service.advance_through(session, '2026-08-31', autosave=False)
-            first = service.save_game(session)
+            write = service.slots._write_current
+            with patch.object(service.slots, '_write_current', side_effect=write) as written:
+                first = service.save_game(session)
+            # 履歴に書いたあとの書き直しはしない（JSONは1回）
+            self.assertEqual(1, written.call_count)
             self.assertGreater(first['historical_archive']['inserted'], 0)
             self.assertEqual(0, first['backup_count'])
             sync = service._sync_history
@@ -214,6 +229,7 @@ class Stage13E3E2SaveSlotsGameServiceTests(
 
             with patch.object(service, '_sync_history', side_effect=observe):
                 loaded = service.load_game('compact')
+            # 書いたJSONは履歴に保存済みの状態なので、読込で試合を送り直さない
             self.assertEqual(0, imported[-1]['inserted'])
             self.assertEqual(0, imported[-1]['already_archived'])
             self.assertEqual(session.state.public_snapshot(), loaded.state.public_snapshot())
@@ -222,32 +238,53 @@ class Stage13E3E2SaveSlotsGameServiceTests(
             self.assertEqual(1, second['backup_count'])
             backup = service.slots.inspect('compact', source='manual_backup_1')
             self.assertEqual(first['current_date'], backup['current_date'])
-            target = Path(second['path'])
-            unchanged = target.read_bytes()
-            self.assertIsNone(service.slots.refresh_after_archive(
-                'compact', loaded.plan, loaded.state, kind=SAVE_KIND_MANUAL,
-                resolver_contract=loaded.resolver_contract,
-                expected_checksum=first['payload_checksum']))
-            self.assertEqual(unchanged, target.read_bytes())
 
-    def test_archive_or_refresh_failure_keeps_the_initial_json_recoverable(self):
-        for step in ('archive', 'refresh'):
-            with self.subTest(step=step), tempfile.TemporaryDirectory() as tmp:
-                service = self._service(tmp, autosave_after_action=False)
-                session = service.new_game('recover', rng_seed=self.seed,
-                                           start_date='2026-07-01', save_initial=False)
-                service.advance_through(session, '2026-08-31', autosave=False)
-                expected = session.state.completed_results()
-                self.assertTrue(expected)
-                obj, method = ((service, '_sync_history') if step == 'archive'
-                               else (service.slots, 'refresh_after_archive'))
-                with patch.object(obj, method, side_effect=OSError('interrupted')):
-                    with self.assertRaisesRegex(OSError, 'interrupted'):
-                        service.save_game(session)
-                self.assertTrue(service.slots.save_path('recover', SAVE_KIND_MANUAL).is_file())
-                restored = service.load_game('recover')
-                self.assertEqual(session.state.current_date, restored.state.current_date)
-                self.assertEqual(expected, restored.state.completed_results())
+    def test_crash_between_history_and_json_recovers_by_replaying_from_the_last_save(self):
+        """保存の途中（履歴は書けた・JSONは書けなかった）で落ちた場合。
+
+        前のセーブを読み込んで進め直すと同じ試合になり、履歴は同じ内容として受け入れる。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            service = self._service(tmp, autosave_after_action=False)
+            session = service.new_game('recover', rng_seed=self.seed, start_date='2026-07-01')
+            service.advance_through(session, '2026-08-31', autosave=False)
+            expected = session.state.completed_results()
+            self.assertTrue(expected)
+            with patch.object(service.slots, 'save', side_effect=OSError('interrupted')):
+                with self.assertRaisesRegex(OSError, 'interrupted'):
+                    service.save_game(session)
+            archived = service.historical_match_index('recover', 2026)
+            self.assertEqual(len(expected), len(archived))
+
+            # 落ちたあと：残っているのは前のセーブ（7月1日）
+            restored = self._service(tmp, autosave_after_action=False).load_game('recover')
+            self.assertEqual('2026-07-01', restored.state.current_date.isoformat())
+            self.assertFalse(restored.state.completed_results())
+            service.advance_through(restored, '2026-08-31', autosave=False)
+            self.assertEqual(expected, restored.state.completed_results())
+            saved = service.save_game(restored)
+            self.assertEqual(0, saved['historical_archive']['inserted'])
+            self.assertEqual(len(expected), saved['historical_archive']['already_archived'])
+            self.assertEqual(archived, service.historical_match_index('recover', 2026))
+            again = service.load_game('recover')
+            self.assertEqual('2026-08-31', again.state.current_date.isoformat())
+            self.assertEqual(expected, again.state.completed_results())
+
+    def test_history_failure_writes_no_json_and_the_save_can_be_retried(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service = self._service(tmp, autosave_after_action=False)
+            session = service.new_game('retry', rng_seed=self.seed, start_date='2026-07-01')
+            service.advance_through(session, '2026-08-31', autosave=False)
+            expected = session.state.completed_results()
+            before = service.slots.save_path('retry', SAVE_KIND_MANUAL).read_bytes()
+            with patch.object(service, '_sync_history', side_effect=OSError('interrupted')):
+                with self.assertRaisesRegex(OSError, 'interrupted'):
+                    service.save_game(session)
+            # 履歴に書けなかったら、JSONは前のまま（未保存の試合の記録は状態に残っている）
+            self.assertEqual(before, service.slots.save_path('retry', SAVE_KIND_MANUAL).read_bytes())
+            saved = service.save_game(session)
+            self.assertEqual(len(expected), saved['historical_archive']['inserted'])
+            restored = service.load_game('retry')
+            self.assertEqual(expected, restored.state.completed_results())
 
     def test_manual_rolling_backups_are_bounded_and_recoverable(
         self,
@@ -358,26 +395,28 @@ class Stage13E3E2SaveSlotsGameServiceTests(
                 start_date="2026-07-01",
             )
 
+            # 試合のある日（7月12〜14日）を1日ずつ進める
+            service.advance_to(session, "2026-07-12", autosave=False)
             service.next_day(session)
             service.next_day(session)
             service.next_day(session)
 
             self.assertEqual(
-                "2026-07-04",
+                "2026-07-15",
                 service.slots.inspect(
                     "auto01",
                     source=SAVE_KIND_AUTOSAVE,
                 )["current_date"],
             )
             self.assertEqual(
-                "2026-07-03",
+                "2026-07-14",
                 service.slots.inspect(
                     "auto01",
                     source="autosave_backup_1",
                 )["current_date"],
             )
             self.assertEqual(
-                "2026-07-02",
+                "2026-07-13",
                 service.slots.inspect(
                     "auto01",
                     source="autosave_backup_2",

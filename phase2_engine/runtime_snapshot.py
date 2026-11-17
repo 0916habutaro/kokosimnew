@@ -8,6 +8,7 @@ pickle を使うので、読み込むのは自分のゲームが書いたセー�
 """
 from __future__ import annotations
 
+import copyreg
 import io
 import pickle
 import zlib
@@ -17,7 +18,8 @@ from .repository import DataRepository
 from .season import StructuralAnnualInputFactory
 
 
-SNAPSHOT_FORMAT = b"KOKOSIM-RUNTIME-1\n"
+# 2：外に置く部品を型ごとの置き換えで書く（前は persistent_id）
+SNAPSHOT_FORMAT = b"KOKOSIM-RUNTIME-2\n"
 
 _REPO = "repo"
 _FACTORY = "structural_factory"
@@ -44,24 +46,49 @@ def _engine_parts(engine) -> dict[str, object]:
     return parts
 
 
+def _external_ref(name):
+    """書き出さない部品の目印。読込では ``_Unpickler.find_class`` が今の部品に差し替える。"""
+    raise RuntimeSnapshotError(f"external reference outside a snapshot load: {name}")
+
+
 class _Pickler(pickle.Pickler):
+    """書き出さない部品（データ・engine など）を、型ごとの置き換えで目印にする。
+
+    ``persistent_id`` は状態の中のすべてのオブジェクト（約160万個）で呼ばれて遅いので
+    使わない。置き換えは ``dispatch_table``（型 → 書き出し方）で、その型のときだけ呼ばれる。
+    """
+
     def __init__(self, stream, seasons):
         super().__init__(stream, protocol=pickle.HIGHEST_PROTOCOL)
-        self._external = {
+        external = {
             id(value): f"{year}:{name}"
             for year, season in seasons.items()
             for name, value in _engine_parts(season.engine).items()
+            if value is not None
         }
+        protocol = pickle.HIGHEST_PROTOCOL
 
-    def persistent_id(self, obj):
-        name = self._external.get(id(obj))
-        if name is not None:
-            return name
-        if isinstance(obj, DataRepository):
-            return _REPO
-        if isinstance(obj, StructuralAnnualInputFactory):
-            return _FACTORY
-        return None
+        def by_identity(obj):
+            name = external.get(id(obj))
+            if name is not None:
+                return _external_ref, (name,)
+            return obj.__reduce_ex__(protocol)
+
+        def by_type(obj):
+            return _external_ref, (_REPO if isinstance(obj, DataRepository) else _FACTORY,)
+
+        table = dict(copyreg.dispatch_table)
+        for season in seasons.values():
+            for value in _engine_parts(season.engine).values():
+                if value is not None:
+                    table[type(value)] = by_identity
+        for kind in (DataRepository, StructuralAnnualInputFactory, *(
+            type(repo) for repo in (
+                getattr(season, "repo", None) for season in seasons.values()
+            ) if isinstance(repo, DataRepository)
+        )):
+            table[kind] = by_type
+        self.dispatch_table = table
 
 
 class _Unpickler(pickle.Unpickler):
@@ -69,12 +96,17 @@ class _Unpickler(pickle.Unpickler):
         super().__init__(stream)
         self._external = external
 
-    def persistent_load(self, pid):
+    def find_class(self, module, name):
+        if (module, name) == (__name__, _external_ref.__name__):
+            return self.external
+        return super().find_class(module, name)
+
+    def external(self, name):
         try:
-            return self._external[pid]
+            return self._external[name]
         except KeyError as exc:
             raise pickle.UnpicklingError(
-                f"unknown external reference: {pid}"
+                f"unknown external reference: {name}"
             ) from exc
 
 
@@ -117,12 +149,12 @@ def load_runtime_state(data: bytes, plans: dict, *, engines=None):
 class _ReadOnlyUnpickler(_Unpickler):
     """閉じた年度を見るだけのとき。試合の進め方（engine）はつながない。"""
 
-    def persistent_load(self, pid):
-        if pid in self._external:
-            return self._external[pid]
-        if ":" in str(pid):
+    def external(self, name):
+        if name in self._external:
+            return self._external[name]
+        if ":" in str(name):
             return None
-        return super().persistent_load(pid)
+        return super().external(name)
 
 
 def load_closed_season(data: bytes, repo, data_dir, rng_seed: int):

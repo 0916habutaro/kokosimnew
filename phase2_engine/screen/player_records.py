@@ -217,6 +217,29 @@ class PlayerTally:
                                          outs=int(row.get("outs_recorded") or 0)))
         return True
 
+    def absorb(self, other: "PlayerTally") -> None:
+        """別の集計（1試合分など）を足す。``other`` の試合を同じ順に ``add`` したのと同じ結果になる。"""
+        self._parsed = None
+        self.seen |= other.seen
+        for key, grade in other.grades.items():
+            self.grades.setdefault(key, grade)
+        for key, games in other.teams.items():
+            self.teams[key] = self.teams.get(key, 0) + games
+        for mine, theirs, size in ((self.batters, other.batters, len(BATTING)),
+                                   (self.pitchers, other.pitchers, len(PITCHING))):
+            for key, values in theirs.items():
+                total = mine.setdefault(key, [0] * size)
+                for i, value in enumerate(values):
+                    total[i] += value
+        self.feats.extend(other.feats)
+        for key, (strikeouts, games) in other.top_strikeouts.items():
+            best = self.top_strikeouts.setdefault(key, [0, []])
+            if strikeouts > best[0]:
+                self.top_strikeouts[key] = [strikeouts, list(games)]
+            elif strikeouts == best[0]:
+                best[1].extend(games)
+        self.undecided += other.undecided
+
     @staticmethod
     def _holder(row, school, match_id, day, team1, team2) -> dict:
         team = row["school_id"]

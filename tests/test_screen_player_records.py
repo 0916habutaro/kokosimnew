@@ -1,5 +1,6 @@
 """記録の画面の「個人の記録」：規定・上位の並べ方・達成の記録（架空の試合で）。"""
 from fractions import Fraction
+import json
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -154,6 +155,38 @@ class FeatTests(unittest.TestCase):
         self.assertEqual(2, again.grades["2030|x"])
         # 同じ試合は2回足さない
         self.assertFalse(tally.add("CUP", "M0", detail))
+
+    def test_absorbing_single_game_tallies_in_order_equals_adding_the_games(self):
+        """年度を閉じるときの積み上げ：1試合分ずつ集計して試合の順に足すと、順に add したのと同じ。"""
+        def member(year, school, player, competition_id=""):
+            return (school, 2) if player != "unknown" else None
+
+        games = [
+            ("C2", "M1", game([batter("S-A", "b1", plate_appearances=4, at_bats=4, hits=4, doubles=1,
+                                      triples=1, home_runs=1, rbi=3)],
+                              [pitcher("S-A", "p1", batters_faced=27, outs_recorded=27, strikeouts=9)])),
+            ("C1", "M2", game([batter("S-A", "b1", plate_appearances=3, at_bats=3, hits=1),
+                               batter("S-B", "unknown", plate_appearances=3, at_bats=2, hits=1)],
+                              [pitcher("S-A", "p1", batters_faced=30, outs_recorded=27, strikeouts=9,
+                                       hits_allowed=3)], day="2031-03-20")),
+            ("C1", "M1", game([batter("S-B", "b2", plate_appearances=4, at_bats=3, hits=2, stolen_bases=1)],
+                              [pitcher("S-A", "p1", batters_faced=28, outs_recorded=27, strikeouts=12),
+                               pitcher("S-B", "p2", batters_faced=5, outs_recorded=3, strikeouts=1)],
+                              winner="")),
+        ]
+        ordered = sorted(games, key=lambda g: g[:2])
+        expected = pr.build_tally(2030, ordered, member)
+        parts = {}
+        for cid, mid, detail in games:  # 履歴に書く順（試合の日の順）は試合IDの順と違う
+            single = pr.PlayerTally(year=2030)
+            single.add(cid, mid, detail, member)
+            parts[cid, mid] = pr.PlayerTally(json.loads(json.dumps(single.to_dict())))
+        merged = pr.PlayerTally(year=2030)
+        for key in sorted(parts):
+            merged.absorb(parts[key])
+        self.assertTrue(expected.feats and expected.top_strikeouts and expected.grades)
+        self.assertEqual(json.dumps(expected.to_dict()), json.dumps(merged.to_dict()))
+        self.assertEqual(expected.to_blob(), merged.to_blob())
 
     def test_march_games_use_the_grade_from_april(self):
         tally = pr.PlayerTally(year=2031)

@@ -358,6 +358,8 @@ def main(
             args.resolver_contract
         ),
         max_backups=args.max_backups,
+        # 試合シミュレーターが検査した直後の記録を、履歴に書くときにもう一度検査しない
+        recheck_simulated_records=False,
     )
     payload = run_command(
         args,

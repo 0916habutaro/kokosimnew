@@ -318,6 +318,8 @@ def main(argv=None) -> None:
     service = LiveGameService(
         repo, data_dir, save_root=save_root,
         resolver_contract=PLAYER_RESOLVER_CONTRACT,
+        # 試合シミュレーターが検査した直後の記録を、履歴に書くときにもう一度検査しない
+        recheck_simulated_records=False,
     )
     session = (
         open_session(service, args.slot, args.seed, args.title)

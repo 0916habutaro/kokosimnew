@@ -2431,7 +2431,9 @@ class LiveSeasonDependencyRuntimeState:
         action: str,
     ) -> list[dict]:
         target = self.current_date.isoformat()
-        before = set(self.completed_results())
+        # 全大会の全試合を毎日辞書に直さない。終わった試合のキーだけを比べ、
+        # 辞書に直すのはその日に終わった試合だけ
+        before = self._completed_keys()
         for cid, scheduled in sorted(
             self.competitions.items()
         ):
@@ -2454,9 +2456,8 @@ class LiveSeasonDependencyRuntimeState:
         )
         if self.seed_pending:
             self.rebuild_pending_seeds(target)
-        completed = self.completed_results()
         new_keys = sorted(
-            set(completed) - before
+            self._completed_keys() - before
         )
         self.history.append({
             "action": action,
@@ -2464,10 +2465,22 @@ class LiveSeasonDependencyRuntimeState:
             "match_keys": new_keys,
             "match_count": len(new_keys),
         })
-        return [
-            completed[key]
-            for key in new_keys
-        ]
+        results = []
+        for key in new_keys:
+            cid, match_id = key.split(":", 1)
+            results.append(
+                self.competitions[cid].matches[match_id].public_dict()
+            )
+        return results
+
+    def _completed_keys(self) -> set[str]:
+        """終わった試合のキー（``completed_results`` のキーと同じ）。"""
+        return {
+            f"{cid}:{match_id}"
+            for cid, scheduled in self.competitions.items()
+            for match_id, match in scheduled.matches.items()
+            if match.status == SCHEDULE_COMPLETED
+        }
 
     def next_day(self) -> dict:
         if self.current_date >= school_year_end(
