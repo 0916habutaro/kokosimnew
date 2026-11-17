@@ -22,7 +22,7 @@ jobs:
   windows_acceptance:
     name: Windows Python 3.12 product save load and Tk browse
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     defaults:
       run:
         shell: pwsh
@@ -66,6 +66,7 @@ jobs:
             'test_archive_compact.py',
             'test_screen_saves.py',
             'test_screen_closed_year.py',
+            'test_parallel_rosters.py',
             'test_koshien_records.py',
             'test_data_integrity.py'
           )
@@ -91,14 +92,21 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $exe = 'dist\kokosimnew\kokosimnew.exe'
           if (-not (Test-Path $exe)) { Write-Output "::error title=EXE::$exe がありません"; exit 1 }
-          # 画面を出さない起動の確認。コンソールのない EXE なので結果はセーブの隣のログに出る
+          # 画面を出さない起動の確認。コンソールのない EXE なので結果はセーブの隣のログに出る。
+          # --slot で新規開始もする（名簿づくりの複数のプロセスが EXE で動くかの確認）
           $saves = Join-Path $env:RUNNER_TEMP 'exe-check-saves'
-          $proc = Start-Process -FilePath $exe -ArgumentList @('--check', '--save-root', $saves) -PassThru
+          $proc = Start-Process -FilePath $exe -ArgumentList @('--check', '--save-root', $saves, '--slot', 'exe-check', '--seed', '20261022') -PassThru
           $null = $proc.Handle  # 終了コードを読めるようにする
-          if (-not $proc.WaitForExit(120000)) { $proc.Kill(); Write-Output "::error title=EXE::2分で終わりません"; exit 1 }
+          if (-not $proc.WaitForExit(900000)) { $proc.Kill(); Write-Output "::error title=EXE::15分で終わりません"; exit 1 }
           $log = Join-Path $saves 'kokosimnew.log'
           if (Test-Path $log) { Get-Content $log -Encoding utf8 }
           if ($proc.ExitCode -ne 0) { Write-Output "::error title=EXE::起動の確認が失敗しました（$($proc.ExitCode)）"; exit 1 }
           if (-not (Select-String -Path $log -Pattern '起動の確認' -Quiet -Encoding utf8)) {
             Write-Output "::error title=EXE::起動の確認の記録がありません"; exit 1
+          }
+          if (Select-String -Path $log -Pattern '名簿づくりを1プロセスに戻しました' -Quiet -Encoding utf8) {
+            Write-Output "::error title=EXE::名簿づくりの複数のプロセスが動きませんでした"; exit 1
+          }
+          if (-not (Select-String -Path $log -Pattern "'roster_workers': ([2-9]|[1-9][0-9])" -Quiet -Encoding utf8)) {
+            Write-Output "::error title=EXE::名簿づくりを複数のプロセスでつくった記録がありません"; exit 1
           }

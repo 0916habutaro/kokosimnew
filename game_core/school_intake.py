@@ -467,11 +467,13 @@ class SchoolAwarePlayerAbilityGenerator:
         cohort: Iterable[int] | None = None,
         day: date | None = None,
         rng=None,
+        profile: SchoolIntakeProfile | None = None,
     ) -> PlayerAbilitySnapshot:
         """``cohort`` は同じ学校・入学年度の部員番号（有望な新入生を割り当てる）。
         渡さなければその選手1人の学年として扱う。``day`` は名簿の能力を見る日
         （試合の日。省くと名簿の今日）。``rng`` は選手ごとの乱数（省くと ``player_rng``。
-        名簿は続けて成長の型に使うので渡す）。"""
+        名簿は続けて成長の型に使うので渡す）。``profile`` はその学校・入学年度の入部品質
+        （省くと ``intake_model.profile``。名簿を並列でつくるとき、親のプロセスで求めて渡す）。"""
         if self.source is not None:
             snapshot = (self.source.ability(player, day) if day is not None
                         else self.source.ability(player))
@@ -485,7 +487,7 @@ class SchoolAwarePlayerAbilityGenerator:
                     player, reference_year, base_seed, rng=rng, draw_scalars=False,
                 ),
                 player=player,
-                profile=self.intake_model.profile(
+                profile=profile if profile is not None else self.intake_model.profile(
                     school_id=player.school_id,
                     entry_year=player.entry_year,
                     base_seed=base_seed,

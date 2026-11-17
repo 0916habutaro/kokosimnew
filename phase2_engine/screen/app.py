@@ -312,7 +312,14 @@ def startup_check(api: "ScreenApi") -> dict:
     saves = api.saves()
     if saves.get("error"):
         raise RuntimeError(saves["error"])
-    return {"shell": bool(api.shell()), "slots": len(saves.get("slots", []))}
+    out = {"shell": bool(api.shell()), "slots": len(saves.get("slots", []))}
+    session = api._data.session
+    if session is not None:
+        # --slot を付けて新規開始したとき：名簿づくりに使ったプロセスの数（EXE の複数プロセスの確認）
+        rosters = getattr(session.state, "rosters", None)
+        out["roster_workers"] = getattr(rosters, "last_build_workers", None)
+        out["current_date"] = session.state.current_date.isoformat()
+    return out
 
 
 def main(argv=None) -> None:
