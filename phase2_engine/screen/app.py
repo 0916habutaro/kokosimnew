@@ -149,6 +149,17 @@ class ScreenApi:
     def save_now(self) -> dict:
         return self._read(self._data.save_now)
 
+    def save_on_close(self) -> dict | None:
+        """画面を閉じるとき（JavaScript からは呼ばない）：最後の保存のあとに進めた日があれば
+        保存する。保存したらその結果、何も書かなければ None。
+
+        日付を進めている途中で閉じたときは保存しない（進めている途中の状態は書けない。
+        読み込むと最後のセーブ＝その月の1日か、最後に止まったところに戻る）。"""
+        if self._data.session is None or self._advancing:
+            return None
+        with self._state_lock:
+            return self._data.save_on_close()
+
     def rename_save(self, slot_id, title) -> dict:
         return self._read(self._data.rename_save, slot_id, title)
 
@@ -338,3 +349,8 @@ def main(argv=None) -> None:
         background_color="#0b1730",
     )
     webview.start()
+    # 画面を閉じたあと：試合のない日だけ進めた分など、まだ保存していない日を保存する
+    try:
+        api.save_on_close()
+    except Exception:  # 閉じるときの保存の失敗は記録だけ残す（最後のセーブは残っている）
+        traceback.print_exc()

@@ -3190,6 +3190,12 @@ class GameScreenData:
         self.service.save_game(self.session, kind=SAVE_KIND_MANUAL)
         return self.saves()
 
+    def save_on_close(self) -> dict | None:
+        """画面を閉じるとき：最後の保存のあとに進めた日があれば自動セーブする。"""
+        if self.session is None:
+            return None
+        return self.service.save_if_unsaved(self.session)
+
     def rename_save(self, slot_id: str, title: str) -> dict:
         title = str(title).strip()
         if not title:

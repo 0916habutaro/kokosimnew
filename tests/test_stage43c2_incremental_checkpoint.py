@@ -1,4 +1,4 @@
-"""まとめて進めるときの自動セーブは、止まったときに1回だけ（履歴を先に書く）。"""
+"""まとめて進めるときの自動セーブは、止まったときと月が替わったとき（履歴を先に書く）。"""
 from __future__ import annotations
 
 import tempfile
@@ -115,7 +115,7 @@ class Stage43C2IncrementalCheckpointTests(unittest.TestCase):
                 again = self.service.advance_to(self.session, "2026-07-24")
         self.assertEqual(14, result["advanced_days"])
         self.assertEqual(3, result["played_match_count"])
-        # 途中（1週間ごと）では保存せず、止まったときに1回
+        # 月が替わらなければ、止まったときに1回
         self.assertEqual(
             [("2026-07-24", 3), ("2026-07-24", 3)],
             self.save_points,
@@ -125,6 +125,41 @@ class Stage43C2IncrementalCheckpointTests(unittest.TestCase):
         self.assertEqual(0, again["autosave"]["historical_archive"]["inserted"])
         self.assertEqual(0, again["autosave"]["historical_archive"]["already_archived"])
         self.assertEqual(3, len(self.archive.list_matches(2026)))
+
+    def test_long_jump_also_saves_when_the_month_changes(self):
+        with patch("phase2_engine.live_game_service.plan_fingerprint",
+                   return_value="plan123"):
+            with patch.object(self.service.slots, "save",
+                              side_effect=self._save_checkpoint):
+                result = self.service.advance_to(self.session, "2026-09-03")
+        self.assertEqual(3, result["played_match_count"])
+        # 8月1日・9月1日になったときと、止まったとき
+        self.assertEqual(
+            [("2026-08-01", 3), ("2026-09-01", 3), ("2026-09-03", 3)],
+            self.save_points,
+        )
+        # 月の保存で履歴に書いた試合は、あとの保存で送り直さない
+        self.assertEqual({"inserted": 0, "already_archived": 0},
+                         result["autosave"]["historical_archive"])
+        self.assertEqual(3, len(self.archive.list_matches(2026)))
+
+    def test_stopping_on_the_first_of_the_month_saves_once(self):
+        with patch("phase2_engine.live_game_service.plan_fingerprint",
+                   return_value="plan123"):
+            with patch.object(self.service.slots, "save",
+                              side_effect=self._save_checkpoint):
+                result = self.service.advance_to(self.session, "2026-08-01")
+        self.assertEqual([("2026-08-01", 3)], self.save_points)
+        self.assertEqual(3, result["autosave"]["historical_archive"]["inserted"])
+
+    def test_month_change_does_not_save_when_autosave_is_off(self):
+        with patch.object(self.service, "autosave_game",
+                          side_effect=AssertionError("must not save")):
+            result = self.service.advance_to(
+                self.session, "2026-08-05", autosave=False, on_day=lambda step: None,
+            )
+        self.assertIsNone(result["autosave"])
+        self.assertTrue(self.session.unsaved_progress)
 
     def test_history_is_written_before_the_json_save(self):
         seen = []
