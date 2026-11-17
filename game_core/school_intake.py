@@ -6,7 +6,7 @@ from datetime import date
 from pathlib import Path
 from typing import Iterable, Iterator
 
-from phase2_engine.randomness import rng_for
+from phase2_engine.randomness import gauss_for, rng_for, uniform_for
 from phase2_engine.repository import DataRepository
 
 from .abilities import (
@@ -128,14 +128,11 @@ class SchoolIntakeModel:
             )
         if program_z is None:
             # 評判のない学校（学校マスターにない架空の学校など）は乱数
-            program_z = rng_for(base_seed, program_namespace).gauss(
-                float(program["mean"]),
-                float(program["stddev"]),
-            )
-        cohort_z = rng_for(base_seed, cohort_namespace).gauss(
-            float(cohort["mean"]),
-            float(cohort["stddev"]),
-        )
+            program_z = gauss_for(base_seed, program_namespace,
+                                  float(program["mean"]), float(program["stddev"]))
+        # 学校・入学年度ごとに1つの値（乱数の生成器はつくらない）
+        cohort_z = gauss_for(base_seed, cohort_namespace,
+                             float(cohort["mean"]), float(cohort["stddev"]))
         combined = (
             program_z * float(program["weight"])
             + cohort_z * float(cohort["weight"])
@@ -251,28 +248,40 @@ class SchoolAwarePlayerAbilityGenerator:
         self, profile: SchoolIntakeProfile, cohort: Iterable[int], base_seed: int,
     ) -> set[int]:
         """有望な新入生の部員番号：人数を引き、その年の新入生のうち選手ごとの順番の
-        小さい順に割り当てる（部員の人数が変わっても1人あたりの確率にならない）。"""
+        小さい順に割り当てる（部員の人数が変わっても1人あたりの確率にならない）。
+
+        学校・入学年度・学年の顔ぶれごとに1回だけ決める（学年の全員で同じ答え）。"""
+        cohort = tuple(cohort)
+        memo = self.__dict__.setdefault("_prospects_memo", {})
+        key = (base_seed, profile.school_id, profile.entry_year, profile.intake_quality_z, cohort)
+        held = memo.get(key)
+        if held is not None:
+            return set(held)
         count = self.prospect_count(profile, base_seed)
-        if not count:
-            return set()
-        order = sorted(
-            cohort,
-            key=lambda roster_no: (
-                rng_for(base_seed, self._namespace(
-                    "priority", school_id=profile.school_id,
-                    entry_year=profile.entry_year, roster_no=roster_no,
-                )).random(),
-                roster_no,
-            ),
-        )
-        return set(order[:count])
+        chosen: frozenset[int] = frozenset()
+        if count:
+            order = sorted(
+                cohort,
+                key=lambda roster_no: (
+                    uniform_for(base_seed, self._namespace(
+                        "priority", school_id=profile.school_id,
+                        entry_year=profile.entry_year, roster_no=roster_no,
+                    )),
+                    roster_no,
+                ),
+            )
+            chosen = frozenset(order[:count])
+        if len(memo) >= 4096:
+            memo.clear()
+        memo[key] = chosen
+        return set(chosen)
 
     def talent(
         self, player: Player, profile: SchoolIntakeProfile, base_seed: int,
         *, prospect: bool, rng=None,
     ) -> PlayerTalent:
         model = self.params["talent_model"]
-        rng = rng or self._player_rng(player, base_seed)
+        rng = rng or self.player_rng(player, base_seed)
         value = (
             profile.intake_quality_z * float(model["school_weight"])
             + rng.gauss(0.0, float(model["player_stddev"]))
@@ -293,20 +302,20 @@ class SchoolAwarePlayerAbilityGenerator:
         )
         return PlayerTalent(round(value, 6), prospect, batter_type, pitcher_type)
 
-    def platoon_trait(self, player: Player, base_seed: int) -> str | None:
-        """一部の選手だけの左右の得意・不得意（野手は対左投手、投手は対左打者）。"""
+    def platoon_trait(self, player: Player, rng) -> str | None:
+        """一部の選手だけの左右の得意・不得意（野手は対左投手、投手は対左打者）。
+        ``rng`` は選手ごとの乱数（能力のあとに引く）。"""
         shares = self.params["platoon_traits"]["pitcher" if player.primary_position == "P" else "batter"]
-        roll = rng_for(base_seed, self._namespace(
-            "platoon", school_id=player.school_id, entry_year=player.entry_year,
-            roster_no=player.roster_no,
-        )).random()
+        roll = rng.random()
         for trait in ("vs_left_good", "vs_left_bad"):
             if roll < float(shares[trait]):
                 return trait
             roll -= float(shares[trait])
         return None
 
-    def _player_rng(self, player: Player, base_seed: int):
+    def player_rng(self, player: Player, base_seed: int):
+        """選手ごとの乱数（1人に1個）。守備位置の適性・球種 → 素質 → 能力 → 左右の特性の順に
+        引き、名簿では続けて成長の型・開始前の成長に使う（roster_book.py）。"""
         return rng_for(base_seed, self._namespace(
             "player", school_id=player.school_id, entry_year=player.entry_year,
             roster_no=player.roster_no,
@@ -333,13 +342,14 @@ class SchoolAwarePlayerAbilityGenerator:
         player: Player,
         profile: SchoolIntakeProfile,
         cohort: Iterable[int] | None = None,
+        rng=None,
     ) -> IntakeAdjustedPlayerAbilitySnapshot:
         """入学（1年の4月）の能力：平均 ＋ 素質 × 重み × 型の倍率 ＋ 型の点 ＋ 乱数。
 
         能力ごとの乱数は選手ごとの乱数（入学年度・学校・部員番号）から決まった順に引く。
-        守備位置の並び・球種は ``base``（基準の生成）のものを使う。"""
+        守備位置の並び・球種は ``base``（基準の生成。同じ乱数の先に引いたもの）のものを使う。"""
         cohort = tuple(cohort) if cohort is not None else (player.roster_no,)
-        rng = self._player_rng(player, base_seed=profile.generation_seed)
+        rng = rng if rng is not None else self.player_rng(player, base_seed=profile.generation_seed)
         talent = self.talent(
             player, profile, profile.generation_seed,
             prospect=player.roster_no in self.prospects(profile, cohort, profile.generation_seed),
@@ -406,23 +416,28 @@ class SchoolAwarePlayerAbilityGenerator:
             for position, _ in base.position_aptitude
         )
 
+        # 球種の質・制球は、投手でなくても全部の球種の分を引く（どの選手も同じ数だけ引くので、
+        # 守備位置が変わってもこのあとに引く左右の特性・成長の型が変わらない）
+        fields_params = generation["pitch_repertoire"]["per_pitch_fields"]
+        pitch_values = {
+            pitch_type: (
+                value("pitch_quality", fields_params["quality"], float(per_talent["pitch_quality"])),
+                value("pitch_command", fields_params["command"], float(per_talent["pitch_command"])),
+            )
+            for pitch_type in generation["pitch_repertoire"]["pitch_types"]
+        }
         if player.primary_position == "P":
-            fields_params = generation["pitch_repertoire"]["per_pitch_fields"]
             payload["pitch_repertoire"] = tuple(
                 PitchAbility(
                     pitch_type=pitch.pitch_type,
-                    quality=value(
-                        "pitch_quality", fields_params["quality"], float(per_talent["pitch_quality"]),
-                    ),
-                    command=value(
-                        "pitch_command", fields_params["command"], float(per_talent["pitch_command"]),
-                    ),
+                    quality=pitch_values[pitch.pitch_type][0],
+                    command=pitch_values[pitch.pitch_type][1],
                     usage=pitch.usage,
                 )
                 for pitch in base.pitch_repertoire
             )
 
-        payload["platoon_trait"] = self.platoon_trait(player, profile.generation_seed)
+        payload["platoon_trait"] = self.platoon_trait(player, rng)
         snapshot = IntakeAdjustedPlayerAbilitySnapshot(
             **payload,
             intake_config_id=profile.intake_config_id,
@@ -451,10 +466,12 @@ class SchoolAwarePlayerAbilityGenerator:
         *,
         cohort: Iterable[int] | None = None,
         day: date | None = None,
+        rng=None,
     ) -> PlayerAbilitySnapshot:
         """``cohort`` は同じ学校・入学年度の部員番号（有望な新入生を割り当てる）。
         渡さなければその選手1人の学年として扱う。``day`` は名簿の能力を見る日
-        （試合の日。省くと名簿の今日）。"""
+        （試合の日。省くと名簿の今日）。``rng`` は選手ごとの乱数（省くと ``player_rng``。
+        名簿は続けて成長の型に使うので渡す）。"""
         if self.source is not None:
             snapshot = (self.source.ability(player, day) if day is not None
                         else self.source.ability(player))
@@ -462,11 +479,10 @@ class SchoolAwarePlayerAbilityGenerator:
             if snapshot.reference_year != reference_year:
                 snapshot = replace(snapshot, reference_year=reference_year)
         else:
+            rng = rng if rng is not None else self.player_rng(player, base_seed)
             snapshot = self._adjust_snapshot(
                 base=self.base_generator.generate(
-                    player,
-                    reference_year,
-                    base_seed,
+                    player, reference_year, base_seed, rng=rng, draw_scalars=False,
                 ),
                 player=player,
                 profile=self.intake_model.profile(
@@ -475,6 +491,7 @@ class SchoolAwarePlayerAbilityGenerator:
                     base_seed=base_seed,
                 ),
                 cohort=cohort,
+                rng=rng,
             )
         return snapshot
 

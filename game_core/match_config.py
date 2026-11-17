@@ -409,32 +409,13 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
             )
 
     namespaces = payload.get("rng_namespace_policy")
-    if set(namespaces or {}) != {
-        "match",
-        "plate_appearance",
-        "event",
-        "pitches",
-        "steal",
-        "relief",
-        "tactic",
-        "wild_pitch",
-        "fielding",
-        "pitcher_shuffle",
-    }:
+    # 試合の乱数は1試合に1個（match）
+    if set(namespaces or {}) != {"match"}:
         raise ValueError(
             "match simulation: RNG namespace keys mismatch"
         )
     required_placeholders = {
         "match": ("{competition_id}", "{reference_year}", "{match_id}"),
-        "plate_appearance": ("{match_id}", "{plate_appearance_no}"),
-        "event": ("{match_id}", "{event_no}"),
-        "pitches": ("{match_id}", "{plate_appearance_no}"),
-        "steal": ("{match_id}", "{plate_appearance_no}"),
-        "relief": ("{match_id}", "{plate_appearance_no}"),
-        "tactic": ("{match_id}", "{plate_appearance_no}"),
-        "wild_pitch": ("{match_id}", "{plate_appearance_no}"),
-        "fielding": ("{match_id}", "{plate_appearance_no}"),
-        "pitcher_shuffle": ("{match_id}", "{plate_appearance_no}"),
     }
     for key, placeholders in required_placeholders.items():
         template = str(namespaces[key])

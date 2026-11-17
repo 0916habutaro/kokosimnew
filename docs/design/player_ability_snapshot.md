@@ -107,21 +107,12 @@ primary_position=P の選手だけ:
 - 各球種にquality / command / usage
 - usage合計=100
 
-球種のquality / command / usageもnamespaceを分離する。
+## RNG
 
-## RNG isolation
-
-通常能力:
-
-`player_ability_v1:{reference_year}:{player_id}:{ability_id}`
-
-守備適性:
-
-`player_ability_v1:{reference_year}:{player_id}:position:{position}`
-
-球種:
-
-`player_pitch_v1:{reference_year}:{player_id}:{pitch_type}:...`
+選手1人に1個（ADR-045）。学校ごとの生成（`school_intake_v1:player:{entry_year}:{school_id}:{roster_no}`）では、
+守備位置の適性 → 球種（数・種類・割合）→ 素質 → 能力 → 左右の特性 の順に同じ列から引く。
+基準の生成だけを使うとき（学校の成分なし）は `player_ability_v2:{reference_year}:{player_id}`。
+捕手・投手の能力と球種は、その守備位置でなくても引いて捨てる（どの選手も同じ数だけ引く）。
 
 能力Aの生成ロジックを変更しても能力Bまで不必要に変化しにくい。
 

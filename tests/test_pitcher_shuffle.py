@@ -140,7 +140,8 @@ class DHGameShuffleTests(unittest.TestCase):
         from game_core.match_state import replay_team_participation
 
         checked = returned = 0
-        for i in range(80):
+        # 投手に戻る場面は100試合に数回しかないので、200試合で確かめる
+        for i in range(200):
             match = MatchSimulationInput(f'MATCH-{i}', 'FAKE-CUP', 2026, SEED, *self.teams)
             result = self.sim.simulate(match, tactics={'FAKE-A': SHUFFLER, 'FAKE-B': SHUFFLER})
             validate_match_simulation_result(result, match)

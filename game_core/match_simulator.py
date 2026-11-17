@@ -90,20 +90,6 @@ def _next_stint(stints: list, pitcher_id: str) -> int:
     return stints[-1][1]
 
 
-class _DeferredEventRandom:
-    """独立した進塁用乱数を、実際に使う打席だけ初期化する。"""
-
-    __slots__ = ('_seed', '_namespace', '_rng')
-
-    def __init__(self, seed, namespace):
-        self._seed, self._namespace, self._rng = seed, namespace, None
-
-    def __getattr__(self, name):
-        if self._rng is None:
-            self._rng = rng_for(self._seed, self._namespace)
-        return getattr(self._rng, name)
-
-
 class _RunnerResponsibilityTracker:
     """Inning-local responsibility, separate from the existing base/outcome model.
 
@@ -2179,8 +2165,11 @@ class MatchSimulator:
         # 守っている並びごとの守備の値（H2）。打席の結果の重みはチーム全体の守備力だけで決まり、
         # 選手ごとの守備は打球の行き先を決めてから効くので、交代で並びが変わってもそのまま正しい
         fielding_profiles: dict[tuple, _FieldingProfile] = {}
-        defer_event_random = (type(self) is MatchSimulator and rng_for is _RNG_FACTORY
-            and getattr(self._apply_event, '__func__', None) is _APPLY_EVENT_MODEL)
+        # 試合の乱数は1試合に1個。打席・作戦・打球・球数・暴投・盗塁・継投は、
+        # 試合の進みの順にこの列から引く（同じ試合の入力なら、いつも同じ順に同じだけ引く）
+        game_rng = rng_for(match_input.generation_seed, self.params["rng_namespace_policy"]["match"].format(
+            competition_id=match_input.competition_id, reference_year=match_input.reference_year,
+            match_id=match_input.match_id))
         policies = {sid: (tactics or {}).get(sid, CoachTactics()) for sid in teams}
         team1_id = match_input.team1.school_id
         team2_id = match_input.team2.school_id
@@ -2345,7 +2334,6 @@ class MatchSimulator:
             return out
 
         shuffle_rule = self.params["pitcher_shuffle"]
-        shuffle_namespace = self.params["rng_namespace_policy"]["pitcher_shuffle"]
         in_field: dict[str, str | None] = {sid: None for sid in teams}  # 守備に残した投手
         field_since: dict[str, int] = {}       # 守備に残した投手 → そのときのチームの守備のアウト数
         shuffle_counts: Counter[str] = Counter()
@@ -2382,9 +2370,7 @@ class MatchSimulator:
                        >= float(shuffle_rule["min_defense_value"])]
             if not options:
                 return None
-            rng = rng_for(match_input.generation_seed, shuffle_namespace.format(
-                match_id=match_input.match_id, plate_appearance_no=pa_no + 1))
-            if rng.random() >= rate:
+            if game_rng.random() >= rate:
                 return None
             # 一塁・外野のうち、その投手が最も守れる位置に入る（そこを守っていた野手が退く）
             return max(options, key=lambda a: (self._defense_value(pitcher, a.defensive_position),
@@ -2417,8 +2403,7 @@ class MatchSimulator:
                       + (lineup_index[offense_id] % 9 + 1 in back["cleanup_slots"]))
             misread = policies[school_id].return_misread
             if misread:
-                roll = rng_for(match_input.generation_seed, shuffle_namespace.format(
-                    match_id=match_input.match_id, plate_appearance_no=pa_no + 1) + ":return").random()
+                roll = game_rng.random()
                 points += -1 if roll < misread / 2 else 1 if roll < misread else 0
             if points < int(back["min_points"]):
                 return False
@@ -2665,12 +2650,7 @@ class MatchSimulator:
                                 inning=inning,
                                 lead=team_runs[defense_id] - team_runs[offense_id],
                                 tactics=policies[defense_id],
-                                rng=rng_for(
-                                    match_input.generation_seed,
-                                    self.params["rng_namespace_policy"]["relief"].format(
-                                        match_id=match_input.match_id, plate_appearance_no=pa_no + 1,
-                                    ),
-                                ),
+                                rng=game_rng,
                             ):
                                 next_index = staff.index(ace)
                                 platoon_pick = None
@@ -2765,38 +2745,14 @@ class MatchSimulator:
 
                     pa_no += 1
                     event_no += 1
-                    namespace = self.params["rng_namespace_policy"][
-                        "plate_appearance"
-                    ].format(
-                        match_id=match_input.match_id,
-                        plate_appearance_no=pa_no,
-                    )
-                    pa_rng = rng_for(
-                        match_input.generation_seed,
-                        namespace,
-                    )
-                    event_namespace = self.params["rng_namespace_policy"][
-                        "event"
-                    ].format(
-                        match_id=match_input.match_id,
-                        event_no=event_no,
-                    )
-                    event_rng = (_DeferredEventRandom if defer_event_random else rng_for)(
-                        match_input.generation_seed,
-                        event_namespace,
-                    )
+                    pa_rng = event_rng = game_rng
 
                     bases_before = list(bases)
                     score_margin = (
                         team_runs[offense_id] - team_runs[defense_id]
                     )
                     # 作戦（段階F1）：攻める側の監督がスクイズ・送りバント・エンドランを決める
-                    tactic_rng = rng_for(
-                        match_input.generation_seed,
-                        self.params["rng_namespace_policy"]["tactic"].format(
-                            match_id=match_input.match_id, plate_appearance_no=pa_no,
-                        ),
-                    )
+                    tactic_rng = game_rng
                     tactic = self._choose_tactic(
                         batter=batter, bases=bases, outs=outs, margin=score_margin,
                         inning=inning, offense_players=player_maps[offense_id],
@@ -2856,12 +2812,7 @@ class MatchSimulator:
                             fielding_profiles[alignment] = profile
                         event_type, fielded = self._field_ball(
                             event_type, weights=weights, batter=batter, pitcher=pitcher, profile=profile,
-                            rng=rng_for(
-                                match_input.generation_seed,
-                                self.params["rng_namespace_policy"]["fielding"].format(
-                                    match_id=match_input.match_id, plate_appearance_no=pa_no,
-                                ),
-                            ),
+                            rng=game_rng,
                         )
                         event_type = self._classify_out(
                             event_type,
@@ -2977,13 +2928,7 @@ class MatchSimulator:
                     )
                     pitches_on_play = self._pitches(
                         pitch_event_type,
-                        rng_for(
-                            match_input.generation_seed,
-                            self.params["rng_namespace_policy"]["pitches"].format(
-                                match_id=match_input.match_id,
-                                plate_appearance_no=pa_no,
-                            ),
-                        ),
+                        game_rng,
                         None if bunt_play else tired_pitcher, batter,
                     )
                     if tactic_outcome == "foul":
@@ -3033,12 +2978,7 @@ class MatchSimulator:
                         if not forced:
                             advance = self._wild_pitch_or_passed_ball(
                                 bases=bases, pitcher=tired_pitcher, catcher=catcher,
-                                rng=rng_for(
-                                    match_input.generation_seed,
-                                    self.params["rng_namespace_policy"]["wild_pitch"].format(
-                                        match_id=match_input.match_id, plate_appearance_no=pa_no,
-                                    ),
-                                ),
+                                rng=game_rng,
                             )
                         if advance is None:
                             steal = self._attempt_steal(
@@ -3047,12 +2987,7 @@ class MatchSimulator:
                                 offense_players=player_maps[offense_id],
                                 catcher=catcher, pitcher=pitcher,
                                 mobility=policies[offense_id].mobility, forced=forced,
-                                rng=rng_for(
-                                    match_input.generation_seed,
-                                    self.params["rng_namespace_policy"]["steal"].format(
-                                        match_id=match_input.match_id, plate_appearance_no=pa_no,
-                                    ),
-                                ),
+                                rng=game_rng,
                             )
                     baserunning_scored: list[str] = []
                     baserunning_runners: list[_RunnerResponsibility] = []
@@ -3311,8 +3246,6 @@ class MatchSimulator:
 
 _EVENT_WEIGHT_MODEL = MatchSimulator._event_weights
 _WEIGHTED_CHOICE_MODEL = MatchSimulator._weighted_choice
-_APPLY_EVENT_MODEL = MatchSimulator._apply_event
-_RNG_FACTORY = rng_for
 
 
 def _baserunning_moves(metadata, after, final) -> list[tuple]:

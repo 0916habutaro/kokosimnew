@@ -22,7 +22,7 @@ import random
 from statistics import NormalDist
 from typing import Callable, Iterable, Sequence
 
-from phase2_engine.randomness import rng_for
+from phase2_engine.randomness import rng_for, uniform_for
 
 
 CONFIG_PATH = Path(__file__).resolve().parents[1] / "config" / "players" / "roster_size_v1.json"
@@ -299,8 +299,8 @@ class RosterSizeModel:
         shares = self.config["positions"]
         out = []
         for roster_no in roster_nos:
-            roll = rng_for(seed, self.namespaces["position"].format(
-                year=year, school_id=school_id, roster_no=roster_no)).random()
+            roll = uniform_for(seed, self.namespaces["position"].format(
+                year=year, school_id=school_id, roster_no=roster_no))
             chosen = POSITIONS[-1]
             for position in POSITIONS:
                 share = float(shares[position])
@@ -340,9 +340,9 @@ class RosterSizeModel:
     def withdraws(self, seed: int, school_id: str, year: int, entry_year: int,
                   roster_no: int, reputation_z: float) -> bool:
         """``year`` の4月1日に進級する選手がやめるか。"""
-        rng = rng_for(seed, self.namespaces["withdrawal"].format(
+        roll = uniform_for(seed, self.namespaces["withdrawal"].format(
             year=year, school_id=school_id, entry_year=entry_year, roster_no=roster_no))
-        return rng.random() < self.withdrawal_chance(reputation_z)
+        return roll < self.withdrawal_chance(reputation_z)
 
 
 def free_numbers(taken: Iterable[int], count: int) -> list[int]:

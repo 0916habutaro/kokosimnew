@@ -105,7 +105,8 @@ class AdvanceAndMembersTests(unittest.TestCase):
         from phase2_engine.models import Team
 
         teams = {sid: Team(sid, "P-" + sid, "架空高校" + sid[-1], "13") for sid in ("SCH-A", "SCH-B")}
-        self.book = RosterBook(teams.__getitem__, first_year=2026, career_seed=7)
+        # 2校とも新チームが20人に足りない種（連合のメンバーが両校から出る）
+        self.book = RosterBook(teams.__getitem__, first_year=2026, career_seed=19)
 
         class Plan:
             year = 2026

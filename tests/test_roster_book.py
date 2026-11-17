@@ -41,8 +41,6 @@ def _book():
 
 class RosterBookTests(unittest.TestCase):
     def test_intake_school_component_is_reused_only_from_fresh_generated_snapshot(self):
-        from phase2_engine.randomness import rng_for
-
         book = _book()
         generator = book.ability_generator
         with patch.object(generator.intake_model, 'profile', wraps=generator.intake_model.profile) as profile:
@@ -53,16 +51,46 @@ class RosterBookTests(unittest.TestCase):
             program = generator.intake_model.profile(
                 school_id=player.school_id, entry_year=player.entry_year,
                 base_seed=book.career_seed).program_quality_z
-            namespace = book.growth.config['rng_namespaces']['player'].format(
-                entry_year=player.entry_year, school_id=player.school_id,
-                roster_no=player.roster_no)
-            expected = book.growth.draw(rng_for(book.career_seed, namespace), program)
+            # 成長の型は、能力を引いた選手ごとの乱数の続きから引く
+            cohort = tuple(p.roster_no for p in roster.players if p.entry_year == player.entry_year)
+            rng = generator.player_rng(player, book.career_seed)
+            generator.generate(player, 2026, book.career_seed, cohort=cohort, rng=rng)
+            expected = book.growth.draw(rng, program)
             state = book.state(player)
             self.assertEqual(expected, (state.growth_type, state.potential, state.velocity_potential))
         # 翌年度の新入生もその生成結果から取得し、前の年度の値を保持しない。
         with patch.object(generator.intake_model, 'profile', wraps=generator.intake_model.profile) as profile:
             advanced = book.roster(2027, 'SCH-A')
         self.assertEqual(sum(p.entry_year == 2027 for p in advanced.players) + 1, profile.call_count)
+
+    def test_two_random_generators_per_new_player(self):
+        """選手1人につき、名簿（投打・名前）に1個、能力（能力・素質・成長の型）に1個。"""
+        import random
+
+        created = []
+        original = random.Random.__init__
+
+        def counted(rng, *args, **kwargs):
+            created.append(rng)
+            return original(rng, *args, **kwargs)
+
+        book = _book()
+        with patch.object(random.Random, '__init__', counted):
+            roster = book.roster(2026, 'SCH-A')
+        # ほかは学年ごと（新入部員の人数・有望な新入生の人数）と学校ごと（集まりやすさ）だけ
+        self.assertLessEqual(len(created), 2 * len(roster.players) + 8)
+        self.assertGreaterEqual(len(created), 2 * len(roster.players))
+
+    def test_same_seed_builds_the_same_players_in_any_order(self):
+        first, second = _book(), _book()
+        a = [first.roster(2026, sid) for sid in ("SCH-A", "SCH-B")]
+        b = [second.roster(2026, sid) for sid in ("SCH-B", "SCH-A")][::-1]
+        for left, right in zip(a, b):
+            self.assertEqual(left.players, right.players)
+            for player in left.players:
+                one, two = first.state(player), second.state(player)
+                self.assertEqual((bytes(one.values), one.growth_type, one.potential, one.trait),
+                                 (bytes(two.values), two.growth_type, two.potential, two.trait))
 
     @classmethod
     def setUpClass(cls):

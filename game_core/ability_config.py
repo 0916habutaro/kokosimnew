@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -267,11 +268,11 @@ def validate_player_generation(
     namespaces = payload.get("rng_namespace_policy")
     if not isinstance(namespaces, dict) or not namespaces:
         raise ValueError("player generation: rng_namespace_policy required")
-    for key, template in namespaces.items():
-        if "_v1:" not in str(template):
-            raise ValueError(
-                f"player generation: {key} namespace must be versioned"
-            )
+    if set(namespaces) != {"player"}:
+        raise ValueError("player generation: rng namespace keys mismatch")
+    template = str(namespaces["player"])
+    if not re.search(r"_v\d+:", template) or "{player_id}" not in template:
+        raise ValueError("player generation: player namespace must be versioned and per player")
 
 
 
@@ -450,7 +451,7 @@ def validate_school_intake(
     namespaces = payload.get("rng_namespace_policy")
     if not isinstance(namespaces, dict):
         raise ValueError("school intake: rng_namespace_policy required")
-    if set(namespaces) != {"program", "cohort", "prospects", "player", "priority", "platoon"}:
+    if set(namespaces) != {"program", "cohort", "prospects", "player", "priority"}:
         raise ValueError(
             "school intake: rng namespace keys mismatch"
         )
@@ -464,7 +465,7 @@ def validate_school_intake(
         if set(shares) != {"vs_left_good", "vs_left_bad"} or not all(
                 isinstance(v, (int, float)) and 0 <= v <= 1 for v in shares.values()) or sum(shares.values()) > 1:
             raise ValueError(f"school intake: invalid platoon_traits.{group}")
-    for key in ("player", "priority", "platoon"):
+    for key in ("player", "priority"):
         if not all(
             part in str(namespaces[key])
             for part in ("{entry_year}", "{school_id}", "{roster_no}")

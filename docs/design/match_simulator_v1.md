@@ -417,15 +417,8 @@ field_out候補から
 
 ## RNG
 
-1打席ごとに独立namespaceを使う。
-
-event type抽選:
-
-`plate_appearance_v1:{match_id}:{plate_appearance_no}`
-
-進塁等:
-
-`event_v1:{match_id}:{event_no}`
+1試合に1個の乱数（`match_v1:{competition_id}:{reference_year}:{match_id}`）から、
+打席の結果・進塁・作戦・打球・球数などを試合の進みの順に引く（ADR-045）。
 
 同じseed / match_idなら完全再現。
 

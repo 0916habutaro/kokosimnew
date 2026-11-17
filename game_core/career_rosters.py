@@ -114,20 +114,15 @@ def advance_school_roster(
     # 同じ学校の中で同姓同名にならないように（残る部員と新入生どうし）
     taken = {p.display_name for p in continued}
     for slot, pos in zip(numbers, positions):
+        # 選手ごとの乱数は1人に1個。投打を先に引き、名前はその続き
+        # （名前を選び直しても投打が変わらない）
         rng = rng_for(
             career_seed,
             f"career_roster_v1:{next_year}:{team.school_id}:slot:{slot}",
         )
-        identity = draw_identity(
-            generator.name_provider, team, career_seed,
-            rng_for(
-                career_seed,
-                f"player_names_v1:career:{next_year}:{team.school_id}:slot:{slot}",
-            ),
-            taken,
-        )
-        taken.add(identity.display_name)
         throws, bats = draw_hands(pos, rng)
+        identity = draw_identity(generator.name_provider, team, career_seed, rng, taken)
+        taken.add(identity.display_name)
         newcomers.append(Player(
             player_id=_newcomer_id(
                 career_seed, next_year, team.school_id, slot
