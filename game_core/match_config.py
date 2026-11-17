@@ -318,6 +318,11 @@ def validate_match_simulation_config(document: ConfigDocument) -> None:
         if not isinstance(values, dict) or not set(values) <= components or not all(
                 isinstance(v, (int, float)) and v >= 0 for v in values.values()):
             raise ValueError(f"match simulation: invalid pitcher_effects.weights.{outcome}")
+    caps = effects.get("index_soft_cap")
+    if not isinstance(caps, dict) or not set(caps) <= set(weights) or not all(
+            isinstance(cap, dict) and _number(cap.get("knee")) and _number(cap.get("rate"))
+            and 0 <= float(cap["rate"]) <= 1 for cap in caps.values()):
+        raise ValueError("match simulation: invalid pitcher_effects.index_soft_cap")
 
     platoon = payload.get("platoon")
     if not isinstance(platoon, dict):
@@ -592,6 +597,8 @@ def _validate_blowout(rule) -> None:
         raise ValueError("match simulation: invalid blowout.thresholds")
     if not whole(rule.get("per_half_inning"), 0):
         raise ValueError("match simulation: invalid blowout.per_half_inning")
+    if not whole(rule.get("pitcher_change_from_inning"), 1):
+        raise ValueError("match simulation: invalid blowout.pitcher_change_from_inning")
 
 
 def _validate_pitcher_shuffle(rule) -> None:

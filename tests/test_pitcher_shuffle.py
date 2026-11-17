@@ -25,7 +25,7 @@ class PitcherShuffleTests(unittest.TestCase):
             players = tuple(replace(p, player_id=f'{sid}-{p.player_id}')
                             for p in make_roster_abilities(school_id=sid, seed=SEED))
             cls.teams.append(TeamMatchInput(sid, generator.generate(players), players))
-        cls.games = [cls.play(i) for i in range(160)]
+        cls.games = [cls.play(i) for i in range(240)]  # 投手に戻る場面は100試合に数回
 
     @classmethod
     def play(cls, i, tactics=SHUFFLER, **kwargs):
