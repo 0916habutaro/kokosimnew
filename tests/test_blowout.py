@@ -78,6 +78,7 @@ class ExtremeMismatchTests(unittest.TestCase):
             (("blowout", "thresholds"), [[0, 10]]),
             (("blowout", "thresholds"), [[5]]),
             (("blowout", "per_half_inning"), -1),
+            (("blowout", "pitcher_change_from_inning"), 0),
         ):
             with self.subTest(path=path, value=value):
                 payload = deepcopy(base)
@@ -130,7 +131,8 @@ class EasingOffTests(unittest.TestCase):
     @staticmethod
     def busy(**blowout):
         """作戦と盗塁が多く、1点でもリードしたら大差とみなす試合計算（手を緩める作りを多くの場面で確かめる）。"""
-        sim = _Tuned(blowout={"thresholds": [[1, 1]], "per_half_inning": 3, **blowout})
+        sim = _Tuned(blowout={"thresholds": [[1, 1]], "per_half_inning": 3,
+                              "pitcher_change_from_inning": 1, **blowout})
         bunt = sim.params["strategy"]["sacrifice_bunt"]
         bunt.update(ahead_far_multiplier=1.0, close_margin=99)
         sim.params["stolen_bases"]["attempt"].update(second_base=0.4, blowout_multiplier=1.0)
@@ -197,6 +199,29 @@ class EasingOffTests(unittest.TestCase):
         self.assertGreater(rested, 0)
         self.assertGreater(relieved, 0)
 
+    def test_pitcher_change_while_easing_waits_for_the_configured_inning(self):
+        """大差で手を緩めるときの投手の交代は pitcher_change_from_inning の回から
+        （5回コールドの最後の回に先発を代えない）。ほかの理由の交代は止めて確かめる。"""
+        def relief_innings(from_inning):
+            sim = self.busy(pitcher_change_from_inning=from_inning)
+            sim._should_change_pitcher = lambda **kwargs: False
+            innings = []
+            for _, result in self.games(sim, count=6):
+                first = {}   # (守る学校, 投手) → 初めて投げた回。学校ごとの最初の投手が先発
+                for event in result.events:
+                    first.setdefault((event.defense_school_id, event.pitcher_id), event.inning)
+                starters = {}
+                for school_id, pitcher in first:
+                    starters.setdefault(school_id, pitcher)
+                innings += [inning for (school_id, pitcher), inning in first.items()
+                            if pitcher != starters[school_id]]
+            return innings
+
+        early = relief_innings(1)
+        self.assertTrue(any(inning < 7 for inning in early))   # 設定がなければ早い回にも代える
+        self.assertTrue(all(inning >= 7 for inning in relief_innings(7)))
+        self.assertEqual(7, MatchSimulator().params["blowout"]["pitcher_change_from_inning"])
+
     def test_coach_who_substitutes_often_rests_more_starters_per_half_inning(self):
         def most_in_a_half(substitutions):
             best = 0
@@ -218,7 +243,7 @@ class EasingOffTests(unittest.TestCase):
         self.assertGreater(most_in_a_half(2.0), 2)
 
     def test_empty_thresholds_change_nothing(self):
-        plain = _Tuned(blowout={"thresholds": [], "per_half_inning": 3})
+        plain = _Tuned(blowout={"thresholds": [], "per_half_inning": 3, "pitcher_change_from_inning": 7})
         for _, result in self.games(plain, count=2):
             self.assertFalse([c for raw in result.team_participation for c in raw.changes
                               if c.reason == "blowout_rest"])

@@ -796,10 +796,18 @@ class MatchSimulator:
             "groundball": float(pitcher.groundball or 50) - 50.0,
             "control_low": min(0.0, self._effective_control(pitcher) - float(rule["control_pivot"])),
         }
-        return {
+        indexes = {
             outcome: 50.0 + sum(float(w) * components[key] for key, w in weights.items())
             for outcome, weights in rule["weights"].items()
         }
+        # とても強い投手（各校のエースどうしが当たる甲子園など）の効きの頭打ち：指数が knee を
+        # 超えた分は rate の割合だけ効かせる（index_soft_cap。結果ごと）
+        for outcome, cap in rule["index_soft_cap"].items():
+            value = indexes[outcome]
+            knee = float(cap["knee"])
+            if value > knee:
+                indexes[outcome] = knee + (value - knee) * float(cap["rate"])
+        return indexes
 
     @staticmethod
     def batting_side(batter: PlayerAbilitySnapshot, pitcher: PlayerAbilitySnapshot) -> str:
@@ -2608,9 +2616,11 @@ class MatchSimulator:
                         and player_maps[defense_id][platoon_pick].throws != pitcher.throws
                         and int(pitcher_stat["batters_faced"]) >= int(platoon_rule["min_batters_faced"]))
                     # 大差で勝っている側：投げている投手を、まだ投げていない控えの投手（順番の最後）に代える。
-                    # 1試合に1度だけ。そのあとの交代は今までどおり
+                    # 1試合に1度だけ、pitcher_change_from_inning の回から（5回コールドで終わる試合の
+                    # 最後の回に先発を代えない）。そのあとの交代は今までどおり
                     ease_pick = None
                     if (defense_id not in eased_pitching and not bench_pitcher and not limit_reached
+                            and inning >= int(self.params["blowout"]["pitcher_change_from_inning"])
                             and self._easing_off(inning, team_runs[defense_id] - team_runs[offense_id])):
                         spare = available_relievers(defense_id)
                         if spare:

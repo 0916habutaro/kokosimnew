@@ -186,7 +186,8 @@ class CoachTacticsTests(unittest.TestCase):
         f=books()
         for cid,c in list(f[1].coaches.items()):
             # 打順の型は新規開始から効く。1なら打てる順（監督なしと同じ）
-            f[1].coaches[cid]=replace(c,pitching_change=100,player_selection=100,lineup_style=1)
+            # 投手を守備に残す傾向（段階F5）も監督なしと同じ0にする（残す機会があると乱数の列が変わる）
+            f[1].coaches[cid]=replace(c,pitching_change=100,player_selection=100,lineup_style=1,pitcher_shuffle=1)
         # 新入生・成長は両側同じ。2026年の采配参照だけを有無で比較する。
         for sid in f[0].schools:f[3].roster(2026,sid)
         left=resolver(f,date(2026,7,5))
