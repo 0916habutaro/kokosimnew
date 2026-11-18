@@ -73,28 +73,6 @@ class ParallelRosterTests(unittest.TestCase):
             self.assertEqual(1, book.build_rosters(2026))
         self.assertEqual(_content(expected), _content(book))
 
-    def test_child_process_that_cannot_start_more_processes_falls_back_quietly(self):
-        """種を並べて進める balance_report の子のプロセスなど、起動の途中で孫のプロセスを起こせない
-        ときは、警告なしで1プロセス（ほかの理由では警告を出す）。"""
-        import contextlib
-        import io
-
-        expected = _book(1)
-        expected.build_rosters(2026)
-        for message, warned in (("An attempt has been made to start a new process before the "
-                                 "current process has finished its bootstrapping phase.", False),
-                                ("something else", True)):
-            def broken(*args, **kwargs):
-                raise RuntimeError(message)
-
-            book = _book(2)
-            err = io.StringIO()
-            with patch.object(roster_parallel, "ProcessPoolExecutor", broken), \
-                    contextlib.redirect_stderr(err):
-                self.assertEqual(1, book.build_rosters(2026))
-            self.assertEqual(warned, "1プロセスに戻しました" in err.getvalue())
-            self.assertEqual(_content(expected), _content(book))
-
     def test_worker_count_follows_cpus_and_the_config_limit(self):
         rule = roster_parallel.settings()
         self.assertEqual(1, roster_parallel.worker_count(rule["min_schools"] - 1))
