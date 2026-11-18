@@ -19,6 +19,8 @@ from pathlib import Path
 import re
 import statistics
 
+from .school_year import school_year_of
+
 ROOT = Path(__file__).resolve().parents[1]
 HISTORY = ROOT / "historical_data"
 SUMMER, SENBATSU, LOCAL = "national_championship", "national_invitational", "summer_local_qualifier"
@@ -174,6 +176,7 @@ class PowerTally:
         self.records = defaultdict(lambda: defaultdict(lambda: [0, 0]))  # 夏・選抜 → 都道府県 → [勝, 負]
         self.champions = defaultdict(dict)              # 夏・選抜 → 年 → (学校, ランク)
         self.coach_wins: Counter = Counter()            # 監督 → 甲子園（春夏）の勝数
+        self.coach_wins_by_year: dict[str, Counter] = defaultdict(Counter)  # 監督 → 年度 → 勝数
         self.pitch_days = defaultdict(dict)             # 選手 → 試合の日 → 球数（上限の日数分だけ）
         self.limit_reached = defaultdict(set)           # 場面 → (年度, 選手)
         self.starter_pitches = defaultdict(Counter)     # 場面 → 球数の帯 → 先発の数
@@ -210,6 +213,7 @@ class PowerTally:
             coach = coach_of(winner) if coach_of else None
             if coach is not None:
                 self.coach_wins[coach.coach_id] += 1
+                self.coach_wins_by_year[coach.coach_id][school_year_of(day)] += 1
         self._add_pitching(competition_id, kind, level, detail, day, rounds_left)
 
     def _add_pitching(self, competition_id, kind, level, detail, day, rounds_left) -> None:
@@ -297,7 +301,7 @@ class PowerTally:
         tenure, ages = defaultdict(Counter), defaultdict(Counter)
         tenure_sum, age_sum = defaultdict(list), defaultdict(list)
         changed = defaultdict(set)                      # 年 → 監督が替わった学校
-        leaving = []
+        leaving, arriving = [], []
         for event in coaches.events:
             year = int(event.date[:4])
             if event.kind not in ("retirement", "transfer") or year <= first:
@@ -314,6 +318,8 @@ class PowerTally:
                     ages[key][_band(AGE_BANDS, age)] += 1
                     age_sum[key].append(age)
             leaving.append((event.kind, year, event.coach_id, event.from_school_id))
+            if event.kind == "transfer" and event.to_school_id:
+                arriving.append((year, event.coach_id, event.to_school_id))
         last = max(self.reputation, default=first)
         active = Counter(_band(TENURE_BANDS, last - c.appointment_year)
                          for c in coaches.coaches.values() if c.retired_on is None)
@@ -328,8 +334,12 @@ class PowerTally:
         # 名将が去った学校の評判（z）の変化と、同じ年・同じランクで監督が替わらなかった学校の変化
         after = {}
         for wins in GREAT_COACH_WINS:
-            for kind, label in (("retirement", "勇退"), ("transfer", "異動")):
-                rows = [(y, s) for k, y, c, s in leaving if k == kind and self.coach_wins[c] >= wins]
+            groups = [(label, [(y, s) for k, y, c, s in leaving if k == kind and self.coach_wins[c] >= wins])
+                      for kind, label in (("retirement", "勇退"), ("transfer", "異動"))]
+            # 名将が異動して来た学校（異動の前の年度までの勝数で数える。来たあとの勝ちは数えない）
+            groups.append(("着任", [(y, s) for y, c, s in arriving
+                                    if sum(n for yy, n in self.coach_wins_by_year[c].items() if yy < y) >= wins]))
+            for label, rows in groups:
                 entry = {"coaches": len(rows)}
                 for ahead in REPUTATION_FOLLOW_YEARS:
                     moved, control = [], []

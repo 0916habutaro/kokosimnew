@@ -1,11 +1,11 @@
 {
   "config_id": "coach_growth_v1",
-  "revision": 1,
+  "revision": 2,
   "status": "active",
-  "description_ja": "練習による月間成長だけに育成力の倍率を適用する。対象月1日の在任者を参照し、月途中の交代は翌月から反映する。公式戦経験・潜在能力・成長タイプは変更しない。",
+  "description_ja": "練習による月間成長だけに育成力の倍率を適用する。対象月1日の在任者を参照し、月途中の交代は翌月から反映する。公式戦経験・潜在能力・成長タイプは変更しない。multiplier_per_point 0.003 → 0.01、max_abs_delta 0.10 → 0.30（育成力80で練習の伸び1.3倍、20で0.7倍。2026-11-18、監督が勢力図を動かす力を強めた。値は coach_intake_v1 と同じ確かめ方で選んだ。game_definition.md §段階6）",
   "first_practice_month": "2027-04-01",
   "coach_reference": "month_start",
   "neutral_development": 50,
-  "multiplier_per_point": 0.003,
-  "max_abs_delta": 0.10
+  "multiplier_per_point": 0.01,
+  "max_abs_delta": 0.30
 }

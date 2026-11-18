@@ -1,8 +1,8 @@
 {
   "config_id": "coach_reputation_v1",
-  "revision": 1,
+  "revision": 2,
   "status": "active",
-  "description": "指揮した実試合と確定した大会実績による小さな年度更新。学校評判とは独立。",
+  "description": "指揮した実試合と確定した大会実績による年度更新。学校評判とは独立。response 0.06 → 0.15、max_annual_change 2 → 5（甲子園で勝ち続けた監督が数年で評判80〜90に届くように）。監督が勢力図を動かす力を強めた（2026-11-18。前は名将が去っても3年後の学校の評判がほぼ変わらなかった）。同じ乱数の種で、評判上位の学校の名将（評判85・育成力80）を平均の監督に代えた場合と代えない場合を比べ、3年後の学校の評判の差が z −0.15〜−0.3 に入る値にした（game_definition.md §段階6）",
   "enabled": true,
   "first_update_year": 2027,
   "minimum": 1,
@@ -10,8 +10,8 @@
   "neutral": 50,
   "match_prior_games": 10,
   "match_target_span": 25,
-  "response": 0.06,
-  "max_annual_change": 2,
+  "response": 0.15,
+  "max_annual_change": 5,
   "national_appearance_target": 70,
   "national_finish_targets": {
     "ベスト16": 74,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+import json
 from pathlib import Path
 import shutil
 import pickle
@@ -189,7 +190,8 @@ class PlayerCareerYearTests(unittest.TestCase):
         self.assertTrue(self.practice_traits_unchanged)
         self.assertTrue(self.practice_intake_unchanged)
         self.assertEqual(date(2027, 5, 1), self.session.state.rosters.grown_through)
-        self.assertEqual(.10, self.session.state.coaches.growth_config['max_abs_delta'])
+        configured = json.loads((DATA_ROOT.parent / "config/coaches/coach_growth_v1.json").read_text(encoding="utf-8"))
+        self.assertEqual(configured['max_abs_delta'], self.session.state.coaches.growth_config['max_abs_delta'])
         self.assertIs(self.session.state.rosters.coaches, self.session.state.coaches)
 
     def test_coach_screen_reads_live_saved_and_transferred_people_without_mutation(self):

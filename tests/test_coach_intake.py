@@ -11,6 +11,14 @@ from game_core.coaches import Coach, CoachBook
 from game_core.roster_book import SCALARS, RosterBook
 from phase2_engine.models import Team
 
+_INTAKE = CoachBook([], seed=7).intake_config
+
+
+def coach_z(reputation):
+    """config/coaches/coach_intake_v1.json の値で、監督の評判から新入生の上乗せ（z）。"""
+    z = (reputation - _INTAKE["neutral_reputation"]) * _INTAKE["z_per_reputation_point"]
+    return round(max(-_INTAKE["max_abs_z"], min(_INTAKE["max_abs_z"], z)), 6)
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -73,12 +81,16 @@ class CoachIntakeTests(unittest.TestCase):
             cid, saved, z = f[1].intake_for('FAKE-A', 2027)
             self.assertEqual('C-FAKE-A', cid)
             self.assertEqual(reputation, saved)
-            self.assertLessEqual(abs(z), .20)
+            self.assertLessEqual(abs(z), _INTAKE['max_abs_z'])
             effects.append(z)
         self.assertEqual(0, effects[2])
         self.assertEqual(sorted(effects), effects)
-        self.assertEqual(.12, effects[3])
-        self.assertEqual(-.12, effects[1])
+        self.assertEqual(coach_z(80), effects[3])
+        self.assertEqual(coach_z(20), effects[1])
+        self.assertGreater(effects[3], 0)
+        # 監督が勢力図を動かす力（2026-11-18）：評判80の上乗せは前（z 0.12）よりはっきり大きい
+        self.assertGreaterEqual(effects[3], 0.3)
+        self.assertGreater(effects[4], effects[3])
 
     def test_initial_players_and_random_cohort_are_unchanged(self):
         f, control = books(80), books(80, zero=True)
@@ -93,7 +105,7 @@ class CoachIntakeTests(unittest.TestCase):
         b = right.ability_generator.intake_model.profile(school_id='FAKE-A', entry_year=2027, base_seed=7)
         self.assertEqual(a.program_quality_z, b.program_quality_z)
         self.assertEqual(a.cohort_quality_z, b.cohort_quality_z)
-        self.assertAlmostEqual(.12, a.intake_quality_z-b.intake_quality_z, places=5)
+        self.assertAlmostEqual(coach_z(80), a.intake_quality_z-b.intake_quality_z, places=5)
         self.assertEqual((None, None, 0.0), f[1].intake_for('FAKE-A', 2026))
 
     def test_high_reputation_raises_freshmen_without_changing_potential(self):
@@ -124,9 +136,9 @@ class CoachIntakeTests(unittest.TestCase):
         annual(f, 2028)
         destination = coaches.coaches['C-FAKE-A'].school_id
         self.assertNotEqual('FAKE-A', destination)
-        self.assertEqual(('C-FAKE-A', 80, .12), coaches.intake_for(destination, 2028))
+        self.assertEqual(('C-FAKE-A', 80, coach_z(80)), coaches.intake_for(destination, 2028))
         self.assertEqual(50, coaches.intake_for('FAKE-A', 2028)[1])
-        self.assertEqual(('C-FAKE-A', 80, .12), coaches.intake_for('FAKE-A', 2027))
+        self.assertEqual(('C-FAKE-A', 80, coach_z(80)), coaches.intake_for('FAKE-A', 2027))
         self.assertEqual(old_values, abilities(rosters, before))
         for sid in repo.schools:
             rosters.roster(2027, sid)
@@ -139,7 +151,7 @@ class CoachIntakeTests(unittest.TestCase):
         current = coaches.for_school(destination)
         self.assertNotEqual('C-FAKE-A', current.coach_id)
         self.assertEqual(current.coach_id, coaches.intake_for(destination, 2029)[0])
-        self.assertEqual(('C-FAKE-A', 80, .12), coaches.intake_for(destination, 2028))
+        self.assertEqual(('C-FAKE-A', 80, coach_z(80)), coaches.intake_for(destination, 2028))
 
     def test_delayed_generation_and_load_use_entry_coach_and_frozen_rating(self):
         early, delayed = books(80), books(80)
@@ -156,10 +168,10 @@ class CoachIntakeTests(unittest.TestCase):
         loaded = pickle.loads(pickle.dumps(saved))
         loaded.bind(repo.team)
         self.assertEqual(expected, abilities(loaded, freshmen(loaded, 2027)))
-        self.assertEqual(('C-FAKE-A', 80, .12), loaded.coaches.intake_for('FAKE-A', 2027))
+        self.assertEqual(('C-FAKE-A', 80, coach_z(80)), loaded.coaches.intake_for('FAKE-A', 2027))
         self.assertEqual(2, len(loaded.coaches.intake_ratings['C-FAKE-A']))
         destination = coaches.coaches['C-FAKE-A'].school_id
-        self.assertEqual(('C-FAKE-A', 20, -.12), loaded.coaches.intake_for(destination, 2028))
+        self.assertEqual(('C-FAKE-A', 20, coach_z(20)), loaded.coaches.intake_for(destination, 2028))
         self.assertFalse(loaded.coaches.finalize_intake(2028))
 
     def test_fixed_school_reputation_remains_independent(self):
@@ -234,7 +246,7 @@ class CoachIntakeTests(unittest.TestCase):
         f[2].intake_by_year[2027]['FAKE-A'] = 2.0
         profile = model.profile(school_id='FAKE-A', entry_year=2027, base_seed=7)
         self.assertEqual(3.5, profile.intake_quality_z)
-        self.assertEqual(.2, profile.coach_quality_z)
+        self.assertEqual(coach_z(100), profile.coach_quality_z)
         f[2].intake_by_year[2027]['FAKE-A'] = -2.0
         self.assertEqual(-3.5, model.profile(school_id='FAKE-A', entry_year=2027, base_seed=7).intake_quality_z)
 

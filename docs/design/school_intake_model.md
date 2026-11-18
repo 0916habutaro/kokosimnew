@@ -60,7 +60,7 @@ intake_quality_z
   + coach_quality_z
 ```
 
-学校・年度成分の重みの2乗和は1.0。6-3Aの監督成分は `config/coaches/coach_intake_v1.json` で最大±0.20 zに抑える。
+学校・年度成分の重みの2乗和は1.0。6-3Aの監督成分は `config/coaches/coach_intake_v1.json` で最大±0.90 zに抑える（2026-11-18に±0.20から強めた）。
 
 最終値は既存の -3.5〜+3.5 にclipする。能力上限とソフトキャップも変更しない。
 

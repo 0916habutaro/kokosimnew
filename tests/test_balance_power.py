@@ -133,6 +133,26 @@ class PowerTallyTests(unittest.TestCase):
         self.assertEqual(after["1年後"]["change_z"], -0.5)
         self.assertEqual(out["after_great_coach"]["10勝以上・勇退"], {"coaches": 0})
 
+    def test_reputation_where_a_great_coach_arrives_counts_only_wins_before_the_move(self):
+        tally = self.tally()
+        # C1 は2026年度に甲子園で5勝してから2027年に12A へ異動。C2 は異動のあとに5勝（名将の着任に数えない）
+        tally.coach_wins.update({"C1": 5, "C2": 5})
+        tally.coach_wins_by_year["C1"][2026] = 5
+        tally.coach_wins_by_year["C2"][2027] = 5
+        tally.set_reputation(2027, FakeReputation({"11A": 2.0, "12A": 0.0, "13A": 0.0, "14X": -1.0}))
+        tally.set_reputation(2028, FakeReputation({"11A": 2.0, "12A": 0.4, "13A": 0.0, "14X": -1.0}))
+        coaches = SimpleNamespace(
+            first_year=2026, config={"public_ownership_types": ["prefectural"]},
+            coaches={"C1": SimpleNamespace(birth_year=1970, appointment_year=2027, retired_on=None),
+                     "C2": SimpleNamespace(birth_year=1980, appointment_year=2027, retired_on=None)},
+            events=[SimpleNamespace(date="2027-04-01", kind="transfer", coach_id="C1", from_school_id="11A",
+                                    to_school_id="12A", completed_tenure_years=10),
+                    SimpleNamespace(date="2027-04-01", kind="transfer", coach_id="C2", from_school_id="13A",
+                                    to_school_id="14X", completed_tenure_years=8)])
+        arrived = tally.summary(coaches)["coaches"]["after_great_coach"]["5勝以上・着任"]
+        self.assertEqual(arrived["coaches"], 1)
+        self.assertEqual(arrived["1年後"]["change_z"], 0.4)
+
     def test_report_prints_and_averages_the_span(self):
         tally = self.tally()
         tally.add_match("SEN", match("12A", "11A", {"12A": [("b1", 120)], "11A": [("a1", 99)]}),
