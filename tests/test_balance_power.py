@@ -113,6 +113,7 @@ class PowerTallyTests(unittest.TestCase):
     def test_coach_tenure_retirement_and_reputation_after_a_great_coach(self):
         tally = self.tally()
         tally.coach_wins["C1"] = 5
+        tally.coach_wins_by_year["C1"][2026] = 5   # 勇退（2027年4月）の前の年度までに5勝
         tally.set_reputation(2027, FakeReputation({"11A": 2.0, "12A": 1.0, "13A": 0.0, "14X": -1.0}))
         tally.set_reputation(2028, FakeReputation({"11A": 1.5, "12A": 1.0, "13A": 0.0, "14X": -1.0}))
         coaches = SimpleNamespace(
@@ -126,7 +127,7 @@ class PowerTallyTests(unittest.TestCase):
         out = tally.summary(coaches)["coaches"]
         self.assertEqual(out["ended_tenure"]["公立"]["11〜20年"], 1)
         self.assertEqual(out["retirement_age"]["全体"]["65〜69歳"], 1)
-        self.assertEqual(out["active_tenure"]["4〜6年"], 1)
+        self.assertEqual(out["active_tenure"]["7〜10年"], 1)   # 2022年就任を2028年に数えると7年目
         self.assertEqual(out["koshien_wins"], {"3勝以上": 1, "5勝以上": 1, "10勝以上": 0})
         after = out["after_great_coach"]["5勝以上・勇退"]
         self.assertEqual(after["coaches"], 1)
@@ -149,9 +150,24 @@ class PowerTallyTests(unittest.TestCase):
                                     to_school_id="12A", completed_tenure_years=10),
                     SimpleNamespace(date="2027-04-01", kind="transfer", coach_id="C2", from_school_id="13A",
                                     to_school_id="14X", completed_tenure_years=8)])
-        arrived = tally.summary(coaches)["coaches"]["after_great_coach"]["5勝以上・着任"]
+        after = tally.summary(coaches)["coaches"]["after_great_coach"]
+        arrived = after["5勝以上・着任"]
         self.assertEqual(arrived["coaches"], 1)
         self.assertEqual(arrived["1年後"]["change_z"], 0.4)
+        # 異動元も同じく異動の前の勝数で数える：C2（異動のあとに5勝）は「名将が去った」に入らない
+        self.assertEqual(after["5勝以上・異動"]["coaches"], 1)
+
+    def test_active_tenure_counts_the_appointment_year_as_the_first_year(self):
+        tally = self.tally()
+        tally.set_reputation(2028, FakeReputation({"11A": 0.0}))
+        coaches = SimpleNamespace(
+            first_year=2026, config={"public_ownership_types": ["prefectural"]},
+            coaches={"C1": SimpleNamespace(birth_year=1980, appointment_year=2025, retired_on=None),
+                     "C2": SimpleNamespace(birth_year=1980, appointment_year=2026, retired_on=None)},
+            events=[])
+        active = tally.summary(coaches)["coaches"]["active_tenure"]
+        # 2028年に、2025年就任は4年目（画面と同じ）、2026年就任は3年目
+        self.assertEqual((1, 1), (active["4〜6年"], active["〜3年"]))
 
     def test_report_prints_and_averages_the_span(self):
         tally = self.tally()

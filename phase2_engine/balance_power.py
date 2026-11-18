@@ -321,7 +321,8 @@ class PowerTally:
             if event.kind == "transfer" and event.to_school_id:
                 arriving.append((year, event.coach_id, event.to_school_id))
         last = max(self.reputation, default=first)
-        active = Counter(_band(TENURE_BANDS, last - c.appointment_year)
+        # 在任年数は画面と同じ数え方（就任の年度を1年目とする。Coach.view の tenure_years）
+        active = Counter(_band(TENURE_BANDS, last - c.appointment_year + 1)
                          for c in coaches.coaches.values() if c.retired_on is None)
         out = {
             "ended_tenure": {k: {**{label: v[label] for _, _, label in TENURE_BANDS},
@@ -331,14 +332,17 @@ class PowerTally:
             "active_tenure": {label: active[label] for _, _, label in TENURE_BANDS},
             "koshien_wins": {f"{n}勝以上": sum(w >= n for w in self.coach_wins.values()) for n in GREAT_COACH_WINS},
         }
-        # 名将が去った学校の評判（z）の変化と、同じ年・同じランクで監督が替わらなかった学校の変化
+        # 名将が去った・来た学校の評判（z）の変化と、同じ年・同じランクで監督が替わらなかった学校の変化。
+        # 名将かどうかは、勇退・異動の前の年度までの甲子園の勝数で数える（そのあとの勝ちは数えない）
+
+        def wins_before(coach_id, year):
+            return sum(n for y, n in self.coach_wins_by_year[coach_id].items() if y < year)
+
         after = {}
         for wins in GREAT_COACH_WINS:
-            groups = [(label, [(y, s) for k, y, c, s in leaving if k == kind and self.coach_wins[c] >= wins])
+            groups = [(label, [(y, s) for k, y, c, s in leaving if k == kind and wins_before(c, y) >= wins])
                       for kind, label in (("retirement", "勇退"), ("transfer", "異動"))]
-            # 名将が異動して来た学校（異動の前の年度までの勝数で数える。来たあとの勝ちは数えない）
-            groups.append(("着任", [(y, s) for y, c, s in arriving
-                                    if sum(n for yy, n in self.coach_wins_by_year[c].items() if yy < y) >= wins]))
+            groups.append(("着任", [(y, s) for y, c, s in arriving if wins_before(c, y) >= wins]))
             for label, rows in groups:
                 entry = {"coaches": len(rows)}
                 for ahead in REPUTATION_FOLLOW_YEARS:
