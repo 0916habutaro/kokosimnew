@@ -65,6 +65,12 @@
   都道府県ごとの出場校の数、都道府県ごとの甲子園の勝率の散らばり、夏・選抜の優勝校の評判のランクと連覇・初優勝、
   先発の1試合の球数の分布、準決勝・決勝でのエースの登板の間隔、7日間の球数の上限に届いた投手の数、
   監督の在任年数・勇退の年齢、甲子園で勝った監督が去ったあとの学校の評判の変化
+- 表計算で開ける形（``balance_export.py``。出力先の既定は ``out/``。UTF-8（BOM付き））：
+  ``--csv``（1行1指標の metrics.csv と、種・期間・コミット・config の revision・日時の conditions.csv）、
+  ``--matches-csv``（1行1試合。``--matches-kinds``・``--matches-years`` で絞れる）、
+  ``--schools-csv``（1行＝1校の1年度。名簿・学校の強さ・監督・評判は7月1日、到達点はその年度の大会）、
+  ``--compare 前.json 後.json``（試合は進めず、指標ごとの前・後・差・実際を Markdown の表で出す。
+  ``--csv`` で compare.csv、``--only`` で区分を絞る）
 - ``--ability-table``：打者・守備・投手が全部50の相手に、能力を30・80・95にしたときの三振・四球・打率・長打率・本塁打
   （打席の結果の重みから計算する。試合は進めない）
 """
@@ -83,7 +89,9 @@ import sys
 import tempfile
 import time
 
-from .balance_power import PowerTally, actual_metrics, format_power, merge_seeds, rounds_left
+from . import balance_export
+from .balance_power import (PowerTally, actual_metrics, format_power, merge_seeds, rank_map, rounds_left,
+                            total_rounds)
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCAL = "summer_local_qualifier"
@@ -1302,7 +1310,91 @@ class HandLookup:
         return self.bats.get(player_id)
 
 
-def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) -> dict:
+class _ExportWriters:
+    """試合ごと・学校×年度の CSV を書く（``balance_export.py``）。何も指定がなければ何もしない。"""
+
+    def __init__(self, seed: int, repo, exports: dict):
+        self.repo = repo
+        self.seed = seed
+        self.competition_of = balance_export.competition_lookup(repo)
+        rules = _load_json(ROOT / "config" / "match" / "game_rules_v1.json").get("mercy_rule") or {}
+        self.thresholds = [tuple(int(v) for v in pair) for pair in rules.get("thresholds", ())]
+        self.matches = (balance_export.MatchWriter(Path(exports["matches"]) / f"matches_{seed}.csv", seed,
+                                                   kinds=exports.get("match_kinds"), years=exports.get("match_years"))
+                        if exports.get("matches") else None)
+        self.schools = (balance_export.SchoolYearWriter(Path(exports["schools"]) / f"schools_{seed}.csv", seed,
+                                                        self.competition_of)
+                        if exports.get("schools") else None)
+        self.abilities = None
+        self.prefectures = balance_export.prefecture_names(ROOT) if self.schools else {}
+        personnel = _load_json(ROOT / "config" / "coaches" / "coach_personnel_v1.json")
+        self.public_types = set(personnel.get("public_ownership_types", ()))
+
+    def __enter__(self):
+        return self
+
+    def ranks_of(self, state) -> dict:
+        reputation = getattr(state, "reputation", None)
+        if reputation is None or (self.matches is None and self.schools is None):
+            return {}
+        if getattr(self, "_ranks", None) is None:
+            self._ranks = rank_map(reputation)
+        return self._ranks
+
+    def __exit__(self, *exc):
+        for writer in (self.matches, self.schools):
+            if writer is not None:
+                writer.close()
+        return False
+
+    def add_match(self, season, competition_id: str, detail: dict, played_on: date, ranks, partners) -> None:
+        if self.matches is None and self.schools is None:
+            return
+        from .school_year import school_year_of
+
+        year = school_year_of(played_on)
+        total = total_rounds(season, competition_id)
+
+        def union(school_id, cid=competition_id):
+            return partners(cid, school_id)
+
+        competition = self.competition_of(competition_id)
+        kind = competition.get("competition_type", "")
+        if self.matches is not None and self.matches.wants(year, kind):
+            self.matches.add(detail, year=year, played_on=played_on,
+                             competition_name=competition.get("competition_name", competition_id), kind=kind,
+                             total_rounds=total, ranks=ranks, partners=union, thresholds=self.thresholds)
+        if self.schools is not None:
+            self.schools.table.add_match(year, detail, played_on, total, union)
+
+    def snapshot(self, state, year: int, today: date, ranks) -> None:
+        if self.schools is None or year in self.schools.table.attributes or year in self.schools.written:
+            return
+        if self.abilities is None:
+            from .screen.school_views import SchoolAbilities
+
+            weights = _load_json(ROOT / "config" / "screen" / "screen_v1.json")["school_overall_weights"]
+            self.abilities = SchoolAbilities(ROOT / "config", weights, rosters=state.rosters)
+        self.schools.table.set_attributes(year, balance_export.school_attributes(
+            state, self.repo, year=year, today=today, ranks=dict(ranks), abilities=self.abilities,
+            seed=self.seed, public_types=self.public_types, prefectures=self.prefectures))
+
+    def close_year(self, year: int) -> None:
+        if self.schools is not None and year in self.schools.table.attributes:
+            self.schools.write_year(year, list(self.schools.table.attributes[year]))
+
+    def finish(self, state, year: int, today: date, ranks) -> None:
+        """最後の年度（7月1日まで進めていなければ最後の日の名簿など）を書く。"""
+        if self.schools is None:
+            return
+        self.snapshot(state, year, today, ranks)
+        for past in sorted(self.schools.table.attributes):
+            self.close_year(past)
+
+
+def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None, exports: dict | None = None) -> dict:
+    """1つの種を進めて指標を集める。``exports`` があれば試合ごと・学校×年度の CSV も書く
+    （``{"matches": 出力先, "schools": 出力先, "match_kinds": 大会の種類, "match_years": 年度}``）。"""
     from .live_game_service import LiveGameService
     from .live_season_save import PLAYER_RESOLVER_CONTRACT
     from .repository import DataRepository
@@ -1318,7 +1410,8 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
     power = PowerTally(repo, tally.kind_of, (int(limit["pitches"]), int(limit["days"])) if limit else None)
     entry_scope = prefectural_entry_scope(repo)
     hands = HandLookup()
-    with tempfile.TemporaryDirectory() as saves, situations.watching():
+    writers = _ExportWriters(seed, repo, exports or {})
+    with tempfile.TemporaryDirectory() as saves, situations.watching(), writers:
         service = LiveGameService(repo, ROOT / "data", save_root=saves,
                                   resolver_contract=PLAYER_RESOLVER_CONTRACT,
                                   autosave_after_action=False)
@@ -1353,7 +1446,11 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
                     tally.add_match(competition_id, detail, coach_of, bats_of, ability_of)
                     power.add_match(competition_id, detail, played_on,
                                     rounds_left(season, competition_id, match_id), coach_of)
+                    # 最初の日の試合は4月1日の集計（power.ranks）より前に来るので、評判から引く
+                    writers.add_match(season, competition_id, detail, played_on,
+                                      power.ranks or writers.ranks_of(state), partners)
             if (today.month, today.day) == (4, 1):
+                writers.close_year(today.year - 1)
                 sizes = list(size_rows(state.rosters, today.year, repo))
                 tally.add_sizes(today.year, sizes, state.rosters.floor_hits.get(today.year, 0))
                 if getattr(state, "reputation", None) is not None:
@@ -1377,6 +1474,7 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
             if (today.month, today.day) == (7, 1):
                 tally.add_rosters(today.year, roster_rows(state.rosters, today.year))
                 last_snapshot = today.year
+                writers.snapshot(state, today.year, today, power.ranks)
             if today >= until:
                 break
             service.next_day(session, autosave=False)
@@ -1387,6 +1485,7 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None) 
         year = school_year_of(state.current_date)
         if last_snapshot is None or last_snapshot < year:
             tally.add_rosters(year, roster_rows(state.rosters, year))
+        writers.finish(state, year, state.current_date, power.ranks)
         power_summary = power.summary(getattr(state, "coaches", None))
     report = tally.summary()
     report[POWER_KEY] = power_summary
@@ -1762,9 +1861,14 @@ def format_ability_table(table: dict) -> str:
 
 
 def _run_one(args):
-    seed, until, min_team_games = args
-    return seed, run_seed(seed, until, min_team_games=min_team_games,
+    seed, until, min_team_games, exports = args
+    return seed, run_seed(seed, until, min_team_games=min_team_games, exports=exports,
                           progress=lambda s, d: print(f"[{s}] {d}", file=sys.stderr, flush=True))
+
+
+def _csv_dir(parser, flag: str, help_text: str) -> None:
+    parser.add_argument(flag, nargs="?", type=Path, const=balance_export.DEFAULT_DIR, metavar="DIR",
+                        help=f"{help_text}（DIR を省くと {balance_export.DEFAULT_DIR}/。リポジトリの外か out/ に置く）")
 
 
 def main(argv=None) -> int:
@@ -1779,15 +1883,34 @@ def main(argv=None) -> int:
     parser.add_argument("--actual-tournaments", type=int, default=10,
                         help="実際の値に使う直近の夏の甲子園の大会の数（進める年数にそろえる）")
     parser.add_argument("--json", type=Path, help="結果をJSONで書く先（リポジトリの外に置く）")
+    _csv_dir(parser, "--csv", "指標の CSV（metrics.csv・conditions.csv。--compare では compare.csv）を書く先")
+    _csv_dir(parser, "--matches-csv", "試合ごとの一覧（matches_<種>.csv）を書く先")
+    _csv_dir(parser, "--schools-csv", "学校×年度の一覧（schools_<種>.csv）を書く先")
+    parser.add_argument("--matches-kinds", help="試合ごとの一覧に入れる大会の種類（カンマ区切り。省くと全部）")
+    parser.add_argument("--matches-years", help="試合ごとの一覧に入れる年度（カンマ区切り。省くと全部）")
+    parser.add_argument("--compare", nargs=2, type=Path, metavar=("BEFORE", "AFTER"),
+                        help="2つの --json の結果を比べる（試合は進めない）。Markdown の表を出す")
+    parser.add_argument("--only", help="--compare の Markdown に出す区分（カンマ区切り。例：§11,大差,強豪の続き方）")
     args = parser.parse_args(argv)
     if args.ability_table:
         print(format_ability_table(ability_table()))
+        return 0
+    if args.compare:
+        only = {s.strip() for s in args.only.split(",") if s.strip()} if args.only else None
+        print(balance_export.compare_files(*args.compare, csv_dir=args.csv, only=only))
+        if args.csv:
+            print(f"比較の CSV：{args.csv / 'compare.csv'}", file=sys.stderr)
         return 0
     if not args.seeds or not args.until:
         parser.error("--seeds と --until が必要です（--ability-table のときは不要）")
     seeds = [int(s) for s in args.seeds.split(",") if s.strip()]
     until = date.fromisoformat(args.until)
     started = time.time()
+    exports = {
+        "matches": args.matches_csv, "schools": args.schools_csv,
+        "match_kinds": [k.strip() for k in args.matches_kinds.split(",") if k.strip()] if args.matches_kinds else None,
+        "match_years": [int(y) for y in args.matches_years.split(",") if y.strip()] if args.matches_years else None,
+    }
 
     def progress(seed, day):
         print(f"[{seed}] {day} {time.time() - started:.0f}秒", file=sys.stderr, flush=True)
@@ -1804,17 +1927,24 @@ def main(argv=None) -> int:
         from concurrent.futures import ProcessPoolExecutor
 
         with ProcessPoolExecutor(max_workers=args.workers) as pool:
-            for seed, report in pool.map(_run_one, [(s, until, args.min_team_games) for s in seeds]):
+            for seed, report in pool.map(_run_one, [(s, until, args.min_team_games, exports) for s in seeds]):
                 reports[seed] = report
         for seed in seeds:
             print(format_report(f"seed {seed}", reports[seed], actual), flush=True)
     else:
         for seed in seeds:
-            reports[seed] = run_seed(seed, until, min_team_games=args.min_team_games, progress=progress)
+            reports[seed] = run_seed(seed, until, min_team_games=args.min_team_games, progress=progress,
+                                     exports=exports)
             print(format_report(f"seed {seed}", reports[seed], actual), flush=True)
+    first_year = min((int(y) for r in reports.values() for y in r if str(y).isdigit()), default=None)
+    conditions = balance_export.run_conditions(seeds, f"{first_year}-04-01" if first_year else "", until)
     if args.json:
-        args.json.write_text(json.dumps({**{str(k): v for k, v in reports.items()}, "actual": actual},
+        args.json.write_text(json.dumps({**{str(k): v for k, v in reports.items()}, "actual": actual,
+                                         "conditions": conditions},
                                         ensure_ascii=False, indent=1), encoding="utf-8")
+    if args.csv:
+        for path in balance_export.write_metrics(args.csv, reports, actual, conditions):
+            print(f"CSV：{path}", file=sys.stderr)
     if len(seeds) > 1:
         print(format_report("平均", average(list(reports.values())), actual))
     return 0

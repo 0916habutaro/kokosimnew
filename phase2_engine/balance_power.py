@@ -161,6 +161,15 @@ class UpsetCounter:
         return dict(out)
 
 
+def rank_map(reputation) -> dict[str, str]:
+    """学校 → 評判のランク（全校の中の順位の割合とランクの境目から）。"""
+    from game_core.annual_reputation import _shares
+
+    labels = reputation.rank_labels
+    return {school: next(label for label, low in labels if share >= float(low))
+            for school, share in _shares(reputation.values).items()}
+
+
 class PowerTally:
     """1つのシードの、年をまたぐ指標を集める。"""
 
@@ -186,12 +195,7 @@ class PowerTally:
 
     def set_reputation(self, year: int, reputation) -> None:
         """4月1日の評判の更新のあとに呼ぶ。その年度の試合のランクに使う。"""
-        from game_core.annual_reputation import _shares
-
-        shares = _shares(reputation.values)
-        labels = reputation.rank_labels
-        self.ranks = {school: next(label for label, low in labels if share >= float(low))
-                      for school, share in shares.items()}
+        self.ranks = rank_map(reputation)
         self.reputation[year] = dict(reputation.values)
         self.rank_history[year] = dict(self.ranks)
 
@@ -400,11 +404,16 @@ class PowerTally:
         }
 
 
+def total_rounds(season, competition_id: str) -> int | None:
+    """大会の本大会の回戦の数（本大会がまだなければ None）。"""
+    runtime = getattr(season.competitions.get(competition_id), "runtime", None)
+    return getattr(getattr(runtime, "main_runtime", runtime), "total_rounds", None)
+
+
 def rounds_left(season, competition_id: str, match_id: str) -> int | None:
     """本大会の試合なら決勝まであと何回戦か（決勝は0）。``AbilityMatchResolver._rounds_left`` と同じ数え方。"""
     found = re.search(r"-MAIN-R(\d+)-", match_id)
-    runtime = getattr(season.competitions.get(competition_id), "runtime", None)
-    total = getattr(getattr(runtime, "main_runtime", runtime), "total_rounds", None)
+    total = total_rounds(season, competition_id)
     if found is None or not total:
         return None
     return int(total) - int(found.group(1))

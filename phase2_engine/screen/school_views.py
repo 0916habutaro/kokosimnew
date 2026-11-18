@@ -62,11 +62,13 @@ class SchoolAbilities:
                 cached = self._cache.get(school_id)
             if cached is not None and cached[0] == key:
                 continue
-            values = self._school(players, year, team_seed)
+            team = self.team(players, year, team_seed)
+            values = self.values(team[0]) if team is not None else None
             with self._lock:
                 self._cache[school_id] = (key, values)
 
-    def _school(self, players, year: int, team_seed: int) -> dict | None:
+    def team(self, players, year: int, team_seed: int):
+        """(学校の強さ, 選手の能力の並び)。9人に満たなければ None。"""
         version = self._version()
         if version != self._player_version:
             # 成長で能力が変わった。前の能力は捨てる
@@ -82,7 +84,10 @@ class SchoolAbilities:
             snapshots.append(snapshot)
         if len(snapshots) < 9:
             return None
-        team = self._teams.generate(snapshots)
+        return self._teams.generate(snapshots), snapshots
+
+    def values(self, team) -> dict:
+        """学校の強さから画面の能力（打撃・投手・守備・走力…と総合）。"""
         values = {
             name.replace("_strength", ""): round(getattr(team, name), 1)
             for name in ABILITY_FIELDS
