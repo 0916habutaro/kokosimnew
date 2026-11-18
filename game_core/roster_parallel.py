@@ -6,6 +6,7 @@
 
 Windows（EXE を含む）でも動くよう、子のプロセスは spawn で起こす（入口で
 ``multiprocessing.freeze_support()`` を呼ぶ）。プロセスを起こせない環境では1プロセスに戻す。
+起動の途中の子のプロセスの中（種を並べて進める balance_report など）で起こせないときは、警告を出さずに1プロセスで計算する。
 """
 from __future__ import annotations
 
@@ -66,6 +67,11 @@ def _school(task):
     ]
 
 
+def _starting_up(error: BaseException) -> bool:
+    """子のプロセスの中で、まだ起動の途中のため孫のプロセスを起こせなかったか（multiprocessing の決まった文言）。"""
+    return isinstance(error, RuntimeError) and "bootstrapping phase" in str(error)
+
+
 def _parallel_ready(book) -> bool:
     """子のプロセスで同じ計算ができるか（決まった生成器・成長の設定だけ）。"""
     from .player_growth import PlayerGrowth
@@ -112,7 +118,10 @@ def build_states(book, year: int, jobs) -> tuple[list[list], int]:
                 chunk = max(1, len(tasks) // (workers * 8))
                 return list(pool.map(_school, tasks, chunksize=chunk)), workers
         except (OSError, RuntimeError, ImportError, EOFError, AttributeError) as error:
-            # プロセスを起こせない環境（凍結された実行ファイルの設定違いなど）は1プロセスで
-            print(f"名簿づくりを1プロセスに戻しました: {error!r}", file=sys.stderr or sys.__stderr__)
+            # プロセスを起こせない環境（凍結された実行ファイルの設定違いなど）は1プロセスで。
+            # 起こしている途中のプロセスの中（種を並べて進める balance_report の子のプロセスなど）
+            # では子のプロセスを起こせない。そのときは警告を出さない（結果は同じ）
+            if not _starting_up(error):
+                print(f"名簿づくりを1プロセスに戻しました: {error!r}", file=sys.stderr or sys.__stderr__)
     return [[book._new_state(player, year, cohort) for player, cohort in school]
             for school in pairs], 1
