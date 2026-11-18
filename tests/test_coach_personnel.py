@@ -257,5 +257,44 @@ class CoachPersonnelServiceTests(unittest.TestCase):
             self.assertEqual(left.events, loaded.state.coaches.events)
 
 
+
+class PublicTransferRateTests(unittest.TestCase):
+    """公立の異動（coach_personnel_v1 の transfer.public）：名物監督が長く残る（2026-11-18）。"""
+
+    def test_public_transfers_are_rare_until_long_tenure(self):
+        from game_core.coaches import _band_probability
+
+        book = CoachBook([], seed=7)
+        public = book.config["transfer"]["public"]
+        # 在任2年までは異動しない。20年までは年6%以下、20年目からは増える
+        self.assertEqual(0.0, _band_probability(public, 2))
+        self.assertLessEqual(max(_band_probability(public, y) for y in range(1, 20)), 0.06)
+        self.assertGreater(_band_probability(public, 20), _band_probability(public, 19))
+        # 前の値（3年目12%・5年目25%・8年目40%）よりずっと低い
+        for years, before in ((3, 0.12), (5, 0.25), (8, 0.4), (12, 0.55)):
+            self.assertLess(_band_probability(public, years), before / 2)
+
+    def test_public_coaches_move_far_less_than_before(self):
+        # 架空の公立100校。在任1〜10年の監督で10年進め、定年は止める。前の値と比べる
+        specs = [(f"P{i:03d}", "13", "prefectural") for i in range(100)]
+        repo = FakeRepository(specs)
+
+        def moved(transfer):
+            coaches = [Coach(f"COACH-{sid}", "架空 監督" + sid, 1990, sid, 2026 - 1 - i % 10, 50, 40, 60, 30)
+                       for i, (sid, *_) in enumerate(specs)]
+            book = CoachBook(coaches, seed=11)
+            book.config = deepcopy(book.config)
+            book.config["retirement"]["age_probabilities"] = [[40, 0.0]]
+            book.config["retirement"]["public"]["maximum_bonus"] = 0.0
+            if transfer is not None:
+                book.config["transfer"]["public"] = transfer
+            for year in range(2027, 2037):
+                book.update(date(year, 4, 1), repo)
+            return sum(e.kind == "transfer" for e in book.events)
+
+        before = moved([[1, 0.0], [3, 0.12], [5, 0.25], [8, 0.4], [12, 0.55]])
+        now = moved(None)
+        self.assertLess(now, before / 3)
+
 if __name__ == "__main__":
     unittest.main()
