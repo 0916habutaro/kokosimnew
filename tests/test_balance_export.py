@@ -132,6 +132,20 @@ class MatchCsvTests(unittest.TestCase):
         self.assertEqual(("B", "D", 9, 2), (row["学校1の評判ランク"], row["学校2の評判ランク"], row["安打1"], row["失策2"]))
         self.assertEqual(("予選", ""), export.round_name("STG1-SGR2-B01-BLOCK_KO-001", None))
 
+    def test_exit_inning_in_a_game_with_a_designated_hitter(self):
+        # DHありの継投は dh_transition に入る。先発が守備位置 P を外れた回を降板の回にする
+        detail = fictional_match([1] * 9, [0] * 8 + [None])
+        part = detail["team_participation"][1]
+        part["changes"] = [
+            {"kind": "dh_plate_appearance", "moment": {"inning": 1}, "defensive_changes": []},
+            {"kind": "dh_transition", "moment": {"inning": 6},
+             "defensive_changes": [{"defensive_position": "P", "before_player_id": "PB1", "after_player_id": "PB2"}]},
+            {"kind": "pitcher_change", "moment": {"inning": 8},
+             "defensive_changes": [{"defensive_position": "P", "before_player_id": "PB2", "after_player_id": "PB3"}]},
+        ]
+        row = self.row(detail)
+        self.assertEqual((6, 2), (row["先発2の降板の回"], row["投手の数2"]))
+
 
 COMPETITIONS = {
     "CMP-LOC": {"competition_type": "summer_local_qualifier", "competition_level": "prefectural",
@@ -172,6 +186,32 @@ class SchoolYearTests(unittest.TestCase):
                                             rows["SCH-T1"]["夏の甲子園の負"]))
         self.assertEqual(("代表", "構成（代表 SCH-T3）"), (rows["SCH-T3"]["夏の連合"], rows["SCH-T5"]["夏の連合"]))
         self.assertEqual("架空", rows["SCH-T5"]["夏の地方大会の区分"])
+
+    def test_unfinished_competition_shows_schools_still_in(self):
+        table = export.SchoolYearTable(7, COMPETITIONS.__getitem__)
+        table.add_match(2026, game("CMP-LOC", "S-MAIN-R1-M1", "SCH-T1", "SCH-T2", "SCH-T1"), date(2026, 7, 10), 3)
+        table.set_attributes(2026, {})
+        finished = {r["学校ID"]: r["夏の地方大会"] for r in table.rows(2026, ["SCH-T1", "SCH-T2"])}
+        running = {r["学校ID"]: r["夏の地方大会"] for r in table.rows(2026, ["SCH-T1", "SCH-T2"], {"CMP-LOC"})}
+        self.assertEqual("ベスト4", finished["SCH-T1"])
+        self.assertEqual(("準決勝進出（勝ち残り）", "ベスト8"), (running["SCH-T1"], running["SCH-T2"]))
+
+    def test_march_games_go_to_the_season_year(self):
+        from types import SimpleNamespace
+
+        from phase2_engine.balance_report import _ExportWriters
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = SimpleNamespace(competitions=COMPETITIONS)
+            with _ExportWriters(7, repo, {"schools": Path(tmp), "matches": Path(tmp)}) as writers:
+                season = SimpleNamespace(competitions={})
+                # 2027年度のシーズンの大会の、3月30日の試合
+                detail = {**game("CMP-LOC", "S-MAIN-R1-M1", "SCH-T1", "SCH-T2", "SCH-T1"),
+                          "last_inning": 9, "inning_scores": []}
+                writers.add_match(2027, season, "CMP-LOC", detail, date(2027, 3, 30), {}, lambda cid, s: ())
+                self.assertEqual({2027}, set(writers.schools.table.matches))
+            rows = read(Path(tmp) / "matches_7.csv")
+            self.assertEqual(["2027"], [r["年度"] for r in rows])
 
 
 if __name__ == "__main__":

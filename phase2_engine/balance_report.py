@@ -68,7 +68,7 @@
 - 表計算で開ける形（``balance_export.py``。出力先の既定は ``out/``。UTF-8（BOM付き））：
   ``--csv``（1行1指標の metrics.csv と、種・期間・コミット・config の revision・日時の conditions.csv）、
   ``--matches-csv``（1行1試合。``--matches-kinds``・``--matches-years`` で絞れる）、
-  ``--schools-csv``（1行＝1校の1年度。名簿・学校の強さ・監督・評判は7月1日、到達点はその年度の大会）、
+  ``--schools-csv``（1行＝1校の1年度。名簿・学校の強さ・監督・評判は7月1日、到達点はその年度のシーズンの大会。3月に始まる春季県大会はその年の4月からの年度、選抜は前の年度）、
   ``--compare 前.json 後.json``（試合は進めず、指標ごとの前・後・差・実際を Markdown の表で出す。
   ``--csv`` で compare.csv、``--only`` で区分を絞る）
 - ``--ability-table``：打者・守備・投手が全部50の相手に、能力を30・80・95にしたときの三振・四球・打率・長打率・本塁打
@@ -1347,12 +1347,11 @@ class _ExportWriters:
                 writer.close()
         return False
 
-    def add_match(self, season, competition_id: str, detail: dict, played_on: date, ranks, partners) -> None:
+    def add_match(self, year: int, season, competition_id: str, detail: dict, played_on: date, ranks,
+                  partners) -> None:
+        """``year`` は大会を持つシーズンの年度（3月に始まる春季県大会はその年の4月からの年度、選抜は前の年度）。"""
         if self.matches is None and self.schools is None:
             return
-        from .school_year import school_year_of
-
-        year = school_year_of(played_on)
         total = total_rounds(season, competition_id)
 
         def union(school_id, cid=competition_id):
@@ -1379,9 +1378,13 @@ class _ExportWriters:
             state, self.repo, year=year, today=today, ranks=dict(ranks), abilities=self.abilities,
             seed=self.seed, public_types=self.public_types, prefectures=self.prefectures))
 
-    def close_year(self, year: int) -> None:
+    def close_year(self, state, year: int) -> None:
         if self.schools is not None and year in self.schools.table.attributes:
-            self.schools.write_year(year, list(self.schools.table.attributes[year]))
+            # 終わっていない大会は画面と同じく「勝ち残り」で書く
+            season = state.seasons.get(year)
+            unfinished = {cid for cid, scheduled in season.competitions.items()
+                          if not scheduled.is_complete} if season is not None else set()
+            self.schools.write_year(year, list(self.schools.table.attributes[year]), unfinished)
 
     def finish(self, state, year: int, today: date, ranks) -> None:
         """最後の年度（7月1日まで進めていなければ最後の日の名簿など）を書く。"""
@@ -1389,7 +1392,7 @@ class _ExportWriters:
             return
         self.snapshot(state, year, today, ranks)
         for past in sorted(self.schools.table.attributes):
-            self.close_year(past)
+            self.close_year(state, past)
 
 
 def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None, exports: dict | None = None) -> dict:
@@ -1427,7 +1430,7 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None, 
             def coach_of(school_id, on=played_on):
                 return coaches.for_school(school_id, on=on) if coaches is not None else None
 
-            for season in state.seasons.values():
+            for season_year, season in state.seasons.items():
                 pending = season.pending_match_details
                 partners = union_partners(season)
 
@@ -1447,10 +1450,10 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None, 
                     power.add_match(competition_id, detail, played_on,
                                     rounds_left(season, competition_id, match_id), coach_of)
                     # 最初の日の試合は4月1日の集計（power.ranks）より前に来るので、評判から引く
-                    writers.add_match(season, competition_id, detail, played_on,
+                    writers.add_match(season_year, season, competition_id, detail, played_on,
                                       power.ranks or writers.ranks_of(state), partners)
             if (today.month, today.day) == (4, 1):
-                writers.close_year(today.year - 1)
+                writers.close_year(state, today.year - 1)
                 sizes = list(size_rows(state.rosters, today.year, repo))
                 tally.add_sizes(today.year, sizes, state.rosters.floor_hits.get(today.year, 0))
                 if getattr(state, "reputation", None) is not None:

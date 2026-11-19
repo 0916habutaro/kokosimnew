@@ -8,9 +8,12 @@
 - 前後の比較（``--compare 前.json 後.json``）：指標ごとの前・後・差・実際。Markdown の表を標準出力に出し、
   ``--csv`` があれば ``compare.csv`` も書く
 - 試合ごとの一覧（``--matches-csv``）：``matches_<種>.csv``。1行1試合
-- 学校×年度の一覧（``--schools-csv``）：``schools_<種>.csv``。1行＝1校の1年度（4月〜翌3月）。
+- 学校×年度の一覧（``--schools-csv``）：``schools_<種>.csv``。1行＝1校の1年度。
   名簿・能力・学校の強さ・監督・評判はその年度の7月1日（夏の地方大会の前。7月1日まで進めていなければ
-  最後の日）、到達点と甲子園の勝敗はその年度の大会（翌年3月の選抜まで）
+  最後の日）、到達点と甲子園の勝敗はその年度のシーズンの大会（3月に始まる春季県大会はその年の4月からの
+  年度、3月の選抜は選んだ前の年度のシーズン。終わっていない大会は画面と同じく「勝ち残り」）
+
+どちらの一覧も「年度」は大会を持つシーズンの年度（試合の日の年度ではない）。
 """
 from __future__ import annotations
 
@@ -447,8 +450,14 @@ def _pitching(detail: dict, school_id: str) -> tuple:
     part = next((p for p in detail.get("team_participation") or () if p["school_id"] == school_id), {})
     starter = part.get("starting_pitcher_id")
     pitches = next((int(p.get("pitches", 0)) for p in pitchers if p["player_id"] == starter), "")
-    change = next((c for c in part.get("changes") or () if c.get("kind") == "pitcher_change"), None)
-    exit_inning = (change.get("moment") or {}).get("inning", "") if change else ""
+    exit_inning = ""
+    for change in part.get("changes") or ():
+        # 先発が初めて投手（守備位置 P）を外れた交代。DHありの継投は dh_transition に入る
+        leaves = any(c.get("defensive_position") == "P" and c.get("before_player_id") == starter
+                     for c in change.get("defensive_changes") or ())
+        if leaves or (change.get("kind") == "pitcher_change" and not change.get("defensive_changes")):
+            exit_inning = (change.get("moment") or {}).get("inning", "")
+            break
     return pitches, exit_inning, len(pitchers)
 
 
@@ -571,13 +580,15 @@ class SchoolYearTable:
     def set_attributes(self, year: int, attributes: dict[str, dict]) -> None:
         self.attributes[year] = attributes
 
-    def results(self, year: int) -> dict[str, dict[str, dict]]:
-        """学校 → 大会の種類 → 画面の成績（到達・勝敗）。同じ種類が2つあれば到達の深い方。"""
+    def results(self, year: int, unfinished=()) -> dict[str, dict[str, dict]]:
+        """学校 → 大会の種類 → 画面の成績（到達・勝敗）。同じ種類が2つあれば到達の深い方。
+        ``unfinished`` は終わっていない大会のID（勝ち残りの学校は画面と同じく「〇〇進出（勝ち残り）」）。"""
         from .screen.school_views import normalized_rows, year_results
 
         rows = normalized_rows(self.matches.get(year, []))
         competitions = {row["competition_id"]: self.competition_of(row["competition_id"]) for row in rows}
-        by_school = year_results(rows, competitions, self.total_rounds, lambda cid, name: name)
+        by_school = year_results(rows, competitions, self.total_rounds, lambda cid, name: name,
+                                 unfinished=set(unfinished))
         out = {}
         for school, results in by_school.items():
             best = {}
@@ -587,9 +598,9 @@ class SchoolYearTable:
             out[school] = best
         return out
 
-    def rows(self, year: int, school_ids) -> list[dict]:
+    def rows(self, year: int, school_ids, unfinished=()) -> list[dict]:
         """その年度の学校ごとの行（``school_ids`` の学校を全部、この順に）。"""
-        results = self.results(year)
+        results = self.results(year, unfinished)
         attributes = self.attributes.get(year, {})
         rows = []
         for school in school_ids:
@@ -692,10 +703,10 @@ class SchoolYearWriter:
         self.count = 0
         self.written = set()
 
-    def write_year(self, year: int, school_ids) -> None:
+    def write_year(self, year: int, school_ids, unfinished=()) -> None:
         if year in self.written:
             return
-        rows = self.table.rows(year, school_ids)
+        rows = self.table.rows(year, school_ids, unfinished)
         self.writer.writerows(rows)
         self.count += len(rows)
         self.written.add(year)
