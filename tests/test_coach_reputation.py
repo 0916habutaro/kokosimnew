@@ -11,6 +11,18 @@ from test_coach_personnel import fixture
 from test_competition_records import tournament, CID, META
 
 
+
+def moved(before, target):
+    """config/coaches/coach_reputation_v1.json の値で、1年の評判の動き（上限つき）。"""
+    import json
+    from pathlib import Path
+
+    c = json.loads((Path(__file__).resolve().parents[1] / "config/coaches/coach_reputation_v1.json")
+                   .read_text(encoding="utf-8"))
+    delta = c['response'] * (target - before)
+    limit = c['max_annual_change']
+    return round(max(c['minimum'], min(c['maximum'], before + max(-limit, min(limit, delta)))))
+
 class CoachReputationTests(unittest.TestCase):
     def setUp(self):
         self.repo, self.book = fixture()
@@ -33,7 +45,8 @@ class CoachReputationTests(unittest.TestCase):
         self.collect()
         self.update()
         row = self.ratings.history['COACH-A'][0]
-        self.assertEqual((50, 52, 100), (row.before, row.after, row.target))
+        self.assertEqual((50, moved(50, 100), 100), (row.before, row.after, row.target))
+        self.assertGreater(row.after, 50)
         self.assertEqual({'A': {'wins': 5, 'losses': 0}}, row.schools)
         self.assertEqual(('2026-04-01', '2027-03-31'), (row.period_start, row.period_end))
         self.assertEqual({'appearance', 'finish'}, {a['kind'] for a in row.achievements})
@@ -50,7 +63,8 @@ class CoachReputationTests(unittest.TestCase):
         self.assertLess(targets[1], targets[2])
 
     def test_match_signal_is_shrunk_and_does_not_reward_game_count_at_equal_win_rate(self):
-        for wins, losses, expected in ((20, 0, 51), (0, 20, 49), (1, 1, 50), (100, 100, 50)):
+        for wins, losses, expected in ((20, 0, moved(50, 50 + 25 * 20 / 30)), (0, 20, moved(50, 50 - 25 * 20 / 30)),
+                                       (1, 1, 50), (100, 100, 50)):
             with self.subTest(wins=wins, losses=losses):
                 _, book = fixture()
                 r = book.annual_reputation
@@ -168,7 +182,7 @@ class CoachReputationTests(unittest.TestCase):
         career=CareerState({2026:self.season},current_date=date(2027,3,31),coaches=self.book)
         career.next_day()
         old=self.book.coaches['COACH-A'];new=self.book.for_school('A')
-        self.assertEqual((52,'2027-04-01'),(old.reputation,old.retired_on))
+        self.assertEqual((moved(50,100),'2027-04-01'),(old.reputation,old.retired_on))
         self.assertNotEqual(old.coach_id,new.coach_id)
         self.assertNotIn(new.coach_id,self.ratings.history)
         self.assertEqual(new.reputation,self.book.intake_for('A',2027)[1])

@@ -34,9 +34,20 @@ def states(book):
             for sid, rows in book._states.items()}
 
 
+
+def practice(development):
+    """config/coaches/coach_growth_v1.json の値で、育成力から練習倍率。"""
+    import json
+    from pathlib import Path
+
+    g = json.loads((Path(__file__).resolve().parents[1] / "config/coaches/coach_growth_v1.json")
+                   .read_text(encoding="utf-8"))
+    delta = (development - g["neutral_development"]) * g["multiplier_per_point"]
+    return round(1 + max(-g["max_abs_delta"], min(g["max_abs_delta"], delta)), 6)
+
 class CoachGrowthTests(unittest.TestCase):
     def test_configured_neutral_linear_and_clipped_multipliers(self):
-        for development, expected in ((1,.9),(20,.91),(50,1.0),(80,1.09),(100,1.1)):
+        for development, expected in ((d, practice(d)) for d in (1, 20, 50, 80, 100)):
             f = fixture(development)
             annual(f, 2027)
             cid, ability, multiplier = f[1].practice_for('FAKE-A', date(2027,4,30))
@@ -121,7 +132,7 @@ class CoachGrowthTests(unittest.TestCase):
         destination=coaches.coaches['C-FAKE-A'].school_id
         self.assertNotEqual('FAKE-A',destination)
         self.assertEqual(('C-FAKE-A',80,1.0),coaches.practice_for('FAKE-A',date(2027,3,31)))
-        self.assertEqual(('C-FAKE-A',80,1.09),coaches.practice_for(destination,date(2027,4,30)))
+        self.assertEqual(('C-FAKE-A',80,practice(80)),coaches.practice_for(destination,date(2027,4,30)))
         self.assertEqual(50,coaches.practice_for('FAKE-A',date(2027,4,1))[1])
         self.assertEqual(before,states(book))
         self.assertEqual(80,coaches.for_school('FAKE-A',date(2027,3,1)).development)
@@ -135,8 +146,8 @@ class CoachGrowthTests(unittest.TestCase):
             coaches.events.append(CoachEvent('2027-04-15','transfer',cid,old,new,'2020-04-01'))
             coaches.coaches[cid]=replace(coaches.coaches[cid],school_id=new,appointment_year=2027)
         coaches._rebuild_indexes()
-        self.assertEqual(('C-FAKE-A',80,1.09),coaches.practice_for('FAKE-A',date(2027,4,30)))
-        self.assertEqual(('C-FAKE-B',20,.91),coaches.practice_for('FAKE-A',date(2027,5,1)))
+        self.assertEqual(('C-FAKE-A',80,practice(80)),coaches.practice_for('FAKE-A',date(2027,4,30)))
+        self.assertEqual(('C-FAKE-B',20,practice(20)),coaches.practice_for('FAKE-A',date(2027,5,1)))
 
     def test_injury_edit_and_resume_preserve_monthly_results_without_double_growth(self):
         f=fixture(80);annual(f,2027);repo,coaches,rep,book=f

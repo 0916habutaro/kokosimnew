@@ -1,8 +1,8 @@
 {
   "config_id": "coach_personnel_v1",
-  "revision": 1,
+  "revision": 2,
   "status": "active",
-  "description": "ゲーム用の監督人事。毎年4月1日。同県・同じ設置者区分内でのみ異動する。",
+  "description": "ゲーム用の監督人事。毎年4月1日。同県・同じ設置者区分内でのみ異動する。transfer は［3月末までに満了した在任年数（満N年）, 異動する確率］の段。就任の年度を1年目と数える画面の在任年数では、満N年の監督はN+1年目に入るところで抽選される。公立の異動は2026-11-18に下げた（満3年から1%、満10年から6%、満20年から25%。画面ではそれぞれ4・11・21年目に入る4月から。前は満3年12%・満5年25%・満8年40%・満12年55%）：前の値では10年後に現役の在任3年以下（就任の年度を1年目と数える）が約5割になり、開始時の在任年数（coach_generation_v1 の tenure）の分布から大きく離れていた。名物監督が長く残る姿にするため、10年後の公立の在任年数の分布が開始時に近くなる値を選んだ（在任3年以下だけは定年などの退職で約2割になる。game_definition.md §3.6・§11）。私立は変えていない",
   "public_ownership_types": ["prefectural", "municipal", "national", "public_university_corporation"],
   "retirement": {
     "minimum_age": 40,
@@ -12,7 +12,7 @@
     "private": {"tenure_threshold": 25, "per_year": 0.002, "maximum_bonus": 0.06}
   },
   "transfer": {
-    "public": [[1, 0.0], [3, 0.12], [5, 0.25], [8, 0.4], [12, 0.55]],
+    "public": [[1, 0.0], [3, 0.01], [10, 0.06], [20, 0.25]],
     "private": [[1, 0.0], [10, 0.01], [20, 0.025], [30, 0.04]]
   },
   "successor_age": {"min": 25, "max": 55, "mode": 36}

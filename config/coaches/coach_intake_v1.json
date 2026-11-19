@@ -1,10 +1,10 @@
 {
   "config_id": "coach_intake_v1",
-  "revision": 1,
+  "revision": 2,
   "status": "active",
-  "description": "2027年度以降の入部品質にだけ加える独立成分。学校評判・潜在能力・成長には加えない。",
+  "description": "2027年度以降の入部品質にだけ加える独立成分。学校評判・潜在能力・成長には加えない。z_per_reputation_point 0.004 → 0.025、max_abs_z 0.20 → 0.9（評判80で +0.75、評判20で −0.75）。監督が勢力図を動かす力を強めた（2026-11-18。前は名将が去っても3年後の学校の評判がほぼ変わらなかった）。同じ乱数の種で、評判上位の学校の名将（評判85・育成力80）を平均の監督に代えた場合と代えない場合を比べ、3年後の学校の評判の差が z −0.15〜−0.3 に入る値にした（game_definition.md §段階6）",
   "first_entry_year": 2027,
   "neutral_reputation": 50,
-  "z_per_reputation_point": 0.004,
-  "max_abs_z": 0.20
+  "z_per_reputation_point": 0.025,
+  "max_abs_z": 0.9
 }
