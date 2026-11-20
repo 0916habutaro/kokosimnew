@@ -107,10 +107,6 @@ class SchoolReputation:
                     uncounted * float(career["uncounted_appearance_points"])
                     * float(kind_points[kind]) * self._decay(year)
                 )
-            points[school_id] += (
-                int(row["wins"] or 0) * float(career["win_points"])
-                + int(row["championships"] or 0) * float(career["championship_points"])
-            ) * self._decay(last)
         for row in _rows(history / "autumn_regional_entrants_2025.csv"):
             if row["school_id"]:
                 points[row["school_id"]] += float(recent["autumn_regional_2025"])

@@ -35,8 +35,12 @@ class ReputationTests(unittest.TestCase):
         # 学校マスターにない学校は評判がない（入部品質は乱数）
         self.assertIsNone(self.reputation.program_z("SCHX0001", 7))
 
-    def test_recent_koshien_schools_rank_above_schools_without_koshien(self):
-        recent = {row["school_id"] for row in _entrants() if int(row["year"]) >= 2023}
+    def test_recent_summer_koshien_schools_rank_above_schools_without_koshien(self):
+        # 選抜の単発出場と夏の地方大会を勝ち抜いた実績は同じ条件で比べない。
+        recent = {
+            row["school_id"] for row in _entrants()
+            if row["kind"] == "summer" and int(row["year"]) >= 2023
+        }
         with (ROOT / "historical_data" / "koshien_records.csv").open(encoding="utf-8-sig") as handle:
             ever = {row["school_id"] for row in csv.DictReader(handle)}
         ever |= {row["school_id"] for row in _entrants()}
@@ -96,6 +100,18 @@ class ReputationTests(unittest.TestCase):
             0.5,
             self.reputation._decay(2026 - self.reputation.config["recency_half_life_years"]),
         )
+
+    def test_career_wins_and_titles_do_not_change_initial_reputation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root / "koshien_entrants.csv", ("school_id", "kind", "year", "status"),
+                   [("SCHX1", "summer", "2025", "played"), ("SCHX2", "summer", "2025", "played")])
+            _write(root / "koshien_records.csv",
+                   ("school_id", "kind", "appearances", "wins", "championships", "last_appearance_year"),
+                   [("SCHX1", "summer", 1, 0, 0, 2025),
+                    ("SCHX2", "summer", 1, 5, 1, 2025)])
+            points = self.reputation._base_points(root, root)
+        self.assertEqual(points["SCHX1"], points["SCHX2"])
 
     def test_noise_depends_on_the_seed(self):
         # 点の少ない学校（地方大会の試合がない学校など）は乱数で順位が入れ替わる
