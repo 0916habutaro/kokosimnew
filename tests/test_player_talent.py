@@ -4,9 +4,10 @@ from __future__ import annotations
 import statistics
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from game_core.players import Player
-from game_core.school_intake import SchoolAwarePlayerAbilityGenerator, SchoolIntakeProfile
+from game_core.school_intake import SchoolAwarePlayerAbilityGenerator, SchoolIntakeProfile, uniform_for
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -79,6 +80,46 @@ class PlayerTalentTests(unittest.TestCase):
                 self._snapshot(school, roster_no, 0.0, cohort=small),
                 self._snapshot(school, roster_no, 0.0, cohort=large),
             )
+
+    def test_pool_respects_supply_capacity_and_school_priority(self):
+        small, large, empty = (self._profile(name, 1.5) for name in ("A", "B", "C"))
+        slots = (9, 8, 7, 6, 5, 4, 3)
+        cohorts = {"C": (empty, ()), "B": (large, slots), "A": (small, (2,))}
+        allocate = self.generator.allocate_prospect_pool
+        self.assertEqual({}, allocate(2027, {}, SEED))
+        with patch.object(self.generator, "prospect_count", return_value=0):
+            self.assertEqual({}, allocate(2027, cohorts, SEED))
+        with patch.object(self.generator, "prospect_count", return_value=9):
+            self.assertEqual({}, allocate(2027, {"C": cohorts["C"]}, SEED))
+            self.assertEqual(set(range(7)), set(allocate(2027, {"B": cohorts["B"]}, SEED)["B"].values()))
+        def first_open(seed, namespace):
+            return 0.0 if ":pool:" in namespace else uniform_for(seed, namespace)
+
+        with (
+            patch.object(self.generator, "prospect_count", side_effect=lambda profile, _: 0 if profile == small else 9),
+            patch("game_core.school_intake.uniform_for", side_effect=first_open),
+        ):
+            expected = {
+                "A": {2: 0},
+                "B": dict(zip(self.generator.prospect_slots(large, slots, SEED, 6), range(1, 7))),
+            }
+            self.assertEqual(expected, allocate(2027, cohorts, SEED))
+            self.assertEqual(expected, allocate(2027, dict(reversed(cohorts.items())), SEED))
+
+    def test_explicit_pool_flags_preserve_the_existing_ability_formula(self):
+        profile = self._profile("FAKE-POOL", 1.5)
+        cohort = tuple(range(1, 12))
+        assigned = self.generator.prospects(profile, cohort, SEED)
+        self.assertTrue(assigned)
+        self.assertLess(len(assigned), len(cohort))
+        for roster_no in cohort:
+            player = _player(profile.school_id, roster_no)
+            expected = self.generator.generate(player, 2027, SEED, cohort=cohort, profile=profile)
+            with patch.object(self.generator, "prospects", side_effect=AssertionError("local draw")):
+                actual = self.generator.generate(
+                    player, 2027, SEED, profile=profile, is_prospect=roster_no in assigned,
+                )
+            self.assertEqual(expected, actual)
 
     def test_strong_school_has_weak_and_one_sided_players(self):
         """強豪校でも素質に選手ごとの差があり、型で長所と短所が出る。"""

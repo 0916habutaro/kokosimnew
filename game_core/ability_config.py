@@ -412,6 +412,7 @@ def validate_school_intake(
     for key in ("base_mean", "per_z", "max_mean", "bonus_mean", "bonus_stddev"):
         if _require_number(prospects.get(key), f"school_intake.prospects.{key}") < 0:
             raise ValueError(f"school intake: prospects.{key} must be >= 0")
+    _require_number(prospects.get("pool_alpha"), "school_intake.prospects.pool_alpha")
     known = set(catalog_ids) | {"pitch_quality", "pitch_command"}
     types = payload.get("player_types")
     if not isinstance(types, dict) or set(types) - {"description_ja"} != {"batter", "pitcher"}:
@@ -451,7 +452,7 @@ def validate_school_intake(
     namespaces = payload.get("rng_namespace_policy")
     if not isinstance(namespaces, dict):
         raise ValueError("school intake: rng_namespace_policy required")
-    if set(namespaces) != {"program", "cohort", "prospects", "player", "priority"}:
+    if set(namespaces) != {"program", "cohort", "prospects", "pool", "player", "priority"}:
         raise ValueError(
             "school intake: rng namespace keys mismatch"
         )
@@ -484,6 +485,8 @@ def validate_school_intake(
         raise ValueError(
             "school intake: cohort namespace requires school_id/entry_year"
         )
+    if not all(part in str(namespaces["pool"]) for part in ("{entry_year}", "{candidate_index}")):
+        raise ValueError("school intake: pool namespace requires entry_year/candidate_index")
     if not all("_v1:" in str(value) for value in namespaces.values()):
         raise ValueError(
             "school intake: namespaces must be versioned"

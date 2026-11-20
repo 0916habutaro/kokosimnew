@@ -21,9 +21,9 @@ from .runtime_snapshot import (
 )
 
 
-# v2：進行中の状態をそのまま書き出す（読込時に最初から計算し直さない）。
+# v3：進行中の状態に入学年ごとの全国有望選手プールの割当を含める。
 # 旧形式は読み込まない（game_definition.md §5）。
-SAVE_SCHEMA_VERSION = "live-season-save.v2"
+SAVE_SCHEMA_VERSION = "live-season-save.v3"
 DEFAULT_RESOLVER_CONTRACT = "default_deterministic_v1"
 # 全国の試合を選手で行う（game_core.live_members.player_engine）。
 PLAYER_RESOLVER_CONTRACT = "players_v1"

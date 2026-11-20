@@ -1,7 +1,7 @@
 """名簿づくりの並列化（新規開始・年度替わりの新入部員の能力）。
 
 選手の能力は選手ごとの乱数と入部品質だけで決まる（``roster_book.new_player_state``）。
-親のプロセスで学校ごとの顔ぶれと入部品質を求め、能力だけを学校ごとに子のプロセスで計算して、
+親のプロセスで学校ごとの顔ぶれ・入部品質・全国プールの割当を求め、能力だけを学校ごとに子のプロセスで計算して、
 学校の順に組み立て直す。1プロセスでつくるのと同じ結果になる。値は ``config/runtime/parallel_v1.json``。
 
 Windows（EXE を含む）でも動くよう、子のプロセスは spawn で起こす（入口で
@@ -61,8 +61,8 @@ def _school(task):
     return [
         new_player_state(generator, growth, pitch_types, first_year=first_year,
                          career_seed=career_seed, player=player, year=year,
-                         cohort=cohort, profile=profile)
-        for player, cohort, profile in items
+                         cohort=cohort, profile=profile, is_prospect=is_prospect)
+        for player, cohort, profile, is_prospect in items
     ]
 
 
@@ -85,24 +85,10 @@ def _parallel_ready(book) -> bool:
 def build_states(book, year: int, jobs) -> tuple[list[list], int]:
     """``jobs`` は (学校, 名簿, 新入部員) の並び。学校ごとの新入部員の状態（同じ順）と、
     使ったプロセスの数を返す。"""
-    from .roster_book import _with_cohorts
-
-    pairs = [_with_cohorts(newcomers) for _, _, newcomers in jobs]
+    inputs = [book._intake_inputs(newcomers) for _, _, newcomers in jobs]
     workers = worker_count(len(jobs), getattr(book, "parallel_workers", None))
     if workers > 1 and _parallel_ready(book):
-        intake = book.ability_generator.intake_model
-        profiles = {}
-
-        def profile(player):
-            key = (player.school_id, player.entry_year)
-            if key not in profiles:
-                profiles[key] = intake.profile(school_id=player.school_id,
-                                               entry_year=player.entry_year,
-                                               base_seed=book.career_seed)
-            return profiles[key]
-
-        tasks = [(year, [(player, tuple(cohort), profile(player)) for player, cohort in school])
-                 for school in pairs]
+        tasks = [(year, items) for items in inputs]
         try:
             context = multiprocessing.get_context("spawn")
             with ProcessPoolExecutor(
@@ -114,5 +100,6 @@ def build_states(book, year: int, jobs) -> tuple[list[list], int]:
         except (OSError, RuntimeError, ImportError, EOFError, AttributeError) as error:
             # プロセスを起こせない環境（凍結された実行ファイルの設定違いなど）は1プロセスで
             print(f"名簿づくりを1プロセスに戻しました: {error!r}", file=sys.stderr or sys.__stderr__)
-    return [[book._new_state(player, year, cohort) for player, cohort in school]
-            for school in pairs], 1
+    return [[book._new_state(player, year, cohort, profile, is_prospect)
+             for player, cohort, profile, is_prospect in school]
+            for school in inputs], 1
