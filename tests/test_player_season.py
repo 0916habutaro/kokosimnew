@@ -109,7 +109,8 @@ class PlayerSeasonServiceTests(unittest.TestCase):
             # 2026年度の春季県大会のシード（306校）の分で、前より約2万バイト大きい。
             # 県大会に学校がすべて出るようになった分（出場校・試合の予定）でさらに約1万バイト。
             # 選手の調子（段階F4。調子が0でない選手だけ2バイト）でさらに約8万バイト
-            self.assertLess(save.stat().st_size, 8_250_000)
+            # 初期評判の見直し後は約825.3万バイト。生成される名簿などの差に小さな余裕を持たせる。
+            self.assertLess(save.stat().st_size, 8_260_000)
             self.assertTrue(session.state.rosters.schools(2026))
 
             with patch.object(RosterBook, 'reset_appearance_counters', side_effect=AssertionError('load reset')):
