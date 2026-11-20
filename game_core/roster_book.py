@@ -282,7 +282,7 @@ def _with_cohorts(newcomers):
 
 def new_player_state(generator, growth: PlayerGrowth, pitch_types: list[str], *, first_year: int,
                      career_seed: int, player: Player, year: int, cohort: Iterable[int] = (),
-                     profile=None) -> PlayerState:
+                     profile=None, is_prospect: bool | None = None) -> PlayerState:
     """入学（新規開始の部員を含む）：能力と成長の型・潜在能力をつくる。
 
     ``cohort`` は同じ学校・入学年度の部員番号（有望な新入生の割り当て）。新規開始の
@@ -299,6 +299,7 @@ def new_player_state(generator, growth: PlayerGrowth, pitch_types: list[str], *,
             rng = generator.player_rng(player, career_seed)
         snapshot = generator.generate(
             player, year, career_seed, cohort=tuple(cohort) or None, rng=rng, profile=profile,
+            is_prospect=is_prospect,
         )
     else:
         snapshot = generator.generate(player, year, career_seed)
@@ -375,6 +376,10 @@ class RosterBook:
         self.version = 0
         # (年度, 学校ID) → 詰めた名簿
         self._packed: dict[tuple[int, str], tuple] = {}
+        # 入学年 → 学校 → 部員番号 → 候補番号。候補IDには career_seed と入学年も含む。
+        self._prospect_pools: dict[int, dict[str, dict[int, int]]] = {}
+        # 全校分の顔ぶれは先に確定し、能力は学校を参照するまで遅らせられる。
+        self._prepared_rosters: dict[tuple[int, str], SchoolRoster] = {}
         # 学校ID → (入学年度, 番号) → 能力と成長の状態
         self._states: dict[str, dict[tuple[int, int], PlayerState]] = {}
         # 年度 → 学校ID → 年度末（3月の成長のあと）の能力と成長の状態（詰めた形）。
@@ -420,6 +425,11 @@ class RosterBook:
             "closed_through": self.closed_through,
             "version": self.version,
             "_packed": self._packed,
+            "_prospect_pools": self._prospect_pools,
+            "_prepared_rosters": {
+                key: (pack_school(roster, first_year=self.first_year), roster.floor_hit)
+                for key, roster in self._prepared_rosters.items()
+            },
             "_year_end": self._year_end,
             "injury_level": self.injury_level,
             "today": self.today,
@@ -431,7 +441,12 @@ class RosterBook:
 
     def __setstate__(self, data):
         states = data.pop("_states")
+        prepared = data.pop("_prepared_rosters")
         self.__dict__.update(data)
+        self._prepared_rosters = {
+            (year, school_id): self._restore_roster(year, school_id, packed, floor_hit=floor_hit)
+            for (year, school_id), (packed, floor_hit) in prepared.items()
+        }
         self._states = {
             school_id: _unpack_states(self.first_year, packed, data.get("today"))
             for school_id, packed in states.items()
@@ -480,11 +495,13 @@ class RosterBook:
     def _pitch_types(self) -> list[str]:
         return list(self._base().params["pitch_repertoire"]["pitch_types"])
 
-    def _new_state(self, player: Player, year: int, cohort: Iterable[int] = ()) -> PlayerState:
+    def _new_state(self, player: Player, year: int, cohort: Iterable[int] = (),
+                   profile=None, is_prospect: bool | None = None) -> PlayerState:
         """入学（新規開始の部員を含む）：能力と成長の型・潜在能力をつくる（``new_player_state``）。"""
         return new_player_state(
             self.ability_generator, self.growth, self._pitch_types(), first_year=self.first_year,
             career_seed=self.career_seed, player=player, year=year, cohort=cohort,
+            profile=profile, is_prospect=is_prospect,
         )
 
     # ---- 部員の人数 ----
@@ -576,12 +593,73 @@ class RosterBook:
             return self._before_first_year(school_id)
         if key in self._packed:
             return self._unpack(year, school_id)
-        roster, newcomers = self._members(year, school_id)
+        self._prepare_prospect_pools(year)
+        roster, newcomers = self._members_to_build(year, school_id)
         states = [
-            self._new_state(player, year, cohort)
-            for player, cohort in _with_cohorts(newcomers)
+            self._new_state(player, year, cohort, profile, is_prospect)
+            for player, cohort, profile, is_prospect in self._intake_inputs(newcomers)
         ]
         return self._keep(year, school_id, roster, newcomers, states)
+
+    def _prepare_prospect_pools(self, year: int) -> None:
+        if not self.school_ids or year in self._prospect_pools:
+            return
+        previous = year - 1
+        if previous == self.first_year or previous in self._prospect_pools:
+            if any((previous, school) not in self._packed for school in self.school_ids):
+                self.build_rosters(previous)
+        intake = self.ability_generator.intake_model
+        cohorts: dict[int, dict] = {
+            entry: {} for entry in (range(year - 2, year + 1) if year == self.first_year else (year,))
+        }
+        prepared = {}
+        appeal_before = dict(self.appeal)
+        try:
+            for school in sorted(self.school_ids):
+                roster, newcomers = self._members(year, school)
+                prepared[year, school] = roster
+                slots_by_entry: dict[int, list[int]] = {}
+                for player in newcomers:
+                    slots_by_entry.setdefault(player.entry_year, []).append(player.roster_no)
+                for entry, slots in slots_by_entry.items():
+                    profile = intake.profile(school_id=school, entry_year=entry, base_seed=self.career_seed)
+                    cohorts[entry][school] = (profile, slots)
+            pools = {entry: self.ability_generator.allocate_prospect_pool(entry, schools, self.career_seed)
+                     for entry, schools in cohorts.items()}
+        except Exception:
+            self.appeal = appeal_before
+            raise
+        self._prepared_rosters.update(prepared)
+        self._prospect_pools.update(pools)
+
+    def prospect_assignments(self, entry_year: int, school_id: str) -> dict[int, int]:
+        """確定済みの部員番号 → 候補番号を返す。候補IDは (種, 入学年, 候補番号)。"""
+        with self._lock:
+            return dict(self._prospect_pools[entry_year].get(school_id, {}))
+
+    def _members_to_build(self, year: int, school_id: str):
+        if not self.school_ids:
+            return self._members(year, school_id)
+        roster = self._prepared_rosters[year, school_id]
+        newcomers = (roster.players if year == self.first_year else
+                     [player for player in roster.players if player.entry_year == year])
+        return roster, newcomers
+
+    def _intake_inputs(self, newcomers):
+        if not self.school_ids:
+            # 全校を持たない単独の名簿では、従来どおり学校内で決める。
+            return [(player, cohort, None, None) for player, cohort in _with_cohorts(newcomers)]
+        intake = self.ability_generator.intake_model
+        by_entry = {}
+        items = []
+        for player in newcomers:
+            entry = player.entry_year
+            if entry not in by_entry:
+                profile = intake.profile(school_id=player.school_id, entry_year=entry, base_seed=self.career_seed)
+                by_entry[entry] = (profile, self._prospect_pools[entry].get(player.school_id, {}))
+            profile, allocated = by_entry[entry]
+            items.append((player, (), profile, player.roster_no in allocated))
+        return items
 
     def _members(self, year: int, school_id: str):
         """名簿の顔ぶれ（新入生の人数・守備位置・名前・退部）と、能力をつくる新入部員。"""
@@ -607,6 +685,7 @@ class RosterBook:
             self.floor_hits[year] = self.floor_hits.get(year, 0) + 1
         self._packed[(year, school_id)] = pack_school(roster, first_year=self.first_year)
         self._rosters[(year, school_id)] = roster
+        self._prepared_rosters.pop((year, school_id), None)
         return roster
 
     def build_rosters(self, year: int) -> int:
@@ -627,9 +706,11 @@ class RosterBook:
                 return 0
             todo = [sid for sid in self.school_ids
                     if (year, sid) not in self._rosters and (year, sid) not in self._packed]
+            if todo:
+                self._prepare_prospect_pools(year)
             jobs = []
             for school_id in todo:
-                roster, newcomers = self._members(year, school_id)
+                roster, newcomers = self._members_to_build(year, school_id)
                 jobs.append((school_id, roster, newcomers))
             computed, workers = build_states(self, year, jobs)
             for (school_id, roster, newcomers), states in zip(jobs, computed):
@@ -644,8 +725,13 @@ class RosterBook:
         return _newcomer_id(self.career_seed, entry_year, school_id, roster_no)
 
     def _unpack(self, year: int, school_id: str) -> SchoolRoster:
-        school_name, program_id, cohort_policy = self._packed[(year, school_id)][:3]
-        rows = unpack_school(self._packed[(year, school_id)], first_year=self.first_year)
+        roster = self._restore_roster(year, school_id, self._packed[year, school_id])
+        self._rosters[year, school_id] = roster
+        return roster
+
+    def _restore_roster(self, year: int, school_id: str, packed: tuple, *, floor_hit: bool = False) -> SchoolRoster:
+        school_name, program_id, cohort_policy = packed[:3]
+        rows = unpack_school(packed, first_year=self.first_year)
         players = [
             Player(
                 player_id=self._player_id(school_id, entry_year, roster_no),
@@ -667,7 +753,7 @@ class RosterBook:
             for (entry_year, roster_no, name, name_source, hometown,
                  position, bats, throws) in rows
         ]
-        roster = SchoolRoster(
+        return SchoolRoster(
             reference_year=year,
             school_id=school_id,
             program_id=program_id,
@@ -675,9 +761,8 @@ class RosterBook:
             rng_seed=self.career_seed,
             players=players,
             cohort_policy=cohort_policy,
+            floor_hit=floor_hit,
         )
-        self._rosters[(year, school_id)] = roster
-        return roster
 
     def _before_first_year(self, school_id: str) -> SchoolRoster:
         """ゲーム開始の前の年度（3月に始まる大会用）。
@@ -1026,6 +1111,8 @@ class RosterBook:
             }
             self._abilities = {}
             self._year_end.pop(year, None)
+            # 入学から3年分の名簿がすべて閉じたら、獲得の記録も手放す。
+            self._prospect_pools = {entry: pool for entry, pool in self._prospect_pools.items() if entry > year - 2}
             self.closed_through = max(self.closed_through, year)
 
 

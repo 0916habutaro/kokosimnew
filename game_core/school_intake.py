@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass, fields, replace
 import math
 from datetime import date
 from pathlib import Path
-from typing import Iterable, Iterator
+from typing import Iterable, Iterator, Mapping, Sequence
 
 from phase2_engine.randomness import gauss_for, rng_for, uniform_for
 from phase2_engine.repository import DataRepository
@@ -232,17 +232,88 @@ class SchoolAwarePlayerAbilityGenerator:
             school_id=school_id, entry_year=entry_year, roster_no=roster_no,
         )
 
-    def prospect_count(self, profile: SchoolIntakeProfile, base_seed: int) -> int:
-        """その学校・年度の有望な新入生の人数（入部品質 z が高いほど多い）。"""
+    def prospect_mean(self, profile: SchoolIntakeProfile) -> float:
         rule = self.params["talent_model"]["prospects"]
-        mean = min(
+        return min(
             float(rule["max_mean"]),
             float(rule["base_mean"]) * math.exp(float(rule["per_z"]) * profile.intake_quality_z),
         )
+
+    def prospect_count(self, profile: SchoolIntakeProfile, base_seed: int) -> int:
+        """その学校・年度の旧方式の抽選人数。全国プールの供給数にも使う。"""
         rng = rng_for(base_seed, self._namespace(
             "prospects", school_id=profile.school_id, entry_year=profile.entry_year,
         ))
-        return poisson(rng, mean)
+        return poisson(rng, self.prospect_mean(profile))
+
+    def prospect_slots(self, profile: SchoolIntakeProfile, cohort: Iterable[int],
+                       base_seed: int, count: int) -> list[int]:
+        if not count:
+            return []
+        return sorted(cohort, key=lambda roster_no: (
+            uniform_for(base_seed, self._namespace(
+                "priority", school_id=profile.school_id, entry_year=profile.entry_year,
+                roster_no=roster_no,
+            )),
+            roster_no,
+        ))[:count]
+
+    def allocate_prospect_pool(
+        self, entry_year: int, cohorts: Mapping[str, tuple[SchoolIntakeProfile, Sequence[int]]], base_seed: int,
+    ) -> dict[str, dict[int, int]]:
+        """同じ年の学校・部員番号へ候補番号を割り当てる。候補IDは (種, 入学年, 候補番号)。"""
+        schools = sorted(cohorts)
+        capacities = [len(cohorts[school][1]) for school in schools]
+        rule = self.params["talent_model"]["prospects"]
+        alpha = float(rule["pool_alpha"])
+        leaves = 1 << (max(1, len(schools)) - 1).bit_length()
+        weights = [0.0] * (2 * leaves)
+        supply = 0
+        for i, school in enumerate(schools):
+            profile, slots = cohorts[school]
+            capacity = capacities[i]
+            supply += min(self.prospect_count(profile, base_seed), capacity)
+            # E[min(P, N)] = Pr(P >= 1) + … + Pr(P >= N)。
+            mean = self.prospect_mean(profile)
+            mass = math.exp(-mean)
+            tail = -math.expm1(-mean)
+            expected = 0.0
+            for k in range(1, capacity + 1):
+                expected += tail
+                mass *= mean / k
+                tail = max(0.0, tail - mass)
+            weights[leaves + i] = expected * math.exp(alpha * profile.intake_quality_z)
+        for node in range(leaves - 1, 0, -1):
+            weights[node] = weights[2 * node] + weights[2 * node + 1]
+
+        allocated: dict[str, list[int]] = {}
+        namespace = self.params["rng_namespace_policy"]["pool"]
+        for candidate in range(supply):
+            if weights[1] <= 0:
+                raise ValueError(f"{entry_year}: no open prospect slots")
+            draw = uniform_for(base_seed, namespace.format(entry_year=entry_year, candidate_index=candidate))
+            ticket = min(draw * weights[1], math.nextafter(weights[1], 0.0))
+            node = 1
+            while node < leaves:
+                node *= 2
+                if ticket >= weights[node]:
+                    ticket = min(ticket - weights[node], math.nextafter(weights[node + 1], 0.0))
+                    node += 1
+            school_index = node - leaves
+            allocated.setdefault(schools[school_index], []).append(candidate)
+            capacities[school_index] -= 1
+            if capacities[school_index] == 0:
+                # 満員校の葉だけを消し、根までの重みを更新する。
+                weights[node] = 0.0
+                while node > 1:
+                    node //= 2
+                    weights[node] = weights[2 * node] + weights[2 * node + 1]
+        result = {}
+        for school, candidates in allocated.items():
+            profile, cohort = cohorts[school]
+            slots = self.prospect_slots(profile, cohort, base_seed, len(candidates))
+            result[school] = dict(zip(slots, candidates, strict=True))
+        return result
 
     def prospects(
         self, profile: SchoolIntakeProfile, cohort: Iterable[int], base_seed: int,
@@ -258,19 +329,7 @@ class SchoolAwarePlayerAbilityGenerator:
         if held is not None:
             return set(held)
         count = self.prospect_count(profile, base_seed)
-        chosen: frozenset[int] = frozenset()
-        if count:
-            order = sorted(
-                cohort,
-                key=lambda roster_no: (
-                    uniform_for(base_seed, self._namespace(
-                        "priority", school_id=profile.school_id,
-                        entry_year=profile.entry_year, roster_no=roster_no,
-                    )),
-                    roster_no,
-                ),
-            )
-            chosen = frozenset(order[:count])
+        chosen = frozenset(self.prospect_slots(profile, cohort, base_seed, count))
         if len(memo) >= 4096:
             memo.clear()
         memo[key] = chosen
@@ -342,17 +401,20 @@ class SchoolAwarePlayerAbilityGenerator:
         player: Player,
         profile: SchoolIntakeProfile,
         cohort: Iterable[int] | None = None,
+        is_prospect: bool | None = None,
         rng=None,
     ) -> IntakeAdjustedPlayerAbilitySnapshot:
         """入学（1年の4月）の能力：平均 ＋ 素質 × 重み × 型の倍率 ＋ 型の点 ＋ 乱数。
 
         能力ごとの乱数は選手ごとの乱数（入学年度・学校・部員番号）から決まった順に引く。
         守備位置の並び・球種は ``base``（基準の生成。同じ乱数の先に引いたもの）のものを使う。"""
-        cohort = tuple(cohort) if cohort is not None else (player.roster_no,)
+        if is_prospect is None:
+            slots = cohort if cohort is not None else (player.roster_no,)
+            is_prospect = player.roster_no in self.prospects(profile, slots, profile.generation_seed)
         rng = rng if rng is not None else self.player_rng(player, base_seed=profile.generation_seed)
         talent = self.talent(
             player, profile, profile.generation_seed,
-            prospect=player.roster_no in self.prospects(profile, cohort, profile.generation_seed),
+            prospect=is_prospect,
             rng=rng,
         )
         generation = self.base_generator.params
@@ -468,9 +530,11 @@ class SchoolAwarePlayerAbilityGenerator:
         day: date | None = None,
         rng=None,
         profile: SchoolIntakeProfile | None = None,
+        is_prospect: bool | None = None,
     ) -> PlayerAbilitySnapshot:
         """``cohort`` は同じ学校・入学年度の部員番号（有望な新入生を割り当てる）。
-        渡さなければその選手1人の学年として扱う。``day`` は名簿の能力を見る日
+        全国プールで確定済みなら ``is_prospect`` を渡し、学校ごとの抽選を省く。
+        どちらも省けばその選手1人の学年として扱う。``day`` は名簿の能力を見る日
         （試合の日。省くと名簿の今日）。``rng`` は選手ごとの乱数（省くと ``player_rng``。
         名簿は続けて成長の型に使うので渡す）。``profile`` はその学校・入学年度の入部品質
         （省くと ``intake_model.profile``。名簿を並列でつくるとき、親のプロセスで求めて渡す）。"""
@@ -493,6 +557,7 @@ class SchoolAwarePlayerAbilityGenerator:
                     base_seed=base_seed,
                 ),
                 cohort=cohort,
+                is_prospect=is_prospect,
                 rng=rng,
             )
         return snapshot

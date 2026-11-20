@@ -43,6 +43,7 @@
   同じ打者の対右・対左の打率の差（起用の偏りを除く）
 - 部員の人数（4月1日の名簿）：全国の1校あたりの学年ごとの人数、1校の部員数の分布、私立・公立と
   評判の帯（z）ごとの平均、新入部員を最低人数まで増やした学校の数、退部した人数
+- 新入生の配分（4月1日の名簿）：新入生数、旧方式の抽選数、全国プールの候補者数と実割当数、獲得校数
 - 評判の上位50校（4月1日の年度の評判の更新のあと）：前の年・5年前・始めの年の上位50校から入れ替わった学校の数
 - 連合チーム（11月1日の年度の状態）：大会の種類ごとの連合チームの数・構成校の数・出なかった学校の数。
   夏の地方大会で、2021〜2025年に5年続けて単独で出た学校（実際）のうち連合になった数・割合と、
@@ -1114,6 +1115,22 @@ def size_rows(book, year: int, repo):
         yield (repo.ownership_type(school), rank, {g: counts.get(g, 0) for g in (1, 2, 3)})
 
 
+def recruitment_summary(book, year: int) -> dict:
+    """4月1日の新入生と、旧抽選から得た供給数、確定済みの全国割当。"""
+    generator = book.ability_generator
+    totals = Counter()
+    for school in book.school_ids:
+        roster = book.roster(year, school)
+        capacity = sum(player.entry_year == year for player in roster.players)
+        profile = generator.intake_model.profile(school_id=school, entry_year=year, base_seed=book.career_seed)
+        drawn = generator.prospect_count(profile, book.career_seed)
+        assigned = len(book.prospect_assignments(year, school))
+        totals.update({"freshmen": capacity, "prospect_drawn": drawn,
+                       "prospect_supply": min(drawn, capacity), "prospect_assigned": assigned,
+                       "schools_with_prospects": int(assigned > 0)})
+    return dict(totals)
+
+
 SITUATIONS = {
     (0, "first"): "無死一塁", (0, "second"): "無死二塁", (0, "first_second"): "無死一二塁",
     (1, "first"): "一死一塁",
@@ -1414,6 +1431,7 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None, 
     entry_scope = prefectural_entry_scope(repo)
     hands = HandLookup()
     writers = _ExportWriters(seed, repo, exports or {})
+    recruitment = {}
     with tempfile.TemporaryDirectory() as saves, situations.watching(), writers:
         service = LiveGameService(repo, ROOT / "data", save_root=saves,
                                   resolver_contract=PLAYER_RESOLVER_CONTRACT,
@@ -1456,6 +1474,7 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None, 
                 writers.close_year(state, today.year - 1)
                 sizes = list(size_rows(state.rosters, today.year, repo))
                 tally.add_sizes(today.year, sizes, state.rosters.floor_hits.get(today.year, 0))
+                recruitment[today.year] = recruitment_summary(state.rosters, today.year)
                 if getattr(state, "reputation", None) is not None:
                     tally.add_top_reputation(today.year, state.reputation.values)
                     power.set_reputation(today.year, state.reputation)
@@ -1491,6 +1510,8 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None, 
         writers.finish(state, year, state.current_date, power.ranks)
         power_summary = power.summary(getattr(state, "coaches", None))
     report = tally.summary()
+    for year, totals in recruitment.items():
+        report.setdefault(year, {})["recruitment"] = totals
     report[POWER_KEY] = power_summary
     for year, scopes in situations.summary().items():
         if year in report:
@@ -1534,6 +1555,11 @@ def format_report(seed_label: str, report: dict, actual: dict | None = None) -> 
     lines = [f"== {seed_label}"]
     for year, row in sorted((y, r) for y, r in report.items() if y != POWER_KEY):
         lines.append(f"-- {year}年度")
+        recruitment = row.get("recruitment")
+        if recruitment:
+            lines.append(f"  4月1日の新入生 {recruitment['freshmen']}人 / 有望選手の全国プール "
+                         f"{recruitment['prospect_supply']}人中{recruitment['prospect_assigned']}人を"
+                         f"{recruitment['schools_with_prospects']}校へ配分")
         local = row.get("local") or {}
         if local:
             lines.append(f"  地方大会 {local['games']}試合: 得点 {local['runs_per_team']} / "

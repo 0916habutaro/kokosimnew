@@ -1,6 +1,6 @@
 {
   "config_id": "school_intake_v1",
-  "revision": 10,
+  "revision": 11,
   "status": "tuned_2026_11_01",
   "description_ja": "架空選手生成用の入部品質モデル（game_definition.md §3.1・§10）。学校・年度の成分（入部品質 z）は、学校成分（program。学校の評判 school_reputation_v1 の順位を z に変えたもの）と年度ごとの当たり外れ（cohort。乱数）と監督の評判を足したもの。選手の能力には、この z を全員に一律に足さず、選手ごとの素質（talent_model）を通して効かせる：素質 = z × school_weight ＋ 選手ごとの乱数 ＋ 有望な新入生の上乗せ。能力 = 入学時の平均 ＋ 素質 × 能力ごとの重み × 型の傾き ＋ 型の長所・短所 ＋ 能力ごとの乱数。学校の強さは選手から計算する。",
   "quality_model": {
@@ -21,13 +21,14 @@
     }
   },
   "talent_model": {
-    "description_ja": "選手の素質（z の単位）= 入部品質 z × school_weight ＋ N(0, player_stddev) ＋ 有望な新入生なら N(bonus_mean, bonus_stddev)。有望な新入生の人数は学校・年度ごとに Poisson（平均 = base_mean × exp(per_z × 入部品質 z)、max_mean まで）で引き、その年の新入生のうち選手ごとの乱数（順番）の小さい順に割り当てる。clip に収める",
+    "description_ja": "選手の素質（z の単位）= 入部品質 z × school_weight ＋ N(0, player_stddev) ＋ 有望な新入生なら N(bonus_mean, bonus_stddev)。有望な新入生の人数は学校・年度ごとに Poisson（平均 = base_mean × exp(per_z × 入部品質 z)、max_mean まで）で引き、全国では各校の抽選を入部人数で切った合計をプールにし、同じ上限付き抽選の期待値に exp(pool_alpha × 入部品質 z) を掛けた重みで各校に配る。学校内は選手ごとの順番で割り当てる。素質はclipに収める",
     "school_weight": 1.0,
     "player_stddev": 0.7,
     "prospects": {
       "base_mean": 0.3,
       "per_z": 1.15,
       "max_mean": 4.0,
+      "pool_alpha": 0.0,
       "bonus_mean": 1.4,
       "bonus_stddev": 0.4
     },
@@ -240,6 +241,7 @@
     "program": "school_intake_v1:program:{school_id}",
     "cohort": "school_intake_v1:cohort:{school_id}:{entry_year}",
     "prospects": "school_intake_v1:prospects:{school_id}:{entry_year}",
+    "pool": "school_intake_v1:pool:{entry_year}:{candidate_index}",
     "player": "school_intake_v1:player:{entry_year}:{school_id}:{roster_no}",
     "priority": "school_intake_v1:priority:{entry_year}:{school_id}:{roster_no}"
   },
