@@ -115,7 +115,7 @@ class PlayerNameGeneratorTests(unittest.TestCase):
                 "nearby_pairs": [["01", "02"]],
             },
         }
-        surnames = SURNAMES + "04,東町,100\\n"
+        surnames = SURNAMES + "04,東町,100\n"
         with tempfile.TemporaryDirectory() as tmp:
             names = PlayerNameGenerator(
                 _root(Path(tmp), config=options, surnames=surnames),
