@@ -1,7 +1,7 @@
 """選手の名前（苗字＋名前）と出身の都道府県（game_definition.md §3.5）。
 
 - 出身：基本は学校の所在県。私立は評判のランクが高いほど県外の割合を上げる。
-  県外の出身地は、苗字データの件数の合計（人口の目安）で重み付けして選ぶ
+  県外の出身県は、近隣県・同一地方・その他の地方の重みで選ぶ。各区分の県は苗字の\n  件数の合計（人口の目安）で重み付けする。県外に出る割合そのものは変えない
 - 苗字：出身の都道府県の苗字データ（``data/generation/player_names/surnames.csv``）
   から件数で重み付けして選ぶ
 - 名前：``given_names.json`` の先頭の人気の名前を重く、残りは同じ重み
@@ -103,7 +103,23 @@ class PlayerNameGenerator:
         ) as handle:
             for row in csv.DictReader(handle):
                 self.ownership[row["school_id"]] = row["ownership_type"]
-        self._away: dict[str, _Weighted] = {}
+        # 地域区分と近接県はゲーム用の大まかな分類。都道府県の入試制度ではない。
+        geography = self.config.get("origin_geography") or {}
+        self._region_for: dict[str, str] = {}
+        for region, codes in geography.get("regions", {}).items():
+            for code in codes:
+                if code in self._region_for:
+                    raise ValueError(f"duplicate prefecture in origin regions: {code}")
+                self._region_for[code] = region
+        self._nearby: dict[str, set[str]] = {}
+        for pair in geography.get("nearby_pairs", []):
+            if len(pair) != 2 or pair[0] == pair[1]:
+                raise ValueError(f"invalid nearby prefectures: {pair}")
+            left, right = pair
+            self._nearby.setdefault(left, set()).add(right)
+            self._nearby.setdefault(right, set()).add(left)
+        # (進学先県, 公私・評判区分) → 県外の出身県候補。生成順に依存しない。
+        self._away: dict[tuple[str, str], _Weighted] = {}
 
     def out_of_prefecture_rate(self, school_id: str, base_seed: int) -> float:
         rates = self.config["out_of_prefecture_rate"]
@@ -114,19 +130,55 @@ class PlayerNameGenerator:
         rank = self.rank_of(school_id, base_seed)
         return float(rates["private"].get(rank, rates["private"]["E"]))
 
+    def _away_policy(self, school_id: str, base_seed: int) -> tuple[str, dict | None]:
+        mixes = self.config.get("away_origin_mix")
+        if not mixes:
+            return "legacy", None
+        if self.ownership.get(school_id) != "private":
+            return "public", mixes["public"]
+        if self.rank_of is None:
+            self.rank_of = reputation_for(str(self.root)).rank
+        rank = self.rank_of(school_id, base_seed)
+        return f"private:{rank}", mixes["private"].get(rank, mixes["private"]["E"])
+
+    def _away_chooser(self, home: str, school_id: str, base_seed: int) -> _Weighted:
+        mode, mix = self._away_policy(school_id, base_seed)
+        key = (home, mode)
+        away = self._away.get(key)
+        if away is not None:
+            return away
+        codes = sorted(code for code in self.prefecture_weights if code != home)
+        weights = [self.prefecture_weights[code] for code in codes]
+        if mix is not None and home in self._region_for:
+            # 近隣は地域境界を越えても優先。全国の残りは遠方区分。
+            groups = [
+                ("nearby" if code in self._nearby.get(home, ())
+                 else "regional" if self._region_for.get(code) == self._region_for[home]
+                 else "distant")
+                for code in codes
+            ]
+            totals = {
+                group: sum(weight for weight, category in zip(weights, groups)
+                           if category == group)
+                for group in ("nearby", "regional", "distant")
+            }
+            # 空の区分は抽選から外し、残りの重みを自動で正規化する。
+            adjusted = [
+                weight * float(mix[group]) / totals[group] if totals[group] else 0.0
+                for weight, group in zip(weights, groups)
+            ]
+            if sum(adjusted) > 0:
+                weights = adjusted
+        away = self._away[key] = _Weighted(codes, weights)
+        return away
+
     def hometown(self, team: Team, base_seed: int, rng: random.Random) -> str:
         home = team.prefecture_code
         if home not in self.surnames:
             raise ValueError(f"{team.school_id}: no surname data for prefecture {home!r}")
         if rng.random() >= self.out_of_prefecture_rate(team.school_id, base_seed):
             return home
-        away = self._away.get(home)
-        if away is None:
-            codes = sorted(code for code in self.prefecture_weights if code != home)
-            away = self._away[home] = _Weighted(
-                codes, [self.prefecture_weights[code] for code in codes],
-            )
-        return away.choose(rng)
+        return self._away_chooser(home, team.school_id, base_seed).choose(rng)
 
     def __call__(
         self,
