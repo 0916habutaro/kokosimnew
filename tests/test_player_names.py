@@ -38,14 +38,15 @@ PUBLIC = Team("SCH-PUB", "PRG-PUB", "架空公立高校", "01")
 PRIVATE = Team("SCH-PRI", "PRG-PRI", "架空私立高校", "01")
 
 
-def _root(directory: Path, *, given=("一郎", "二郎", "三郎", "四郎"), config=None) -> Path:
+def _root(directory: Path, *, given=("一郎", "二郎", "三郎", "四郎"), config=None,
+          surnames=SURNAMES) -> Path:
     (directory / "config" / "players").mkdir(parents=True)
     (directory / "config" / "players" / "player_names_v1.json").write_text(
         json.dumps(config or CONFIG, ensure_ascii=False), encoding="utf-8",
     )
     names = directory / "data" / "generation" / "player_names"
     names.mkdir(parents=True)
-    (names / "surnames.csv").write_text(SURNAMES, encoding="utf-8")
+    (names / "surnames.csv").write_text(surnames, encoding="utf-8")
     (names / "given_names.json").write_text(
         json.dumps(list(given), ensure_ascii=False), encoding="utf-8",
     )
@@ -93,6 +94,82 @@ class PlayerNameGeneratorTests(unittest.TestCase):
         self.rank = "A"
         away = sum(p.hometown_prefecture_code != "01" for p in self._draw(PRIVATE))
         self.assertTrue(140 < away < 260, away)
+
+    def test_away_origin_mix_prefers_nearby_public_and_wider_private_s(self):
+        # 県外率は両方100%に固定し、県外に出たあとだけの地域選択を測る。
+        options = {
+            **CONFIG,
+            "out_of_prefecture_rate": {
+                "public": 1.0,
+                "private": {rank: 1.0 for rank in ("S", "A", "B", "C", "D", "E")},
+            },
+            "away_origin_mix": {
+                "public": {"nearby": 0.55, "regional": 0.25, "distant": 0.20},
+                "private": {
+                    rank: {"nearby": 0.20, "regional": 0.25, "distant": 0.55}
+                    for rank in ("S", "A", "B", "C", "D", "E")
+                },
+            },
+            "origin_geography": {
+                "regions": {"north": ["01", "02", "03"], "south": ["04"]},
+                "nearby_pairs": [["01", "02"]],
+            },
+        }
+        surnames = SURNAMES + "04,東町,100\\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            names = PlayerNameGenerator(
+                _root(Path(tmp), config=options, surnames=surnames),
+                rank_of=lambda school_id, seed: "S",
+            )
+            def draw(team):
+                return Counter(
+                    names.hometown(team, 7, rng_for(7, f"regional:{index}"))
+                    for index in range(5000)
+                )
+
+            public = draw(PUBLIC)
+            private = draw(PRIVATE)
+            self.assertEqual(0, public["01"] + private["01"])
+            self.assertGreater(public["02"], public["03"])
+            self.assertGreater(public["02"], public["04"])
+            self.assertGreater(private["04"], private["02"])
+            self.assertGreater(private["04"], private["03"])
+            self.assertTrue(0.52 <= public["02"] / 5000 <= 0.58, public)
+            self.assertTrue(0.52 <= private["04"] / 5000 <= 0.58, private)
+
+    def test_geography_does_not_change_out_of_prefecture_probability(self):
+        options = {
+            **CONFIG,
+            "out_of_prefecture_rate": {
+                "public": 0.05,
+                "private": {rank: 0.35 for rank in ("S", "A", "B", "C", "D", "E")},
+            },
+            "away_origin_mix": {
+                "public": {"nearby": 0.55, "regional": 0.25, "distant": 0.20},
+                "private": {
+                    rank: {"nearby": 0.20, "regional": 0.25, "distant": 0.55}
+                    for rank in ("S", "A", "B", "C", "D", "E")
+                },
+            },
+            "origin_geography": {
+                "regions": {"north": ["01", "02", "03"]},
+                "nearby_pairs": [["01", "02"]],
+            },
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            names = PlayerNameGenerator(
+                _root(Path(tmp), config=options), rank_of=lambda school_id, seed: "S",
+            )
+            for team, expected_rate in ((PUBLIC, 0.05), (PRIVATE, 0.35)):
+                expected = sum(
+                    rng_for(7, f"probability:{i}").random() < expected_rate
+                    for i in range(4000)
+                )
+                actual = sum(
+                    names.hometown(team, 7, rng_for(7, f"probability:{i}")) != "01"
+                    for i in range(4000)
+                )
+                self.assertEqual(expected, actual)
 
     def test_popular_given_names_are_drawn_more_often(self):
         given = Counter(p.display_name.split(" ")[1] for p in self._draw(PUBLIC))
