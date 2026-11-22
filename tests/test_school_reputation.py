@@ -113,6 +113,23 @@ class ReputationTests(unittest.TestCase):
             points = self.reputation._base_points(root, root)
         self.assertEqual(points["SCHX1"], points["SCHX2"])
 
+    def test_century_selection_gives_no_points(self):
+        # 21世紀枠の選抜出場は点にならず、通算の「年ごとの出場にない分」としても戻らない
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root / "koshien_entrants.csv", ("school_id", "kind", "year", "status"),
+                   [("SCHX1", "spring", "2026", "played"), ("SCHX2", "spring", "2026", "played"),
+                    ("SCHX1", "spring", "2020", "cancelled")])
+            _write(root / "senbatsu_century_entrants.csv",
+                   ("year", "prefecture_code", "team_name", "school_id", "source_id"),
+                   [("2026", "99", "架空西", "SCHX1", "X"), ("2020", "99", "架空西", "SCHX1", "X")])
+            _write(root / "koshien_records.csv",
+                   ("school_id", "kind", "appearances", "wins", "championships", "last_appearance_year"),
+                   [("SCHX1", "spring", 2, 0, 0, 2026), ("SCHX2", "spring", 1, 0, 0, 2026)])
+            points = self.reputation._base_points(root, root)
+        self.assertEqual(0.0, points.get("SCHX1", 0.0))
+        self.assertGreater(points["SCHX2"], 0.0)
+
     def test_noise_depends_on_the_seed(self):
         # 点の少ない学校（地方大会の試合がない学校など）は乱数で順位が入れ替わる
         never = sorted(self.reputation.school_ids, key=lambda sid: self.reputation.base[sid])[:300]
@@ -277,7 +294,8 @@ class BottomOf2025SummerTests(unittest.TestCase):
         # EXE（kokosimnew.spec）に、最下位を決めるのに読むファイルが入っている
         from historical_results.summer_local import GAMES_FILE, NEW_SCHOOLS_FILE, UNION_FILE
         spec = (ROOT / "kokosimnew.spec").read_text(encoding="utf-8")
-        for name in (GAMES_FILE, UNION_FILE, NEW_SCHOOLS_FILE):
+        from game_core.school_reputation import CENTURY_ENTRANTS
+        for name in (GAMES_FILE, UNION_FILE, NEW_SCHOOLS_FILE, CENTURY_ENTRANTS):
             self.assertIn(f'"historical_data" / "{name}"', spec, name)
         # baseball_programs.csv は data/ ごと入る
         self.assertIn('(str(ROOT / "data"), "data")', spec)
