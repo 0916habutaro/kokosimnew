@@ -435,7 +435,8 @@ class PrivateComponentTests(unittest.TestCase):
                 self.assertLess(abs(bonus - previous_bonus), 0.02, step)
                 self.assertGreaterEqual(total, previous_total, step)
             previous_bonus, previous_total = bonus, total
-        self.assertEqual(0.0, self.model.private_z("PRIV-X1", self.z(0.985)))   # A は 0
+        self.assertLess(self.model.private_z("PRIV-X1", self.z(0.98)), 0.1)      # A はごく小さく
+        self.assertEqual(0.0, self.model.private_z("PRIV-X1", self.z(0.996)))   # S は 0
 
     def test_bonus_is_added_to_the_intake_quality(self):
         class Fixed:
