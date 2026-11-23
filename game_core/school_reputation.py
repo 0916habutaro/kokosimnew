@@ -3,6 +3,7 @@
 実際の甲子園の出場（``historical_data/koshien_entrants.csv``、1915年〜）・通算
 （``koshien_records.csv``）と、直前の結果（2026年選抜・2025年夏・2025年秋）から
 学校ごとに点を出す。最近の出場ほど重く（``recency_half_life_years`` 年で半分）。
+選抜の21世紀枠の出場（``senbatsu_century_entrants.csv``）は推薦による枠なので点にしない。
 夏の地方大会の全試合（``historical_data/summer_local_games.csv``、2021〜2025年）からは、
 県の中の強さ（勝ち負けと点差のレーティング）と毎年の勝ち上がり（ベスト8・16など）を
 足す。県どうしの差は、その県の甲子園の通算勝率から付ける。最後に全校に小さな乱数。
@@ -35,6 +36,8 @@ from phase2_engine.randomness import rng_for
 
 
 CONFIG_NAME = "school_reputation_v1.json"
+# 選抜の21世紀枠の出場校（出典付き）。推薦による枠なので初期評判の点にしない
+CENTURY_ENTRANTS = "senbatsu_century_entrants.csv"
 PRIOR_RESULTS = Path("initial_state") / "2026" / "prior_results.csv"
 
 
@@ -85,13 +88,21 @@ class SchoolReputation:
         career = config["career"]
         points: dict[str, float] = defaultdict(float)
         counted: dict[tuple[str, str], int] = defaultdict(int)
+        century = {
+            (row["school_id"], int(row["year"]))
+            for row in _rows(history / CENTURY_ENTRANTS) if row["school_id"]
+        }
         for row in _rows(history / "koshien_entrants.csv"):
             school_id = row["school_id"]
             if not school_id or row["status"] == "withdrawn":
                 continue
             year = int(row["year"])
-            points[school_id] += float(kind_points[row["kind"]]) * self._decay(year)
+            # 21世紀枠の出場は点にしないが、通算の「年ごとの出場にない分」で点が
+            # 戻らないよう数には入れる
             counted[(school_id, row["kind"])] += 1
+            if row["kind"] == "spring" and (school_id, year) in century:
+                continue
+            points[school_id] += float(kind_points[row["kind"]]) * self._decay(year)
             if (row["kind"], year) == ("spring", 2026):
                 points[school_id] += float(recent["senbatsu_2026"])
             elif (row["kind"], year) == ("summer", 2025):
