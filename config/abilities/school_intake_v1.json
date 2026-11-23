@@ -1,8 +1,8 @@
 {
   "config_id": "school_intake_v1",
-  "revision": 11,
-  "status": "tuned_2026_11_01",
-  "description_ja": "架空選手生成用の入部品質モデル（game_definition.md §3.1・§10）。学校・年度の成分（入部品質 z）は、学校成分（program。学校の評判 school_reputation_v1 の順位を z に変えたもの）と年度ごとの当たり外れ（cohort。乱数）と監督の評判を足したもの。選手の能力には、この z を全員に一律に足さず、選手ごとの素質（talent_model）を通して効かせる：素質 = z × school_weight ＋ 選手ごとの乱数 ＋ 有望な新入生の上乗せ。能力 = 入学時の平均 ＋ 素質 × 能力ごとの重み × 型の傾き ＋ 型の長所・短所 ＋ 能力ごとの乱数。学校の強さは選手から計算する。",
+  "revision": 12,
+  "status": "tuned_2026_11_23",
+  "description_ja": "架空選手生成用の入部品質モデル（game_definition.md §3.1・§10）。学校・年度の成分（入部品質 z）は、学校成分（program。学校の評判 school_reputation_v1 の順位を z に変えたもの）と年度ごとの当たり外れ（cohort。乱数）と監督の評判と私立の上乗せ（private_component。評判のランクごと）を足したもの。選手の能力には、この z を全員に一律に足さず、選手ごとの素質（talent_model）を通して効かせる：素質 = z × school_weight ＋ 選手ごとの乱数 ＋ 有望な新入生の上乗せ。能力 = 入学時の平均 ＋ 素質 × 能力ごとの重み × 型の傾き ＋ 型の長所・短所 ＋ 能力ごとの乱数。学校の強さは選手から計算する。",
   "quality_model": {
     "program_component": {
       "source": "reputation",
@@ -18,6 +18,17 @@
     "combined_clip": {
       "min": -3.5,
       "max": 3.5
+    },
+    "private_component": {
+      "z_by_rank": {
+        "S": 0.0,
+        "A": 0.0,
+        "B": 0.35,
+        "C": 0.35,
+        "D": 0.35,
+        "E": 0.15
+      },
+      "notes_ja": "私立の入部品質の上乗せ（z。入部品質 z に足すので、新入生の素質と有望な新入生の人数の両方に効く）。現実の私立は評判の割に選手を集めるので、評判の中位（B〜D）の私立に足す。S・Aは強豪への集中を強めないよう0、Eは小さく。ランクは学校成分 z（全校の順位の正規変換）から戻した評判のランク（school_reputation_v1 の rank_labels）。私立は設置者が private の学校（公立は senbatsu_selection_v1 の public_ownership_types と同じで、上乗せしない。国立なども0）。公立校の入部品質・成長・監督の効き方は変えない（2026-11-23）"
     }
   },
   "talent_model": {

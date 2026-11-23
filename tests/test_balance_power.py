@@ -10,7 +10,8 @@ from unittest import mock
 from historical_results.summer_local import finishes as local_finishes
 from phase2_engine import balance_power
 from phase2_engine.balance_power import (
-    PowerTally, UpsetCounter, dynasty_metrics, format_power, merge_seeds, newcomer_metrics, origin_metrics,
+    PowerTally, UpsetCounter, dynasty_metrics, entry_rates, format_power, merge_seeds, newcomer_metrics,
+    origin_metrics,
     prior_ranks, spread_by_prefecture,
 )
 from phase2_engine.balance_report import POWER_KEY, average, format_report
@@ -227,6 +228,14 @@ class TurnoverTests(unittest.TestCase):
         self.assertEqual(out["best4"]["全体"]["slots"], 4)
         self.assertEqual(out["best4"]["私立"]["1位"], 1.0)
         self.assertEqual(out["best4"]["公立"]["実績なし"], round(2 / 3, 4))
+
+    def test_entry_rates_are_per_school_by_band_and_ownership(self):
+        finishes = {2023: {"北": {"11A": 1}}, 2024: {"北": {}}, 2025: {"北": {}},
+                    2026: {"北": {"11A": 4, "11B": 1, "11C": 0, "11X": 2, "11ZX": 0}}}
+        out = entry_rates(finishes, [2026], FakeRepo().group)
+        self.assertEqual(out["1位"]["公立"], {"schools": 1, "best4_rate": 1.0, "champion_rate": 0.0})
+        self.assertEqual(out["実績なし"]["公立"], {"schools": 2, "best4_rate": 0.5, "champion_rate": 0.5})
+        self.assertEqual(out["実績なし"]["私立"], {"schools": 2, "best4_rate": 0.5, "champion_rate": 0.0})
 
     def test_newcomer_fifteen_year_window_and_century(self):
         appearances = {"夏": {2010: {"11A"}, 2011: {"11B"}, 2026: {"11A", "11B", "11X"}},

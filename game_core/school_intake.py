@@ -37,6 +37,8 @@ class SchoolIntakeProfile:
     coach_id: str | None = None
     coach_reputation: int | None = None
     coach_quality_z: float = 0.0
+    # 私立の上乗せ（quality_model.private_component。評判のランクごと）
+    private_quality_z: float = 0.0
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -89,6 +91,12 @@ class SchoolIntakeModel:
         self._root = Path(config_dir).resolve().parent.parent
         self.reputation = None
         self.coaches = None
+        # 学校 → 設置者（名簿の持ち主が DataRepository.ownership_type を渡す。ゲーム内の編集も反映）。
+        # 渡されなければ学校マスターの設置者
+        self.ownership = None
+        self._master_ownership: dict[str, str] | None = None
+        self._public_types: frozenset[str] | None = None
+        self._rank_labels: list | None = None
 
     @staticmethod
     def _config_fields(
@@ -142,6 +150,8 @@ class SchoolIntakeModel:
             if self.coaches is not None else (None, None, 0.0)
         )
         combined += coach_z
+        private_z = self.private_z(school_id, program_z)
+        combined += private_z
         clip = quality["combined_clip"]
         combined = _clamp_float(
             combined,
@@ -163,8 +173,47 @@ class SchoolIntakeModel:
             coach_id=coach_id,
             coach_reputation=coach_reputation,
             coach_quality_z=coach_z,
+            private_quality_z=private_z,
         )
 
+
+    def _ownership_of(self, school_id: str) -> str:
+        if self.ownership is not None:
+            return self.ownership(school_id) or ""
+        if self._master_ownership is None:
+            import csv
+
+            path = self._root / "data" / "master" / "schools.csv"
+            rows = csv.DictReader(path.open(encoding="utf-8-sig", newline="")) if path.is_file() else ()
+            self._master_ownership = {row["school_id"]: row["ownership_type"] for row in rows}
+        return self._master_ownership.get(school_id, "")
+
+    def private_z(self, school_id: str, program_z: float) -> float:
+        """私立の入部品質の上乗せ（``quality_model.private_component``）。
+
+        公立（21世紀枠の設定 ``senbatsu_selection_v1`` の ``public_ownership_types``）でも国立などでもない
+        私立（設置者 ``private``）だけ。評判のランク（S〜E）は学校成分 z から戻す（z は全校の順位の正規変換）。"""
+        rule = self.params["quality_model"].get("private_component")
+        if not rule:
+            return 0.0
+        if self._public_types is None:
+            import json
+
+            selection = json.loads((self._root / "config" / "selection" / "senbatsu_selection_v1.json")
+                                   .read_text(encoding="utf-8"))
+            self._public_types = frozenset(selection["century"]["public_ownership_types"])
+            reputation = json.loads((self._root / "config" / "abilities" / "school_reputation_v1.json")
+                                    .read_text(encoding="utf-8"))
+            self._rank_labels = [(label, float(low)) for label, low in reputation["rank_labels"]]
+        ownership = self._ownership_of(school_id)
+        if ownership != "private" or ownership in self._public_types:
+            return 0.0
+        from statistics import NormalDist
+
+        program = self.params["quality_model"]["program_component"]
+        share = NormalDist(float(program["mean"]), float(program["stddev"])).cdf(program_z)
+        rank = next(label for label, low in self._rank_labels if share >= low)
+        return float(rule["z_by_rank"].get(rank, 0.0))
 
 @dataclass(frozen=True)
 class PlayerTalent:

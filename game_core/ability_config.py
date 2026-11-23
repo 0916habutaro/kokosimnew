@@ -315,6 +315,17 @@ def validate_school_intake(
             "school intake: component squared weights must sum to 1.0"
         )
 
+    private = quality.get("private_component")
+    if private is not None:
+        by_rank = private.get("z_by_rank") if isinstance(private, dict) else None
+        if not isinstance(by_rank, dict):
+            raise ValueError("school intake: private_component.z_by_rank required")
+        for rank, value in by_rank.items():
+            if rank not in "SABCDE" or len(rank) != 1:
+                raise ValueError(f"school intake: private_component rank {rank!r} must be S〜E")
+            if _require_number(value, f"school_intake.private_component.z_by_rank.{rank}") < 0:
+                raise ValueError("school intake: private_component values must be >= 0")
+
     clip = quality.get("combined_clip")
     if not isinstance(clip, dict):
         raise ValueError("school intake: combined_clip required")

@@ -165,6 +165,67 @@ def origin_metrics(finishes: dict[int, dict[str, dict[str, int]]], years, group_
     return {"years": used, **out} if used else {}
 
 
+def entry_rates(finishes: dict[int, dict[str, dict[str, int]]], years, group_of) -> dict:
+    """直前の県内順位の帯 → 公立・私立 → 学校1校あたりの「県ベスト4に入る確率」と「代表校になる確率」。
+
+    分母はその年の区分に出た学校（``prior_ranks`` と同じ）。"""
+    cells: dict[tuple[str, str], list[int]] = defaultdict(lambda: [0, 0, 0])   # 学校, 4強, 優勝
+    for year in years:
+        ranks = prior_ranks(finishes, year)
+        if ranks is None:
+            continue
+        for division, schools in finishes[year].items():
+            for school, reached in schools.items():
+                group = group_of(school)
+                if not group:
+                    continue
+                cell = cells[(rank_band(ranks[division][school]), group)]
+                cell[0] += 1
+                cell[1] += bool(reached) and reached <= 4
+                cell[2] += reached == 1
+    out: dict = {}
+    for band in [b for _, _, b in RANK_BANDS] + [NO_RECORD]:
+        for group in ("公立", "私立"):
+            schools, best4, champion = cells.get((band, group), (0, 0, 0))
+            if schools:
+                out.setdefault(band, {})[group] = {"schools": schools, "best4_rate": _share(best4, schools),
+                                                   "champion_rate": _share(champion, schools)}
+    return out
+
+
+def ownership_gap(reputation: dict[int, dict[str, float]], intake: dict[int, dict[str, tuple]],
+                  strength: dict[int, dict[str, float]], prefecture_of, group_of) -> dict:
+    """（ゲームのみ）4月1日の評判の県内順位の帯 → 公立・私立 → 入部品質 z・有望な新入生の人数・
+    新入生の平均能力・7月1日のチームの強さ（overall）の平均。
+
+    ``intake`` は 年 → 学校 → (入部品質 z, 有望な新入生の人数, 新入生の平均能力 または None)。"""
+    sums: dict[tuple[str, str], dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    for year, values in reputation.items():
+        rows = intake.get(year, {})
+        ranks = _ranks_within({s: z for s, z in values.items() if s in rows}, prefecture_of)
+        for school, rank in ranks.items():
+            group = group_of(school)
+            if not group:
+                continue
+            cell = sums[(_band(RANK_BANDS, rank), group)]
+            z, prospects, ability = rows[school]
+            cell["intake_z"].append(z)
+            cell["prospects"].append(prospects)
+            if ability is not None:
+                cell["freshman_ability"].append(ability)
+            if school in strength.get(year, {}):
+                cell["strength"].append(strength[year][school])
+    out: dict = {}
+    for _, _, band in RANK_BANDS:
+        for group in ("公立", "私立"):
+            cell = sums.get((band, group))
+            if cell:
+                out.setdefault(band, {})[group] = {
+                    "schools": len(cell["intake_z"]),
+                    **{f"{name}_mean": round(statistics.mean(v), 3) for name, v in cell.items() if v}}
+    return out
+
+
 def newcomer_metrics(appearances: dict[str, dict[int, set]], century: set, years: dict[str, list[int]],
                      is_public) -> dict:
     """指標B：甲子園の出場校のうち「新顔の公立校」の割合（夏・春）。
@@ -350,6 +411,7 @@ def actual_metrics(repo, tournaments: int = 10, rank_of=None) -> dict:
     newcomer_years = list(range(years[-1] - 9, years[-1] + 1)) if years else []
     out["turnover"] = {
         "origin": origin_metrics(finishes, sorted(finishes), group_of),
+        "entry_rates": entry_rates(finishes, sorted(finishes), group_of),
         "newcomers": newcomer_metrics(appearances, century,
                                       {SUMMER_KIND: newcomer_years, SPRING_KIND: newcomer_years},
                                       lambda school: group_of(school) == "公立"),
@@ -423,6 +485,8 @@ class PowerTally:
         self.century: set = set()                       # 21世紀枠の (学校, 選抜の年)
         self.july_reputation: dict[int, dict[str, float]] = {}       # 7月1日の年 → 学校 → 評判
         self.july_strength: dict[int, dict[str, float]] = {}         # 7月1日の年 → 学校 → 強さ（overall）
+        self.april_reputation: dict[int, dict[str, float]] = {}      # 4月1日の年 → 学校 → 評判
+        self.intake: dict[int, dict[str, tuple]] = {}               # 年 → 学校 → (入部品質 z, 有望, 新入生の能力)
 
     def set_reputation(self, year: int, reputation) -> None:
         """4月1日の評判の更新のあとに呼ぶ。その年度の試合のランクに使う。"""
@@ -527,6 +591,11 @@ class PowerTally:
         self.july_reputation[year] = dict(reputation)
         self.july_strength[year] = dict(strength)
 
+    def add_intake(self, year: int, reputation: dict[str, float], rows: dict[str, tuple]) -> None:
+        """4月1日の評判と、その年度の新入生（``intake_rows``）。"""
+        self.april_reputation[year] = dict(reputation)
+        self.intake[year] = dict(rows)
+
     def _turnover_summary(self, group_of) -> dict:
         """県内の勢力の入れ替わり。開始より前の年は実際の値（夏の地方大会・甲子園の出場）で補う。"""
         finishes = {year: dict(divisions) for year, divisions in actual_finishes().items()
@@ -540,6 +609,9 @@ class PowerTally:
                 appearances[kind][year] = set(schools)
         return {
             "origin": origin_metrics(finishes, game_years, group_of),
+            "entry_rates": entry_rates(finishes, game_years, group_of),
+            "ownership_gap": ownership_gap(self.april_reputation, self.intake, self.july_strength,
+                                           lambda school: self.repo.team(school).prefecture_code, group_of),
             "newcomers": newcomer_metrics(appearances, century | self.century,
                                           {kind: sorted(by_year) for kind, by_year in game.items()},
                                           lambda school: group_of(school) == "公立"),
@@ -759,6 +831,23 @@ def format_turnover(game: dict, actual: dict) -> list[str]:
                          f"{row['newcomer_share']:.1%}（{row['newcomers']:.4g}／出場{row['all_entrants']:.0f}校、"
                          f"公立のうち {row['newcomer_public_share']:.1%}、{row['tournaments']}大会"
                          + ("、21世紀枠を除く" if kind == SPRING_KIND else "") + "）")
+    for label, rates in (("ゲーム", game.get("entry_rates") or {}), ("実際", actual.get("entry_rates") or {})):
+        if rates:
+            lines.append(f"  直前の県内順位の帯ごとの1校あたりの確率（{label}。県ベスト4・代表校、公立／私立）")
+            for band in [b for _, _, b in RANK_BANDS] + [NO_RECORD]:
+                cells = rates.get(band) or {}
+                lines.append(f"    {band}：" + "　".join(
+                    f"{group} {c['best4_rate']:.1%}・{c['champion_rate']:.1%}（{c['schools']:.0f}校年）"
+                    for group, c in cells.items()))
+    gap = game.get("ownership_gap") or {}
+    if gap:
+        lines.append("  評判の県内順位の帯ごとの公立／私立（ゲームのみ。入部品質z・有望な新入生・新入生の能力・強さ）")
+        for band in [b for _, _, b in RANK_BANDS if b in gap]:
+            lines.append(f"    {band}：" + "　".join(
+                f"{group} z {c.get('intake_z_mean', 0):+.2f}・有望 {c.get('prospects_mean', 0):.2f}人・"
+                f"能力 {c.get('freshman_ability_mean', 0):.1f}・強さ "
+                + (f"{c['strength_mean']:.1f}" if "strength_mean" in c else "—")
+                + f"（{c['schools']:.0f}校年）" for group, c in gap[band].items()))
     strength = game.get("strength") or {}
     if strength:
         lines.append(f"  評判の県内順位と強さ（overall）の県内順位（7月1日、ゲームのみ）：順位相関 {strength['rank_correlation']:.3f}")

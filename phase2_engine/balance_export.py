@@ -131,6 +131,10 @@ LABELS = {
     "strength": "評判と強さ（ゲームのみ）", "by_reputation_band": "評判の県内順位の帯ごと",
     "strength_rank_mean": "強さの県内順位の平均", "strength_rank_stdev": "強さの県内順位の散らばり",
     "rank_change_mean": "前の年からの強さの順位の変化", "rank_correlation": "評判と強さの順位相関",
+    "entry_rates": "直前の県内順位の帯ごとの1校あたりの確率", "best4_rate": "県ベスト4に入る確率",
+    "champion_rate": "代表校になる確率", "ownership_gap": "評判の県内順位の帯ごとの公立・私立（ゲームのみ）",
+    "intake_z_mean": "入部品質zの平均", "prospects_mean": "有望な新入生の平均人数",
+    "freshman_ability_mean": "新入生の主な能力の平均", "strength_mean": "強さ（overall）の平均",
 }
 
 # 都道府県・地区ごとの内訳。Markdown の比較には出さない（CSV には出す）
