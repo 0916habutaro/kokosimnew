@@ -738,7 +738,7 @@ def format_upsets(label: str, upsets: dict) -> list[str]:
 
 def _origin_line(label: str, cell: dict) -> str:
     bands = [b for _, _, b in RANK_BANDS] + [NO_RECORD]
-    return f"    {label}（{cell['slots']}枠）" + "／".join(f"{b} {cell.get(b, 0):.0%}" for b in bands)
+    return f"    {label}（{cell['slots']:.0f}枠）" + "／".join(f"{b} {cell.get(b, 0):.0%}" for b in bands)
 
 
 def format_turnover(game: dict, actual: dict) -> list[str]:
@@ -749,22 +749,25 @@ def format_turnover(game: dict, actual: dict) -> list[str]:
     for slot, name in (("best4", "県ベスト4"), ("champion", "代表校")):
         for label, origin in (("ゲーム", game.get("origin") or {}), ("実際", actual.get("origin") or {})):
             if origin.get(slot):
-                years = origin["years"]
+                years = origin.get("years")     # 乱数の種の平均では年の並びは残らない
+                span = f" {years[0]}〜{years[-1]}年" if years else ""
                 for group, cell in origin[slot].items():
-                    lines.append(_origin_line(f"{name}・{label} {years[0]}〜{years[-1]}年・{group}", cell))
+                    lines.append(_origin_line(f"{name}・{label}{span}・{group}", cell))
     for label, rows in (("ゲーム", game.get("newcomers") or {}), ("実際", actual.get("newcomers") or {})):
         for kind, row in rows.items():
             lines.append(f"  新顔の公立校（直前{NEWCOMER_YEARS}年に21世紀枠以外の出場なし）{label}・{kind}："
-                         f"{row['newcomer_share']:.1%}（{row['newcomers']}／出場{row['all_entrants']}校、"
+                         f"{row['newcomer_share']:.1%}（{row['newcomers']:.4g}／出場{row['all_entrants']:.0f}校、"
                          f"公立のうち {row['newcomer_public_share']:.1%}、{row['tournaments']}大会"
                          + ("、21世紀枠を除く" if kind == SPRING_KIND else "") + "）")
     strength = game.get("strength") or {}
     if strength:
         lines.append(f"  評判の県内順位と強さ（overall）の県内順位（7月1日、ゲームのみ）：順位相関 {strength['rank_correlation']:.3f}")
-        for band, cell in strength["by_reputation_band"].items():
+        bands = strength["by_reputation_band"]
+        for band in [b for _, _, b in RANK_BANDS if b in bands]:
+            cell = bands[band]
             change = cell.get("rank_change_mean")
             lines.append(f"    評判 {band}：強さの順位 平均 {cell['strength_rank_mean']}・散らばり {cell['strength_rank_stdev']}"
-                         + (f"・前の年からの変化 {change}" if change is not None else "") + f"（{cell['schools']}校年）")
+                         + (f"・前の年からの変化 {change}" if change is not None else "") + f"（{cell['schools']:.0f}校年）")
     return lines
 
 
