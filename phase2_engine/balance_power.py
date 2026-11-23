@@ -6,8 +6,11 @@
 - 優勝校の顔ぶれ：夏・選抜の優勝校の評判のランク、連覇・初優勝
 - 投手の使われ方：準決勝・決勝でのエースの登板の間隔、7日間の球数の上限に届いた投手、1試合の球数
 - 監督：在任年数・勇退の年齢、甲子園で勝った監督が勇退したあとの学校の評判
+- 県内の勢力の入れ替わり：県ベスト4と代表校が直前3年の夏の成績で県内の何位から来たか、
+  甲子園の新顔の公立校の割合、評判の県内順位とチームの強さの県内順位の結び付き（ゲームのみ）
 
-実際の値は ``historical_data`` から同じ関数（``dynasty_metrics``・``spread_by_prefecture``）で計算する。
+実際の値は ``historical_data`` から同じ関数（``dynasty_metrics``・``spread_by_prefecture``・
+``origin_metrics``・``newcomer_metrics``）で計算する。
 結果のファイルはリポジトリに置かない。
 """
 from __future__ import annotations
@@ -42,6 +45,14 @@ GREAT_COACH_WINS = (3, 5, 10)
 REPUTATION_FOLLOW_YEARS = (1, 2, 3)
 DOMINANT_SHARE = 0.7    # 1校がその県の出場のこの割合以上なら「独り勝ち」
 CROWDED_SCHOOLS = 5     # 10大会でこの校数以上が出た県は「群雄割拠」
+# 県内の勢力の入れ替わり（指標の定義。調整値ではないので config/ に置かない）
+# 夏の地方大会の勝ち上がり（1＝優勝、2＝準優勝、4＝ベスト4 …。``summer_local.finishes`` と同じ）→ 点
+FINISH_POINTS = {1: 5, 2: 4, 4: 3, 8: 2, 16: 1}
+PRIOR_WEIGHTS = (1.0, 0.6, 0.3)     # 直前の年から1年前・2年前・3年前
+RANK_BANDS = ((1, 1, "1位"), (2, 3, "2〜3位"), (4, 5, "4〜5位"), (6, 10, "6〜10位"), (11, 10 ** 6, "11位以下"))
+NO_RECORD = "実績なし"
+NEWCOMER_YEARS = 15                 # 新顔：その年の前の15年に（21世紀枠以外で）春夏の出場がない
+SUMMER_KIND, SPRING_KIND = "夏", "春"
 
 
 def _band(bands, value) -> str:
@@ -97,6 +108,209 @@ def spread_by_prefecture(records: dict[str, list[int]], top: int = 5) -> dict:
     }
 
 
+def prior_ranks(finishes: dict[int, dict[str, dict[str, int]]], year: int) -> dict[str, dict[str, int | None]] | None:
+    """夏の地方大会の区分 → 学校 → 直前3年の成績による区分の中の順位（3年とも0点なら None＝実績なし）。
+
+    ``finishes`` は 年 → 区分 → 学校 → 勝ち上がり（1＝優勝、2＝準優勝、4＝ベスト4 …、0＝それ以外）。
+    その年の区分に出た学校に、前の3年の点（``FINISH_POINTS`` × ``PRIOR_WEIGHTS``）を付けて順位にする。
+    前の年の区分は問わない（学校ごとに数える）。点が同じ学校は同じ順位。前の3年がそろわなければ None。"""
+    if year not in finishes or any(year - back not in finishes for back in range(1, len(PRIOR_WEIGHTS) + 1)):
+        return None
+    points: dict[str, float] = defaultdict(float)
+    for back, weight in enumerate(PRIOR_WEIGHTS, start=1):
+        for schools in finishes[year - back].values():
+            for school, reached in schools.items():
+                points[school] += weight * FINISH_POINTS.get(reached, 0)
+    out = {}
+    for division, schools in finishes[year].items():
+        scored = sorted((round(points.get(school, 0.0), 6) for school in schools), reverse=True)
+        out[division] = {school: (scored.index(round(points.get(school, 0.0), 6)) + 1
+                                  if points.get(school, 0.0) > 0 else None)
+                         for school in schools}
+    return out
+
+
+def rank_band(rank: int | None) -> str:
+    return NO_RECORD if rank is None else _band(RANK_BANDS, rank)
+
+
+def _band_shares(counter: Counter) -> dict:
+    total = sum(counter.values())
+    labels = [label for _, _, label in RANK_BANDS] + [NO_RECORD]
+    return {"slots": total, **{label: _share(counter[label], total) for label in labels}}
+
+
+def origin_metrics(finishes: dict[int, dict[str, dict[str, int]]], years, group_of) -> dict:
+    """指標A：県ベスト4（4強に入った学校）と代表校（優勝）が、直前の県内順位のどの帯から来たか。
+
+    ``group_of(school)`` は "公立"・"私立"・None（どちらでもない。全体にだけ数える）。"""
+    counts = {slot: defaultdict(Counter) for slot in ("best4", "champion")}
+    used = []
+    for year in years:
+        ranks = prior_ranks(finishes, year)
+        if ranks is None:
+            continue
+        used.append(year)
+        for division, schools in finishes[year].items():
+            for school, reached in schools.items():
+                if not reached or reached > 4:
+                    continue
+                band = rank_band(ranks[division][school])
+                for slot in ("best4",) + (("champion",) if reached == 1 else ()):
+                    for group in ("全体", group_of(school)):
+                        if group:
+                            counts[slot][group][band] += 1
+    out = {slot: {group: _band_shares(counts[slot][group]) for group in ("全体", "公立", "私立")
+                  if counts[slot][group]} for slot in counts}
+    return {"years": used, **out} if used else {}
+
+
+def newcomer_metrics(appearances: dict[str, dict[int, set]], century: set, years: dict[str, list[int]],
+                     is_public) -> dict:
+    """指標B：甲子園の出場校のうち「新顔の公立校」の割合（夏・春）。
+
+    ``appearances`` は 夏・春 → 年 → 学校、``century`` は21世紀枠の (学校, 年)。
+    新顔は、その年の前の ``NEWCOMER_YEARS`` 年に、21世紀枠以外での春夏の出場がない公立校。
+    春は21世紀枠の出場校を数えない（分母にも入れない）。"""
+    last: dict[str, list[int]] = defaultdict(list)
+    for kind, by_year in appearances.items():
+        for year, schools in by_year.items():
+            for school in schools:
+                if not (kind == SPRING_KIND and (school, year) in century):
+                    last[school].append(year)
+    out = {}
+    for kind, chosen in years.items():
+        entrants = public = new = 0
+        for year in chosen:
+            for school in appearances.get(kind, {}).get(year, ()):
+                if kind == SPRING_KIND and (school, year) in century:
+                    continue
+                entrants += 1
+                if not is_public(school):
+                    continue
+                public += 1
+                new += not any(year - NEWCOMER_YEARS <= y < year for y in last[school])
+        if entrants:
+            out[kind] = {"tournaments": len([y for y in chosen if appearances.get(kind, {}).get(y)]),
+                         "all_entrants": entrants, "public": public, "newcomers": new,
+                         "newcomer_share": _share(new, entrants), "newcomer_public_share": _share(new, public)}
+    return out
+
+
+def _ranks_within(values: dict[str, float], prefecture_of) -> dict[str, int]:
+    """学校 → 県の中の順位（値の大きい順。同じ値は学校IDの順）。"""
+    by_prefecture: dict[str, list[str]] = defaultdict(list)
+    for school in values:
+        by_prefecture[prefecture_of(school)].append(school)
+    out = {}
+    for schools in by_prefecture.values():
+        for rank, school in enumerate(sorted(schools, key=lambda s: (-values[s], s)), start=1):
+            out[school] = rank
+    return out
+
+
+def _spearman(pairs: list[tuple[int, int]]) -> float | None:
+    if len(pairs) < 3:
+        return None
+    xs, ys = zip(*pairs)
+    mx, my = statistics.mean(xs), statistics.mean(ys)
+    sx = sum((x - mx) ** 2 for x in xs) ** 0.5
+    sy = sum((y - my) ** 2 for y in ys) ** 0.5
+    if not sx or not sy:
+        return None
+    return sum((x - mx) * (y - my) for x, y in pairs) / (sx * sy)
+
+
+def strength_metrics(reputation: dict[int, dict[str, float]], strength: dict[int, dict[str, float]],
+                     prefecture_of) -> dict:
+    """指標C（ゲームのみ）：7月1日の評判の県内順位の帯ごとの、チームの強さ（overall）の県内順位。
+
+    順位は強さのある学校（9人以上）の中で付ける。変化は前の年の7月1日の強さの県内順位との差の絶対値。
+    順位相関は県×年ごとのスピアマン（順位どうしの相関）の平均。"""
+    cells: dict[str, list[int]] = defaultdict(list)
+    moves: dict[str, list[int]] = defaultdict(list)
+    correlations = []
+    previous: dict[str, int] = {}
+    for year in sorted(strength):
+        values = strength[year]
+        known = {s: z for s, z in reputation.get(year, {}).items() if s in values}
+        if not known:
+            continue
+        rep_rank = _ranks_within(known, prefecture_of)
+        str_rank = _ranks_within({s: values[s] for s in known}, prefecture_of)
+        by_prefecture: dict[str, list[tuple[int, int]]] = defaultdict(list)
+        for school, rank in rep_rank.items():
+            band = _band(RANK_BANDS, rank)
+            cells[band].append(str_rank[school])
+            if school in previous:
+                moves[band].append(abs(str_rank[school] - previous[school]))
+            by_prefecture[prefecture_of(school)].append((rank, str_rank[school]))
+        correlations += [r for r in map(_spearman, by_prefecture.values()) if r is not None]
+        previous = str_rank
+    if not cells:
+        return {}
+    out = {"by_reputation_band": {}}
+    for _, _, band in RANK_BANDS:
+        ranks = cells.get(band)
+        if ranks:
+            out["by_reputation_band"][band] = {
+                "schools": len(ranks), "strength_rank_mean": round(statistics.mean(ranks), 2),
+                "strength_rank_stdev": round(statistics.pstdev(ranks), 2),
+                **({"rank_change_mean": round(statistics.mean(moves[band]), 2)} if moves.get(band) else {})}
+    out["rank_correlation"] = round(statistics.mean(correlations), 4) if correlations else 0.0
+    return out
+
+
+def public_ownership_types() -> set[str]:
+    """公立とみなす設置者（21世紀枠の設定と同じ）。"""
+    import json
+
+    config = json.loads((ROOT / "config" / "selection" / "senbatsu_selection_v1.json").read_text(encoding="utf-8"))
+    return set(config["century"]["public_ownership_types"])
+
+
+def school_group(repo, public_types):
+    """学校 → "公立"・"私立"・None（国立など。全体にだけ数える）。"""
+    def group(school):
+        ownership = repo.ownership_type(school)
+        return "公立" if ownership in public_types else "私立" if ownership == "private" else None
+    return group
+
+
+def actual_finishes() -> dict[int, dict[str, dict[str, int]]]:
+    """実際の夏の地方大会（``summer_local_games.csv``）：年 → 大会（区分）→ 学校 → 勝ち上がり（0＝それ以外）。
+    学校IDのない校名（連合チームなど）は数えない。"""
+    from historical_results.summer_local import finishes
+
+    games = _rows("summer_local_games.csv")
+    out: dict[int, dict[str, dict[str, int]]] = defaultdict(lambda: defaultdict(dict))
+    school_of = {}
+    for game in games:
+        for side in ("top", "bottom"):
+            school = game[f"{side}_school_id"]
+            if school:
+                school_of[(game["tournament"], game[f"{side}_team"])] = school
+                out[int(game["year"])][game["tournament"]].setdefault(school, 0)
+    for (tournament, team), reached in finishes(games).items():
+        school = school_of.get((tournament, team))
+        if school:
+            out[int(tournament[:4])][tournament][school] = reached
+    return {year: dict(divisions) for year, divisions in out.items()}
+
+
+def actual_appearances() -> tuple[dict[str, dict[int, set]], set]:
+    """実際の甲子園の出場（夏・春 → 年 → 学校）と21世紀枠の (学校, 年)。学校IDのない行は数えない。
+    選出後の辞退は数えず、中止の大会（2020年の選抜）の選出は出場に数える（通算の数え方と同じ）。"""
+    appearances: dict[str, dict[int, set]] = {SUMMER_KIND: defaultdict(set), SPRING_KIND: defaultdict(set)}
+    for row in _rows("koshien_entrants.csv"):
+        if row["school_id"] and row["status"] != "withdrawn" and row["kind"] in ("summer", "spring"):
+            kind = SUMMER_KIND if row["kind"] == "summer" else SPRING_KIND
+            appearances[kind][int(row["year"])].add(row["school_id"])
+    century = {(row["school_id"], int(row["year"])) for row in _rows("senbatsu_century_entrants.csv")
+               if row["school_id"]}
+    return appearances, century
+
+
 def _rows(name: str) -> list[dict]:
     with (HISTORY / name).open(encoding="utf-8-sig", newline="") as handle:
         return list(csv.DictReader(handle))
@@ -108,6 +322,8 @@ def actual_metrics(repo, tournaments: int = 10, rank_of=None) -> dict:
     - 強豪の続き方：出場校一覧の直近 ``tournaments`` 回の夏（中止の2020年は大会がないので飛ばす）。
       学校IDのない行は都道府県と当時の校名で1校とみなす
     - 都道府県の強弱：通算の記録（開始前の全期間の春夏の勝敗）を学校の今の都道府県で合計する
+    - 県内の勢力の入れ替わり：直前3年の成績による順位は夏の地方大会（2021〜2025年）から出せる2024・2025年。
+      新顔の公立校は直近の夏の年までの10年（春も同じ年）
     - 番狂わせ：夏の地方大会（``summer_local_games.csv``）を ``rank_of``（開始時の評判のランク）で分ける。
       開始時の評判はこの試合の結果からも作っているので、上のランクの勝率は高めに出る（参考）
     """
@@ -128,6 +344,16 @@ def actual_metrics(repo, tournaments: int = 10, rank_of=None) -> dict:
             record[1] += int(row["losses"] or 0)
     out = {"years": years, "dynasty": dynasty_metrics(by_year, prefecture.get),
            "prefecture_strength": spread_by_prefecture(records)}
+    group_of = school_group(repo, public_ownership_types())
+    finishes = actual_finishes()
+    appearances, century = actual_appearances()
+    newcomer_years = list(range(years[-1] - 9, years[-1] + 1)) if years else []
+    out["turnover"] = {
+        "origin": origin_metrics(finishes, sorted(finishes), group_of),
+        "newcomers": newcomer_metrics(appearances, century,
+                                      {SUMMER_KIND: newcomer_years, SPRING_KIND: newcomer_years},
+                                      lambda school: group_of(school) == "公立"),
+    }
     if rank_of is not None:
         upsets = UpsetCounter()
         for game in _rows("summer_local_games.csv"):
@@ -192,6 +418,11 @@ class PowerTally:
         self.starter_max = Counter()
         self.tournament_pitches = defaultdict(lambda: defaultdict(dict))  # (大会, 学校) → 選手 → 日 → 球数
         self.ace = defaultdict(Counter)                 # 場面 → 数
+        # 県内の勢力の入れ替わり
+        self.local_finishes = defaultdict(lambda: defaultdict(dict))  # 年 → 夏の地方大会 → 学校 → 勝ち上がり
+        self.century: set = set()                       # 21世紀枠の (学校, 選抜の年)
+        self.july_reputation: dict[int, dict[str, float]] = {}       # 7月1日の年 → 学校 → 評判
+        self.july_strength: dict[int, dict[str, float]] = {}         # 7月1日の年 → 学校 → 強さ（overall）
 
     def set_reputation(self, year: int, reputation) -> None:
         """4月1日の評判の更新のあとに呼ぶ。その年度の試合のランクに使う。"""
@@ -207,6 +438,14 @@ class PowerTally:
         if not level or not winner or not loser:
             return
         self.upsets.add(level, self.ranks.get(winner, ""), self.ranks.get(loser, ""))
+        if kind == LOCAL:
+            schools = self.local_finishes[day.year][competition_id]
+            for school in (winner, loser):
+                schools.setdefault(school, 0)
+            if rounds_left is not None:
+                reached = {loser: 2 ** (rounds_left + 1), **({winner: 1} if rounds_left == 0 else {})}
+                for school, value in reached.items():
+                    schools[school] = min(schools[school] or value, value)
         if kind in KOSHIEN_NAMES:
             name = KOSHIEN_NAMES[kind]
             self.entrants[name][day.year].update((winner, loser))
@@ -278,6 +517,35 @@ class PowerTally:
                 log[player][day] = pitches
             if rounds_left == 0:
                 del self.tournament_pitches[(competition_id, day.year, school)]
+
+    def add_century(self, year: int, basis: dict) -> None:
+        """選考の記録（``select_invitational`` の ``selection_basis``）。``year`` は選抜の行われる年。"""
+        self.century |= {(school, year) for school, kind in (basis or {}).items() if kind == "century"}
+
+    def add_strength(self, year: int, reputation: dict[str, float], strength: dict[str, float]) -> None:
+        """7月1日の評判とチームの強さ（overall）。"""
+        self.july_reputation[year] = dict(reputation)
+        self.july_strength[year] = dict(strength)
+
+    def _turnover_summary(self, group_of) -> dict:
+        """県内の勢力の入れ替わり。開始より前の年は実際の値（夏の地方大会・甲子園の出場）で補う。"""
+        finishes = {year: dict(divisions) for year, divisions in actual_finishes().items()
+                    if year not in self.local_finishes}
+        game_years = sorted(self.local_finishes)
+        finishes.update({year: {cid: dict(s) for cid, s in self.local_finishes[year].items()} for year in game_years})
+        appearances, century = actual_appearances()
+        game = {SUMMER_KIND: self.entrants["夏"], SPRING_KIND: self.entrants["選抜"]}
+        for kind, by_year in game.items():
+            for year, schools in by_year.items():
+                appearances[kind][year] = set(schools)
+        return {
+            "origin": origin_metrics(finishes, game_years, group_of),
+            "newcomers": newcomer_metrics(appearances, century | self.century,
+                                          {kind: sorted(by_year) for kind, by_year in game.items()},
+                                          lambda school: group_of(school) == "公立"),
+            "strength": strength_metrics(self.july_reputation, self.july_strength,
+                                         lambda school: self.repo.team(school).prefecture_code),
+        }
 
     def _champion_summary(self, name: str) -> dict:
         champions = self.champions[name]
@@ -401,6 +669,7 @@ class PowerTally:
             "ace": ace,
             "pitch_limit": {scope: len(rows) for scope, rows in sorted(self.limit_reached.items())},
             "coaches": self._coach_summary(coaches),
+            "turnover": self._turnover_summary(school_group(self.repo, public_ownership_types())),
         }
 
 
@@ -467,6 +736,38 @@ def format_upsets(label: str, upsets: dict) -> list[str]:
     return lines
 
 
+def _origin_line(label: str, cell: dict) -> str:
+    bands = [b for _, _, b in RANK_BANDS] + [NO_RECORD]
+    return f"    {label}（{cell['slots']}枠）" + "／".join(f"{b} {cell.get(b, 0):.0%}" for b in bands)
+
+
+def format_turnover(game: dict, actual: dict) -> list[str]:
+    """県内の勢力の入れ替わり（短い1節）。"""
+    if not game and not actual:
+        return []
+    lines = ["■ 県内の勢力の入れ替わり（直前3年の夏の地方大会の成績による区分の中の順位。重み1.0／0.6／0.3）"]
+    for slot, name in (("best4", "県ベスト4"), ("champion", "代表校")):
+        for label, origin in (("ゲーム", game.get("origin") or {}), ("実際", actual.get("origin") or {})):
+            if origin.get(slot):
+                years = origin["years"]
+                for group, cell in origin[slot].items():
+                    lines.append(_origin_line(f"{name}・{label} {years[0]}〜{years[-1]}年・{group}", cell))
+    for label, rows in (("ゲーム", game.get("newcomers") or {}), ("実際", actual.get("newcomers") or {})):
+        for kind, row in rows.items():
+            lines.append(f"  新顔の公立校（直前{NEWCOMER_YEARS}年に21世紀枠以外の出場なし）{label}・{kind}："
+                         f"{row['newcomer_share']:.1%}（{row['newcomers']}／出場{row['all_entrants']}校、"
+                         f"公立のうち {row['newcomer_public_share']:.1%}、{row['tournaments']}大会"
+                         + ("、21世紀枠を除く" if kind == SPRING_KIND else "") + "）")
+    strength = game.get("strength") or {}
+    if strength:
+        lines.append(f"  評判の県内順位と強さ（overall）の県内順位（7月1日、ゲームのみ）：順位相関 {strength['rank_correlation']:.3f}")
+        for band, cell in strength["by_reputation_band"].items():
+            change = cell.get("rank_change_mean")
+            lines.append(f"    評判 {band}：強さの順位 平均 {cell['strength_rank_mean']}・散らばり {cell['strength_rank_stdev']}"
+                         + (f"・前の年からの変化 {change}" if change is not None else "") + f"（{cell['schools']}校年）")
+    return lines
+
+
 def format_power(power: dict, actual: dict | None = None) -> str:
     """通しの指標の表示。``actual`` があれば実際の値を並べる。"""
     lines = ["通しの指標（始めた日から進めた日まで）", "■ 番狂わせ（評判のランクの差ごと）"]
@@ -497,6 +798,7 @@ def format_power(power: dict, actual: dict | None = None) -> str:
                      f"連投 {row['back_to_back']}回　3日続けて {row['three_days']}回（{row['team_games']}チーム試合）")
     if power.get("pitch_limit") is not None:
         lines.append(f"  7日間の球数の上限に届いた投手（年度ごとの延べ人数）：{_pairs(power['pitch_limit']) or '0'}")
+    lines += format_turnover(power.get("turnover") or {}, (actual or {}).get("turnover") or {})
     coaches = power.get("coaches") or {}
     if coaches:
         lines.append("■ 監督（実際の値なし）")
