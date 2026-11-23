@@ -111,7 +111,8 @@ class PlayerSeasonServiceTests(unittest.TestCase):
             # 県大会に学校がすべて出るようになった分（出場校・試合の予定）でさらに約1万バイト。
             # 選手の調子（段階F4。調子が0でない選手だけ2バイト）でさらに約8万バイト
             # 初期3学年の全国有望枠の割当を保存した実測は約829.7万バイト。
-            self.assertLess(save.stat().st_size, 8_310_000)
+            # 評判が中位の私立の入部品質の上乗せ（有望な新入生の割当が増える）で約831.8万バイト
+            self.assertLess(save.stat().st_size, 8_330_000)
             self.assertTrue(session.state.rosters.schools(2026))
 
             with patch.object(RosterBook, 'reset_appearance_counters', side_effect=AssertionError('load reset')):

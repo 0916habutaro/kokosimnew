@@ -465,6 +465,8 @@ class RosterBook:
             self._ability_generator.intake_model.reputation = self.reputation
         if self.coaches is not None:
             self._ability_generator.intake_model.coaches = self.coaches
+        if self.ownership_for is not None:
+            self._ability_generator.intake_model.ownership = self.ownership_for
         return self._ability_generator
 
     @property

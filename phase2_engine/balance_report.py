@@ -1115,6 +1115,27 @@ def size_rows(book, year: int, repo):
         yield (repo.ownership_type(school), rank, {g: counts.get(g, 0) for g in (1, 2, 3)})
 
 
+def intake_rows(book, year: int) -> dict[str, tuple]:
+    """学校 → (その年度の新入生の入部品質 z, 有望な新入生の人数, 新入生の主な能力の平均)。
+    主な能力は野手が MAIN_BATTER、投手が MAIN_PITCHER（名簿の 1〜100 の能力）。"""
+    from game_core.roster_book import SCALARS
+
+    generator = book.ability_generator
+    out = {}
+    for school in book.school_ids:
+        profile = generator.intake_model.profile(school_id=school, entry_year=year, base_seed=book.career_seed)
+        values = []
+        for player in book.roster(year, school).players:
+            if player.entry_year != year:
+                continue
+            state = book.state(player).values
+            names = MAIN_PITCHER if player.primary_position == "P" else MAIN_BATTER
+            values.append(statistics.mean(state[SCALARS.index(name)] or 0 for name in names))
+        out[school] = (profile.intake_quality_z, len(book.prospect_assignments(year, school)),
+                       round(statistics.mean(values), 2) if values else None)
+    return out
+
+
 def recruitment_summary(book, year: int) -> dict:
     """4月1日の新入生と、旧抽選から得た供給数、確定済みの全国割当。"""
     generator = book.ability_generator
@@ -1497,6 +1518,7 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None, 
                 if getattr(state, "reputation", None) is not None:
                     tally.add_top_reputation(today.year, state.reputation.values)
                     power.set_reputation(today.year, state.reputation)
+                    power.add_intake(today.year, state.reputation.values, intake_rows(state.rosters, today.year))
             if (today.month, today.day) == (11, 1) and today.year in state.seasons:
                 tally.add_unions(today.year, state.seasons[today.year], tally.kind_of)
             if (today.month, today.day) == (8, 31):
