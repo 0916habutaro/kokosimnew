@@ -1412,6 +1412,24 @@ class _ExportWriters:
             self.close_year(state, past)
 
 
+def team_strengths(state):
+    """(年度, 種) → 学校 → チームの強さ（overall。画面と同じ ``SchoolAbilities``。9人に満たない学校は出さない）。"""
+    from .screen.school_views import SchoolAbilities
+
+    weights = _load_json(ROOT / "config" / "screen" / "screen_v1.json")["school_overall_weights"]
+    abilities = SchoolAbilities(ROOT / "config", weights, rosters=state.rosters)
+
+    def strengths(year: int, seed: int) -> dict[str, float]:
+        book = state.rosters
+        out = {}
+        for school in book.school_ids:
+            made = abilities.team(book.roster(year, school).players, year, seed)
+            if made is not None:
+                out[school] = abilities.values(made[0])["overall"]
+        return out
+    return strengths
+
+
 def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None, exports: dict | None = None) -> dict:
     """1つの種を進めて指標を集める。``exports`` があれば試合ごと・学校×年度の CSV も書く
     （``{"matches": 出力先, "schools": 出力先, "match_kinds": 大会の種類, "match_years": 年度}``）。"""
@@ -1439,6 +1457,7 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None, 
         session = service.new_game("balance", rng_seed=seed, save_initial=False)
         state = session.state
         last_snapshot = None
+        strengths = None
         while True:
             # 試合の記録は保存の前に状態に置かれる。集めたら手放す（このコマンドは保存しない）
             today = state.current_date
@@ -1493,8 +1512,18 @@ def run_seed(seed: int, until: date, *, min_team_games: int = 1, progress=None, 
                 tally.add_selection(today.year, season, tally.add_seeds(today.year, season, "autumn"))
                 tally.add_regionals(today.year, season, "autumn")
                 tally.add_prefectural_entry(today.year, season, entry_scope)
+            if today.day == 1:
+                # 選抜の21世紀枠（選考の記録。選考は前の年度のシーズンにある）
+                for season_year, season in state.seasons.items():
+                    for entry in getattr(season, "history", None) or ():
+                        if entry.get("action") == "select_invitational":
+                            power.add_century(season_year + 1, entry.get("selection_basis"))
             if (today.month, today.day) == (7, 1):
                 tally.add_rosters(today.year, roster_rows(state.rosters, today.year))
+                if getattr(state, "reputation", None) is not None:
+                    if strengths is None:
+                        strengths = team_strengths(state)
+                    power.add_strength(today.year, state.reputation.values, strengths(today.year, seed))
                 last_snapshot = today.year
                 writers.snapshot(state, today.year, today, power.ranks)
             if today >= until:

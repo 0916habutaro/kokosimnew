@@ -5,8 +5,13 @@ from datetime import date
 from types import SimpleNamespace
 import unittest
 
+from unittest import mock
+
+from historical_results.summer_local import finishes as local_finishes
+from phase2_engine import balance_power
 from phase2_engine.balance_power import (
-    PowerTally, UpsetCounter, dynasty_metrics, format_power, merge_seeds, spread_by_prefecture,
+    PowerTally, UpsetCounter, dynasty_metrics, format_power, merge_seeds, newcomer_metrics, origin_metrics,
+    prior_ranks, spread_by_prefecture,
 )
 from phase2_engine.balance_report import POWER_KEY, average, format_report
 
@@ -21,6 +26,9 @@ class FakeRepo:
 
     def ownership_type(self, school_id):
         return "private" if school_id.endswith("X") else "prefectural"
+
+    def group(self, school_id):
+        return "私立" if school_id.endswith("X") else "公立"
 
 
 class FakeReputation:
@@ -180,6 +188,80 @@ class PowerTallyTests(unittest.TestCase):
         text = format_report("平均", merged)
         self.assertIn("選抜 1大会", text)
         self.assertIn("実際の値なし", format_power(power))
+
+
+def local_game(top, bottom, winner, day):
+    """夏の地方大会の実際の試合の行（``summer_local_games.csv`` の列のうち使うもの）。"""
+    return {"tournament": "2026年架空大会", "game_date": day, "top_team": top, "bottom_team": bottom,
+            "top_school_id": top, "bottom_school_id": bottom, "winner": "top" if winner == top else "bottom",
+            "result_type": "decided", "year": "2026"}
+
+
+class TurnoverTests(unittest.TestCase):
+    def test_prior_ranks_ties_no_record_and_divisions(self):
+        finishes = {
+            2023: {"北": {"11A": 1, "11B": 2}, "南": {"11C": 4}},
+            2024: {"北": {"11B": 1}, "南": {"11A": 4}},
+            2025: {"北": {"11D": 8}, "南": {"11C": 1}},
+            2026: {"北": {"11A": 0, "11B": 0, "11E": 0}, "南": {"11C": 0, "11D": 0, "11F": 0}},
+        }
+        ranks = prior_ranks(finishes, 2026)
+        # 11A：0.3×5＋0.6×3＝3.3、11B：0.3×4＋0.6×5＝4.2、11C：0.3×3＋1.0×5＝5.9、11D：1.0×2＝2.0
+        self.assertEqual(ranks["北"], {"11B": 1, "11A": 2, "11E": None})
+        self.assertEqual(ranks["南"], {"11C": 1, "11D": 2, "11F": None})
+        # 同点は同じ順位で、次は飛ばす
+        tied = {**finishes, 2025: {"北": {"11E": 8, "11A": 8}, "南": {}}}
+        tied[2024] = {"北": {}, "南": {}}
+        tied[2023] = {"北": {}, "南": {}}
+        self.assertEqual(prior_ranks(tied, 2026)["北"], {"11A": 1, "11E": 1, "11B": None})
+        # 前の3年がそろわない年は出さない
+        self.assertIsNone(prior_ranks(finishes, 2025))
+
+    def test_origin_bands_by_public_and_private(self):
+        finishes = {2023: {"北": {"11X": 1}}, 2024: {"北": {"11X": 1}}, 2025: {"北": {"11X": 1, "11A": 2}},
+                    2026: {"北": {"11A": 1, "11X": 2, "11B": 4, "11C": 4, "11D": 0}}}
+        out = origin_metrics(finishes, [2025, 2026], FakeRepo().group)
+        self.assertEqual(out["years"], [2026])
+        self.assertEqual(out["champion"]["全体"]["slots"], 1)
+        self.assertEqual(out["champion"]["公立"]["2〜3位"], 1.0)
+        self.assertEqual(out["best4"]["全体"]["slots"], 4)
+        self.assertEqual(out["best4"]["私立"]["1位"], 1.0)
+        self.assertEqual(out["best4"]["公立"]["実績なし"], round(2 / 3, 4))
+
+    def test_newcomer_fifteen_year_window_and_century(self):
+        appearances = {"夏": {2010: {"11A"}, 2011: {"11B"}, 2026: {"11A", "11B", "11X"}},
+                       "春": {2020: {"11C"}, 2026: {"11C", "11D"}}}
+        century = {("11C", 2020), ("11D", 2026)}
+        out = newcomer_metrics(appearances, century, {"夏": [2026], "春": [2026]}, lambda s: not s.endswith("X"))
+        # 11A は16年前（新顔）、11B は15年前（新顔でない）。11X は私立
+        self.assertEqual((out["夏"]["all_entrants"], out["夏"]["public"], out["夏"]["newcomers"]), (3, 2, 1))
+        # 春：11D は21世紀枠なので数えない。11C は前の出場が21世紀枠だけなので新顔
+        self.assertEqual((out["春"]["all_entrants"], out["春"]["newcomers"]), (1, 1))
+        # 21世紀枠で出た学校の夏の出場は数える（翌年の夏は新顔でない）
+        appearances["夏"][2027] = {"11D"}
+        self.assertEqual(newcomer_metrics(appearances, century, {"夏": [2027]}, lambda s: True)["夏"]["newcomers"], 1)
+
+    def test_game_and_actual_go_through_the_same_functions(self):
+        # 同じ勝ち上がりを、実際の試合の行と、ゲームの試合（決勝まであと何回戦か）で与える
+        games = [local_game("11A", "11B", "11A", "2026-07-20"), local_game("11C", "11D", "11C", "2026-07-21"),
+                 local_game("11A", "11C", "11A", "2026-07-25")]
+        actual = {("11A",): 1, ("11C",): 2, ("11B",): 4, ("11D",): 4}
+        self.assertEqual({(team,): v for (_, team), v in local_finishes(games).items()}, actual)
+        tally = PowerTally(FakeRepo(), KINDS.get)
+        for game, left in zip(games, (1, 1, 0)):
+            winner = game["top_team"] if game["winner"] == "top" else game["bottom_team"]
+            loser = game["bottom_team"] if winner == game["top_team"] else game["top_team"]
+            tally.add_match("LOC", match(winner, loser, {winner: [("p1", 90)], loser: [("p2", 90)]}),
+                            date(2026, 7, 20), left)
+        self.assertEqual(dict(tally.local_finishes[2026]["LOC"]), {k[0]: v for k, v in actual.items()})
+        before = {2023: {"x": {"11B": 1}}, 2024: {"x": {}}, 2025: {"x": {}}}
+        with mock.patch.object(balance_power, "actual_finishes", return_value=before), \
+                mock.patch.object(balance_power, "actual_appearances", return_value=({"夏": {}, "春": {}}, set())):
+            out = tally.summary()["turnover"]
+        expected = origin_metrics({**before, 2026: {"LOC": dict(tally.local_finishes[2026]["LOC"])}}, [2026],
+                                  FakeRepo().group)
+        self.assertEqual(out["origin"], expected)
+        self.assertEqual(out["origin"]["champion"]["公立"]["実績なし"], 1.0)
 
 
 if __name__ == "__main__":

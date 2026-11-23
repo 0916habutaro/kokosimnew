@@ -44,6 +44,7 @@ CATEGORIES = (
     (("starters",), "投手"), (("pitch_counts",), "投手"), (("composure",), "投手"),
     (("pitcher_shuffle",), "投手"), (("starter_pitches",), "投手"), (("ace",), "投手"), (("pitch_limit",), "投手"),
     (("coaches",), "監督"),
+    (("turnover",), "勢力の入れ替わり"),
     (("per_game",), "試合"), (("steal_kinds",), "試合"), (("fielding",), "守備"),
     (("tactics",), "作戦"), (("situations",), "作戦"),
     (("substitutions",), "采配"), (("lineup",), "采配"), (("lineup_changes",), "采配"),
@@ -55,7 +56,7 @@ CATEGORIES = (
     (("spring_regionals",), "大会の方式"), (("autumn_regionals",), "大会の方式"),
 )
 
-CATEGORY_ORDER = ("§11", "大差", "番狂わせ", "強豪の続き方", "甲子園", "投手", "監督", "試合", "守備", "作戦",
+CATEGORY_ORDER = ("§11", "大差", "番狂わせ", "強豪の続き方", "勢力の入れ替わり", "甲子園", "投手", "監督", "試合", "守備", "作戦",
                   "采配", "打撃", "選手", "部員", "評判", "連合", "大会の方式", "その他")
 
 # 指標の名前（鍵ごとの言い換え。ないものは鍵のまま）
@@ -124,6 +125,12 @@ LABELS = {
     "five_single": "5年続けて単独の学校のうち連合", "five_single_total": "5年続けて単独の学校",
     "five_single_share": "5年続けて単独の学校のうち連合の割合", "previous": "前の年に連合",
     "continued": "続けて連合", "continued_share": "続けて連合の割合",
+    "turnover": "県内の勢力の入れ替わり", "origin": "直前の県内順位から", "best4": "県ベスト4",
+    "champion": "代表校", "slots": "枠", "newcomers": "新顔の公立校", "all_entrants": "出場校", "public": "公立校",
+    "newcomer_share": "新顔の公立校の割合", "newcomer_public_share": "公立校のうち新顔の割合",
+    "strength": "評判と強さ（ゲームのみ）", "by_reputation_band": "評判の県内順位の帯ごと",
+    "strength_rank_mean": "強さの県内順位の平均", "strength_rank_stdev": "強さの県内順位の散らばり",
+    "rank_change_mean": "前の年からの強さの順位の変化", "rank_correlation": "評判と強さの順位相関",
 }
 
 # 都道府県・地区ごとの内訳。Markdown の比較には出さない（CSV には出す）
