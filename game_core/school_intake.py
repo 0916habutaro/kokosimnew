@@ -77,6 +77,17 @@ def soft_cap(value: float, knee: float, cap: float, rate: float = 1.0) -> float:
     return knee + room * (1.0 - math.exp(-(value - knee) * rate / room))
 
 
+def interpolate(points, x: float) -> float:
+    """[[x, y], …]（x の小さい順）の点の間を直線でつなぐ。範囲の外は端の値。"""
+    points = [(float(a), float(b)) for a, b in points]
+    if x <= points[0][0]:
+        return points[0][1]
+    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+        if x <= x1:
+            return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+    return points[-1][1]
+
+
 def _clamp_float(value: float, low: float, high: float) -> float:
     return min(high, max(low, float(value)))
 
@@ -96,7 +107,6 @@ class SchoolIntakeModel:
         self.ownership = None
         self._master_ownership: dict[str, str] | None = None
         self._public_types: frozenset[str] | None = None
-        self._rank_labels: list | None = None
 
     @staticmethod
     def _config_fields(
@@ -192,7 +202,8 @@ class SchoolIntakeModel:
         """私立の入部品質の上乗せ（``quality_model.private_component``）。
 
         公立（21世紀枠の設定 ``senbatsu_selection_v1`` の ``public_ownership_types``）でも国立などでもない
-        私立（設置者 ``private``）だけ。評判のランク（S〜E）は学校成分 z から戻す（z は全校の順位の正規変換）。"""
+        私立（設置者 ``private``）だけ。全校の中の評判の順位（下からの割合。学校成分 z は順位の
+        正規変換なので z から戻す）で、``z_by_share`` の点の間を直線でつないだ値（なだらかに変わる）。"""
         rule = self.params["quality_model"].get("private_component")
         if not rule:
             return 0.0
@@ -202,9 +213,6 @@ class SchoolIntakeModel:
             selection = json.loads((self._root / "config" / "selection" / "senbatsu_selection_v1.json")
                                    .read_text(encoding="utf-8"))
             self._public_types = frozenset(selection["century"]["public_ownership_types"])
-            reputation = json.loads((self._root / "config" / "abilities" / "school_reputation_v1.json")
-                                    .read_text(encoding="utf-8"))
-            self._rank_labels = [(label, float(low)) for label, low in reputation["rank_labels"]]
         ownership = self._ownership_of(school_id)
         if ownership != "private" or ownership in self._public_types:
             return 0.0
@@ -212,8 +220,7 @@ class SchoolIntakeModel:
 
         program = self.params["quality_model"]["program_component"]
         share = NormalDist(float(program["mean"]), float(program["stddev"])).cdf(program_z)
-        rank = next(label for label, low in self._rank_labels if share >= low)
-        return float(rule["z_by_rank"].get(rank, 0.0))
+        return interpolate(rule["z_by_share"], share)
 
 @dataclass(frozen=True)
 class PlayerTalent:

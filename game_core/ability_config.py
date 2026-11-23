@@ -317,14 +317,20 @@ def validate_school_intake(
 
     private = quality.get("private_component")
     if private is not None:
-        by_rank = private.get("z_by_rank") if isinstance(private, dict) else None
-        if not isinstance(by_rank, dict):
-            raise ValueError("school intake: private_component.z_by_rank required")
-        for rank, value in by_rank.items():
-            if rank not in "SABCDE" or len(rank) != 1:
-                raise ValueError(f"school intake: private_component rank {rank!r} must be S〜E")
-            if _require_number(value, f"school_intake.private_component.z_by_rank.{rank}") < 0:
+        points = private.get("z_by_share") if isinstance(private, dict) else None
+        if not isinstance(points, list) or len(points) < 2:
+            raise ValueError("school intake: private_component.z_by_share needs 2 or more [share, z] points")
+        last = -1.0
+        for index, point in enumerate(points):
+            if not isinstance(point, list) or len(point) != 2:
+                raise ValueError("school intake: private_component.z_by_share points must be [share, z]")
+            share = _require_number(point[0], f"school_intake.private_component.z_by_share[{index}][0]")
+            value = _require_number(point[1], f"school_intake.private_component.z_by_share[{index}][1]")
+            if not 0.0 <= share <= 1.0 or share <= last:
+                raise ValueError("school intake: private_component shares must rise within 0〜1")
+            if value < 0:
                 raise ValueError("school intake: private_component values must be >= 0")
+            last = share
 
     clip = quality.get("combined_clip")
     if not isinstance(clip, dict):

@@ -393,46 +393,65 @@ class Stage13B4SchoolIntakeTests(unittest.TestCase):
 
 
 class PrivateComponentTests(unittest.TestCase):
-    """私立の上乗せ（quality_model.private_component）が評判のランクどおりに入り、公立には入らない。"""
+    """私立の上乗せ（quality_model.private_component）が評判の順位どおりになだらかに入り、公立には入らない。"""
 
     def setUp(self):
         from statistics import NormalDist
 
+        self.normal = NormalDist()
         self.model = SchoolIntakeModel(CONFIG_DIR)
+        self.real_points = self.model.params["quality_model"]["private_component"]["z_by_share"]
         self.model.params = json.loads(json.dumps(self.model.params))
         self.model.params["quality_model"]["private_component"] = {
-            "z_by_rank": {"S": 0.0, "A": 0.05, "B": 0.4, "C": 0.3, "D": 0.2, "E": 0.1}}
+            "z_by_share": [[0.0, 0.1], [0.5, 0.3], [0.9, 0.3], [0.98, 0.0], [1.0, 0.0]]}
         owners = {"PRIV": "private", "PREF": "prefectural", "CITY": "municipal", "NATL": "national"}
         self.model.ownership = lambda school_id: owners[school_id[:4]]
-        # 全校の中の順位（下からの割合）→ 学校成分 z
-        self.z = {share: NormalDist().inv_cdf(share) for share in (0.999, 0.99, 0.95, 0.9, 0.6, 0.2)}
 
-    def test_private_bonus_follows_the_reputation_rank(self):
-        expected = {0.999: 0.0, 0.99: 0.05, 0.95: 0.4, 0.9: 0.3, 0.6: 0.2, 0.2: 0.1}
+    def z(self, share):
+        """全校の中の順位（下からの割合）→ 学校成分 z。"""
+        return self.normal.inv_cdf(share)
+
+    def test_private_bonus_follows_the_reputation_order(self):
+        expected = {0.25: 0.2, 0.7: 0.3, 0.94: 0.15, 0.99: 0.0, 0.999: 0.0}
         for share, bonus in expected.items():
-            self.assertEqual(bonus, self.model.private_z("PRIV-X1", self.z[share]), share)
+            self.assertAlmostEqual(bonus, self.model.private_z("PRIV-X1", self.z(share)), places=6, msg=share)
 
     def test_public_and_national_schools_get_nothing(self):
         for school in ("PREF-X1", "CITY-X1", "NATL-X1"):
-            for z in self.z.values():
-                self.assertEqual(0.0, self.model.private_z(school, z), school)
+            for share in (0.25, 0.7, 0.94, 0.99):
+                self.assertEqual(0.0, self.model.private_z(school, self.z(share)), school)
+
+    def test_configured_bonus_has_no_steps_and_keeps_the_order(self):
+        # 設定の値：ランクの境目（A・Bの境目 0.98 など）で急に変わらず、学校成分と足した入部品質 z は
+        # 順位が上がるほど下がらない
+        self.model.params["quality_model"]["private_component"]["z_by_share"] = self.real_points
+        weight = float(self.model.params["quality_model"]["program_component"]["weight"])
+        previous_bonus = previous_total = None
+        for step in range(1, 1000):
+            z = self.z(step / 1000)
+            bonus = self.model.private_z("PRIV-X1", z)
+            total = z * weight + bonus
+            if previous_bonus is not None:
+                self.assertLess(abs(bonus - previous_bonus), 0.02, step)
+                self.assertGreaterEqual(total, previous_total, step)
+            previous_bonus, previous_total = bonus, total
+        self.assertEqual(0.0, self.model.private_z("PRIV-X1", self.z(0.985)))   # A は 0
 
     def test_bonus_is_added_to_the_intake_quality(self):
         class Fixed:
             def program_z(self, school_id, entry_year):
-                return 0.5
+                return 0.0      # 全校の真ん中（0.5）
 
         self.model.reputation = Fixed()
         private = self.model.profile(school_id="PRIV-X2", entry_year=2027, base_seed=7)
         public = self.model.profile(school_id="PREF-X2", entry_year=2027, base_seed=7)
-        self.assertEqual(0.2, private.private_quality_z)
+        self.assertAlmostEqual(0.3, private.private_quality_z)
         self.assertEqual(0.0, public.private_quality_z)
         # 同じ学校成分・年度の当たり外れなら、差は上乗せの分だけ
         weight = float(self.model.params["quality_model"]["cohort_component"]["weight"])
         self.assertAlmostEqual(
             private.intake_quality_z - private.cohort_quality_z * weight,
-            public.intake_quality_z - public.cohort_quality_z * weight + 0.2, places=5)
-
+            public.intake_quality_z - public.cohort_quality_z * weight + 0.3, places=5)
 
 if __name__ == "__main__":
     unittest.main()
