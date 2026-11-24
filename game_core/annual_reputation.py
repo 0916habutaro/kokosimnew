@@ -20,6 +20,17 @@ def _shares(scores):
     return {sid: (i + 0.5) / len(order) for i, sid in enumerate(order)}
 
 
+KOSHIEN_TYPES = ('national_championship', 'national_invitational')
+
+
+def _century_schools(season, competition_id: str) -> set[str]:
+    """選考の記録（select_invitational の selection_basis）で21世紀枠に選ばれた学校。"""
+    for entry in getattr(season, 'history', None) or ():
+        if entry.get('action') == 'select_invitational' and entry.get('competition_id') == competition_id:
+            return {sid for sid, basis in (entry.get('selection_basis') or {}).items() if basis == 'century'}
+    return set()
+
+
 class AnnualReputation:
     def __init__(self, root: str | Path, seed: int, first_year: int = 2026):
         root = Path(root).resolve()
@@ -51,6 +62,9 @@ class AnnualReputation:
         self.pending: dict[tuple[int, str], tuple[str, dict[str, float]]] = {}
         # 更新した年 → その1年の学校ごとの点（点のある学校だけ。直近の年数分だけ残す）
         self.yearly_points: dict[int, dict[str, float]] = {}
+        # 学校 → ゲームの中の甲子園（夏・選抜）の出場の年度（大会を持つシーズンの年度。選抜は前の年度）。
+        # 21世紀枠の選抜は数えない。入部品質の公立の上乗せ（school_intake の public_component）に使う
+        self.koshien: dict[str, list[int]] = {}
 
     def program_z(self, school_id: str, entry_year: int) -> float | None:
         year = max(self.first_year, entry_year)
@@ -114,6 +128,12 @@ class AnnualReputation:
                 if not completed:
                     continue
                 self.pending[key] = (max(completed), {sid: p * weight for sid, p in points.items()})
+                if competition['competition_type'] in KOSHIEN_TYPES:
+                    century = _century_schools(season, cid)
+                    koshien = self.__dict__.setdefault('koshien', {})
+                    for sid in run.entrant_school_ids:
+                        if sid not in century:
+                            koshien.setdefault(sid, []).append(year)
 
     def update(self, day: date) -> bool:
         if (day.month, day.day) != (4, 1) or day.year <= self.updated_year:

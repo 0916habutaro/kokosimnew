@@ -258,6 +258,32 @@ def newcomer_metrics(appearances: dict[str, dict[int, set]], century: set, years
     return out
 
 
+PERIOD_YEARS = 5
+
+
+def period_metrics(appearances: dict[str, dict[int, set]], century: set, years: dict[str, list[int]],
+                   is_public, prefecture_of, start: int) -> dict:
+    """5年ごと（``start`` 年から）の、夏・選抜（21世紀枠を除く）の出場校に占める公立の割合と、
+    初めて出る公立（直前15年に21世紀枠以外の出場がない公立。``newcomer_metrics`` と同じ）の割合。
+    夏は、1校がその5年の夏に4回以上出た県の数（出場枠が2つの北海道・東京を除く）も数える。"""
+    out = {}
+    last = max((y for chosen in years.values() for y in chosen), default=start - 1)
+    for first in range(start, last + 1, PERIOD_YEARS):
+        block = range(first, first + PERIOD_YEARS)
+        chosen = {kind: [y for y in ys if y in block] for kind, ys in years.items()}
+        rows = newcomer_metrics(appearances, century, chosen, is_public)
+        cell = {kind: {"tournaments": row["tournaments"], "all_entrants": row["all_entrants"],
+                       "public_share": _share(row["public"], row["all_entrants"]),
+                       "newcomer_share": row["newcomer_share"]} for kind, row in rows.items()}
+        summers = Counter(school for y in chosen.get(SUMMER_KIND, ())
+                          for school in appearances.get(SUMMER_KIND, {}).get(y, ()))
+        cell["dominant_4of5"] = len({prefecture_of(school) for school, times in summers.items()
+                                     if times >= 4 and prefecture_of(school) not in TWO_SLOT_PREFECTURES})
+        if rows:
+            out[f"{first}〜{first + PERIOD_YEARS - 1}"] = cell
+    return out
+
+
 def _ranks_within(values: dict[str, float], prefecture_of) -> dict[str, int]:
     """学校 → 県の中の順位（値の大きい順。同じ値は学校IDの順）。"""
     by_prefecture: dict[str, list[str]] = defaultdict(list)
@@ -415,6 +441,11 @@ def actual_metrics(repo, tournaments: int = 10, rank_of=None) -> dict:
         "newcomers": newcomer_metrics(appearances, century,
                                       {SUMMER_KIND: newcomer_years, SPRING_KIND: newcomer_years},
                                       lambda school: group_of(school) == "公立"),
+        "periods": period_metrics(appearances, century,
+                                  {SUMMER_KIND: newcomer_years, SPRING_KIND: newcomer_years},
+                                  lambda school: group_of(school) == "公立",
+                                  lambda school: repo.team(school).prefecture_code,
+                                  newcomer_years[0] if newcomer_years else 0),
     }
     if rank_of is not None:
         upsets = UpsetCounter()
@@ -617,6 +648,11 @@ class PowerTally:
                                           lambda school: group_of(school) == "公立"),
             "strength": strength_metrics(self.july_reputation, self.july_strength,
                                          lambda school: self.repo.team(school).prefecture_code),
+            "periods": period_metrics(appearances, century | self.century,
+                                      {kind: sorted(by_year) for kind, by_year in game.items()},
+                                      lambda school: group_of(school) == "公立",
+                                      lambda school: self.repo.team(school).prefecture_code,
+                                      min(game[SUMMER_KIND], default=0)),
         }
 
     def _champion_summary(self, name: str) -> dict:
@@ -848,6 +884,12 @@ def format_turnover(game: dict, actual: dict) -> list[str]:
                 f"能力 {c.get('freshman_ability_mean', 0):.1f}・強さ "
                 + (f"{c['strength_mean']:.1f}" if "strength_mean" in c else "—")
                 + f"（{c['schools']:.0f}校年）" for group, c in gap[band].items()))
+    for label, periods in (("ゲーム", game.get("periods") or {}), ("実際", actual.get("periods") or {})):
+        for span, cell in periods.items():
+            parts = [f"{kind} 公立 {cell[kind]['public_share']:.1%}・初めて出る公立 {cell[kind]['newcomer_share']:.1%}"
+                     f"（{cell[kind]['all_entrants']:.0f}校）" for kind in (SUMMER_KIND, SPRING_KIND) if kind in cell]
+            lines.append(f"  5年ごと {label} {span}：" + "　".join(parts)
+                         + f"　1校が4回以上の県 {cell.get('dominant_4of5', 0):.4g}")
     strength = game.get("strength") or {}
     if strength:
         lines.append(f"  評判の県内順位と強さ（overall）の県内順位（7月1日、ゲームのみ）：順位相関 {strength['rank_correlation']:.3f}")

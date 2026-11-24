@@ -332,6 +332,26 @@ def validate_school_intake(
                 raise ValueError("school intake: private_component values must be >= 0")
             last = share
 
+    public = quality.get("public_component")
+    if public is not None:
+        if not isinstance(public, dict) or _require_number(
+                public.get("recent_years"), "school_intake.public_component.recent_years") < 1:
+            raise ValueError("school intake: public_component.recent_years must be >= 1")
+        if not isinstance(public.get("game_entrants_only", False), bool):
+            raise ValueError("school intake: public_component.game_entrants_only must be true or false")
+        points = public.get("z_by_appearances")
+        if not isinstance(points, list) or len(points) < 2:
+            raise ValueError("school intake: public_component.z_by_appearances needs 2 or more [count, z] points")
+        last = -1.0
+        for index, point in enumerate(points):
+            if not isinstance(point, list) or len(point) != 2:
+                raise ValueError("school intake: public_component.z_by_appearances points must be [count, z]")
+            count = _require_number(point[0], f"school_intake.public_component.z_by_appearances[{index}][0]")
+            value = _require_number(point[1], f"school_intake.public_component.z_by_appearances[{index}][1]")
+            if count <= last or value < 0:
+                raise ValueError("school intake: public_component counts must rise and values must be >= 0")
+            last = count
+
     clip = quality.get("combined_clip")
     if not isinstance(clip, dict):
         raise ValueError("school intake: combined_clip required")
