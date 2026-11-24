@@ -262,9 +262,14 @@ class SchoolIntakeModel:
         """甲子園の実績のある公立の入部品質の上乗せ（``quality_model.public_component``）。
 
         公立（``senbatsu_selection_v1`` の ``public_ownership_types``）だけ。直近の出場回数
-        （``koshien_count``）で ``z_by_appearances`` の点の間を直線でつないだ値。出場がなければ0。"""
+        （``koshien_count``）で ``z_by_appearances`` の点の間を直線でつないだ値。出場がなければ0。
+        ``game_entrants_only`` なら、ゲームの最初の年度より前に入学した部員には付けない。"""
         rule = self.params["quality_model"].get("public_component")
         if not rule or self._ownership_of(school_id) not in self._load_public_types():
+            return 0.0
+        # game_entrants_only：ゲームを始めた年度より前に入学した部員（開始時の2・3年生）には付けない
+        first = getattr(self.reputation, "first_year", None) or 2026
+        if rule.get("game_entrants_only") and entry_year < first:
             return 0.0
         count = self.koshien_count(school_id, entry_year, int(rule["recent_years"]))
         return interpolate(rule["z_by_appearances"], count) if count else 0.0

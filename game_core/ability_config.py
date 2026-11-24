@@ -337,6 +337,8 @@ def validate_school_intake(
         if not isinstance(public, dict) or _require_number(
                 public.get("recent_years"), "school_intake.public_component.recent_years") < 1:
             raise ValueError("school intake: public_component.recent_years must be >= 1")
+        if not isinstance(public.get("game_entrants_only", False), bool):
+            raise ValueError("school intake: public_component.game_entrants_only must be true or false")
         points = public.get("z_by_appearances")
         if not isinstance(points, list) or len(points) < 2:
             raise ValueError("school intake: public_component.z_by_appearances needs 2 or more [count, z] points")
