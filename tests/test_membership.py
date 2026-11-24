@@ -171,6 +171,20 @@ class SmallRosterLineupTests(unittest.TestCase):
             team.pitching_staff.entries[0].player_id,
         )
 
+    def test_no_pitcher_staff_follows_form_bonus(self):
+        """投手がいないとき、調子の加点で先発の野手が変わっても、投げる選手は先発と投手陣で同じ。"""
+        nonpitchers = [p for p in self.roster.players if p.primary_position != "P"]
+        snapshots = self.snapshots(nonpitchers[:16])
+        plain = self.teams.select_starting_lineup(snapshots)
+        # 先発の野手を下げ、控えを上げる（余って投げる選手が入れ替わる）
+        starters = {e.player_id for e in plain.entries}
+        bonus = {s.player_id: (-5.0 if s.player_id in starters else 5.0) for s in snapshots}
+        team = self.teams.generate(snapshots, form_bonus=bonus)
+        self.assertEqual(
+            team.starting_lineup.player_for_position("P"),
+            team.pitching_staff.ace_player_id,
+        )
+
 
     def test_team_without_pitchers_can_play_a_game(self):
         from game_core.match_contract import (
