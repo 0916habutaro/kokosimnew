@@ -454,5 +454,56 @@ class PrivateComponentTests(unittest.TestCase):
             private.intake_quality_z - private.cohort_quality_z * weight,
             public.intake_quality_z - public.cohort_quality_z * weight + 0.3, places=5)
 
+class PublicComponentTests(unittest.TestCase):
+    """甲子園の実績のある公立の上乗せ（quality_model.public_component）の対象と、21世紀枠を数えないこと。"""
+
+    def setUp(self):
+        self.model = SchoolIntakeModel(CONFIG_DIR)
+        self.model.params = json.loads(json.dumps(self.model.params))
+        self.model.params["quality_model"]["public_component"] = {
+            "recent_years": 15, "z_by_appearances": [[1, 0.2], [3, 0.4], [6, 0.5]]}
+        owners = {"PRIV": "private", "PREF": "prefectural", "CITY": "municipal"}
+        self.model.ownership = lambda school_id: owners[school_id[:4]]
+
+        class Reputation:
+            first_year = 1900       # 実際の記録（historical_data）を使わない
+            koshien = {"PREF-X1": [2020, 2021, 2030], "CITY-X1": [2010, 2025, 2031],
+                       "PRIV-X1": [2028, 2029, 2030], "PREF-X2": [2014]}
+
+        self.model.reputation = Reputation()
+
+    def test_only_public_schools_with_recent_koshien_get_the_bonus(self):
+        self.assertAlmostEqual(0.4, self.model.public_z("PREF-X1", 2031))      # 3回
+        self.assertAlmostEqual(0.2, self.model.public_z("CITY-X1", 2031))      # 2010年度は15年より前、2031年度は入学より後
+        self.assertEqual(0.0, self.model.public_z("PREF-X2", 2031))            # 16年前だけ
+        self.assertEqual(0.0, self.model.public_z("PREF-X3", 2031))            # 出場なし
+        self.assertEqual(0.0, self.model.public_z("PRIV-X1", 2031))            # 私立
+        self.assertAlmostEqual(0.2, self.model.public_z("PREF-X2", 2029))      # 2014年度が15年の中
+
+    def test_century_selection_is_not_counted(self):
+        from game_core.annual_reputation import _century_schools
+        from game_core.school_intake import historical_koshien
+
+        with tempfile.TemporaryDirectory() as tmp:
+            history = Path(tmp) / "historical_data"
+            history.mkdir()
+            (history / "koshien_entrants.csv").write_text(
+                "kind,year,edition,prefecture_code,team_name,school_id,status,source_id\n"
+                "spring,2020,1,99,架空西,PREF-X5,played,X\nspring,2021,2,99,架空西,PREF-X5,played,X\n"
+                "summer,2021,3,99,架空西,PREF-X5,played,X\nsummer,2022,4,99,架空西,PREF-X5,withdrawn,X\n",
+                encoding="utf-8")
+            (history / "senbatsu_century_entrants.csv").write_text(
+                "year,prefecture_code,team_name,school_id,source_id\n2021,99,架空西,PREF-X5,X\n", encoding="utf-8")
+            # 選抜は前の年度。2021年の選抜は21世紀枠、2022年の夏は辞退で数えない
+            self.assertEqual((2019, 2021), historical_koshien(tmp)["PREF-X5"])
+
+        class Season:
+            history = [{"action": "select_invitational", "competition_id": "SEN",
+                        "selection_basis": {"PREF-X6": "century", "PRIV-X6": "jingu"}}]
+
+        self.assertEqual({"PREF-X6"}, _century_schools(Season(), "SEN"))
+        self.assertEqual(set(), _century_schools(Season(), "OTHER"))
+
+
 if __name__ == "__main__":
     unittest.main()

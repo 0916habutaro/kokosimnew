@@ -37,8 +37,10 @@ class SchoolIntakeProfile:
     coach_id: str | None = None
     coach_reputation: int | None = None
     coach_quality_z: float = 0.0
-    # 私立の上乗せ（quality_model.private_component。評判のランクごと）
+    # 私立の上乗せ（quality_model.private_component。評判の順位でなだらかに）
     private_quality_z: float = 0.0
+    # 甲子園の実績のある公立の上乗せ（quality_model.public_component。直近の出場回数で）
+    public_quality_z: float = 0.0
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -86,6 +88,41 @@ def interpolate(points, x: float) -> float:
         if x <= x1:
             return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
     return points[-1][1]
+
+
+_HISTORICAL_KOSHIEN: dict[str, dict[str, tuple[int, ...]]] = {}
+
+
+def historical_koshien(root) -> dict[str, tuple[int, ...]]:
+    """学校 → ゲームより前の甲子園（夏・選抜）の出場の年度（夏はその年、選抜は前の年度）。
+    選出後の辞退と21世紀枠の選抜は数えない（``koshien_entrants.csv``・``senbatsu_century_entrants.csv``）。"""
+    import csv
+
+    key = str(root)
+    if key not in _HISTORICAL_KOSHIEN:
+        history = Path(root) / "historical_data"
+
+        def rows(name):
+            path = history / name
+            if not path.is_file():
+                return []
+            with path.open(encoding="utf-8-sig", newline="") as handle:
+                return list(csv.DictReader(handle))
+
+        century = {(row["school_id"], int(row["year"])) for row in rows("senbatsu_century_entrants.csv")
+                   if row["school_id"]}
+        out: dict[str, list[int]] = {}
+        for row in rows("koshien_entrants.csv"):
+            school, year = row["school_id"], int(row["year"])
+            if not school or row["status"] == "withdrawn" or row["kind"] not in ("summer", "spring"):
+                continue
+            if row["kind"] == "spring":
+                if (school, year) in century:
+                    continue
+                year -= 1
+            out.setdefault(school, []).append(year)
+        _HISTORICAL_KOSHIEN[key] = {school: tuple(sorted(years)) for school, years in out.items()}
+    return _HISTORICAL_KOSHIEN[key]
 
 
 def _clamp_float(value: float, low: float, high: float) -> float:
@@ -161,7 +198,8 @@ class SchoolIntakeModel:
         )
         combined += coach_z
         private_z = self.private_z(school_id, program_z)
-        combined += private_z
+        public_z = self.public_z(school_id, entry_year)
+        combined += private_z + public_z
         clip = quality["combined_clip"]
         combined = _clamp_float(
             combined,
@@ -184,6 +222,7 @@ class SchoolIntakeModel:
             coach_reputation=coach_reputation,
             coach_quality_z=coach_z,
             private_quality_z=private_z,
+            public_quality_z=public_z,
         )
 
 
@@ -198,6 +237,38 @@ class SchoolIntakeModel:
             self._master_ownership = {row["school_id"]: row["ownership_type"] for row in rows}
         return self._master_ownership.get(school_id, "")
 
+    def _load_public_types(self) -> frozenset[str]:
+        if self._public_types is None:
+            import json
+
+            selection = json.loads((self._root / "config" / "selection" / "senbatsu_selection_v1.json")
+                                   .read_text(encoding="utf-8"))
+            self._public_types = frozenset(selection["century"]["public_ownership_types"])
+        return self._public_types
+
+    def koshien_count(self, school_id: str, entry_year: int, years: int) -> int:
+        """入学年度の前の ``years`` 年度（年度は大会を持つシーズンの年度。選抜は前の年度）の、
+        甲子園（夏・選抜）の出場回数。21世紀枠の選抜は数えない。
+
+        ゲームの最初の年度より前は実際の記録（``historical_data``）、そのあとはゲームの記録
+        （``AnnualReputation.koshien``）で数える。"""
+        first = getattr(self.reputation, "first_year", None) or 2026
+        game = getattr(self.reputation, "koshien", None) or {}
+        low = entry_year - years
+        return (sum(low <= year < min(entry_year, first) for year in historical_koshien(self._root).get(school_id, ()))
+                + sum(low <= year < entry_year for year in game.get(school_id, ())))
+
+    def public_z(self, school_id: str, entry_year: int) -> float:
+        """甲子園の実績のある公立の入部品質の上乗せ（``quality_model.public_component``）。
+
+        公立（``senbatsu_selection_v1`` の ``public_ownership_types``）だけ。直近の出場回数
+        （``koshien_count``）で ``z_by_appearances`` の点の間を直線でつないだ値。出場がなければ0。"""
+        rule = self.params["quality_model"].get("public_component")
+        if not rule or self._ownership_of(school_id) not in self._load_public_types():
+            return 0.0
+        count = self.koshien_count(school_id, entry_year, int(rule["recent_years"]))
+        return interpolate(rule["z_by_appearances"], count) if count else 0.0
+
     def private_z(self, school_id: str, program_z: float) -> float:
         """私立の入部品質の上乗せ（``quality_model.private_component``）。
 
@@ -207,14 +278,8 @@ class SchoolIntakeModel:
         rule = self.params["quality_model"].get("private_component")
         if not rule:
             return 0.0
-        if self._public_types is None:
-            import json
-
-            selection = json.loads((self._root / "config" / "selection" / "senbatsu_selection_v1.json")
-                                   .read_text(encoding="utf-8"))
-            self._public_types = frozenset(selection["century"]["public_ownership_types"])
         ownership = self._ownership_of(school_id)
-        if ownership != "private" or ownership in self._public_types:
+        if ownership != "private" or ownership in self._load_public_types():
             return 0.0
         from statistics import NormalDist
 

@@ -133,6 +133,7 @@ LABELS = {
     "rank_change_mean": "前の年からの強さの順位の変化", "rank_correlation": "評判と強さの順位相関",
     "entry_rates": "直前の県内順位の帯ごとの1校あたりの確率", "best4_rate": "県ベスト4に入る確率",
     "champion_rate": "代表校になる確率", "ownership_gap": "評判の県内順位の帯ごとの公立・私立（ゲームのみ）",
+    "periods": "5年ごと", "public_share": "公立の割合", "dominant_4of5": "1校が5年に4回以上出た県",
     "intake_z_mean": "入部品質zの平均", "prospects_mean": "有望な新入生の平均人数",
     "freshman_ability_mean": "新入生の主な能力の平均", "strength_mean": "強さ（overall）の平均",
 }
