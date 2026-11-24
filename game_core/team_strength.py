@@ -692,7 +692,10 @@ class TeamStrengthGenerator:
         snapshots: Iterable[PlayerAbilitySnapshot],
         *,
         selection_grade_bias: float = 0.0,
+        form_bonus: Mapping[str, float] | None = None,
     ) -> PitchingStaff:
+        """``form_bonus`` は先発の選考と同じもの。投手がいないとき、先発で投げる野手を
+        先発の選考と同じ条件で決める（調子の加点で野手の先発が変わると、余って投げる選手も変わる）。"""
         players = list(snapshots)
         school_id, reference_year, *_ = self._validate_source(players)
         pitchers = [
@@ -701,7 +704,7 @@ class TeamStrengthGenerator:
         if not pitchers:
             # 投手がいなければ、先発で投げる野手だけで投手陣をつくる。
             lineup = self.select_starting_lineup(
-                players, selection_grade_bias=selection_grade_bias)
+                players, selection_grade_bias=selection_grade_bias, form_bonus=form_bonus)
             by_id = {player.player_id: player for player in players}
             pitchers = [by_id[lineup.player_for_position("P")]]
 
@@ -764,7 +767,7 @@ class TeamStrengthGenerator:
             dh_mode=dh_mode, starting_pitcher_id=starting_pitcher_id, designated_hitter_id=designated_hitter_id,
             order_style=order_style, form_bonus=form_bonus)
         staff = self.select_pitching_staff(
-            players, selection_grade_bias=selection_grade_bias)
+            players, selection_grade_bias=selection_grade_bias, form_bonus=form_bonus)
         by_id = {player.player_id: player for player in players}
         starters = [by_id[entry.player_id] for entry in lineup.entries]
 
