@@ -480,6 +480,13 @@ class PublicComponentTests(unittest.TestCase):
         self.assertEqual(0.0, self.model.public_z("PRIV-X1", 2031))            # 私立
         self.assertAlmostEqual(0.2, self.model.public_z("PREF-X2", 2029))      # 2014年度が15年の中
 
+    def test_game_entrants_only_skips_players_enrolled_before_the_game(self):
+        rule = self.model.params["quality_model"]["public_component"]
+        rule["game_entrants_only"] = True
+        self.model.reputation.first_year = 2021
+        self.assertEqual(0.0, self.model.public_z("PREF-X1", 2020))           # 開始時の在籍
+        self.assertAlmostEqual(0.4, self.model.public_z("PREF-X1", 2031))
+
     def test_century_selection_is_not_counted(self):
         from game_core.annual_reputation import _century_schools
         from game_core.school_intake import historical_koshien
