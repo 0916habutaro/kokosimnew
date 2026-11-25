@@ -275,3 +275,14 @@ class TurnoverTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PrefectureCorrelationTests(unittest.TestCase):
+    def test_rank_correlation_with_history_by_five_years(self):
+        actual = {"01": 0.6, "02": 0.5, "03": 0.4, "04": 0.3}
+        same = {"01": [6, 4], "02": [5, 5], "03": [4, 6], "04": [3, 7]}
+        reverse = {"01": [3, 7], "02": [4, 6], "03": [5, 5], "04": [6, 4]}
+        out = balance_power.prefecture_correlation({2026: same, 2031: reverse}, actual)
+        self.assertEqual(1.0, out["2026〜2030"]["history_correlation"])
+        self.assertEqual(-1.0, out["2031〜2035"]["history_correlation"])
+        self.assertEqual(20, out["2026〜2030"]["games"])

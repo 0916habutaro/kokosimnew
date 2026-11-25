@@ -48,6 +48,21 @@ def _rows(path: Path) -> list[dict]:
         return list(csv.DictReader(handle))
 
 
+def koshien_game_records(history: Path, first: int, last: int) -> dict[str, tuple[int, int]]:
+    """都道府県 → (勝ち, 試合)。``koshien_games.csv`` の ``first``〜``last`` 年の夏・選抜の試合のうち、
+    勝ち負けのついた県どうしの試合だけ（同じ県どうし・引き分け・不戦は数えない）。都道府県は当時の代表の県。"""
+    wins: dict[str, int] = defaultdict(int)
+    games: dict[str, int] = defaultdict(int)
+    for row in _rows(Path(history) / "koshien_games.csv"):
+        winner, loser = row["team1_prefecture_code"], row["team2_prefecture_code"]
+        if row["result"] != "win" or winner == loser or not first <= int(row["year"]) <= last:
+            continue
+        wins[winner] += 1
+        games[winner] += 1
+        games[loser] += 1
+    return {code: (wins[code], games[code]) for code in sorted(games)}
+
+
 class SchoolReputation:
     """学校ID → 評判の点・入部品質の z・ランク。"""
 
@@ -160,11 +175,11 @@ class SchoolReputation:
         prefecture_of = {}
         for row in _rows(history.parent / "data" / "master" / "schools.csv"):
             prefecture_of[row["school_id"]] = row["prefecture_code"]
-        win_rate = self._prefecture_win_rates(history, prefecture_of)
+        win_rate = self._prefecture_win_rates(history)
         strength = self.config["prefecture_strength"]
         elo = config["elo"]
         initial = float(elo["initial"])
-        # 県どうしの差：甲子園の通算勝率が5割より高い県の学校ほど、レーティングを上げる
+        # 県どうしの差：甲子園の勝率（直近の年。5割に寄せた値）が5割より高い県の学校ほど、レーティングを上げる
         self.prefecture_offsets = {
             code: float(strength["elo_offset_per_win_rate"]) * (rate - 0.5)
             for code, rate in win_rate.items()
@@ -257,17 +272,15 @@ class SchoolReputation:
             for code, values in by_prefecture.items()
         }
 
-    @staticmethod
-    def _prefecture_win_rates(history: Path, prefecture_of: dict[str, str]) -> dict[str, float]:
-        """都道府県 → 甲子園（春夏）の通算勝率（koshien_records.csv の勝ち・負け）。"""
-        wins: dict[str, int] = defaultdict(int)
-        games: dict[str, int] = defaultdict(int)
-        for row in _rows(history / "koshien_records.csv"):
-            code = prefecture_of.get(row["school_id"])
-            if code:
-                wins[code] += int(row["wins"] or 0)
-                games[code] += int(row["wins"] or 0) + int(row["losses"] or 0)
-        return {code: wins[code] / games[code] for code in games if games[code]}
+    def _prefecture_win_rates(self, history: Path) -> dict[str, float]:
+        """都道府県 → 甲子園（春夏）の勝率（``koshien_games.csv`` の県どうしの試合、``years`` の年）。
+
+        試合の少ない県のぶれを抑えるため5割に寄せる：(勝ち + k×0.5) / (試合 + k)（k は ``shrink_games``）。"""
+        strength = self.config["prefecture_strength"]
+        first, last = (int(y) for y in strength["years"])
+        k = float(strength["shrink_games"])
+        records = koshien_game_records(history, first, last)
+        return {code: (wins + k * 0.5) / (games + k) for code, (wins, games) in records.items()}
 
     @staticmethod
     def _elo(
