@@ -385,22 +385,32 @@ def true_spread(records: dict[str, list[int]]) -> dict:
 
 def district_top_metrics(strength: dict[int, dict[str, float]],
                          local_finishes: dict[int, dict[str, dict[str, int]]]) -> dict:
-    """5年ごとの、地区（夏の地方大会）で1番強い学校の強さ（7月1日の overall）の平均と散らばり（標準偏差）。
-    年ごとに出して5年で平均する。"""
-    by_year = {}
+    """5年ごとの、地区（夏の地方大会）で1番強い学校の強さ（7月1日の overall）。
+
+    ``top_stdev`` は地区ごとに5年の平均を出してからの地区どうしの散らばり（標準偏差。年ごとの当たり外れを除いた
+    地区の差）、``yearly_stdev`` は年ごとの散らばりの5年の平均。地区は大会に出た学校のうち学校IDの最も小さい学校で
+    年をまたいで結ぶ。"""
+    tops: dict[int, dict[str, float]] = {}
     for year, values in strength.items():
-        tops = [max(values[s] for s in schools if s in values)
-                for schools in local_finishes.get(year, {}).values() if any(s in values for s in schools)]
-        if len(tops) >= 2:
-            by_year[year] = (statistics.mean(tops), statistics.pstdev(tops))
+        for schools in local_finishes.get(year, {}).values():
+            present = [s for s in schools if s in values]
+            if present:
+                tops.setdefault(year, {})[min(schools)] = max(values[s] for s in present)
     out = {}
-    if by_year:
-        for first in range(min(by_year), max(by_year) + 1, PERIOD_YEARS):
-            rows = [by_year[y] for y in range(first, first + PERIOD_YEARS) if y in by_year]
-            if rows:
-                out[f"{first}〜{first + PERIOD_YEARS - 1}"] = {
-                    "top_mean": round(statistics.mean(r[0] for r in rows), 2),
-                    "top_stdev": round(statistics.mean(r[1] for r in rows), 3)}
+    if tops:
+        for first in range(min(tops), max(tops) + 1, PERIOD_YEARS):
+            years = [y for y in range(first, first + PERIOD_YEARS) if len(tops.get(y, {})) >= 2]
+            if not years:
+                continue
+            by_district: dict[str, list[float]] = defaultdict(list)
+            for year in years:
+                for district, value in tops[year].items():
+                    by_district[district].append(value)
+            means = [statistics.mean(v) for v in by_district.values()]
+            out[f"{first}〜{first + PERIOD_YEARS - 1}"] = {
+                "top_mean": round(statistics.mean(means), 2),
+                "top_stdev": round(statistics.pstdev(means), 3),
+                "yearly_stdev": round(statistics.mean(statistics.pstdev(tops[y].values()) for y in years), 3)}
     return out
 
 
@@ -1028,7 +1038,8 @@ def format_power(power: dict, actual: dict | None = None) -> str:
                      + (f"　勝率の散らばり {cell['stdev']:.3f}・試合数による揺れ {cell['noise_stdev']:.3f}"
                         f"・真の差の見積もり {cell['true_stdev']:.3f}" if "stdev" in cell else ""))
     for span, cell in (power.get("district_top") or {}).items():
-        lines.append(f"  5年ごと {span}：地区1位の強さ（7月1日）平均 {cell['top_mean']:.1f}・散らばり {cell['top_stdev']:.2f}")
+        lines.append(f"  5年ごと {span}：地区1位の強さ（7月1日）平均 {cell['top_mean']:.1f}・地区の差（5年の平均の散らばり）"
+                     f" {cell['top_stdev']:.2f}・年ごとの散らばり {cell['yearly_stdev']:.2f}")
     if actual:
         lines += format_strength("実際（開始前の通算）", actual["prefecture_strength"])
     lines.append("■ 優勝校の顔ぶれ（実際の値なし：年ごとの優勝校の記録がない）")
