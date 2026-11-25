@@ -1,13 +1,14 @@
 {
   "config_id": "annual_reputation_v1",
-  "revision": 2,
+  "revision": 3,
   "carry": 0.8,
   "max_annual_change_z": 0.35,
   "recent_year_weights": [1.0, 0.6, 0.3],
   "notes_ja": {
     "carry": "前の評判を残す割合。新しい評判 = 前 + (目標 - 前) × (1 - carry)",
     "max_annual_change_z": "1年の評判の変化の上限（z）",
-    "recent_year_weights": "目標の点に使う直近の年の重み（その年、1年前、2年前…）。同点は前の評判の順"
+    "recent_year_weights": "目標の点に使う直近の年の重み（その年、1年前、2年前…）。同点は前の評判の順",
+    "prefecture_strength": "県の強さ。甲子園の県どうしの試合（同じ県どうし・引き分け・不戦は数えない）の勝ち・試合を持ち、勝率を5割に寄せた値 (勝ち + shrink_games×0.5)/(試合 + shrink_games)。初めは史実（koshien_games.csv の school_reputation_v1 の prefecture_strength.years の年。初期の評判の県の差と同じ）、毎年4月1日に勝ち・試合に decay を掛けてから、ゲームの甲子園の試合を足す。weighted_competition_types（県大会）の勝ち上がりの点に 1 ＋ scale ×（県の強さ − 0.5）を掛ける。地区大会・甲子園・神宮は県をまたぐ結果なので掛けない。弱い県の学校も県大会の外（地区大会・甲子園）で勝てば評判が上がり、その勝ちが県の強さを上げる"
   },
   "competition_weights": {
     "national_invitational": 4.0,
@@ -18,6 +19,12 @@
     "summer_local_qualifier": 1.0,
     "spring_prefectural": 1.0,
     "autumn_prefectural": 1.0
+  },
+  "prefecture_strength": {
+    "weighted_competition_types": ["summer_local_qualifier", "spring_prefectural", "autumn_prefectural"],
+    "scale": 3.0,
+    "decay": 0.9,
+    "shrink_games": 32
   },
   "finish_points": {
     "appearance": 0.0,

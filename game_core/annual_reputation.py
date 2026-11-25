@@ -31,6 +31,44 @@ def _century_schools(season, competition_id: str) -> set[str]:
     return set()
 
 
+def _prefecture(season, school_id: str) -> str:
+    try:
+        return season.repo.team(school_id).prefecture_code
+    except (KeyError, AttributeError):
+        return ''
+
+
+def koshien_prefecture_games(season, matches) -> dict[str, list[int]]:
+    """都道府県 → [勝ち, 試合]。甲子園の勝ち負けのついた試合のうち、県どうしの試合だけ（同じ県どうしは数えない）。"""
+    out: dict[str, list[int]] = {}
+    for match in matches:
+        if not match.winner_id or not match.loser_id:
+            continue
+        winner, loser = _prefecture(season, match.winner_id), _prefecture(season, match.loser_id)
+        if not winner or not loser or winner == loser:
+            continue
+        out.setdefault(winner, [0, 0])
+        out.setdefault(loser, [0, 0])
+        out[winner][0] += 1
+        out[winner][1] += 1
+        out[loser][1] += 1
+    return out
+
+
+def initial_prefecture_records(root: Path) -> tuple[dict[str, float], dict[str, float]]:
+    """史実の県どうしの試合の勝ち・試合（``school_reputation_v1`` の ``prefecture_strength.years`` の年）。"""
+    from .school_reputation import koshien_game_records
+
+    import json
+
+    strength = json.loads((Path(root) / 'config/abilities/school_reputation_v1.json')
+                          .read_text(encoding='utf-8'))['prefecture_strength']
+    first, last = (int(y) for y in strength['years'])
+    records = koshien_game_records(Path(root) / 'historical_data', first, last)
+    return ({code: float(w) for code, (w, g) in records.items()},
+            {code: float(g) for code, (w, g) in records.items()})
+
+
 class AnnualReputation:
     def __init__(self, root: str | Path, seed: int, first_year: int = 2026):
         root = Path(root).resolve()
@@ -49,6 +87,10 @@ class AnnualReputation:
         recent = self.config['recent_year_weights']
         if not recent or any(not 0 <= v < math.inf for v in recent) or not recent[0] > 0:
             raise ValueError('annual reputation recent_year_weights must be nonnegative and finite')
+        rule = self.config.get('prefecture_strength') or {}
+        if rule and (not 0 < float(rule['decay']) <= 1 or not 0 <= float(rule['shrink_games']) < math.inf
+                     or not 0 <= float(rule['scale']) < math.inf):
+            raise ValueError('annual reputation prefecture_strength needs 0<decay<=1 and finite scale, shrink_games >= 0')
         self.rank_labels = initial.config['rank_labels']
         self.mean, self.stddev = initial._mean, initial._stddev
         self.edits = {}
@@ -65,6 +107,10 @@ class AnnualReputation:
         # 学校 → ゲームの中の甲子園（夏・選抜）の出場の年度（大会を持つシーズンの年度。選抜は前の年度）。
         # 21世紀枠の選抜は数えない。入部品質の公立の上乗せ（school_intake の public_component）に使う
         self.koshien: dict[str, list[int]] = {}
+        # 県の強さ（甲子園の県どうしの試合の勝ち・試合）。初めは史実（初期の評判の県の差と同じ年の範囲）、
+        # 毎年4月に decay を掛けてからゲームの甲子園の試合を足す。県大会の点の重みに使う
+        self.prefecture_wins, self.prefecture_games = initial_prefecture_records(root)
+        self.prefecture_pending: dict[tuple[int, str], tuple[str, dict[str, list[int]]]] = {}
 
     def program_z(self, school_id: str, entry_year: int) -> float | None:
         year = max(self.first_year, entry_year)
@@ -127,13 +173,49 @@ class AnnualReputation:
                 completed = [m.completed_on for m in scheduled.matches.values() if m.completed_on]
                 if not completed:
                     continue
+                ctype = competition['competition_type']
+                if ctype in self._prefecture_rule().get('weighted_competition_types', ()):
+                    points = {sid: p * self.prefecture_factor(_prefecture(season, sid)) for sid, p in points.items()}
                 self.pending[key] = (max(completed), {sid: p * weight for sid, p in points.items()})
+                if ctype in KOSHIEN_TYPES:
+                    self.__dict__.setdefault('prefecture_pending', {})[key] = (
+                        max(completed), koshien_prefecture_games(season, scheduled.matches.values()))
                 if competition['competition_type'] in KOSHIEN_TYPES:
                     century = _century_schools(season, cid)
                     koshien = self.__dict__.setdefault('koshien', {})
                     for sid in run.entrant_school_ids:
                         if sid not in century:
                             koshien.setdefault(sid, []).append(year)
+
+    def _prefecture_rule(self) -> dict:
+        return self.config.get('prefecture_strength') or {}
+
+    def prefecture_rate(self, code: str) -> float:
+        """県の強さ：甲子園の県どうしの試合の勝率を5割に寄せた値 (勝ち + k×0.5)/(試合 + k)。"""
+        k = float(self._prefecture_rule().get('shrink_games', 0.0))
+        wins = self.prefecture_wins.get(code, 0.0)
+        games = self.prefecture_games.get(code, 0.0)
+        return (wins + k * 0.5) / (games + k) if games + k > 0 else 0.5
+
+    def prefecture_factor(self, code: str) -> float:
+        """県大会の勝ち上がりの点に掛ける 1 ＋ scale ×（県の強さ − 0.5）（0より小さくしない）。"""
+        scale = float(self._prefecture_rule().get('scale', 0.0))
+        return max(0.0, 1.0 + scale * (self.prefecture_rate(code) - 0.5)) if code else 1.0
+
+    def _update_prefectures(self, day: date) -> None:
+        """4月1日：県の強さの勝ち・試合に decay を掛け、前の日までに終わった甲子園の県どうしの試合を足す。"""
+        decay = float(self._prefecture_rule().get('decay', 1.0))
+        for table in (self.prefecture_wins, self.prefecture_games):
+            for code in table:
+                table[code] *= decay
+        pending = self.__dict__.setdefault('prefecture_pending', {})
+        for key, (completed, records) in list(pending.items()):
+            if completed >= day.isoformat():
+                continue
+            for code, (wins, games) in records.items():
+                self.prefecture_wins[code] = self.prefecture_wins.get(code, 0.0) + wins
+                self.prefecture_games[code] = self.prefecture_games.get(code, 0.0) + games
+            del pending[key]
 
     def update(self, day: date) -> bool:
         if (day.month, day.day) != (4, 1) or day.year <= self.updated_year:
@@ -149,6 +231,7 @@ class AnnualReputation:
                     totals[sid] += value
             self.counted.add(key)
             del self.pending[key]
+        self._update_prefectures(day)
         recent = [float(w) for w in self.config['recent_year_weights']]
         self.yearly_points[day.year] = dict(totals)
         for year in [y for y in self.yearly_points if y <= day.year - len(recent)]:

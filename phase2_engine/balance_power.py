@@ -357,7 +357,50 @@ def prefecture_correlation(by_year: dict[int, dict[str, list[int]]], actual: dic
         value = _spearman([(game_ranks[code], actual_ranks[code]) for code in game])
         out[f"{first}〜{first + PERIOD_YEARS - 1}"] = {
             "history_correlation": round(value, 3) if value is not None else None,
-            "prefectures": len(game), "games": sum(sum(v) for v in totals.values()) // 2}
+            "prefectures": len(game), "games": sum(sum(v) for v in totals.values()) // 2,
+            **true_spread({code: totals[code] for code in game}),
+            "ranks": {code: game_ranks[code] for code in sorted(game)}}
+    spans = list(out)
+    if len(spans) >= 2:
+        first_ranks, last_ranks = out[spans[0]]["ranks"], out[spans[-1]]["ranks"]
+        out["rank_rise"] = {"periods": len(spans), "risen_15": sum(
+            1 for code in first_ranks if code in last_ranks and first_ranks[code] - last_ranks[code] >= 15)}
+    for span in spans:
+        del out[span]["ranks"]
+    return out
+
+
+def true_spread(records: dict[str, list[int]]) -> dict:
+    """都道府県 → [勝ち, 負け] の勝率の散らばり（標準偏差）と、試合数による揺れの見込み
+    （各県の p(1−p)/試合 の平均の平方根。p は全体の勝率0.5）と、揺れを除いた真の差の見積もり
+    （√(散らばり² − 揺れ²)。負なら0）。"""
+    rates = {code: w / (w + l) for code, (w, l) in records.items() if w + l}
+    if len(rates) < 2:
+        return {}
+    spread = statistics.pstdev(rates.values())
+    noise = statistics.mean(0.25 / sum(records[code]) for code in rates) ** 0.5
+    return {"stdev": round(spread, 4), "noise_stdev": round(noise, 4),
+            "true_stdev": round(max(0.0, spread ** 2 - noise ** 2) ** 0.5, 4)}
+
+
+def district_top_metrics(strength: dict[int, dict[str, float]],
+                         local_finishes: dict[int, dict[str, dict[str, int]]]) -> dict:
+    """5年ごとの、地区（夏の地方大会）で1番強い学校の強さ（7月1日の overall）の平均と散らばり（標準偏差）。
+    年ごとに出して5年で平均する。"""
+    by_year = {}
+    for year, values in strength.items():
+        tops = [max(values[s] for s in schools if s in values)
+                for schools in local_finishes.get(year, {}).values() if any(s in values for s in schools)]
+        if len(tops) >= 2:
+            by_year[year] = (statistics.mean(tops), statistics.pstdev(tops))
+    out = {}
+    if by_year:
+        for first in range(min(by_year), max(by_year) + 1, PERIOD_YEARS):
+            rows = [by_year[y] for y in range(first, first + PERIOD_YEARS) if y in by_year]
+            if rows:
+                out[f"{first}〜{first + PERIOD_YEARS - 1}"] = {
+                    "top_mean": round(statistics.mean(r[0] for r in rows), 2),
+                    "top_stdev": round(statistics.mean(r[1] for r in rows), 3)}
     return out
 
 
@@ -829,6 +872,7 @@ class PowerTally:
             "summer_entrants": {str(y): sorted(s) for y, s in sorted(self.entrants["夏"].items())},
             "prefecture_strength": spread_by_prefecture(both) if both else {},
             "prefecture_correlation": prefecture_correlation(self.records_by_year),
+            "district_top": district_top_metrics(self.july_strength, self.local_finishes),
             "champions": {name: self._champion_summary(name) for name in KOSHIEN_NAMES.values()
                           if self.champions[name]},
             "starter_pitches": pitching,
@@ -975,9 +1019,16 @@ def format_power(power: dict, actual: dict | None = None) -> str:
     lines.append("■ 都道府県の強弱（甲子園の春夏の勝率）")
     lines += format_strength("ゲーム", power.get("prefecture_strength") or {})
     for span, cell in (power.get("prefecture_correlation") or {}).items():
+        if span == "rank_rise":
+            lines.append(f"  県の順位が最初の5年から最後の5年で15位以上上がった県：{cell['risen_15']:.1f}")
+            continue
         value = cell.get("history_correlation")
         lines.append(f"  5年ごと {span}：史実（koshien_games の県別勝率）との順位相関 "
-                     + (f"{value:.3f}" if value is not None else "—") + f"（{cell['games']:.0f}試合）")
+                     + (f"{value:.3f}" if value is not None else "—") + f"（{cell['games']:.0f}試合）"
+                     + (f"　勝率の散らばり {cell['stdev']:.3f}・試合数による揺れ {cell['noise_stdev']:.3f}"
+                        f"・真の差の見積もり {cell['true_stdev']:.3f}" if "stdev" in cell else ""))
+    for span, cell in (power.get("district_top") or {}).items():
+        lines.append(f"  5年ごと {span}：地区1位の強さ（7月1日）平均 {cell['top_mean']:.1f}・散らばり {cell['top_stdev']:.2f}")
     if actual:
         lines += format_strength("実際（開始前の通算）", actual["prefecture_strength"])
     lines.append("■ 優勝校の顔ぶれ（実際の値なし：年ごとの優勝校の記録がない）")

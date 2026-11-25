@@ -245,3 +245,52 @@ class AnnualReputationTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def prefecture_season(competition_type, matches=(), champion='SCH-S', runner_up='SCH-W'):
+    """SCH-S は県98（強い県）、SCH-W・SCH-W2 は県99（弱い県）。"""
+    outcome = SimpleNamespace(champion_school_id=champion, runner_up_school_id=runner_up,
+                              semifinalist_school_ids=[], quarterfinalist_school_ids=[])
+    run = SimpleNamespace(entrant_school_ids=['SCH-S', 'SCH-W', 'SCH-W2'], outcome=outcome)
+    played = {f'M{i}': SimpleNamespace(completed_on='2026-08-20', winner_id=w, loser_id=l)
+              for i, (w, l) in enumerate(matches)} or {'F': SimpleNamespace(completed_on='2026-08-20',
+                                                                             winner_id='', loser_id='')}
+    tournament = SimpleNamespace(is_complete=True, to_competition_run=lambda: run, matches=played)
+    prefectures = {'SCH-S': '98', 'SCH-W': '99', 'SCH-W2': '99'}
+    return SimpleNamespace(
+        competitions={'CUP': tournament}, history=[],
+        repo=SimpleNamespace(competitions={'CUP': {'competition_type': competition_type}},
+                             team=lambda sid: SimpleNamespace(prefecture_code=prefectures[sid])))
+
+
+class PrefectureStrengthTests(unittest.TestCase):
+    def book(self):
+        book = AnnualReputation(ROOT, 7)
+        book.config = {**book.config, 'prefecture_strength': {
+            'weighted_competition_types': ['summer_local_qualifier'], 'scale': 2.0, 'decay': 0.5, 'shrink_games': 0}}
+        book.prefecture_wins, book.prefecture_games = {'98': 6.0, '99': 2.0}, {'98': 8.0, '99': 8.0}
+        return book
+
+    def test_prefectural_points_are_weighted_by_prefecture_strength(self):
+        book = self.book()
+        book.collect({2026: prefecture_season('summer_local_qualifier')})
+        _, points = book.pending[(2026, 'CUP')]
+        champion, runner_up = book.config['finish_points']['champion'], book.config['finish_points']['runner_up']
+        self.assertAlmostEqual(champion * (1 + 2.0 * (0.75 - 0.5)), points['SCH-S'])
+        self.assertAlmostEqual(runner_up * (1 + 2.0 * (0.25 - 0.5)), points['SCH-W'])
+
+    def test_results_across_prefectures_are_not_weighted(self):
+        book = self.book()
+        book.collect({2026: prefecture_season('autumn_regional')})
+        _, points = book.pending[(2026, 'CUP')]
+        weight = book.config['competition_weights']['autumn_regional']
+        self.assertAlmostEqual(book.config['finish_points']['champion'] * weight, points['SCH-S'])
+
+    def test_koshien_games_update_strength_without_same_prefecture_games(self):
+        book = self.book()
+        book.collect({2026: prefecture_season('national_championship', matches=[
+            ('SCH-W', 'SCH-S'), ('SCH-W', 'SCH-W2')])})       # 県99が県98に勝つ。県99どうしは数えない
+        book.update(date(2027, 4, 1))
+        self.assertEqual({'98': 3.0, '99': 2.0}, book.prefecture_wins)       # 6×0.5、2×0.5＋1
+        self.assertEqual({'98': 5.0, '99': 5.0}, book.prefecture_games)      # 8×0.5＋1
+        self.assertAlmostEqual(0.4, book.prefecture_rate('99'))
