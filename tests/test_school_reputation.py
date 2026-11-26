@@ -306,3 +306,33 @@ class BottomOf2025SummerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PrefectureWinRateTests(unittest.TestCase):
+    """県どうしの差：koshien_games.csv の県どうしの試合の勝率を5割に寄せる。"""
+
+    COLUMNS = ["kind", "year", "edition", "round", "replay", "team1_name", "team1_school_id",
+               "team1_prefecture_code", "score1", "team2_name", "team2_school_id",
+               "team2_prefecture_code", "score2", "result", "source_id"]
+
+    def _row(self, year, winner, loser, result="win"):
+        return {"kind": "summer", "year": str(year), "team1_name": "架空東", "team1_prefecture_code": winner,
+                "team2_name": "架空西", "team2_prefecture_code": loser, "result": result, "source_id": "X"}
+
+    def test_counts_only_decided_games_between_prefectures_and_shrinks_to_half(self):
+        from types import SimpleNamespace
+        from game_core.school_reputation import koshien_game_records
+
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(Path(tmp) / "koshien_games.csv", self.COLUMNS, [
+                self._row(2010, "98", "99"), self._row(2011, "98", "99"), self._row(2012, "99", "98"),
+                self._row(2013, "98", "98"),                  # 同じ県どうし
+                self._row(2014, "98", "99", "draw"),          # 引き分け
+                self._row(2015, "99", "98", "forfeit"),       # 不戦
+                self._row(2005, "99", "98"),                  # 年の範囲の外
+            ])
+            self.assertEqual({"98": (2, 3), "99": (1, 3)}, koshien_game_records(Path(tmp), 2006, 2025))
+            owner = SimpleNamespace(config={"prefecture_strength": {"years": [2006, 2025], "shrink_games": 4}})
+            rates = SchoolReputation._prefecture_win_rates(owner, Path(tmp))
+        self.assertAlmostEqual((2 + 4 * 0.5) / (3 + 4), rates["98"])
+        self.assertAlmostEqual((1 + 4 * 0.5) / (3 + 4), rates["99"])

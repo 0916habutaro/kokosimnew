@@ -19,6 +19,7 @@ from collections import Counter, defaultdict
 import csv
 from datetime import date, timedelta
 from pathlib import Path
+import json
 import re
 import statistics
 
@@ -308,6 +309,58 @@ def _spearman(pairs: list[tuple[int, int]]) -> float | None:
     return sum((x - mx) * (y - my) for x, y in pairs) / (sx * sy)
 
 
+def _average_ranks(values: dict[str, float]) -> dict[str, float]:
+    """値の大きい順の順位（同じ値は順位の平均）。"""
+    order = sorted(values, key=lambda key: -values[key])
+    ranks, i = {}, 0
+    while i < len(order):
+        j = i
+        while j + 1 < len(order) and values[order[j + 1]] == values[order[i]]:
+            j += 1
+        for key in order[i:j + 1]:
+            ranks[key] = (i + j) / 2 + 1
+        i = j + 1
+    return ranks
+
+
+def actual_prefecture_rates() -> dict[str, float]:
+    """史実の都道府県の甲子園の勝率（``koshien_games.csv`` の県どうしの試合。初期の県の差と同じ年の範囲。
+    5割に寄せない、そのままの勝率）。"""
+    from game_core.school_reputation import koshien_game_records
+
+    config = json.loads((ROOT / "config/abilities/school_reputation_v1.json").read_text(encoding="utf-8"))
+    first, last = config["prefecture_strength"]["years"]
+    return {code: wins / games for code, (wins, games) in koshien_game_records(HISTORY, first, last).items()
+            if games}
+
+
+def prefecture_correlation(by_year: dict[int, dict[str, list[int]]], actual: dict[str, float] | None = None) -> dict:
+    """5年ごとの、ゲームの甲子園（春夏）の都道府県の勝率と、史実（``actual_prefecture_rates``）の順位相関。
+
+    ``by_year`` は 年 → 都道府県 → [勝ち, 負け]。両方に勝率のある都道府県で比べる。"""
+    if not by_year:
+        return {}
+    actual = actual_prefecture_rates() if actual is None else actual
+    out = {}
+    start, last = min(by_year), max(by_year)
+    for first in range(start, last + 1, PERIOD_YEARS):
+        totals = defaultdict(lambda: [0, 0])
+        for year in range(first, first + PERIOD_YEARS):
+            for code, (wins, losses) in by_year.get(year, {}).items():
+                totals[code][0] += wins
+                totals[code][1] += losses
+        game = {code: w / (w + l) for code, (w, l) in totals.items() if w + l and code in actual}
+        if len(game) < 3:
+            continue
+        game_ranks = _average_ranks(game)
+        actual_ranks = _average_ranks({code: actual[code] for code in game})
+        value = _spearman([(game_ranks[code], actual_ranks[code]) for code in game])
+        out[f"{first}〜{first + PERIOD_YEARS - 1}"] = {
+            "history_correlation": round(value, 3) if value is not None else None,
+            "prefectures": len(game), "games": sum(sum(v) for v in totals.values()) // 2}
+    return out
+
+
 def strength_metrics(reputation: dict[int, dict[str, float]], strength: dict[int, dict[str, float]],
                      prefecture_of) -> dict:
     """指標C（ゲームのみ）：7月1日の評判の県内順位の帯ごとの、チームの強さ（overall）の県内順位。
@@ -502,6 +555,7 @@ class PowerTally:
         self.upsets = UpsetCounter()
         self.entrants = defaultdict(lambda: defaultdict(set))       # 夏・選抜 → 年 → 学校
         self.records = defaultdict(lambda: defaultdict(lambda: [0, 0]))  # 夏・選抜 → 都道府県 → [勝, 負]
+        self.records_by_year = defaultdict(lambda: defaultdict(lambda: [0, 0]))  # 年 → 都道府県 → [勝, 負]（春夏）
         self.champions = defaultdict(dict)              # 夏・選抜 → 年 → (学校, ランク)
         self.coach_wins: Counter = Counter()            # 監督 → 甲子園（春夏）の勝数
         self.coach_wins_by_year: dict[str, Counter] = defaultdict(Counter)  # 監督 → 年度 → 勝数
@@ -546,6 +600,9 @@ class PowerTally:
             self.entrants[name][day.year].update((winner, loser))
             self.records[name][self.repo.team(winner).prefecture_code][0] += 1
             self.records[name][self.repo.team(loser).prefecture_code][1] += 1
+            by_year = self.records_by_year
+            by_year[day.year][self.repo.team(winner).prefecture_code][0] += 1
+            by_year[day.year][self.repo.team(loser).prefecture_code][1] += 1
             if rounds_left == 0:
                 self.champions[name][day.year] = (winner, self.ranks.get(winner, ""))
             coach = coach_of(winner) if coach_of else None
@@ -771,6 +828,7 @@ class PowerTally:
             "dynasty": dynasty_metrics(self.entrants["夏"], prefecture_of) if self.entrants["夏"] else {},
             "summer_entrants": {str(y): sorted(s) for y, s in sorted(self.entrants["夏"].items())},
             "prefecture_strength": spread_by_prefecture(both) if both else {},
+            "prefecture_correlation": prefecture_correlation(self.records_by_year),
             "champions": {name: self._champion_summary(name) for name in KOSHIEN_NAMES.values()
                           if self.champions[name]},
             "starter_pitches": pitching,
@@ -916,6 +974,10 @@ def format_power(power: dict, actual: dict | None = None) -> str:
         lines += format_dynasty(f"実際 {years[0]}〜{years[-1]}年", actual["dynasty"])
     lines.append("■ 都道府県の強弱（甲子園の春夏の勝率）")
     lines += format_strength("ゲーム", power.get("prefecture_strength") or {})
+    for span, cell in (power.get("prefecture_correlation") or {}).items():
+        value = cell.get("history_correlation")
+        lines.append(f"  5年ごと {span}：史実（koshien_games の県別勝率）との順位相関 "
+                     + (f"{value:.3f}" if value is not None else "—") + f"（{cell['games']:.0f}試合）")
     if actual:
         lines += format_strength("実際（開始前の通算）", actual["prefecture_strength"])
     lines.append("■ 優勝校の顔ぶれ（実際の値なし：年ごとの優勝校の記録がない）")
