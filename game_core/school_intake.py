@@ -147,6 +147,7 @@ class SchoolIntakeModel:
         self._master_ownership: dict[str, str] | None = None
         self._master_prefecture: dict[str, str] | None = None
         self._initial_prefecture_rates: dict[str, float] | None = None
+        self._prefecture_centers: dict[tuple, float] = {}
         self._public_types: frozenset[str] | None = None
 
     @staticmethod
@@ -252,11 +253,36 @@ class SchoolIntakeModel:
             self._master_prefecture = {row["school_id"]: row["prefecture_code"] for row in rows}
         return self._master_prefecture.get(school_id, "")
 
+    def _prefecture_rate(self, code: str, entry_year: int) -> float:
+        if hasattr(self.reputation, "prefecture_intake_rate"):
+            return self.reputation.prefecture_intake_rate(code, entry_year)
+        if self._initial_prefecture_rates is None:
+            from .annual_reputation import initial_prefecture_rates
+
+            self._initial_prefecture_rates = initial_prefecture_rates(self._root)
+        return self._initial_prefecture_rates.get(code, 0.5)
+
+    def _prefecture_center(self, entry_year: int) -> float:
+        """その年度の全校（評判を持つ学校。学校数の重み）の県の強さの平均。"""
+        values = getattr(self.reputation, "values", None)
+        school_ids = (tuple(values) if isinstance(values, dict)
+                      else tuple(reputation_for(str(self._root)).school_ids))
+        key = (id(self.reputation), len(school_ids),
+               max(int(getattr(self.reputation, "first_year", 0) or 0), entry_year))
+        cached = self._prefecture_centers.get(key)
+        if cached is None:
+            rates = [self._prefecture_rate(code, entry_year)
+                     for code in (self._prefecture_of(sid) for sid in school_ids) if code]
+            cached = sum(rates) / len(rates) if rates else 0.5
+            self._prefecture_centers[key] = cached
+        return cached
+
     def prefecture_z(self, school_id: str, entry_year: int) -> float:
         """県の強さの入部品質の項（``quality_model.prefecture_component``）。
 
-        ``z_per_win_rate`` ×（県の強さ − 0.5）。県の強さはゲームの中で更新される値
+        ``z_per_win_rate`` ×（県の強さ − 全校の平均）。県の強さはゲームの中で更新される値
         （``AnnualReputation.prefecture_intake_rate``。入学年度の4月の値）。評判を持たないときは開始時の値。
+        平均は全校（学校数の重み）の県の強さで、全国では0になる（学校の多い県が強くても全国を底上げしない）。
         強い県には良い選手が集まり、弱い県でも甲子園で勝てば県の強さが上がって集まりやすくなる。"""
         rule = self.params["quality_model"].get("prefecture_component")
         if not rule:
@@ -264,15 +290,8 @@ class SchoolIntakeModel:
         code = self._prefecture_of(school_id)
         if not code:
             return 0.0
-        if hasattr(self.reputation, "prefecture_intake_rate"):
-            rate = self.reputation.prefecture_intake_rate(code, entry_year)
-        else:
-            if self._initial_prefecture_rates is None:
-                from .annual_reputation import initial_prefecture_rates
-
-                self._initial_prefecture_rates = initial_prefecture_rates(self._root)
-            rate = self._initial_prefecture_rates.get(code, 0.5)
-        return float(rule["z_per_win_rate"]) * (rate - 0.5)
+        rate = self._prefecture_rate(code, entry_year)
+        return float(rule["z_per_win_rate"]) * (rate - self._prefecture_center(entry_year))
 
     def _load_public_types(self) -> frozenset[str]:
         if self._public_types is None:

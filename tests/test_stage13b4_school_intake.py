@@ -461,10 +461,12 @@ class PrefectureComponentTests(unittest.TestCase):
         self.model = SchoolIntakeModel(CONFIG_DIR)
         self.model.params = json.loads(json.dumps(self.model.params))
         self.model.params["quality_model"]["prefecture_component"] = {"z_per_win_rate": 4.0}
-        self.model._master_prefecture = {"SCH-A": "98", "SCH-B": "99"}
+        self.model._master_prefecture = {"SCH-A": "98", "SCH-B": "99", "SCH-B2": "99"}
 
         class Reputation:
+            first_year = 2026
             by_year = {2026: {"98": 0.6, "99": 0.45}, 2027: {"98": 0.55, "99": 0.5}}
+            values = {"SCH-A": 0.0, "SCH-B": 0.0, "SCH-B2": 0.0, "SCH-NONE": 0.0}   # 県99が2校
 
             def prefecture_intake_rate(self, code, entry_year):
                 return self.by_year[max(2026, entry_year)].get(code, 0.5)
@@ -475,11 +477,18 @@ class PrefectureComponentTests(unittest.TestCase):
         self.model.reputation = Reputation()
 
     def test_term_follows_the_prefecture_strength_of_the_entry_year(self):
+        # 全校（学校数の重み）の平均を引く：2026年 (0.6+0.45×2)/3 = 0.5、2027年 (0.55+0.5×2)/3
         self.assertAlmostEqual(0.4, self.model.prefecture_z("SCH-A", 2025))     # 開始時の在籍は開始時の値
         self.assertAlmostEqual(-0.2, self.model.prefecture_z("SCH-B", 2026))
-        self.assertAlmostEqual(0.2, self.model.prefecture_z("SCH-A", 2027))     # ゲームの中で更新された値
-        self.assertAlmostEqual(0.0, self.model.prefecture_z("SCH-B", 2027))
+        center = (0.55 + 0.5 * 2) / 3
+        self.assertAlmostEqual(4 * (0.55 - center), self.model.prefecture_z("SCH-A", 2027))  # 更新された値
+        self.assertAlmostEqual(4 * (0.5 - center), self.model.prefecture_z("SCH-B", 2027))
         self.assertEqual(0.0, self.model.prefecture_z("SCH-NONE", 2027))       # 県の分からない学校
+
+    def test_term_averages_to_zero_over_all_schools(self):
+        for year in (2026, 2027):
+            total = sum(self.model.prefecture_z(sid, year) for sid in ("SCH-A", "SCH-B", "SCH-B2"))
+            self.assertAlmostEqual(0.0, total)
 
     def test_term_is_added_to_the_intake_quality(self):
         profile = self.model.profile(school_id="SCH-A", entry_year=2026, base_seed=7)

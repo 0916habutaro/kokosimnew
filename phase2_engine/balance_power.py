@@ -334,32 +334,39 @@ def actual_prefecture_rates() -> dict[str, float]:
             if games}
 
 
-def prefecture_correlation(by_year: dict[int, dict[str, list[int]]], actual: dict[str, float] | None = None) -> dict:
-    """5年ごとの、ゲームの甲子園（春夏）の都道府県の勝率と、史実（``actual_prefecture_rates``）の順位相関。
+def _prefecture_cell(by_year: dict[int, dict[str, list[int]]], years, actual: dict[str, float]) -> dict | None:
+    totals = defaultdict(lambda: [0, 0])
+    for year in years:
+        for code, (wins, losses) in by_year.get(year, {}).items():
+            totals[code][0] += wins
+            totals[code][1] += losses
+    game = {code: w / (w + l) for code, (w, l) in totals.items() if w + l and code in actual}
+    if len(game) < 3:
+        return None
+    game_ranks = _average_ranks(game)
+    actual_ranks = _average_ranks({code: actual[code] for code in game})
+    value = _spearman([(game_ranks[code], actual_ranks[code]) for code in game])
+    return {"history_correlation": round(value, 3) if value is not None else None,
+            "prefectures": len(game), "games": sum(sum(v) for v in totals.values()) // 2,
+            **true_spread({code: totals[code] for code in game}),
+            "ranks": {code: game_ranks[code] for code in sorted(game)}}
 
-    ``by_year`` は 年 → 都道府県 → [勝ち, 負け]。両方に勝率のある都道府県で比べる。"""
+
+def prefecture_correlation(by_year: dict[int, dict[str, list[int]]], actual: dict[str, float] | None = None) -> dict:
+    """5年ごとと、すべての年をまとめた（``all_years``）、ゲームの甲子園（春夏）の都道府県の勝率と、
+    史実（``actual_prefecture_rates``）の順位相関。
+
+    ``by_year`` は 年 → 都道府県 → [勝ち, 負け]。両方に勝率のある都道府県で比べる。
+    5年では試合数による揺れが大きいので、合否はすべての年をまとめた値で見る。"""
     if not by_year:
         return {}
     actual = actual_prefecture_rates() if actual is None else actual
     out = {}
     start, last = min(by_year), max(by_year)
     for first in range(start, last + 1, PERIOD_YEARS):
-        totals = defaultdict(lambda: [0, 0])
-        for year in range(first, first + PERIOD_YEARS):
-            for code, (wins, losses) in by_year.get(year, {}).items():
-                totals[code][0] += wins
-                totals[code][1] += losses
-        game = {code: w / (w + l) for code, (w, l) in totals.items() if w + l and code in actual}
-        if len(game) < 3:
-            continue
-        game_ranks = _average_ranks(game)
-        actual_ranks = _average_ranks({code: actual[code] for code in game})
-        value = _spearman([(game_ranks[code], actual_ranks[code]) for code in game])
-        out[f"{first}〜{first + PERIOD_YEARS - 1}"] = {
-            "history_correlation": round(value, 3) if value is not None else None,
-            "prefectures": len(game), "games": sum(sum(v) for v in totals.values()) // 2,
-            **true_spread({code: totals[code] for code in game}),
-            "ranks": {code: game_ranks[code] for code in sorted(game)}}
+        cell = _prefecture_cell(by_year, range(first, first + PERIOD_YEARS), actual)
+        if cell is not None:
+            out[f"{first}〜{first + PERIOD_YEARS - 1}"] = cell
     spans = list(out)
     if len(spans) >= 2:
         first_ranks, last_ranks = out[spans[0]]["ranks"], out[spans[-1]]["ranks"]
@@ -367,6 +374,10 @@ def prefecture_correlation(by_year: dict[int, dict[str, list[int]]], actual: dic
             1 for code in first_ranks if code in last_ranks and first_ranks[code] - last_ranks[code] >= 15)}
     for span in spans:
         del out[span]["ranks"]
+    whole = _prefecture_cell(by_year, range(start, last + 1), actual)
+    if whole is not None:
+        del whole["ranks"]
+        out["all_years"] = {**whole, "first_year": start, "last_year": last}
     return out
 
 
@@ -1033,7 +1044,9 @@ def format_power(power: dict, actual: dict | None = None) -> str:
             lines.append(f"  県の順位が最初の5年から最後の5年で15位以上上がった県：{cell['risen_15']:.1f}")
             continue
         value = cell.get("history_correlation")
-        lines.append(f"  5年ごと {span}：史実（koshien_games の県別勝率）との順位相関 "
+        if span == "all_years":
+            span = f"{cell['first_year']:.0f}〜{cell['last_year']:.0f}"
+        lines.append(f"  {'まとめて' if 'first_year' in cell else '5年ごと'} {span}：史実（koshien_games の県別勝率）との順位相関 "
                      + (f"{value:.3f}" if value is not None else "—") + f"（{cell['games']:.0f}試合）"
                      + (f"　勝率の散らばり {cell['stdev']:.3f}・試合数による揺れ {cell['noise_stdev']:.3f}"
                         f"・真の差の見積もり {cell['true_stdev']:.3f}" if "stdev" in cell else ""))

@@ -135,7 +135,7 @@ LABELS = {
     "champion_rate": "代表校になる確率", "ownership_gap": "評判の県内順位の帯ごとの公立・私立（ゲームのみ）",
     "periods": "5年ごと",
     "prefecture_correlation": "都道府県の甲子園の勝率と史実の順位相関", "history_correlation": "史実（koshien_games）との順位相関",
-    "noise_stdev": "試合数による揺れ", "true_stdev": "真の差の見積もり", "rank_rise": "県の順位の上がり方",
+    "all_years": "すべての年をまとめて", "first_year": "最初の年", "last_year": "最後の年", "noise_stdev": "試合数による揺れ", "true_stdev": "真の差の見積もり", "rank_rise": "県の順位の上がり方",
     "risen_15": "15位以上上がった県", "district_top": "地区1位の強さ", "top_mean": "平均", "top_stdev": "地区の差（5年の平均の散らばり）", "yearly_stdev": "年ごとの散らばり", "public_share": "公立の割合", "dominant_4of5": "1校が5年に4回以上出た県",
     "intake_z_mean": "入部品質zの平均", "prospects_mean": "有望な新入生の平均人数",
     "freshman_ability_mean": "新入生の主な能力の平均", "strength_mean": "強さ（overall）の平均",
