@@ -69,6 +69,21 @@ def initial_prefecture_records(root: Path) -> tuple[dict[str, float], dict[str, 
             {code: float(g) for code, (w, g) in records.items()})
 
 
+def prefecture_rates(wins: dict[str, float], games: dict[str, float], shrink: float) -> dict[str, float]:
+    """県の強さ：勝率を5割に寄せた値 (勝ち + shrink×0.5)/(試合 + shrink)。"""
+    return {code: (wins.get(code, 0.0) + shrink * 0.5) / (games[code] + shrink)
+            for code in games if games[code] + shrink > 0}
+
+
+def initial_prefecture_rates(root: Path) -> dict[str, float]:
+    """開始時の県の強さ（``annual_reputation_v1`` の ``prefecture_strength.shrink_games`` で寄せる）。"""
+    import json
+
+    rule = json.loads((Path(root) / 'config/abilities/annual_reputation_v1.json')
+                      .read_text(encoding='utf-8')).get('prefecture_strength') or {}
+    return prefecture_rates(*initial_prefecture_records(root), float(rule.get('shrink_games', 0.0)))
+
+
 class AnnualReputation:
     def __init__(self, root: str | Path, seed: int, first_year: int = 2026):
         root = Path(root).resolve()
@@ -89,8 +104,10 @@ class AnnualReputation:
             raise ValueError('annual reputation recent_year_weights must be nonnegative and finite')
         rule = self.config.get('prefecture_strength') or {}
         if rule and (not 0 < float(rule['decay']) <= 1 or not 0 <= float(rule['shrink_games']) < math.inf
-                     or not 0 <= float(rule['scale']) < math.inf):
-            raise ValueError('annual reputation prefecture_strength needs 0<decay<=1 and finite scale, shrink_games >= 0')
+                     or not 0 <= float(rule['scale']) < math.inf
+                     or not 0 <= float(rule.get('min_factor', 0.0)) <= 1):
+            raise ValueError('annual reputation prefecture_strength needs 0<decay<=1, finite scale, '
+                             'shrink_games >= 0 and 0<=min_factor<=1')
         self.rank_labels = initial.config['rank_labels']
         self.mean, self.stddev = initial._mean, initial._stddev
         self.edits = {}
@@ -111,6 +128,9 @@ class AnnualReputation:
         # 毎年4月に decay を掛けてからゲームの甲子園の試合を足す。県大会の点の重みに使う
         self.prefecture_wins, self.prefecture_games = initial_prefecture_records(root)
         self.prefecture_pending: dict[tuple[int, str], tuple[str, dict[str, list[int]]]] = {}
+        # 年度 → その4月に決めた県の強さ（入部品質の県の項 school_intake の prefecture_component に使う。
+        # 名簿は入学年度の値から作り直せるよう、年度ごとに固定して残す）
+        self.prefecture_by_year: dict[int, dict[str, float]] = {first_year: self.prefecture_rates()}
 
     def program_z(self, school_id: str, entry_year: int) -> float | None:
         year = max(self.first_year, entry_year)
@@ -190,6 +210,17 @@ class AnnualReputation:
     def _prefecture_rule(self) -> dict:
         return self.config.get('prefecture_strength') or {}
 
+    def prefecture_rates(self) -> dict[str, float]:
+        return prefecture_rates(self.prefecture_wins, self.prefecture_games,
+                                float(self._prefecture_rule().get('shrink_games', 0.0)))
+
+    def prefecture_intake_rate(self, code: str, entry_year: int) -> float:
+        """入学年度の4月に決めた県の強さ（開始より前の入学は開始時の値）。記録のない県は5割。"""
+        year = max(self.first_year, entry_year)
+        if year not in self.prefecture_by_year:
+            raise ValueError(f'prefecture strength for intake {year} is not fixed yet')
+        return self.prefecture_by_year[year].get(code, 0.5)
+
     def prefecture_rate(self, code: str) -> float:
         """県の強さ：甲子園の県どうしの試合の勝率を5割に寄せた値 (勝ち + k×0.5)/(試合 + k)。"""
         k = float(self._prefecture_rule().get('shrink_games', 0.0))
@@ -198,9 +229,11 @@ class AnnualReputation:
         return (wins + k * 0.5) / (games + k) if games + k > 0 else 0.5
 
     def prefecture_factor(self, code: str) -> float:
-        """県大会の勝ち上がりの点に掛ける 1 ＋ scale ×（県の強さ − 0.5）（0より小さくしない）。"""
-        scale = float(self._prefecture_rule().get('scale', 0.0))
-        return max(0.0, 1.0 + scale * (self.prefecture_rate(code) - 0.5)) if code else 1.0
+        """県大会の勝ち上がりの点に掛ける 1 ＋ scale ×（県の強さ − 0.5）（min_factor より小さくしない）。"""
+        rule = self._prefecture_rule()
+        scale = float(rule.get('scale', 0.0))
+        floor = float(rule.get('min_factor', 0.0))
+        return max(floor, 1.0 + scale * (self.prefecture_rate(code) - 0.5)) if code else 1.0
 
     def _update_prefectures(self, day: date) -> None:
         """4月1日：県の強さの勝ち・試合に decay を掛け、前の日までに終わった甲子園の県どうしの試合を足す。"""
@@ -232,6 +265,7 @@ class AnnualReputation:
             self.counted.add(key)
             del self.pending[key]
         self._update_prefectures(day)
+        self.prefecture_by_year[day.year] = self.prefecture_rates()
         recent = [float(w) for w in self.config['recent_year_weights']]
         self.yearly_points[day.year] = dict(totals)
         for year in [y for y in self.yearly_points if y <= day.year - len(recent)]:

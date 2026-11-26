@@ -1,6 +1,6 @@
 {
   "config_id": "annual_reputation_v1",
-  "revision": 3,
+  "revision": 4,
   "carry": 0.8,
   "max_annual_change_z": 0.35,
   "recent_year_weights": [1.0, 0.6, 0.3],
@@ -22,9 +22,10 @@
   },
   "prefecture_strength": {
     "weighted_competition_types": ["summer_local_qualifier", "spring_prefectural", "autumn_prefectural"],
-    "scale": 3.0,
-    "decay": 0.9,
-    "shrink_games": 32
+    "scale": 4.0,
+    "decay": 0.98,
+    "shrink_games": 32,
+    "min_factor": 0.2
   },
   "finish_points": {
     "appearance": 0.0,

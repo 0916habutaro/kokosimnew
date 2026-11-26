@@ -294,3 +294,14 @@ class PrefectureStrengthTests(unittest.TestCase):
         self.assertEqual({'98': 3.0, '99': 2.0}, book.prefecture_wins)       # 6×0.5、2×0.5＋1
         self.assertEqual({'98': 5.0, '99': 5.0}, book.prefecture_games)      # 8×0.5＋1
         self.assertAlmostEqual(0.4, book.prefecture_rate('99'))
+        # 入部品質に使う県の強さは年度ごとに固定（開始の年度は史実の値のまま）
+        self.assertAlmostEqual(0.4, book.prefecture_intake_rate('99', 2027))
+        self.assertNotAlmostEqual(0.4, book.prefecture_intake_rate('99', 2026))
+        with self.assertRaises(ValueError):
+            book.prefecture_intake_rate('99', 2028)
+
+    def test_weight_does_not_go_below_the_floor(self):
+        book = self.book()
+        book.config['prefecture_strength'] = {**book.config['prefecture_strength'], 'scale': 10.0, 'min_factor': 0.2}
+        self.assertAlmostEqual(0.2, book.prefecture_factor('99'))            # 1＋10×(0.25−0.5) は負
+        self.assertAlmostEqual(3.5, book.prefecture_factor('98'))
