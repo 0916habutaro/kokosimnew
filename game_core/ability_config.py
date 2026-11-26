@@ -352,6 +352,12 @@ def validate_school_intake(
                 raise ValueError("school intake: public_component counts must rise and values must be >= 0")
             last = count
 
+    prefecture = quality.get("prefecture_component")
+    if prefecture is not None:
+        if not isinstance(prefecture, dict) or _require_number(
+                prefecture.get("z_per_win_rate"), "school_intake.prefecture_component.z_per_win_rate") < 0:
+            raise ValueError("school intake: prefecture_component.z_per_win_rate must be >= 0")
+
     clip = quality.get("combined_clip")
     if not isinstance(clip, dict):
         raise ValueError("school intake: combined_clip required")

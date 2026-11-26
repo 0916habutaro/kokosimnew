@@ -334,30 +334,94 @@ def actual_prefecture_rates() -> dict[str, float]:
             if games}
 
 
-def prefecture_correlation(by_year: dict[int, dict[str, list[int]]], actual: dict[str, float] | None = None) -> dict:
-    """5年ごとの、ゲームの甲子園（春夏）の都道府県の勝率と、史実（``actual_prefecture_rates``）の順位相関。
+def _prefecture_cell(by_year: dict[int, dict[str, list[int]]], years, actual: dict[str, float]) -> dict | None:
+    totals = defaultdict(lambda: [0, 0])
+    for year in years:
+        for code, (wins, losses) in by_year.get(year, {}).items():
+            totals[code][0] += wins
+            totals[code][1] += losses
+    game = {code: w / (w + l) for code, (w, l) in totals.items() if w + l and code in actual}
+    if len(game) < 3:
+        return None
+    game_ranks = _average_ranks(game)
+    actual_ranks = _average_ranks({code: actual[code] for code in game})
+    value = _spearman([(game_ranks[code], actual_ranks[code]) for code in game])
+    return {"history_correlation": round(value, 3) if value is not None else None,
+            "prefectures": len(game), "games": sum(sum(v) for v in totals.values()) // 2,
+            **true_spread({code: totals[code] for code in game}),
+            "ranks": {code: game_ranks[code] for code in sorted(game)}}
 
-    ``by_year`` は 年 → 都道府県 → [勝ち, 負け]。両方に勝率のある都道府県で比べる。"""
+
+def prefecture_correlation(by_year: dict[int, dict[str, list[int]]], actual: dict[str, float] | None = None) -> dict:
+    """5年ごとと、すべての年をまとめた（``all_years``）、ゲームの甲子園（春夏）の都道府県の勝率と、
+    史実（``actual_prefecture_rates``）の順位相関。
+
+    ``by_year`` は 年 → 都道府県 → [勝ち, 負け]。両方に勝率のある都道府県で比べる。
+    5年では試合数による揺れが大きいので、合否はすべての年をまとめた値で見る。"""
     if not by_year:
         return {}
     actual = actual_prefecture_rates() if actual is None else actual
     out = {}
     start, last = min(by_year), max(by_year)
     for first in range(start, last + 1, PERIOD_YEARS):
-        totals = defaultdict(lambda: [0, 0])
-        for year in range(first, first + PERIOD_YEARS):
-            for code, (wins, losses) in by_year.get(year, {}).items():
-                totals[code][0] += wins
-                totals[code][1] += losses
-        game = {code: w / (w + l) for code, (w, l) in totals.items() if w + l and code in actual}
-        if len(game) < 3:
-            continue
-        game_ranks = _average_ranks(game)
-        actual_ranks = _average_ranks({code: actual[code] for code in game})
-        value = _spearman([(game_ranks[code], actual_ranks[code]) for code in game])
-        out[f"{first}〜{first + PERIOD_YEARS - 1}"] = {
-            "history_correlation": round(value, 3) if value is not None else None,
-            "prefectures": len(game), "games": sum(sum(v) for v in totals.values()) // 2}
+        cell = _prefecture_cell(by_year, range(first, first + PERIOD_YEARS), actual)
+        if cell is not None:
+            out[f"{first}〜{first + PERIOD_YEARS - 1}"] = cell
+    spans = list(out)
+    if len(spans) >= 2:
+        first_ranks, last_ranks = out[spans[0]]["ranks"], out[spans[-1]]["ranks"]
+        out["rank_rise"] = {"periods": len(spans), "risen_15": sum(
+            1 for code in first_ranks if code in last_ranks and first_ranks[code] - last_ranks[code] >= 15)}
+    for span in spans:
+        del out[span]["ranks"]
+    whole = _prefecture_cell(by_year, range(start, last + 1), actual)
+    if whole is not None:
+        del whole["ranks"]
+        out["all_years"] = {**whole, "first_year": start, "last_year": last}
+    return out
+
+
+def true_spread(records: dict[str, list[int]]) -> dict:
+    """都道府県 → [勝ち, 負け] の勝率の散らばり（標準偏差）と、試合数による揺れの見込み
+    （各県の p(1−p)/試合 の平均の平方根。p は全体の勝率0.5）と、揺れを除いた真の差の見積もり
+    （√(散らばり² − 揺れ²)。負なら0）。"""
+    rates = {code: w / (w + l) for code, (w, l) in records.items() if w + l}
+    if len(rates) < 2:
+        return {}
+    spread = statistics.pstdev(rates.values())
+    noise = statistics.mean(0.25 / sum(records[code]) for code in rates) ** 0.5
+    return {"stdev": round(spread, 4), "noise_stdev": round(noise, 4),
+            "true_stdev": round(max(0.0, spread ** 2 - noise ** 2) ** 0.5, 4)}
+
+
+def district_top_metrics(strength: dict[int, dict[str, float]],
+                         local_finishes: dict[int, dict[str, dict[str, int]]]) -> dict:
+    """5年ごとの、地区（夏の地方大会）で1番強い学校の強さ（7月1日の overall）。
+
+    ``top_stdev`` は地区ごとに5年の平均を出してからの地区どうしの散らばり（標準偏差。年ごとの当たり外れを除いた
+    地区の差）、``yearly_stdev`` は年ごとの散らばりの5年の平均。地区は大会に出た学校のうち学校IDの最も小さい学校で
+    年をまたいで結ぶ。"""
+    tops: dict[int, dict[str, float]] = {}
+    for year, values in strength.items():
+        for schools in local_finishes.get(year, {}).values():
+            present = [s for s in schools if s in values]
+            if present:
+                tops.setdefault(year, {})[min(schools)] = max(values[s] for s in present)
+    out = {}
+    if tops:
+        for first in range(min(tops), max(tops) + 1, PERIOD_YEARS):
+            years = [y for y in range(first, first + PERIOD_YEARS) if len(tops.get(y, {})) >= 2]
+            if not years:
+                continue
+            by_district: dict[str, list[float]] = defaultdict(list)
+            for year in years:
+                for district, value in tops[year].items():
+                    by_district[district].append(value)
+            means = [statistics.mean(v) for v in by_district.values()]
+            out[f"{first}〜{first + PERIOD_YEARS - 1}"] = {
+                "top_mean": round(statistics.mean(means), 2),
+                "top_stdev": round(statistics.pstdev(means), 3),
+                "yearly_stdev": round(statistics.mean(statistics.pstdev(tops[y].values()) for y in years), 3)}
     return out
 
 
@@ -829,6 +893,7 @@ class PowerTally:
             "summer_entrants": {str(y): sorted(s) for y, s in sorted(self.entrants["夏"].items())},
             "prefecture_strength": spread_by_prefecture(both) if both else {},
             "prefecture_correlation": prefecture_correlation(self.records_by_year),
+            "district_top": district_top_metrics(self.july_strength, self.local_finishes),
             "champions": {name: self._champion_summary(name) for name in KOSHIEN_NAMES.values()
                           if self.champions[name]},
             "starter_pitches": pitching,
@@ -975,9 +1040,19 @@ def format_power(power: dict, actual: dict | None = None) -> str:
     lines.append("■ 都道府県の強弱（甲子園の春夏の勝率）")
     lines += format_strength("ゲーム", power.get("prefecture_strength") or {})
     for span, cell in (power.get("prefecture_correlation") or {}).items():
+        if span == "rank_rise":
+            lines.append(f"  県の順位が最初の5年から最後の5年で15位以上上がった県：{cell['risen_15']:.1f}")
+            continue
         value = cell.get("history_correlation")
-        lines.append(f"  5年ごと {span}：史実（koshien_games の県別勝率）との順位相関 "
-                     + (f"{value:.3f}" if value is not None else "—") + f"（{cell['games']:.0f}試合）")
+        if span == "all_years":
+            span = f"{cell['first_year']:.0f}〜{cell['last_year']:.0f}"
+        lines.append(f"  {'まとめて' if 'first_year' in cell else '5年ごと'} {span}：史実（koshien_games の県別勝率）との順位相関 "
+                     + (f"{value:.3f}" if value is not None else "—") + f"（{cell['games']:.0f}試合）"
+                     + (f"　勝率の散らばり {cell['stdev']:.3f}・試合数による揺れ {cell['noise_stdev']:.3f}"
+                        f"・真の差の見積もり {cell['true_stdev']:.3f}" if "stdev" in cell else ""))
+    for span, cell in (power.get("district_top") or {}).items():
+        lines.append(f"  5年ごと {span}：地区1位の強さ（7月1日）平均 {cell['top_mean']:.1f}・地区の差（5年の平均の散らばり）"
+                     f" {cell['top_stdev']:.2f}・年ごとの散らばり {cell['yearly_stdev']:.2f}")
     if actual:
         lines += format_strength("実際（開始前の通算）", actual["prefecture_strength"])
     lines.append("■ 優勝校の顔ぶれ（実際の値なし：年ごとの優勝校の記録がない）")

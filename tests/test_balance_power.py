@@ -286,3 +286,7 @@ class PrefectureCorrelationTests(unittest.TestCase):
         self.assertEqual(1.0, out["2026〜2030"]["history_correlation"])
         self.assertEqual(-1.0, out["2031〜2035"]["history_correlation"])
         self.assertEqual(20, out["2026〜2030"]["games"])
+        # すべての年をまとめると、同じ県の勝ち負けを足してから比べる（ここでは全県5割で相関なし）
+        self.assertEqual(40, out["all_years"]["games"])
+        self.assertEqual((2026, 2031), (out["all_years"]["first_year"], out["all_years"]["last_year"]))
+        self.assertIsNone(out["all_years"]["history_correlation"])
