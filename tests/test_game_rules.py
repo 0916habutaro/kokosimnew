@@ -181,8 +181,10 @@ class PitchLimitTests(_TeamsFixture):
             self.assertNotEqual(ace, first)
 
     def test_pitcher_leaves_after_the_batter_who_reaches_the_limit(self):
-        by_event = self.simulator.params["pitch_count"]["by_event"]
-        most = max(low + extra for low, extra in by_event.values())
+        rule = self.simulator.params["pitch_count"]
+        # 1打席の最多の球数：結果ごとの範囲に、投手・打者の傾向で足す球（tendency.max_extra）
+        most = (max(low + extra for low, extra in rule["by_event"].values())
+                + int(rule["tendency"]["max_extra"]))
         team = self.teams[self.school_ids[0]]
         # 投げられる投手は3人で、みな30球まで（残りの投手は投げられない）。足りなければ野手が投げる
         allowances = {pid: (30 if index < 3 else 0) for index, pid in enumerate(self._staff())}

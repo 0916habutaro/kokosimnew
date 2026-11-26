@@ -8,7 +8,7 @@
     "carry": "前の評判を残す割合。新しい評判 = 前 + (目標 - 前) × (1 - carry)",
     "max_annual_change_z": "1年の評判の変化の上限（z）",
     "recent_year_weights": "目標の点に使う直近の年の重み（その年、1年前、2年前…）。同点は前の評判の順",
-    "prefecture_strength": "県の強さ。甲子園の県どうしの試合（同じ県どうし・引き分け・不戦は数えない）の勝ち・試合を持ち、勝率を5割に寄せた値 (勝ち + shrink_games×0.5)/(試合 + shrink_games)。初めは史実（koshien_games.csv の school_reputation_v1 の prefecture_strength.years の年。初期の評判の県の差と同じ）、毎年4月1日に勝ち・試合に decay を掛けてから、ゲームの甲子園の試合を足す。weighted_competition_types（県大会）の勝ち上がりの点に 1 ＋ scale ×（県の強さ − 0.5）を掛ける。地区大会・甲子園・神宮は県をまたぐ結果なので掛けない。弱い県の学校も県大会の外（地区大会・甲子園）で勝てば評判が上がり、その勝ちが県の強さを上げる"
+    "prefecture_strength": "県の強さ。甲子園の県どうしの試合（同じ県どうし・引き分け・不戦は数えない）の勝ち・試合を持ち、勝率を5割に寄せた値 (勝ち + shrink_games×0.5)/(試合 + shrink_games)。初めは史実（koshien_games.csv の school_reputation_v1 の prefecture_strength.years の年。初期の評判の県の差と同じ）、毎年4月1日に勝ち・試合に decay を掛けてから、ゲームの甲子園の試合を足す。weighted_competition_types（県大会）の勝ち上がりの点に 1 ＋ scale ×（県の強さ − 0.5）を掛ける。地区大会・甲子園・神宮は県をまたぐ結果なので掛けない。弱い県の学校も県大会の外（地区大会・甲子園）で勝てば評判が上がり、その勝ちが県の強さを上げる。重みは min_factor より小さくしない。年度ごとの県の強さは入部品質の県の項（school_intake_v1 の prefecture_component）にも使う。4シード・2045年まで（入部品質の県の項 3.5 と合わせて）：県の勝率と史実の順位相関 0.10/0.17/0.06/0.04 → 0.31/0.32/0.35/0.34（5年ごと）、県の勝率の真の差 0.05〜0.08 → 0.07〜0.10（史実 約0.09）（2026-11-26）"
   },
   "competition_weights": {
     "national_invitational": 4.0,
