@@ -310,9 +310,11 @@ def validate_school_intake(
             )
         squared_weight_sum += weight * weight
 
-    if abs(squared_weight_sum - 1.0) > 1e-9:
+    # 学校成分と年度の当たり外れの重みの2乗の和は1以下。1より小さい分は県の項（prefecture_component）が
+    # 受け持ち、全体の散らばりを県の項を足す前と同じにする
+    if squared_weight_sum > 1.0 + 1e-9 or squared_weight_sum <= 0:
         raise ValueError(
-            "school intake: component squared weights must sum to 1.0"
+            "school intake: component squared weights must be in (0, 1]"
         )
 
     private = quality.get("private_component")
