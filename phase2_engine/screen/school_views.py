@@ -54,10 +54,16 @@ class SchoolAbilities:
         """名簿の能力が成長で変わった回数（変わったら計算し直す）。"""
         return getattr(self._abilities.source, "version", None)
 
+    def _key(self, players, year: int) -> tuple:
+        """学校の能力を計算し直すかの鍵：年度・名簿の成長の回数・部員と、部員ごとの復帰の段階
+        （怪我から戻った直後は日によって選手の能力が変わる。選手の能力と同じ値にする）。"""
+        return (year, self._version(),
+                tuple((player.player_id, self._recovery(player)) for player in players))
+
     def compute(self, members: dict, year: int, team_seed: int) -> None:
         """``members`` は学校ID → 部員（Player の並び）。"""
         for school_id, players in members.items():
-            key = (year, self._version(), tuple(player.player_id for player in players))
+            key = self._key(players, year)
             with self._lock:
                 cached = self._cache.get(school_id)
             if cached is not None and cached[0] == key:
@@ -116,7 +122,7 @@ class SchoolAbilities:
         with self._lock:
             for school_id, players in members.items():
                 cached = self._cache.get(school_id)
-                key = (year, self._version(), tuple(player.player_id for player in players))
+                key = self._key(players, year)
                 if cached is not None and cached[0] == key:
                     out[school_id] = cached[1]
         return out, len(out) == len(members)

@@ -225,5 +225,28 @@ class PlayerSnapshotCacheTests(unittest.TestCase):
         self.assertEqual(2, len(calls))
 
 
+    def test_recovery_step_recomputes_the_team(self):
+        from phase2_engine.screen.school_views import SchoolAbilities
+        source = SimpleNamespace(version=1, today="2030-05-01", step=(None, 0))
+        source.recovery = lambda p, day: source.step if p.player_id == "P1" else (None, 0)
+        abilities = SchoolAbilities.__new__(SchoolAbilities)
+        abilities._abilities = SimpleNamespace(
+            source=source, generate=lambda p, year, seed: 80 if source.step == (None, 0) else 74)
+        abilities._teams = SimpleNamespace(generate=lambda snapshots: snapshots[0])
+        abilities.values = lambda team: {"overall": team}
+        abilities._weights, abilities._cache = {}, {}
+        abilities._player_cache, abilities._player_version = {}, None
+        import threading
+        abilities._lock = threading.Lock()
+        members = {"S1": [SimpleNamespace(player_id=f"P{i}") for i in range(1, 10)]}
+        abilities.compute(members, 2030, 1)
+        self.assertEqual(({"S1": {"overall": 80}}, True), abilities.get(members, 2030))
+        # 復帰の段階が変わった日は、計算し直すまで「そろっていない」（計算中）
+        source.step = ("怪我", 1)
+        self.assertEqual(({}, False), abilities.get(members, 2030))
+        abilities.compute(members, 2030, 1)
+        self.assertEqual(({"S1": {"overall": 74}}, True), abilities.get(members, 2030))
+
+
 if __name__ == "__main__":
     unittest.main()
