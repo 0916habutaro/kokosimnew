@@ -191,5 +191,39 @@ class ScreenDataTests(unittest.TestCase):
                           for c in data._ranking_competitions()])
 
 
+    def test_switching_saves_drops_player_cache(self):
+        data = self.screen({})
+        data.service.forget_closed_seasons = lambda: None
+        data.names = SimpleNamespace(edits=None)
+        data._load_edits = lambda: None
+        data._new_abilities = lambda: None
+        data._ranking_players_cache = ("前のセーブ", [player("OLD")])
+        data.use_session(SimpleNamespace(slot_id="slot01"))
+        self.assertIsNone(data._ranking_players_cache)
+
+
+class PlayerSnapshotCacheTests(unittest.TestCase):
+    def test_recovery_step_changes_the_snapshot(self):
+        from phase2_engine.screen.school_views import SchoolAbilities
+        calls = []
+        source = SimpleNamespace(version=1, today="2030-05-01", step=(None, 0))
+        source.recovery = lambda p, day: source.step
+
+        def generate(p, year, seed):
+            calls.append(source.step)
+            return {"fielding": 80 if source.step == (None, 0) else 74}
+
+        abilities = SchoolAbilities.__new__(SchoolAbilities)
+        abilities._abilities = SimpleNamespace(source=source, generate=generate)
+        abilities._player_cache, abilities._player_version = {}, None
+        one = SimpleNamespace(player_id="P1")
+        self.assertEqual(80, abilities.player(one, 2030, 1)["fielding"])
+        self.assertEqual(80, abilities.player(one, 2030, 1)["fielding"])
+        # 怪我から戻った直後の日は、詳細と同じく下がった能力を読み直す
+        source.step = ("怪我", 1)
+        self.assertEqual(74, abilities.player(one, 2030, 1)["fielding"])
+        self.assertEqual(2, len(calls))
+
+
 if __name__ == "__main__":
     unittest.main()

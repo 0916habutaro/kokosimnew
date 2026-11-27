@@ -75,18 +75,28 @@ class SchoolAbilities:
         return self._teams.generate(snapshots), snapshots
 
     def player(self, player, year: int, team_seed: int):
-        """選手の今日の能力（学校の能力と同じものを使い回す）。"""
+        """選手の今日の能力（学校の能力と同じものを使い回す）。
+
+        怪我から戻った直後は日によって能力が変わるので、名簿の復帰の段階も鍵に入れる
+        （選手の詳細と同じ ``rosters.ability`` の値になる）。"""
         version = self._version()
         if version != self._player_version:
             # 成長で能力が変わった。前の能力は捨てる
             self._player_cache = {}
             self._player_version = version
-        pkey = (player.player_id, year)
+        pkey = (player.player_id, year, self._recovery(player))
         snapshot = self._player_cache.get(pkey)
         if snapshot is None:
             snapshot = self._abilities.generate(player, year, team_seed)
             self._player_cache[pkey] = snapshot
         return snapshot
+
+    def _recovery(self, player):
+        """名簿のその日の復帰の (治った怪我, 段階)。名簿がなければ None。"""
+        source = self._abilities.source
+        if source is None or not hasattr(source, "recovery"):
+            return None
+        return source.recovery(player, getattr(source, "today", None))
 
     def values(self, team) -> dict:
         """学校の強さから画面の能力（打撃・投手・守備・走力…と総合）。"""

@@ -2784,7 +2784,7 @@ class GameScreenData:
         """今日の全部員の能力（総合・主な能力・プロ注目の理由）。同じ日・同じ名簿の能力なら前の結果。"""
         rosters = getattr(self.state, "rosters", None)
         year = self._current_year()
-        key = (self.session.slot_id, str(self.state.current_date), year,
+        key = (id(self.session), self.session.slot_id, str(self.state.current_date), year,
                getattr(rosters, "version", None))
         cached = getattr(self, "_ranking_players_cache", None)
         if cached is not None and cached[0] == key:
@@ -3426,6 +3426,7 @@ class GameScreenData:
         self._koshien_game_years = {}
         self._coach_history = None
         self._headline_lookups = {}
+        self._ranking_players_cache = None
         self.service.forget_closed_seasons()
         self.names.edits = self._load_edits()
         self.abilities = self._new_abilities()
