@@ -3,12 +3,119 @@
   "revision": 1,
   "description_ja": "能力ランキングの画面（phase2_engine/screen/ability_rankings.py）。今日の部員の能力から毎回計算し、保存はしない。",
   "page_size": 100,
+  "player_overall": {
+    "batter": {
+      "contact": 0.25,
+      "power": 0.2,
+      "plate_discipline": 0.1,
+      "speed": 0.15,
+      "fielding": 0.15,
+      "arm_strength": 0.1,
+      "throwing": 0.05
+    },
+    "pitcher": {
+      "control": 0.25,
+      "stamina": 0.15,
+      "stuff": 0.25,
+      "strikeout": 0.25,
+      "groundball": 0.1
+    },
+    "by_position": {
+      "P": "pitcher",
+      "C": {
+        "fielding": 0.15,
+        "arm_strength": 0.2,
+        "catching": 0.2,
+        "game_calling": 0.2,
+        "contact": 0.15,
+        "power": 0.1
+      },
+      "1B": {
+        "contact": 0.3,
+        "power": 0.35,
+        "plate_discipline": 0.15,
+        "fielding": 0.1,
+        "speed": 0.05,
+        "arm_strength": 0.05
+      },
+      "2B": {
+        "fielding": 0.25,
+        "throwing": 0.15,
+        "speed": 0.2,
+        "contact": 0.2,
+        "plate_discipline": 0.1,
+        "power": 0.05,
+        "arm_strength": 0.05
+      },
+      "3B": {
+        "fielding": 0.2,
+        "arm_strength": 0.15,
+        "throwing": 0.1,
+        "contact": 0.25,
+        "power": 0.25,
+        "speed": 0.05
+      },
+      "SS": {
+        "fielding": 0.25,
+        "throwing": 0.15,
+        "arm_strength": 0.1,
+        "speed": 0.2,
+        "contact": 0.2,
+        "power": 0.1
+      },
+      "LF": {
+        "contact": 0.3,
+        "power": 0.3,
+        "plate_discipline": 0.15,
+        "speed": 0.1,
+        "fielding": 0.1,
+        "arm_strength": 0.05
+      },
+      "CF": {
+        "speed": 0.25,
+        "fielding": 0.25,
+        "arm_strength": 0.1,
+        "contact": 0.25,
+        "power": 0.1,
+        "plate_discipline": 0.05
+      },
+      "RF": {
+        "contact": 0.25,
+        "power": 0.3,
+        "plate_discipline": 0.1,
+        "arm_strength": 0.15,
+        "fielding": 0.1,
+        "speed": 0.1
+      }
+    }
+  },
+  "main_abilities": {
+    "batter": [
+      "contact",
+      "power",
+      "plate_discipline",
+      "speed",
+      "arm_strength",
+      "fielding"
+    ],
+    "pitcher": [
+      "velocity_kmh",
+      "control",
+      "stamina",
+      "stuff",
+      "strikeout"
+    ]
+  },
+  "featured_grade": "S",
   "prefecture_top_n": 8,
   "reputation_gap": {
     "min_places": 200
   },
   "notes_ja": {
     "page_size": "表に最初に出す行数。「もっと見る」でこの数ずつ増やす",
+    "player_overall": "選手の総合＝Σ（能力×重み）÷Σ重み（小数1桁。値のない能力は重みごと除く）。野手（主な守備位置がP以外）は batter、投手は pitcher。球速は km/h なので入れない。守備位置ごとの表は by_position のその位置の重み（\"pitcher\" と書いた位置は投手の重み）",
+    "main_abilities": "表に文字付きで出す主な能力（球速は km/h で出す）",
+    "featured_grade": "プロ注目：有望な新入生の印がある選手か、主な能力（main_abilities。球速は文字にしないので除く）のどれかが選手の文字（ability_scale_v1.json の display_bands）でこのランクの選手",
     "prefecture_top_n": "都道府県の強さ：その都道府県の学校の総合の上位この数の校の平均。学校がこの数に満たない県は、ある学校だけの平均",
     "reputation_gap.min_places": "評判と実力の差：全国の評判の順位と総合の順位がこの数以上離れた学校を出す。総合の順位の方が高ければダークホース、低ければ名前負け。順位は能力の出た学校（部員9人以上）の中で数える"
   }
