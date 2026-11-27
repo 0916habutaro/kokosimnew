@@ -170,5 +170,26 @@ class ScreenDataTests(unittest.TestCase):
         self.assertEqual((False, []), (out["decided"], out["rows"]))
 
 
+    def test_competition_without_runtime_is_listed_as_undecided(self):
+        # 夏の甲子園は予選の結果待ちで、まだ進行の状態がない（season.competitions に入っていない）
+        from phase2_engine.tournament_runtime import MainTournamentRuntimeState
+        main = MainTournamentRuntimeState.__new__(MainTournamentRuntimeState)
+        main.entrant_school_ids = ["S1", "S3"]
+        season = SimpleNamespace(annual_templates={"SUMMER": None, "SPRING": None, "LOCAL": None},
+                                 competitions={"SPRING": SimpleNamespace(runtime=main)})
+        data = self.screen({})
+        del data._ranking_competitions
+        data._season_of = lambda year: season
+        data.competition_names = lambda cid, name: name
+        data.service.repo.competitions = {
+            "SUMMER": {"competition_type": "national_championship", "competition_name": "夏"},
+            "SPRING": {"competition_type": "national_invitational", "competition_name": "春"},
+            "LOCAL": {"competition_type": "summer_local_qualifier", "competition_name": "県"},
+        }
+        self.assertEqual([("SUMMER", False, []), ("SPRING", True, ["S1", "S3"])],
+                         [(c["competition_id"], c["decided"], c["entrants"])
+                          for c in data._ranking_competitions()])
+
+
 if __name__ == "__main__":
     unittest.main()
