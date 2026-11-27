@@ -99,6 +99,9 @@ class ScreenApi:
     def schools(self) -> dict:
         return self._read(self._data.schools)
 
+    def ability_rankings(self, filters=None) -> dict:
+        return self._read(self._data.ability_rankings, filters)
+
     def school_side(self, school_id) -> dict:
         return self._read(self._data.school_side, school_id)
 

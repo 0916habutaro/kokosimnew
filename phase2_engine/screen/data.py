@@ -58,7 +58,7 @@ from .player_views import (
     snapshot_values,
     trend_keys,
 )
-from . import headlines as headline_rules, player_records, rankings, record_filters
+from . import ability_rankings, headlines as headline_rules, player_records, rankings, record_filters
 from .save_views import next_slot_id, recovery_rows, slot_rows
 from .school_names import EditedNames, SchoolNames, prefecture_names
 from .school_views import (
@@ -97,6 +97,7 @@ MENU = (
     {"id": "matches", "label": "試合"},
     {"id": "schools", "label": "学校"},
     {"id": "records", "label": "記録"},
+    {"id": "ability_rankings", "label": "能力ランキング"},
     {"id": "saves", "label": "セーブ"},
 )
 
@@ -2610,6 +2611,164 @@ class GameScreenData:
             "school_year": year, "abilities_status": status, "schools": rows,
             "reputation_ranks": self._reputation_labels(),
         }
+
+    # ---- 能力ランキング ----
+
+    ABILITY_TEAM_VIEWS = ("overall", "gap", "strength", "competition")
+
+    def ability_rankings(self, filters=None) -> dict:
+        """能力ランキングの画面：今日の学校の能力を並べる（保存はしない）。
+
+        ``team_view`` は総合（地区・都道府県で絞れる）・評判と実力の差・都道府県の強さ・大会の
+        出場校。学校の能力の計算が終わっていなければ ``status`` が ``computing`` で行はない。"""
+        config = self._ability_ranking_config()
+        f = dict(filters or {})
+        f["view"] = f.get("view") if f.get("view") in ("teams", "players") else "teams"
+        if f.get("team_view") not in self.ABILITY_TEAM_VIEWS:
+            f["team_view"] = "overall"
+        if f.get("sort_key") not in ability_rankings.TEAM_SORT_KEYS:
+            f["sort_key"] = "overall"
+        page = int(config["page_size"])
+        try:
+            f["limit"] = max(page, int(f.get("limit") or page))
+        except (TypeError, ValueError):
+            f["limit"] = page
+        region_names = {r["region_id"]: r["region_name"]
+                        for r in _csv_rows(self.service.repo.data_dir, "baseball_regions.csv")}
+        regions = sorted(set(self._regions.values()))
+        if f.get("region") not in regions:
+            f["region"] = ""
+        prefectures = sorted(
+            (code for code in self.prefectures
+             if not f["region"] or self._regions.get(code) == f["region"]))
+        if f.get("prefecture") not in prefectures:
+            f["prefecture"] = ""
+        out = {
+            "filters": f, "page_size": page, "status": "ready", "rows": [], "total": 0,
+            "regions": [[r, region_names.get(r, r)] for r in regions],
+            "prefectures": [[code, self.prefectures[code]] for code in prefectures],
+            "reputation_ranks": self._reputation_labels(),
+        }
+        members = self._today_members()
+        if members is None:
+            return {**out, "status": "unavailable"}
+        abilities, ready = self.abilities.get(members, self._current_year())
+        if not ready:
+            return {**out, "status": "computing"}
+        abilities = {sid: values for sid, values in abilities.items() if values}
+        schools = self.service.repo.schools
+
+        def prefecture_of(school_id):
+            return schools.get(school_id, {}).get("prefecture_code", "")
+
+        def area_ok(school_id):
+            code = prefecture_of(school_id)
+            return ((not f["prefecture"] or code == f["prefecture"])
+                    and (not f["region"] or self._regions.get(code) == f["region"]))
+
+        overall = {sid: values["overall"] for sid, values in abilities.items()}
+        reputation = self._reputation_ranks()
+        national = ability_rankings.places(
+            {sid: values[f["sort_key"]] for sid, values in abilities.items()})
+
+        def school(school_id):
+            code = prefecture_of(school_id)
+            return {"school_id": school_id, "name": self.names(school_id),
+                    "prefecture_code": code, "prefecture": self.prefectures.get(code, ""),
+                    "reputation": reputation.get(school_id, "")}
+
+        def team(rows):
+            out["total"] = len(rows)
+            return [{**school(r["school_id"]), "place": place, "national_place": national[r["school_id"]],
+                     "abilities": r["abilities"]}
+                    for place, r in enumerate(rows[:f["limit"]], start=1)]
+
+        view = f["team_view"]
+        if view == "overall":
+            rows = [r for r in ability_rankings.team_rows(abilities, sort_key=f["sort_key"])
+                    if area_ok(r["school_id"])]
+            out["rows"] = team(rows)
+        elif view == "gap":
+            values = self._reputation_values()
+            out["has_reputation"] = bool(values)
+            gap = ability_rankings.reputation_gap(
+                values, overall, min_places=int(config["reputation_gap"]["min_places"]))
+            out["min_places"] = int(config["reputation_gap"]["min_places"])
+            for key, rows in gap.items():
+                rows = [r for r in rows if area_ok(r["school_id"])]
+                out[key] = {"total": len(rows), "rows": [
+                    {**school(r["school_id"]), **r, "overall": overall[r["school_id"]]}
+                    for r in rows[:f["limit"]]]}
+        elif view == "strength":
+            strength = ability_rankings.prefecture_strength(
+                overall, prefecture_of, top_n=int(config["prefecture_top_n"]))
+            out["top_n"] = int(config["prefecture_top_n"])
+            out["strength"] = [
+                {**row, "prefecture": self.prefectures.get(row["prefecture_code"], ""),
+                 "top_school_name": self.names(row["top_school_id"])}
+                for row in strength]
+            average = {row["prefecture_code"]: row["average"] for row in strength}
+            # 地図は49マス（北海道・東京の2マスはどちらも都道府県の値）
+            tiles = {t["code"]: average.get(t["prefecture"]) for t in self.tile_map()["tiles"]}
+            steps = rankings.color_steps(tiles)
+            out["map"] = {"values": tiles, "classes": steps["classes"], "bounds": steps["bounds"],
+                          "integer": steps["integer"]}
+        else:
+            choices = self._ranking_competitions()
+            out["competitions"] = choices
+            ids = [c["competition_id"] for c in choices]
+            if f.get("competition_id") not in ids:
+                decided = [c for c in choices if c["decided"]]
+                f["competition_id"] = (decided or choices or [{"competition_id": ""}])[0]["competition_id"]
+            entrants = next((c["entrants"] for c in choices
+                             if c["competition_id"] == f["competition_id"]), [])
+            out["decided"] = bool(entrants)
+            picked = {sid: abilities[sid] for sid in entrants if sid in abilities}
+            out["rows"] = team(ability_rankings.team_rows(picked, sort_key=f["sort_key"]))
+            for choice in choices:
+                choice.pop("entrants")
+        return out
+
+    def _ability_ranking_config(self) -> dict:
+        if getattr(self, "_ability_rankings_config", None) is None:
+            self._ability_rankings_config = ability_rankings.load_config(self.config_root)
+        return self._ability_rankings_config
+
+    def _ranking_competitions(self) -> list[dict]:
+        """今年度の全国大会（夏の甲子園・選抜・神宮の順）と出場校（決まっていなければ空）。
+
+        大会の一覧と同じく年度の予定（``annual_templates``）から並べるので、予選の結果を
+        待っていてまだ進行の状態がない大会も「出場校未定」として出す。"""
+        year = self._current_year()
+        season = self._season_of(year)
+        order = {ctype: index for index, (ctype, _) in enumerate(NATIONAL_TYPES)}
+        repo = self.service.repo
+        out = []
+        for cid in (season.annual_templates if season is not None else ()):
+            competition = repo.competitions.get(cid, {})
+            if competition.get("competition_type") not in order:
+                continue
+            scheduled = season.competitions.get(cid)
+            main = main_runtime(scheduled) if scheduled is not None else None
+            entrants = list(main.entrant_school_ids) if main is not None else []
+            out.append({
+                "competition_id": cid,
+                "name": self.competition_names(cid, competition.get("competition_name", cid)),
+                "order": order[competition["competition_type"]],
+                "decided": bool(entrants), "entrants": entrants,
+            })
+        out.sort(key=lambda c: (c["order"], c["competition_id"]))
+        return out
+
+    def _reputation_values(self) -> dict[str, float]:
+        """学校ID → 評判の値（順位を出すのに使う）。取れなければ空。"""
+        rep = self.state.reputation if isinstance(self.state, CareerState) else None
+        if rep is not None:
+            return dict(rep.values)
+        initial = reputation_for(str(self.config_root.parent))
+        seed = self.session.plan.rng_seed
+        values = {sid: initial.score(sid, seed) for sid in self.service.repo.schools}
+        return {sid: value for sid, value in values.items() if value is not None}
 
     def _reputation_ranks(self) -> dict[str, str]:
         """学校ID → 評判のランク（全校をまとめて出す）。"""

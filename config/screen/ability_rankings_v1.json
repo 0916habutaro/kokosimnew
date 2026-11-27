@@ -1,0 +1,15 @@
+{
+  "config_id": "ability_rankings_v1",
+  "revision": 1,
+  "description_ja": "能力ランキングの画面（phase2_engine/screen/ability_rankings.py）。今日の部員の能力から毎回計算し、保存はしない。",
+  "page_size": 100,
+  "prefecture_top_n": 8,
+  "reputation_gap": {
+    "min_places": 200
+  },
+  "notes_ja": {
+    "page_size": "表に最初に出す行数。「もっと見る」でこの数ずつ増やす",
+    "prefecture_top_n": "都道府県の強さ：その都道府県の学校の総合の上位この数の校の平均。学校がこの数に満たない県は、ある学校だけの平均",
+    "reputation_gap.min_places": "評判と実力の差：全国の評判の順位と総合の順位がこの数以上離れた学校を出す。総合の順位の方が高ければダークホース、低ければ名前負け。順位は能力の出た学校（部員9人以上）の中で数える"
+  }
+}
