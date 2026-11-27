@@ -41,7 +41,7 @@ class ScreenDataTests(unittest.TestCase):
     def test_shell_has_menu_and_header(self):
         shell = self.data.shell()
         self.assertEqual(
-            ["today", "competitions", "matches", "schools", "records", "saves"],
+            ["today", "competitions", "matches", "schools", "records", "ability_rankings", "saves"],
             [item["id"] for item in shell["menu"]],
         )
         # 能力のランクの境目（S から順に下がる）

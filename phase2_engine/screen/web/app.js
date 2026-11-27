@@ -31,6 +31,7 @@ const state = {
   recordsEntrants: {},
   recordsPlayers: {}, // 個人の記録の絞り込み（view は「部門の上位」か「達成の記録」）
   recordsRankings: {}, // ランキングの絞り込みと並べ方（view は「学校別」か「都道府県別」）
+  abilityRankings: {}, // 能力ランキングの絞り込み（view は「チーム」か「選手」、team_view は表の種類）
   bracket: null,
   zoom: 1,
 };
@@ -131,6 +132,7 @@ function location_() {
     recordsYear: state.recordsYear || null,
     recordsTab: state.recordsTab, recordsBest8: state.recordsBest8, recordsEntrants: state.recordsEntrants,
     recordsPlayers: state.recordsPlayers, recordsRankings: state.recordsRankings,
+    abilityRankings: state.abilityRankings,
   });
 }
 
@@ -169,6 +171,7 @@ function goHistory(from, to) {
   state.recordsEntrants = saved.recordsEntrants || {};
   state.recordsPlayers = saved.recordsPlayers || {};
   state.recordsRankings = saved.recordsRankings || {};
+  state.abilityRankings = saved.abilityRankings || {};
   nav.restoring = true;
   try {
     renderMenu();
@@ -200,6 +203,7 @@ function renderPage() {
   if (state.page === "matches") return renderMatches(content);
   if (state.page === "schools") return renderSchools(content);
   if (state.page === "records") return renderRecords(content);
+  if (state.page === "ability_rankings") return renderAbilityRankings(content);
   if (state.page === "saves") return renderSaves(content);
   const title = (state.menu.find((m) => m.id === state.page) || {}).label || "";
   content.innerHTML = `<div class="head"><h2>${esc(title)}</h2></div>
@@ -995,6 +999,127 @@ async function renderRankings(content) {
     Object.assign(state.recordsRankings, { region: picked.region, prefecture: picked.tile || "" });
     renderPage();
   });
+}
+
+// ---- 能力ランキング（今日の部員の能力。保存はしない） ----
+
+const AR_TEAM_VIEWS = [["overall", "総合"], ["gap", "評判と実力"], ["strength", "都道府県の強さ"], ["competition", "大会の出場校"]];
+const AR_SORTS = [["overall", "総合"], ["batting", "打撃"], ["pitching", "投手"], ["defense", "守備"], ["running", "走力"]];
+
+function arAbility(value, strong) {
+  return `<td class="n${strong ? " strong" : ""}">${rankHtml(value)} <span class="muted">${value}</span></td>`;
+}
+
+function arMore(shown, total) {
+  return total > shown ? `<p><button class="btn small ar-more" type="button">もっと見る（${shown.toLocaleString()} / ${total.toLocaleString()}校）</button></p>` : "";
+}
+
+// 総合・大会の出場校の表。県で絞ったときは「順位」が県内の順位になり、全国の順位を並べる
+function arTeamTable(data, rows, inPrefecture) {
+  const f = data.filters;
+  const head = AR_SORTS.map(([k, label]) => `<th class="sortable n${f.sort_key === k ? " sorted" : ""}" data-ar-sort="${k}">${label}${f.sort_key === k ? " ▼" : ""}</th>`).join("");
+  return `<table class="list zebra rankings"><thead><tr><th class="n">${inPrefecture ? "県内の順位" : "順位"}</th>${inPrefecture ? '<th class="n">全国の順位</th>' : ""}
+    <th>学校</th><th>都道府県</th><th>評判</th>${head}</tr></thead>
+    <tbody>${rows.map((r) => `<tr><td class="n">${r.place}</td>${inPrefecture ? `<td class="n muted">${r.national_place}</td>` : ""}
+      <td><span class="link" data-school="${esc(r.school_id)}">${esc(r.name)}</span></td><td>${esc(r.prefecture)}</td>
+      <td>${esc(r.reputation)}</td>${AR_SORTS.map(([k]) => arAbility(r.abilities[k], f.sort_key === k)).join("")}</tr>`).join("")}</tbody></table>`;
+}
+
+function arGapTable(title, part, note) {
+  return `<div class="panel"><h3>${esc(title)}</h3><p class="muted record-note">${esc(note)}</p>
+    ${part.rows.length ? `<table class="list zebra rankings"><thead><tr><th>学校</th><th>都道府県</th><th>評判</th><th class="n">評判の順位</th><th>総合</th><th class="n">総合の順位</th><th class="n">差</th></tr></thead>
+    <tbody>${part.rows.map((r) => `<tr><td><span class="link" data-school="${esc(r.school_id)}">${esc(r.name)}</span></td><td>${esc(r.prefecture)}</td>
+      <td>${esc(r.reputation)}</td><td class="n">${r.reputation_place}</td><td class="n">${rankHtml(r.overall)} <span class="muted">${r.overall}</span></td>
+      <td class="n">${r.overall_place}</td><td class="n strong">${r.gap}</td></tr>`).join("")}</tbody></table>` : '<p class="muted empty-hint">当てはまる学校はありません。</p>'}
+    ${arMore(part.rows.length, part.total)}</div>`;
+}
+
+async function renderAbilityRankings(content) {
+  const requested = JSON.stringify(state.abilityRankings);
+  const data = await call("ability_rankings", state.abilityRankings);
+  if (requested !== JSON.stringify(state.abilityRankings)) return;
+  if (!data || state.page !== "ability_rankings") return;
+  state.abilityRankings = { ...data.filters };
+  refreshLocation();
+  const f = data.filters;
+  const opt = (value, text, on) => `<option value="${esc(value)}" ${String(on ?? "") === String(value) ? "selected" : ""}>${esc(text)}</option>`;
+  const select = (key, label, items) => `<label>${label}<select id="ar-${key}">${items.map(([v, t]) => opt(v, t, f[key])).join("")}</select></label>`;
+  const teams = f.view === "teams";
+  const view = f.team_view;
+  let bar = "", body;
+  if (!teams) {
+    body = '<div class="empty">選手のランキングはこれから作ります。</div>';
+  } else {
+    bar = `<span class="sep"></span>${AR_TEAM_VIEWS.map(([k, label]) => `<button class="chip ${view === k ? "on" : ""}" data-ar-tview="${k}">${label}</button>`).join("")}`;
+    if (["overall", "gap"].includes(view)) {
+      bar += `<span class="sep"></span>${select("region", "地区", [["", "すべて"], ...data.regions])}
+        ${select("prefecture", "都道府県", [["", "すべて"], ...data.prefectures])}`;
+    }
+    if (view === "competition" && data.competitions) {
+      bar += `<span class="sep"></span>${select("competition_id", "大会", data.competitions.map((c) => [c.competition_id, c.name + (c.decided ? "" : "（未定）")]))}`;
+    }
+    if (data.status === "unavailable") {
+      body = '<div class="empty">部員のデータがありません。</div>';
+    } else if (data.status === "computing") {
+      body = '<div class="empty">学校の能力を計算中です…</div>';
+    } else if (view === "overall") {
+      body = `<p class="muted record-note">今日の部員から出した学校の能力です（部員が9人に満たない学校は出しません）。見出しを押すと並べ替えます。</p>
+        ${data.rows.length ? arTeamTable(data, data.rows, Boolean(f.prefecture)) : '<p class="muted empty-hint">条件に合う学校がありません。</p>'}
+        ${arMore(data.rows.length, data.total)}`;
+    } else if (view === "gap") {
+      const note = `全国の評判の順位と総合の順位が${data.min_places}位以上離れた学校です。`;
+      body = !data.has_reputation ? '<div class="empty">評判がありません。</div>'
+        : `<div class="ar-gap">${arGapTable("ダークホース（評判より強い）", data.dark_horse, note + "総合の順位の方が高い学校。")}
+          ${arGapTable("名前負け（評判より弱い）", data.underperformer, note + "総合の順位の方が低い学校。")}</div>`;
+    } else if (view === "strength") {
+      const colors = Object.fromEntries(Object.entries(data.map.classes).map(([code, c]) => [code, c == null ? RANK_EMPTY : RANK_COLORS[c]]));
+      const values = Object.fromEntries(Object.entries(data.map.values).map(([code, v]) => [code, v == null ? "" : v.toFixed(1)]));
+      const legend = data.map.bounds.length ? `<span class="muted">平均</span>${data.map.bounds.map(([lo, hi], i) =>
+        `<span class="rank-key"><i style="background:${RANK_COLORS[i].bg}"></i>${lo.toFixed(1)}〜${hi.toFixed(1)}</span>`).join("")}` : "";
+      body = `<p class="muted record-note">都道府県ごとの、総合の上位${data.top_n}校の平均です（${data.top_n}校に満たない県はある学校だけ）。都道府県・マスを押すと、その県の学校の総合の表に移ります。</p>
+        <div class="rank-split"><table class="list zebra rankings"><thead><tr><th class="n">順位</th><th>都道府県</th><th class="n">平均</th><th>1位の学校</th><th class="n">総合</th></tr></thead>
+        <tbody>${data.strength.map((r) => `<tr><td class="n">${r.place}</td><td><span class="link" data-ar-pref="${esc(r.prefecture_code)}">${esc(r.prefecture)}</span></td>
+          <td class="n strong">${r.average.toFixed(1)}</td><td><span class="link" data-school="${esc(r.top_school_id)}">${esc(r.top_school_name)}</span></td>
+          <td class="n">${rankHtml(r.top_overall)} <span class="muted">${r.top_overall}</span></td></tr>`).join("")}</tbody></table>
+        <div class="panel rank-map"><h3>都道府県の強さ</h3>${tileMapHtml({ colors, values, legend })}</div></div>`;
+    } else {
+      body = !data.competitions.length ? '<div class="empty">今年度の全国大会がありません。</div>'
+        : !data.decided ? '<div class="empty">まだ出場校が決まっていません。</div>'
+        : `<p class="muted record-note">選んだ大会の出場校を、今日の部員の能力で並べます。見出しを押すと並べ替えます。</p>
+          ${arTeamTable(data, data.rows, false)}${arMore(data.rows.length, data.total)}`;
+    }
+  }
+  content.innerHTML = `<div class="head"><h2>能力ランキング</h2></div>
+    <div class="best8-filters">
+      <button class="chip ${teams ? "on" : ""}" data-ar-view="teams">チーム</button>
+      <button class="chip ${teams ? "" : "on"}" data-ar-view="players">選手</button>${bar}
+    </div>
+    <div class="scroll">${body}</div>`;
+  const change = (patch) => { Object.assign(state.abilityRankings, patch, { limit: 0 }); renderPage(); };
+  content.querySelectorAll("[data-ar-view]").forEach((b) => b.addEventListener("click", () => change({ view: b.dataset.arView })));
+  content.querySelectorAll("[data-ar-tview]").forEach((b) => b.addEventListener("click", () => change({ team_view: b.dataset.arTview })));
+  content.querySelectorAll("[data-ar-sort]").forEach((th) => th.addEventListener("click", () => change({ sort_key: th.dataset.arSort })));
+  for (const key of ["region", "prefecture", "competition_id"]) {
+    const el = $("ar-" + key);
+    if (el) el.addEventListener("change", (e) => change({ [key]: e.target.value, ...(key === "region" ? { prefecture: "" } : {}) }));
+  }
+  const toPrefecture = (code) => change({ team_view: "overall", prefecture: code, region: "" });
+  content.querySelectorAll("[data-ar-pref]").forEach((a) => a.addEventListener("click", () => toPrefecture(a.dataset.arPref)));
+  content.querySelectorAll(".rank-map [data-map-pref]").forEach((b) => b.addEventListener("click", () => {
+    const t = mapTile(b.dataset.mapPref);
+    if (t) toPrefecture(t.prefecture);
+  }));
+  content.querySelectorAll(".link[data-school]").forEach((a) => a.addEventListener("click", () => openSchool(a.dataset.school)));
+  content.querySelectorAll(".ar-more").forEach((b) => b.addEventListener("click", () => {
+    state.abilityRankings.limit = f.limit + data.page_size;
+    renderPage();
+  }));
+  if (teams && data.status === "computing") {
+    clearTimeout(renderAbilityRankings.retry);
+    renderAbilityRankings.retry = setTimeout(() => {
+      if (state.page === "ability_rankings" && !state.busy) renderPage();
+    }, 4000);
+  }
 }
 
 async function renderRecords(content) {
