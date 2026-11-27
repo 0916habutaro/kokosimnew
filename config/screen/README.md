@@ -6,5 +6,5 @@
 - `school_short_names_v1.json`: 画面の短い校名で、規則に合わない学校を個別に直す（`phase2_engine/screen/school_names.py`）。
 - `competition_short_names_v1.json`: 一覧で使う大会の短い名前で、規則に合わない大会を個別に直す（`phase2_engine/screen/competition_names.py`）。
 - `headlines_v1.json`: 今日の画面の「今日の見出し」の判定の値（番狂わせの評判の差、大逆転の点差、記録の基準、甲子園の◯年ぶり・◯年連続など）と並べ方（`phase2_engine/screen/headlines.py`）。
-- `ability_rankings_v1.json`: 能力ランキングの画面の件数・都道府県の強さの上位◯校・評判と実力の差のしきい値（`phase2_engine/screen/ability_rankings.py`）。
+- `ability_rankings_v1.json`: 能力ランキングの画面の件数・選手の総合の重み（野手・投手・守備位置ごと）・プロ注目の基準・都道府県の強さの上位◯校・評判と実力の差のしきい値（`phase2_engine/screen/ability_rankings.py`）。
 - `tile_map_v1.json`: 都道府県のタイル地図のマスの並び（列・行）と、色分けに使う地区の季節（`phase2_engine/screen/web/app.js` の `tileMap`）。
