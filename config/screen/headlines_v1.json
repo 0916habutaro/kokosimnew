@@ -24,8 +24,9 @@
   },
   "upset": {
     "rules": [
-      {"levels": ["national", "regional"], "min_gap": 1, "loser_ranks": ["S", "A", "B"]},
-      {"levels": ["prefectural", "local"], "round_names": ["準々決勝", "準決勝", "決勝"], "min_gap": 1, "loser_ranks": ["S"]},
+      {"levels": ["national"], "min_gap": 2, "loser_ranks": ["S"]},
+      {"levels": ["national"], "min_gap": 3, "loser_ranks": ["S", "A", "B"]},
+      {"levels": ["regional"], "min_gap": 2, "loser_ranks": ["S", "A", "B"]},
       {"levels": ["prefectural", "local"], "min_gap": 2, "loser_ranks": ["S", "A"]}
     ]
   },
@@ -57,7 +58,7 @@
     "round_weights": "同じ順位の中で回戦の重さ（大きいほど上）。本大会（MAIN）の回戦名だけ",
     "tiers": "大事さの順（小さいほど上）：全国の優勝 → 甲子園の出場決定・途切れ → 記録 → 番狂わせ → その他",
     "labels": "先頭の【 】の文字。{years} は年数",
-    "upset.rules": "上から順に、大会の格（と回戦）が合う最初の決まりを使う。評判のランクの差（rank_labels の並びの段数）が min_gap 以上で、負けた学校の評判が loser_ranks に入るとき番狂わせ",
+    "upset.rules": "大会の格（levels）と回戦（round_names があるときだけ）が合う決まりを上から順に全部見て、どれか1つに合えば番狂わせ。合うのは、評判のランクの差（rank_labels の並びの段数）が min_gap 以上で、負けた学校の評判が loser_ranks に入るとき。下のランクが勝つのがおよそ2割までの組み合わせだけにしている（全国：差2以上でSの負け・差3以上でS〜Bの負け、地区：差2以上でS〜Bの負け、県：差2以上でS・Aの負け）",
     "drama": "サヨナラ・延長・大量得点は levels の大会の本大会と、それ以外の大会の local_round_names の回戦だけ。大逆転は、その大会・回戦では comeback_runs 点差以上、ほかでは comeback_runs_elsewhere 点差以上を勝った学校がひっくり返した試合。地区大会の予選（北海道の支部予選など）は都道府県大会と同じに扱う",
     "feat_min_outs": "ノーヒットノーラン・完全試合は、投げ切ったアウトの数がこれ以上の試合だけ（コールドの試合は見出しにしない。サイクル安打はコールドでも出す）",
     "records": "1人の投手の1試合の奪三振、1人の打者の1試合の本塁打、1チームの1試合の得点がこれ以上。得点は drama と同じ大会・回戦だけ",

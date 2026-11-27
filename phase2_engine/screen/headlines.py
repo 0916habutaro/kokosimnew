@@ -246,7 +246,7 @@ def rank_gap(rank_order: list[str], winner_rank: str, loser_rank: str) -> int:
 
 
 def upset_headline(config: dict, match: dict, names: dict, ranks: dict, rank_order: list[str]) -> dict | None:
-    """評判のランクの差が大きい勝利。大会の格・回戦で基準を変える（config の upset.rules）。"""
+    """評判のランクの差が大きい勝利。大会の格・回戦が合う決まりのどれかに合えば出す（config の upset.rules）。"""
     winner, loser = _sides(match)
     win_rank, lose_rank = ranks.get(winner, ""), ranks.get(loser, "")
     for rule in config["upset"]["rules"]:
@@ -260,7 +260,6 @@ def upset_headline(config: dict, match: dict, names: dict, ranks: dict, rank_ord
             return headline(config, "upset",
                             f"評判{win_rank}の{names[winner]}、評判{lose_rank}の{names[loser]}を破る ― {where(match)}",
                             match)
-        return None
     return None
 
 

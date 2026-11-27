@@ -114,21 +114,29 @@ class GameHeadlineTests(unittest.TestCase):
         self.assertEqual(["comeback"], kinds(h.match_headlines(CONFIG, m, detail, NAMES, {}, RANKS, player)))
 
     def test_upset_depends_on_level_and_round(self):
-        ranks = {"SCH_A": "C", "SCH_B": "S"}
-        # 県大会の序盤：2段以上の差（C が S に勝つ）
-        items = h.match_headlines(CONFIG, match(), None, NAMES, ranks, RANKS, player)
+        def upset(level, win_rank, lose_rank, round_name="2回戦"):
+            ranks = {"SCH_A": win_rank, "SCH_B": lose_rank}
+            return kinds(h.match_headlines(CONFIG, match(level=level, round_name=round_name),
+                                           None, NAMES, ranks, RANKS, player)) == ["upset"]
+
+        # 県大会：2段以上の差でSかAが負けたとき
+        items = h.match_headlines(CONFIG, match(), None, NAMES, {"SCH_A": "C", "SCH_B": "S"}, RANKS, player)
         self.assertEqual(["upset"], kinds(items))
         self.assertEqual("評判Cの青葉台、評判Sの緑ヶ丘を破る ― 夏・架空大会 2回戦", items[0]["text"])
-        # 1段の差（A が S に勝つ）は、県大会の序盤では出さず、準々決勝以上・地区大会なら出す
-        ranks = {"SCH_A": "A", "SCH_B": "S"}
-        self.assertEqual([], h.match_headlines(CONFIG, match(), None, NAMES, ranks, RANKS, player))
-        self.assertEqual(["upset"], kinds(h.match_headlines(
-            CONFIG, match(round_name="準々決勝"), None, NAMES, ranks, RANKS, player)))
-        self.assertEqual(["upset"], kinds(h.match_headlines(
-            CONFIG, match(level="regional"), None, NAMES, ranks, RANKS, player)))
+        self.assertFalse(upset("local", "A", "S"))
+        self.assertFalse(upset("local", "A", "S", round_name="準々決勝"))
+        # 甲子園：差1は出さない。差2はSの負けだけ、差3以上はBまで
+        self.assertFalse(upset("national", "A", "S"))
+        self.assertTrue(upset("national", "B", "S"))
+        self.assertFalse(upset("national", "C", "A"))
+        self.assertTrue(upset("national", "D", "A"))
+        # 地区大会：差1は出さず、差2なら出す
+        self.assertFalse(upset("regional", "A", "S"))
+        self.assertTrue(upset("regional", "C", "A"))
         # 強い方が勝てば出さない
         self.assertEqual([], h.match_headlines(
-            CONFIG, match(winner="SCH_B", score=(1, 2)), None, NAMES, ranks, RANKS, player))
+            CONFIG, match(level="national", winner="SCH_B", score=(1, 2)), None, NAMES,
+            {"SCH_A": "D", "SCH_B": "S"}, RANKS, player))
 
     def test_records(self):
         m = match(level="regional", score=(21, 0))
