@@ -203,50 +203,69 @@ class ScreenDataTests(unittest.TestCase):
 
 
 class PlayerSnapshotCacheTests(unittest.TestCase):
-    def test_recovery_step_changes_the_snapshot(self):
-        from phase2_engine.screen.school_views import SchoolAbilities
-        calls = []
-        source = SimpleNamespace(version=1, today="2030-05-01", step=(None, 0))
-        source.recovery = lambda p, day: source.step
+    """選手・学校の能力のキャッシュと、怪我からの復帰（日によって能力が変わる）。"""
 
-        def generate(p, year, seed):
-            calls.append(source.step)
-            return {"fielding": 80 if source.step == (None, 0) else 74}
+    # 日 → P1 の復帰の段階と守備。5月1日は復帰直後で下がり、5月2日には戻る
+    STEPS = {"2030-05-01": ("怪我", 1), "2030-05-02": (None, 0)}
+    VALUES = {"2030-05-01": 74, "2030-05-02": 80}
+
+    def abilities(self, today, on_generate=None):
+        import threading
+        from phase2_engine.screen.school_views import SchoolAbilities
+        source = SimpleNamespace(version=1, today=today)
+        source.recovery = lambda p, day: self.STEPS[day] if p.player_id == "P1" else (None, 0)
+        calls = []
+
+        def generate(p, year, seed, day=None):
+            calls.append(day)
+            if on_generate:
+                on_generate(source)
+            return self.VALUES[day or source.today]
 
         abilities = SchoolAbilities.__new__(SchoolAbilities)
         abilities._abilities = SimpleNamespace(source=source, generate=generate)
-        abilities._player_cache, abilities._player_version = {}, None
-        one = SimpleNamespace(player_id="P1")
-        self.assertEqual(80, abilities.player(one, 2030, 1)["fielding"])
-        self.assertEqual(80, abilities.player(one, 2030, 1)["fielding"])
-        # 怪我から戻った直後の日は、詳細と同じく下がった能力を読み直す
-        source.step = ("怪我", 1)
-        self.assertEqual(74, abilities.player(one, 2030, 1)["fielding"])
-        self.assertEqual(2, len(calls))
-
-
-    def test_recovery_step_recomputes_the_team(self):
-        from phase2_engine.screen.school_views import SchoolAbilities
-        source = SimpleNamespace(version=1, today="2030-05-01", step=(None, 0))
-        source.recovery = lambda p, day: source.step if p.player_id == "P1" else (None, 0)
-        abilities = SchoolAbilities.__new__(SchoolAbilities)
-        abilities._abilities = SimpleNamespace(
-            source=source, generate=lambda p, year, seed: 80 if source.step == (None, 0) else 74)
         abilities._teams = SimpleNamespace(generate=lambda snapshots: snapshots[0])
         abilities.values = lambda team: {"overall": team}
         abilities._weights, abilities._cache = {}, {}
         abilities._player_cache, abilities._player_version = {}, None
-        import threading
         abilities._lock = threading.Lock()
+        return abilities, source, calls
+
+    def test_recovery_step_changes_the_snapshot(self):
+        abilities, source, calls = self.abilities("2030-05-01")
+        one = SimpleNamespace(player_id="P1")
+        self.assertEqual(74, abilities.player(one, 2030, 1))
+        self.assertEqual(74, abilities.player(one, 2030, 1))
+        # 次の日には戻った能力を読み直す（選手の詳細と同じ）
+        source.today = "2030-05-02"
+        self.assertEqual(80, abilities.player(one, 2030, 1))
+        self.assertEqual(["2030-05-01", "2030-05-02"], calls)
+
+    def test_recovery_step_recomputes_the_team(self):
+        abilities, source, _ = self.abilities("2030-05-02")
         members = {"S1": [SimpleNamespace(player_id=f"P{i}") for i in range(1, 10)]}
         abilities.compute(members, 2030, 1)
         self.assertEqual(({"S1": {"overall": 80}}, True), abilities.get(members, 2030))
         # 復帰の段階が変わった日は、計算し直すまで「そろっていない」（計算中）
-        source.step = ("怪我", 1)
+        source.today = "2030-05-01"
         self.assertEqual(({}, False), abilities.get(members, 2030))
         abilities.compute(members, 2030, 1)
         self.assertEqual(({"S1": {"overall": 74}}, True), abilities.get(members, 2030))
 
+    def test_date_change_during_compute_keeps_key_and_value_on_the_same_day(self):
+        # 別のスレッドで計算している途中に日付が5月2日へ進む
+        def advance(source):
+            source.today = "2030-05-02"
+        abilities, source, calls = self.abilities("2030-05-01", on_generate=advance)
+        members = {"S1": [SimpleNamespace(player_id=f"P{i}") for i in range(1, 10)]}
+        abilities.compute(members, 2030, 1)
+        self.assertTrue(all(day == "2030-05-01" for day in calls))
+        # 5月2日の鍵とは合わないので計算し直し、戻った能力になる
+        self.assertEqual(({}, False), abilities.get(members, 2030))
+        abilities.compute(members, 2030, 1)
+        self.assertEqual(({"S1": {"overall": 80}}, True), abilities.get(members, 2030))
+        source.today = "2030-05-01"
+        self.assertEqual(74, abilities.player(SimpleNamespace(player_id="P1"), 2030, 1))
 
 if __name__ == "__main__":
     unittest.main()

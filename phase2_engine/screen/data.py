@@ -2799,6 +2799,8 @@ class GameScreenData:
         bands = self._player_bands()
         grade = config["featured_grade"]
         seed = self.session.plan.rng_seed
+        # 全部員を同じ日の能力で出す（途中で日付が進んでも混ぜない）
+        day = self.abilities.today()
         schools = self.service.repo.schools
         prospects: dict[tuple, set | None] = {}
 
@@ -2816,7 +2818,7 @@ class GameScreenData:
         for school_id, players in members.items():
             code = schools.get(school_id, {}).get("prefecture_code", "")
             for player in players:
-                snapshot = self.abilities.player(player, year, seed)
+                snapshot = self.abilities.player(player, year, seed, day=day)
                 kind = ability_rankings.kind_of(player.primary_position)
                 values = {k: getattr(snapshot, k, None) for k in keys[kind]}
                 main = [k for k in config["main_abilities"][kind] if k != "velocity_kmh"]
