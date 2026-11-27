@@ -73,6 +73,56 @@ class PrefectureStrengthTests(unittest.TestCase):
         self.assertEqual((50.0, 1), (rows[1]["average"], rows[1]["count"]))
 
 
+BANDS = [{"grade": "S", "min": 90}, {"grade": "A", "min": 80}, {"grade": "G", "min": 1}]
+
+
+def grade_of(value):
+    return next(band["grade"] for band in BANDS if value >= band["min"])
+
+
+def player(pid, position="SS", grade=2, overall=60.0, values=None, reasons=()):
+    return {"player_id": pid, "position": position, "grade": grade, "overall": overall,
+            "values": values or {}, "reasons": list(reasons)}
+
+
+class PlayerTests(unittest.TestCase):
+    def test_overall_is_weighted_average(self):
+        weights = {"contact": 0.25, "power": 0.75}
+        self.assertEqual(77.5, ar.player_overall({"contact": 70, "power": 80}, weights))
+        self.assertEqual(64.8, ar.player_overall({"contact": 50, "power": 72.2}, {"contact": 1, "power": 2}))
+
+    def test_velocity_is_not_in_pitcher_overall(self):
+        config = ar.load_config(ROOT / "config")["player_overall"]
+        self.assertNotIn("velocity_kmh", config["pitcher"])
+        values = {"velocity_kmh": 150, "control": 60, "stamina": 60, "stuff": 60, "strikeout": 60, "groundball": 60}
+        self.assertEqual(60.0, ar.player_overall(values, config["pitcher"]))
+
+    def test_position_uses_its_weights(self):
+        config = {"batter": {"contact": 1.0}, "pitcher": {"control": 1.0},
+                  "by_position": {"C": {"catching": 1.0}, "P": "pitcher"}}
+        players = [player("A", "C", values={"contact": 90, "catching": 50}),
+                   player("B", "C", values={"contact": 50, "catching": 80}),
+                   player("C", "SS", values={"contact": 99, "catching": 99})]
+        rows = ar.player_rows(players, position="C", weights=ar.position_weights(config, "C"))
+        self.assertEqual([("B", 80.0), ("A", 50.0)], [(r["player_id"], r["score"]) for r in rows])
+        self.assertEqual({"control": 1.0}, ar.position_weights(config, "P"))
+
+    def test_kind_and_grade_filters(self):
+        players = [player("A", "P", grade=1, overall=70.0), player("B", "SS", grade=1, overall=65.0),
+                   player("C", "SS", grade=3, overall=80.0)]
+        self.assertEqual(["B"], [r["player_id"] for r in ar.player_rows(players, kind="batter", grade=1)])
+        self.assertEqual(["C", "B"], [r["player_id"] for r in ar.player_rows(players, kind="batter")])
+        self.assertEqual(["A"], [r["player_id"] for r in ar.player_rows(players, kind="pitcher")])
+
+    def test_featured(self):
+        keys = ["contact", "power"]
+        self.assertEqual(["prospect"], ar.featured_reasons({"contact": 70}, True, keys, grade_of, "S"))
+        self.assertEqual(["power"], ar.featured_reasons({"contact": 85, "power": 92}, False, keys, grade_of, "S"))
+        self.assertEqual([], ar.featured_reasons({"contact": 85, "power": 89}, None, keys, grade_of, "S"))
+        players = [player("A", reasons=["prospect"]), player("B", reasons=["power"]), player("C")]
+        self.assertEqual(["A", "B"], [r["player_id"] for r in ar.player_rows(players, featured=True)])
+
+
 class ScreenDataTests(unittest.TestCase):
     """画面のデータ（ability_rankings）：計算中・県内の順位・大会の出場校。"""
 

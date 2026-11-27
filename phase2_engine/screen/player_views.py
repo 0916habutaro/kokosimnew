@@ -18,6 +18,8 @@ PITCHER_LABELS = (
     ("stuff", "球威"), ("strikeout", "奪三振"), ("groundball", "ゴロ"),
     ("composure", "度胸"), ("quick", "クイック"),
 )
+# 能力の名前 → 画面の名前（能力ランキングの列）
+ABILITY_NAMES = dict(BATTER_LABELS + CATCHER_LABELS + PITCHER_LABELS)
 # 学年ごとの推移に出す能力（多すぎないように主なものだけ）
 TREND_BATTER = ("contact", "power", "plate_discipline", "speed", "arm_strength", "fielding")
 TREND_PITCHER = ("velocity_kmh", "control", "stamina", "stuff", "strikeout")

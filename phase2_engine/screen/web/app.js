@@ -1004,14 +1004,16 @@ async function renderRankings(content) {
 // ---- 能力ランキング（今日の部員の能力。保存はしない） ----
 
 const AR_TEAM_VIEWS = [["overall", "総合"], ["gap", "評判と実力"], ["strength", "都道府県の強さ"], ["competition", "大会の出場校"]];
+const AR_PLAYER_VIEWS = [["overall", "総合"], ["position", "守備位置ごと"], ["featured", "プロ注目"]];
+const AR_GRADES = [[0, "全学年"], [1, "1年"], [2, "2年"], [3, "3年"]];
 const AR_SORTS = [["overall", "総合"], ["batting", "打撃"], ["pitching", "投手"], ["defense", "守備"], ["running", "走力"]];
 
 function arAbility(value, strong) {
   return `<td class="n${strong ? " strong" : ""}">${rankHtml(value)} <span class="muted">${value}</span></td>`;
 }
 
-function arMore(shown, total) {
-  return total > shown ? `<p><button class="btn small ar-more" type="button">もっと見る（${shown.toLocaleString()} / ${total.toLocaleString()}校）</button></p>` : "";
+function arMore(shown, total, unit = "校") {
+  return total > shown ? `<p><button class="btn small ar-more" type="button">もっと見る（${shown.toLocaleString()} / ${total.toLocaleString()}${unit}）</button></p>` : "";
 }
 
 // 総合・大会の出場校の表。県で絞ったときは「順位」が県内の順位になり、全国の順位を並べる
@@ -1034,6 +1036,39 @@ function arGapTable(title, part, note) {
     ${arMore(part.rows.length, part.total)}</div>`;
 }
 
+// 選手の能力の1マス（文字と値。球速は km/h）
+function arPlayerValue(item) {
+  if (!item || item.value == null) return '<span class="muted">−</span>';
+  return item.rank ? `<span class="rank r-${item.rank}">${item.rank}</span> <span class="muted">${item.value}</span>`
+    : `${item.value}<span class="muted">km/h</span>`;
+}
+
+function arPlayers(data) {
+  const f = data.filters, view = f.player_view;
+  if (!data.has_players) return '<div class="empty">部員のデータがありません。</div>';
+  if (!data.rows.length) {
+    return f.grade === 3 && !data.third_years ? '<div class="empty">3年生は引退しました。</div>'
+      : '<p class="muted empty-hint">条件に合う選手がいません。</p>';
+  }
+  const kind = view === "overall" ? f.kind : view === "position" ? (f.position === "P" ? "pitcher" : "batter") : null;
+  const mains = kind ? data.main_abilities[kind] : [];
+  const scoreLabel = view === "position" ? `${(data.positions.find(([p]) => p === f.position) || [])[1] || ""}としての総合` : "総合";
+  const note = view === "position" ? "主な守備位置がその位置の選手を、その位置の重みで出した総合の順に並べます。"
+    : view === "featured" ? "有望な新入生か、主な能力のどれかがSの選手です（総合の高い順）。"
+    : "今日の能力を重みで合わせた総合の順に並べます（球速は総合に入れません）。";
+  return `<p class="muted record-note">${esc(note)}名前を押すと選手の詳細を開きます。</p>
+    <table class="list zebra rankings"><thead><tr><th class="n">順位</th><th>名前</th><th>学校</th><th>都道府県</th><th class="n">学年</th><th>守備位置</th>
+      <th class="n">${esc(scoreLabel)}</th>${view === "featured" ? "<th>注目の理由</th><th>主な能力</th>" : mains.map(([, label]) => `<th class="n">${esc(label)}</th>`).join("")}</tr></thead>
+    <tbody>${data.rows.map((r) => `<tr><td class="n">${r.place}</td>
+      <td><span class="link" data-player="${esc(r.player_id)}" data-player-school="${esc(r.school_id)}">${esc(r.name)}</span></td>
+      <td><span class="link" data-school="${esc(r.school_id)}">${esc(r.school_name)}</span></td><td>${esc(r.prefecture)}</td>
+      <td class="n">${r.grade}</td><td>${esc(r.position_label)}</td><td class="n strong">${r.score.toFixed(1)}</td>
+      ${view === "featured" ? `<td>${r.reason_labels.map((t) => `<span class="badge">${esc(t)}</span>`).join(" ")}</td>
+        <td>${data.main_abilities[r.position === "P" ? "pitcher" : "batter"].map(([k, label]) => `<span class="ar-ability">${esc(label)} ${arPlayerValue(r.values[k])}</span>`).join("")}</td>`
+        : mains.map(([k]) => `<td class="n">${arPlayerValue(r.values[k])}</td>`).join("")}</tr>`).join("")}</tbody></table>
+    ${arMore(data.rows.length, data.total, "人")}`;
+}
+
 async function renderAbilityRankings(content) {
   const requested = JSON.stringify(state.abilityRankings);
   const data = await call("ability_rankings", state.abilityRankings);
@@ -1048,7 +1083,13 @@ async function renderAbilityRankings(content) {
   const view = f.team_view;
   let bar = "", body;
   if (!teams) {
-    body = '<div class="empty">選手のランキングはこれから作ります。</div>';
+    const pview = f.player_view;
+    bar = `<span class="sep"></span>${AR_PLAYER_VIEWS.map(([k, label]) => `<button class="chip ${pview === k ? "on" : ""}" data-ar-pview="${k}">${label}</button>`).join("")}`;
+    if (pview === "overall") bar += `<span class="sep"></span>${select("kind", "種類", [["batter", "野手"], ["pitcher", "投手"]])}`;
+    if (pview === "position") bar += `<span class="sep"></span>${select("position", "守備位置", data.positions || [])}`;
+    bar += `<span class="sep"></span>${select("grade", "学年", AR_GRADES)}`;
+    body = data.status === "unavailable" ? '<div class="empty">部員のデータがありません。</div>'
+      : data.status === "computing" ? '<div class="empty">能力を計算中です…</div>' : arPlayers(data);
   } else {
     bar = `<span class="sep"></span>${AR_TEAM_VIEWS.map(([k, label]) => `<button class="chip ${view === k ? "on" : ""}" data-ar-tview="${k}">${label}</button>`).join("")}`;
     if (["overall", "gap"].includes(view)) {
@@ -1097,9 +1138,10 @@ async function renderAbilityRankings(content) {
     <div class="scroll">${body}</div>`;
   const change = (patch) => { Object.assign(state.abilityRankings, patch, { limit: 0 }); renderPage(); };
   content.querySelectorAll("[data-ar-view]").forEach((b) => b.addEventListener("click", () => change({ view: b.dataset.arView })));
+  content.querySelectorAll("[data-ar-pview]").forEach((b) => b.addEventListener("click", () => change({ player_view: b.dataset.arPview })));
   content.querySelectorAll("[data-ar-tview]").forEach((b) => b.addEventListener("click", () => change({ team_view: b.dataset.arTview })));
   content.querySelectorAll("[data-ar-sort]").forEach((th) => th.addEventListener("click", () => change({ sort_key: th.dataset.arSort })));
-  for (const key of ["region", "prefecture", "competition_id"]) {
+  for (const key of ["region", "prefecture", "competition_id", "kind", "position", "grade"]) {
     const el = $("ar-" + key);
     if (el) el.addEventListener("change", (e) => change({ [key]: e.target.value, ...(key === "region" ? { prefecture: "" } : {}) }));
   }
@@ -1110,11 +1152,12 @@ async function renderAbilityRankings(content) {
     if (t) toPrefecture(t.prefecture);
   }));
   content.querySelectorAll(".link[data-school]").forEach((a) => a.addEventListener("click", () => openSchool(a.dataset.school)));
+  bindPlayerLinks(content);
   content.querySelectorAll(".ar-more").forEach((b) => b.addEventListener("click", () => {
     state.abilityRankings.limit = f.limit + data.page_size;
     renderPage();
   }));
-  if (teams && data.status === "computing") {
+  if (data.status === "computing") {
     clearTimeout(renderAbilityRankings.retry);
     renderAbilityRankings.retry = setTimeout(() => {
       if (state.page === "ability_rankings" && !state.busy) renderPage();

@@ -1,7 +1,8 @@
-"""能力ランキングの画面：学校のチーム力を並べる（game_definition.md §9）。
+"""能力ランキングの画面：学校のチーム力と選手の能力を並べる（game_definition.md §9）。
 
 学校の能力は ``SchoolAbilities``（school_views.py）が今日の部員から出した値をそのまま使い、
-ここでは並べ替え・順位・評判との差・都道府県の強さだけを計算する。保存はしない。
+ここでは並べ替え・順位・評判との差・都道府県の強さだけを計算する。選手は、選手の詳細と
+同じ今日の能力から、重み付きの総合・守備位置ごとの総合・プロ注目を出す。保存はしない。
 調整値（件数・上位◯校・差のしきい値）は ``config/screen/ability_rankings_v1.json``。
 """
 from __future__ import annotations
@@ -86,3 +87,69 @@ def prefecture_strength(overall: dict[str, float], prefecture_of, *, top_n: int)
     for place, row in enumerate(rows, start=1):
         row["place"] = place
     return rows
+
+
+# ---- 選手 ----
+
+POSITIONS = ("P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF")
+PLAYER_VIEWS = ("overall", "position", "featured")
+
+
+def player_overall(values: dict, weights: dict[str, float]) -> float | None:
+    """Σ（能力×重み）÷Σ重み（小数1桁）。値のない能力は重みごと除く。どれもなければ None。"""
+    total = weight_sum = 0.0
+    for key, weight in weights.items():
+        value = values.get(key)
+        if value is None:
+            continue
+        total += float(value) * float(weight)
+        weight_sum += float(weight)
+    return round(total / weight_sum, 1) if weight_sum else None
+
+
+def kind_of(position: str) -> str:
+    """主な守備位置が P なら投手（``pitcher``）、ほかは野手（``batter``）。"""
+    return "pitcher" if position == "P" else "batter"
+
+
+def position_weights(overall_config: dict, position: str) -> dict[str, float]:
+    """守備位置ごとの重み。``"pitcher"`` のように種類の名前なら、その種類の重み。"""
+    weights = overall_config["by_position"][position]
+    return overall_config[weights] if isinstance(weights, str) else weights
+
+
+def featured_reasons(values: dict, is_prospect: bool | None, keys, grade_of, grade: str) -> list[str]:
+    """プロ注目の理由：有望な新入生なら ``"prospect"``、続けて文字が ``grade`` の能力の名前。
+
+    ``grade_of(値)`` は選手の文字。どれにも当たらなければ空。"""
+    reasons = ["prospect"] if is_prospect else []
+    reasons += [key for key in keys if values.get(key) is not None and grade_of(values[key]) == grade]
+    return reasons
+
+
+def player_rows(players: list[dict], *, kind: str | None = None, position: str | None = None,
+                grade: int | None = None, weights: dict | None = None,
+                featured: bool = False) -> list[dict]:
+    """選手の行を並べる（値の高い順、同じ値は選手ID順）。
+
+    ``players`` は {player_id, grade, position, overall, values, reasons, ...}。``kind`` で野手・投手、
+    ``position`` で主な守備位置、``grade`` で学年、``featured`` でプロ注目（``reasons`` のある選手）に絞る。
+    ``weights`` を渡すとその重みの総合（守備位置ごと）で並べ、``score`` に入れる。渡さなければ総合。"""
+    out = []
+    for player in players:
+        if kind and kind_of(player["position"]) != kind:
+            continue
+        if position and player["position"] != position:
+            continue
+        if grade and player["grade"] != grade:
+            continue
+        if featured and not player["reasons"]:
+            continue
+        score = player_overall(player["values"], weights) if weights else player["overall"]
+        if score is None:
+            continue
+        out.append({**player, "score": score})
+    out.sort(key=lambda row: (-row["score"], row["player_id"]))
+    for place, row in enumerate(out, start=1):
+        row["place"] = place
+    return out

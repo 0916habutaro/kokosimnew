@@ -69,22 +69,24 @@ class SchoolAbilities:
 
     def team(self, players, year: int, team_seed: int):
         """(学校の強さ, 選手の能力の並び)。9人に満たなければ None。"""
+        snapshots = [self.player(player, year, team_seed) for player in players]
+        if len(snapshots) < 9:
+            return None
+        return self._teams.generate(snapshots), snapshots
+
+    def player(self, player, year: int, team_seed: int):
+        """選手の今日の能力（学校の能力と同じものを使い回す）。"""
         version = self._version()
         if version != self._player_version:
             # 成長で能力が変わった。前の能力は捨てる
             self._player_cache = {}
             self._player_version = version
-        snapshots = []
-        for player in players:
-            pkey = (player.player_id, year)
-            snapshot = self._player_cache.get(pkey)
-            if snapshot is None:
-                snapshot = self._abilities.generate(player, year, team_seed)
-                self._player_cache[pkey] = snapshot
-            snapshots.append(snapshot)
-        if len(snapshots) < 9:
-            return None
-        return self._teams.generate(snapshots), snapshots
+        pkey = (player.player_id, year)
+        snapshot = self._player_cache.get(pkey)
+        if snapshot is None:
+            snapshot = self._abilities.generate(player, year, team_seed)
+            self._player_cache[pkey] = snapshot
+        return snapshot
 
     def values(self, team) -> dict:
         """学校の強さから画面の能力（打撃・投手・守備・走力…と総合）。"""
