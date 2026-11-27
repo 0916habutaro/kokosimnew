@@ -44,7 +44,6 @@ from .koshien_records import (
     nth_label,
 )
 from .player_views import (
-    ABILITY_NAMES,
     GROWTH_LABELS,
     trait_label,
     aptitude_rows,
@@ -2656,8 +2655,6 @@ class GameScreenData:
         abilities, ready = self.abilities.get(members, self._current_year())
         if not ready:
             return {**out, "status": "computing"}
-        if f["view"] == "players":
-            return self._player_rankings(out, f, config, members)
         abilities = {sid: values for sid, values in abilities.items() if values}
         schools = self.service.repo.schools
 
@@ -2730,110 +2727,6 @@ class GameScreenData:
             out["rows"] = team(ability_rankings.team_rows(picked, sort_key=f["sort_key"]))
             for choice in choices:
                 choice.pop("entrants")
-        return out
-
-    def _player_rankings(self, out: dict, f: dict, config: dict, members: dict) -> dict:
-        """選手のランキング：総合（野手・投手）・守備位置ごと・プロ注目。学年で絞る。"""
-        if f.get("player_view") not in ability_rankings.PLAYER_VIEWS:
-            f["player_view"] = "overall"
-        if f.get("kind") not in ("batter", "pitcher"):
-            f["kind"] = "batter"
-        if f.get("position") not in ability_rankings.POSITIONS:
-            f["position"] = "C"
-        try:
-            f["grade"] = int(f.get("grade") or 0)
-        except (TypeError, ValueError):
-            f["grade"] = 0
-        if f["grade"] not in (0, 1, 2, 3):
-            f["grade"] = 0
-        players = self._ranking_players(config, members)
-        overall = config["player_overall"]
-        view = f["player_view"]
-        if view == "overall":
-            rows = ability_rankings.player_rows(players, kind=f["kind"], grade=f["grade"])
-        elif view == "position":
-            rows = ability_rankings.player_rows(
-                players, position=f["position"], grade=f["grade"],
-                weights=ability_rankings.position_weights(overall, f["position"]))
-        else:
-            rows = ability_rankings.player_rows(players, grade=f["grade"], featured=True)
-        bands = self._player_bands()
-        grade = config["featured_grade"]
-        out.update({
-            "total": len(rows),
-            "has_players": bool(players),
-            # 夏の大会のあと、引退した3年生は今日の部員に入らない
-            "third_years": any(p["grade"] == 3 for p in players),
-            "positions": [[p, POSITION_LABELS[p]] for p in ability_rankings.POSITIONS],
-            "main_abilities": {kind: [[key, ABILITY_NAMES.get(key, key)] for key in keys]
-                               for kind, keys in config["main_abilities"].items()},
-            "ability_names": ABILITY_NAMES,
-            "rows": [{**row, "school_name": self.names(row["school_id"]),
-                      "prefecture": self.prefectures.get(row["prefecture_code"], ""),
-                      "reason_labels": ["有望" if r == "prospect" else f"{grade}：{ABILITY_NAMES.get(r, r)}"
-                                        for r in row["reasons"]],
-                      "values": {key: {"value": row["values"].get(key),
-                                              "rank": "" if key == "velocity_kmh"
-                                              else rank(row["values"].get(key), bands)}
-                                        for key in row["values"]}}
-                     for row in rows[:f["limit"]]],
-        })
-        return out
-
-    def _ranking_players(self, config: dict, members: dict) -> list[dict]:
-        """今日の全部員の能力（総合・主な能力・プロ注目の理由）。同じ日・同じ名簿の能力なら前の結果。"""
-        rosters = getattr(self.state, "rosters", None)
-        year = self._current_year()
-        key = (id(self.session), self.session.slot_id, str(self.state.current_date), year,
-               getattr(rosters, "version", None))
-        cached = getattr(self, "_ranking_players_cache", None)
-        if cached is not None and cached[0] == key:
-            return cached[1]
-        overall = config["player_overall"]
-        keys = {kind: list(dict.fromkeys([*config["main_abilities"][kind], *overall[kind]]))
-                for kind in ("batter", "pitcher")}
-        for position in ability_rankings.POSITIONS:
-            kind = ability_rankings.kind_of(position)
-            keys[kind] = list(dict.fromkeys(
-                [*keys[kind], *ability_rankings.position_weights(overall, position)]))
-        bands = self._player_bands()
-        grade = config["featured_grade"]
-        seed = self.session.plan.rng_seed
-        # 全部員を同じ日の能力で出す（途中で日付が進んでも混ぜない）
-        day = self.abilities.today()
-        schools = self.service.repo.schools
-        prospects: dict[tuple, set | None] = {}
-
-        def prospect(player):
-            pkey = (player.entry_year, player.school_id)
-            if pkey not in prospects:
-                try:
-                    prospects[pkey] = set(rosters.prospect_assignments(*pkey))
-                except (AttributeError, KeyError):
-                    prospects[pkey] = None  # 古い入学年度は印が残っていない
-            found = prospects[pkey]
-            return None if found is None else player.roster_no in found
-
-        out = []
-        for school_id, players in members.items():
-            code = schools.get(school_id, {}).get("prefecture_code", "")
-            for player in players:
-                snapshot = self.abilities.player(player, year, seed, day=day)
-                kind = ability_rankings.kind_of(player.primary_position)
-                values = {k: getattr(snapshot, k, None) for k in keys[kind]}
-                main = [k for k in config["main_abilities"][kind] if k != "velocity_kmh"]
-                out.append({
-                    "player_id": player.player_id, "school_id": school_id,
-                    "name": player.display_name, "grade": player.academic_year,
-                    "position": player.primary_position,
-                    "position_label": POSITION_LABELS.get(player.primary_position, ""),
-                    "prefecture_code": code,
-                    "overall": ability_rankings.player_overall(values, overall[kind]),
-                    "values": values,
-                    "reasons": ability_rankings.featured_reasons(
-                        values, prospect(player), main, lambda v: rank(v, bands), grade),
-                })
-        self._ranking_players_cache = (key, out)
         return out
 
     def _ability_ranking_config(self) -> dict:
@@ -3428,7 +3321,6 @@ class GameScreenData:
         self._koshien_game_years = {}
         self._coach_history = None
         self._headline_lookups = {}
-        self._ranking_players_cache = None
         self.service.forget_closed_seasons()
         self.names.edits = self._load_edits()
         self.abilities = self._new_abilities()
