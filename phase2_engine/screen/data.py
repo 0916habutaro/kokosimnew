@@ -2735,17 +2735,21 @@ class GameScreenData:
         return self._ability_rankings_config
 
     def _ranking_competitions(self) -> list[dict]:
-        """今年度の全国大会（夏の甲子園・選抜・神宮の順）と出場校（決まっていなければ空）。"""
+        """今年度の全国大会（夏の甲子園・選抜・神宮の順）と出場校（決まっていなければ空）。
+
+        大会の一覧と同じく年度の予定（``annual_templates``）から並べるので、予選の結果を
+        待っていてまだ進行の状態がない大会も「出場校未定」として出す。"""
         year = self._current_year()
         season = self._season_of(year)
         order = {ctype: index for index, (ctype, _) in enumerate(NATIONAL_TYPES)}
         repo = self.service.repo
         out = []
-        for cid, scheduled in (season.competitions.items() if season is not None else ()):
+        for cid in (season.annual_templates if season is not None else ()):
             competition = repo.competitions.get(cid, {})
             if competition.get("competition_type") not in order:
                 continue
-            main = main_runtime(scheduled)
+            scheduled = season.competitions.get(cid)
+            main = main_runtime(scheduled) if scheduled is not None else None
             entrants = list(main.entrant_school_ids) if main is not None else []
             out.append({
                 "competition_id": cid,
