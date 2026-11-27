@@ -54,65 +54,37 @@ class SchoolAbilities:
         """名簿の能力が成長で変わった回数（変わったら計算し直す）。"""
         return getattr(self._abilities.source, "version", None)
 
-    def today(self):
-        """名簿の今日（名簿がなければ None）。計算の初めに1回読み、最後まで同じ日を使う。"""
-        return getattr(self._abilities.source, "today", None)
-
-    def _key(self, players, year: int, day) -> tuple:
-        """学校の能力を計算し直すかの鍵：年度・名簿の成長の回数・部員と、``day`` の部員ごとの
-        復帰の段階（怪我から戻った直後は日によって選手の能力が変わる。選手の能力と同じ値にする）。"""
-        return (year, self._version(),
-                tuple((player.player_id, self._recovery(player, day)) for player in players))
-
     def compute(self, members: dict, year: int, team_seed: int) -> None:
-        """``members`` は学校ID → 部員（Player の並び）。
-
-        途中で日付が進んでも、鍵（復帰の段階）と能力は計算を始めたときの日で出す。"""
-        day = self.today()
+        """``members`` は学校ID → 部員（Player の並び）。"""
         for school_id, players in members.items():
-            key = self._key(players, year, day)
+            key = (year, self._version(), tuple(player.player_id for player in players))
             with self._lock:
                 cached = self._cache.get(school_id)
             if cached is not None and cached[0] == key:
                 continue
-            team = self.team(players, year, team_seed, day=day)
+            team = self.team(players, year, team_seed)
             values = self.values(team[0]) if team is not None else None
             with self._lock:
                 self._cache[school_id] = (key, values)
 
-    def team(self, players, year: int, team_seed: int, *, day=None):
+    def team(self, players, year: int, team_seed: int):
         """(学校の強さ, 選手の能力の並び)。9人に満たなければ None。"""
-        snapshots = [self.player(player, year, team_seed, day=day) for player in players]
-        if len(snapshots) < 9:
-            return None
-        return self._teams.generate(snapshots), snapshots
-
-    def player(self, player, year: int, team_seed: int, *, day=None):
-        """選手の ``day``（省くと名簿の今日）の能力（学校の能力と同じものを使い回す）。
-
-        怪我から戻った直後は日によって能力が変わるので、その日の復帰の段階も鍵に入れ、
-        能力も同じ日で出す（選手の詳細と同じ ``rosters.ability`` の値になる）。"""
-        if day is None:
-            day = self.today()
         version = self._version()
         if version != self._player_version:
             # 成長で能力が変わった。前の能力は捨てる
             self._player_cache = {}
             self._player_version = version
-        pkey = (player.player_id, year, self._recovery(player, day))
-        snapshot = self._player_cache.get(pkey)
-        if snapshot is None:
-            snapshot = (self._abilities.generate(player, year, team_seed, day=day) if day is not None
-                        else self._abilities.generate(player, year, team_seed))
-            self._player_cache[pkey] = snapshot
-        return snapshot
-
-    def _recovery(self, player, day):
-        """名簿の ``day`` の復帰の (治った怪我, 段階)。名簿がなければ None。"""
-        source = self._abilities.source
-        if source is None or not hasattr(source, "recovery"):
+        snapshots = []
+        for player in players:
+            pkey = (player.player_id, year)
+            snapshot = self._player_cache.get(pkey)
+            if snapshot is None:
+                snapshot = self._abilities.generate(player, year, team_seed)
+                self._player_cache[pkey] = snapshot
+            snapshots.append(snapshot)
+        if len(snapshots) < 9:
             return None
-        return source.recovery(player, day)
+        return self._teams.generate(snapshots), snapshots
 
     def values(self, team) -> dict:
         """学校の強さから画面の能力（打撃・投手・守備・走力…と総合）。"""
@@ -129,11 +101,10 @@ class SchoolAbilities:
     def get(self, members: dict, year: int) -> tuple[dict, bool]:
         """(学校ID → 能力, 全校そろっているか)。部員が変わった学校は出さない。"""
         out = {}
-        day = self.today()
         with self._lock:
             for school_id, players in members.items():
                 cached = self._cache.get(school_id)
-                key = self._key(players, year, day)
+                key = (year, self._version(), tuple(player.player_id for player in players))
                 if cached is not None and cached[0] == key:
                     out[school_id] = cached[1]
         return out, len(out) == len(members)

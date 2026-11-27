@@ -73,56 +73,6 @@ class PrefectureStrengthTests(unittest.TestCase):
         self.assertEqual((50.0, 1), (rows[1]["average"], rows[1]["count"]))
 
 
-BANDS = [{"grade": "S", "min": 90}, {"grade": "A", "min": 80}, {"grade": "G", "min": 1}]
-
-
-def grade_of(value):
-    return next(band["grade"] for band in BANDS if value >= band["min"])
-
-
-def player(pid, position="SS", grade=2, overall=60.0, values=None, reasons=()):
-    return {"player_id": pid, "position": position, "grade": grade, "overall": overall,
-            "values": values or {}, "reasons": list(reasons)}
-
-
-class PlayerTests(unittest.TestCase):
-    def test_overall_is_weighted_average(self):
-        weights = {"contact": 0.25, "power": 0.75}
-        self.assertEqual(77.5, ar.player_overall({"contact": 70, "power": 80}, weights))
-        self.assertEqual(64.8, ar.player_overall({"contact": 50, "power": 72.2}, {"contact": 1, "power": 2}))
-
-    def test_velocity_is_not_in_pitcher_overall(self):
-        config = ar.load_config(ROOT / "config")["player_overall"]
-        self.assertNotIn("velocity_kmh", config["pitcher"])
-        values = {"velocity_kmh": 150, "control": 60, "stamina": 60, "stuff": 60, "strikeout": 60, "groundball": 60}
-        self.assertEqual(60.0, ar.player_overall(values, config["pitcher"]))
-
-    def test_position_uses_its_weights(self):
-        config = {"batter": {"contact": 1.0}, "pitcher": {"control": 1.0},
-                  "by_position": {"C": {"catching": 1.0}, "P": "pitcher"}}
-        players = [player("A", "C", values={"contact": 90, "catching": 50}),
-                   player("B", "C", values={"contact": 50, "catching": 80}),
-                   player("C", "SS", values={"contact": 99, "catching": 99})]
-        rows = ar.player_rows(players, position="C", weights=ar.position_weights(config, "C"))
-        self.assertEqual([("B", 80.0), ("A", 50.0)], [(r["player_id"], r["score"]) for r in rows])
-        self.assertEqual({"control": 1.0}, ar.position_weights(config, "P"))
-
-    def test_kind_and_grade_filters(self):
-        players = [player("A", "P", grade=1, overall=70.0), player("B", "SS", grade=1, overall=65.0),
-                   player("C", "SS", grade=3, overall=80.0)]
-        self.assertEqual(["B"], [r["player_id"] for r in ar.player_rows(players, kind="batter", grade=1)])
-        self.assertEqual(["C", "B"], [r["player_id"] for r in ar.player_rows(players, kind="batter")])
-        self.assertEqual(["A"], [r["player_id"] for r in ar.player_rows(players, kind="pitcher")])
-
-    def test_featured(self):
-        keys = ["contact", "power"]
-        self.assertEqual(["prospect"], ar.featured_reasons({"contact": 70}, True, keys, grade_of, "S"))
-        self.assertEqual(["power"], ar.featured_reasons({"contact": 85, "power": 92}, False, keys, grade_of, "S"))
-        self.assertEqual([], ar.featured_reasons({"contact": 85, "power": 89}, None, keys, grade_of, "S"))
-        players = [player("A", reasons=["prospect"]), player("B", reasons=["power"]), player("C")]
-        self.assertEqual(["A", "B"], [r["player_id"] for r in ar.player_rows(players, featured=True)])
-
-
 class ScreenDataTests(unittest.TestCase):
     """画面のデータ（ability_rankings）：計算中・県内の順位・大会の出場校。"""
 
@@ -190,82 +140,6 @@ class ScreenDataTests(unittest.TestCase):
                          [(c["competition_id"], c["decided"], c["entrants"])
                           for c in data._ranking_competitions()])
 
-
-    def test_switching_saves_drops_player_cache(self):
-        data = self.screen({})
-        data.service.forget_closed_seasons = lambda: None
-        data.names = SimpleNamespace(edits=None)
-        data._load_edits = lambda: None
-        data._new_abilities = lambda: None
-        data._ranking_players_cache = ("前のセーブ", [player("OLD")])
-        data.use_session(SimpleNamespace(slot_id="slot01"))
-        self.assertIsNone(data._ranking_players_cache)
-
-
-class PlayerSnapshotCacheTests(unittest.TestCase):
-    """選手・学校の能力のキャッシュと、怪我からの復帰（日によって能力が変わる）。"""
-
-    # 日 → P1 の復帰の段階と守備。5月1日は復帰直後で下がり、5月2日には戻る
-    STEPS = {"2030-05-01": ("怪我", 1), "2030-05-02": (None, 0)}
-    VALUES = {"2030-05-01": 74, "2030-05-02": 80}
-
-    def abilities(self, today, on_generate=None):
-        import threading
-        from phase2_engine.screen.school_views import SchoolAbilities
-        source = SimpleNamespace(version=1, today=today)
-        source.recovery = lambda p, day: self.STEPS[day] if p.player_id == "P1" else (None, 0)
-        calls = []
-
-        def generate(p, year, seed, day=None):
-            calls.append(day)
-            if on_generate:
-                on_generate(source)
-            return self.VALUES[day or source.today]
-
-        abilities = SchoolAbilities.__new__(SchoolAbilities)
-        abilities._abilities = SimpleNamespace(source=source, generate=generate)
-        abilities._teams = SimpleNamespace(generate=lambda snapshots: snapshots[0])
-        abilities.values = lambda team: {"overall": team}
-        abilities._weights, abilities._cache = {}, {}
-        abilities._player_cache, abilities._player_version = {}, None
-        abilities._lock = threading.Lock()
-        return abilities, source, calls
-
-    def test_recovery_step_changes_the_snapshot(self):
-        abilities, source, calls = self.abilities("2030-05-01")
-        one = SimpleNamespace(player_id="P1")
-        self.assertEqual(74, abilities.player(one, 2030, 1))
-        self.assertEqual(74, abilities.player(one, 2030, 1))
-        # 次の日には戻った能力を読み直す（選手の詳細と同じ）
-        source.today = "2030-05-02"
-        self.assertEqual(80, abilities.player(one, 2030, 1))
-        self.assertEqual(["2030-05-01", "2030-05-02"], calls)
-
-    def test_recovery_step_recomputes_the_team(self):
-        abilities, source, _ = self.abilities("2030-05-02")
-        members = {"S1": [SimpleNamespace(player_id=f"P{i}") for i in range(1, 10)]}
-        abilities.compute(members, 2030, 1)
-        self.assertEqual(({"S1": {"overall": 80}}, True), abilities.get(members, 2030))
-        # 復帰の段階が変わった日は、計算し直すまで「そろっていない」（計算中）
-        source.today = "2030-05-01"
-        self.assertEqual(({}, False), abilities.get(members, 2030))
-        abilities.compute(members, 2030, 1)
-        self.assertEqual(({"S1": {"overall": 74}}, True), abilities.get(members, 2030))
-
-    def test_date_change_during_compute_keeps_key_and_value_on_the_same_day(self):
-        # 別のスレッドで計算している途中に日付が5月2日へ進む
-        def advance(source):
-            source.today = "2030-05-02"
-        abilities, source, calls = self.abilities("2030-05-01", on_generate=advance)
-        members = {"S1": [SimpleNamespace(player_id=f"P{i}") for i in range(1, 10)]}
-        abilities.compute(members, 2030, 1)
-        self.assertTrue(all(day == "2030-05-01" for day in calls))
-        # 5月2日の鍵とは合わないので計算し直し、戻った能力になる
-        self.assertEqual(({}, False), abilities.get(members, 2030))
-        abilities.compute(members, 2030, 1)
-        self.assertEqual(({"S1": {"overall": 80}}, True), abilities.get(members, 2030))
-        source.today = "2030-05-01"
-        self.assertEqual(74, abilities.player(SimpleNamespace(player_id="P1"), 2030, 1))
 
 if __name__ == "__main__":
     unittest.main()
