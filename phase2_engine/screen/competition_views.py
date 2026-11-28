@@ -11,6 +11,8 @@ from game_core.match_state import (TeamMatchParticipation, ChangeMoment, Complet
                                   apply_lineup_change, replay_team_participation)
 
 from .match_tables import batting_table, innings_label, pitching_table
+from .match_wording import (change_moment, default_wording, group_changes, plate_appearance_orders,
+                            reason_text, score_text, steal_text, tactic_text, wild_pitch_text)
 from .match_summary import called_label, home_runs, pitchers_of_record
 from ..competition_schedule_runtime import SCHEDULE_PENDING
 from ..tournament_runtime import MATCH_BYE, MainTournamentRuntimeState
@@ -24,49 +26,12 @@ STATUS_LABELS = {
     "active": "開催中",
     "completed": "終了",
 }
-EVENT_LABELS = {
-    "single": "安打",
-    "double": "二塁打",
-    "triple": "三塁打",
-    "home_run": "本塁打",
-    "walk": "四球",
-    "hit_by_pitch": "死球",
-    "field_out": "凡打",
-    "ground_out": "ゴロ",
-    "fly_out": "フライ",
-    "double_play": "併殺打",
-    "fielder_choice": "野選",
-    "reached_on_error": "失策",
-    "sacrifice_bunt": "犠打",
-    "sacrifice_fly": "犠飛",
-    "strikeout": "三振",
-    "bunt_pop_out": "バント小飛球",
-    "bunt_double_play": "バント併殺",
-    "line_drive_double_play": "併殺（走者戻れず）",
-}
-# 采配の交代の理由（段階F2。game_core/match_state.py の LineupChange.reason）
+# 采配の交代の理由の短い名前（交代の行の札。game_core/match_state.py の LineupChange.reason）
 REASON_LABELS = {"pinch_hitter": "代打", "pinch_runner": "代走", "defensive_replacement": "守備固め",
                  # 投手の配置転換（段階F5）
                  "pitcher_to_field": "配置転換", "pitcher_return": "再登板",
                  # 大差で勝っている側が先発を休ませて控えを出す
                  "blowout_rest": "控えと交代"}
-# 作戦の要点（game_core/highlights.py の T）
-TACTIC_LABELS = {
-    ("bunt", "foul"): "送りバント失敗（追い込まれて打つ）",
-    ("bunt", "pop"): "送りバント失敗（小フライ）",
-    ("bunt", "fc"): "送りバント失敗（先の走者がアウト）",
-    ("bunt", "dp"): "送りバント失敗（併殺）",
-    ("squeeze", "ok"): "スクイズ成功",
-    ("squeeze", "pop"): "スクイズ失敗（小フライ）",
-    ("squeeze", "fc"): "スクイズ失敗（本塁でアウト）",
-    ("squeeze", "dp"): "スクイズ失敗（小フライで併殺）",
-}
-
-
-def tactic_label(tactic: str, result: str) -> str:
-    if tactic == "hit_and_run":
-        return f"エンドラン（{EVENT_LABELS.get(result, result)}）"
-    return TACTIC_LABELS.get((tactic, result), f"{tactic}:{result}")
 POSITION_LABELS = {
     'DH': 'DH', 'P_DH': '投・DH',
     "P": "投", "C": "捕", "1B": "一", "2B": "二", "3B": "三",
@@ -584,11 +549,13 @@ def _match_lineups(detail, teams, names, player_name, year):
 
 
 def match_detail(row: dict, detail: dict | None, names, players, *, school_year=None,
-                 mercy=()) -> dict:
+                 mercy=(), wording=None) -> dict:
     """試合の画面：得点板、試合の要点、両チームの個人成績。
 
     ``players(school_id)`` は選手ID → 選手。名前の解決にだけ使い、本職を実配置にしない。
+    ``wording`` は経過・交代の文言の対応表（``config/screen/match_wording_v1.json``）。
     """
+    wording = wording or default_wording()
     team1, team2 = row["team1_id"], row["team2_id"]
     out = {
         **{key: row.get(key) for key in (
@@ -628,80 +595,58 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
         detail, (team1, team2), names, player_name, year,
     )
     out["lineups"] = lineups
+    # 交代の場面（「7回表・3番打者の前」）と理由の文言。同じ場面の交代は1つの枠に（match_wording.py）
+    orders_of_pa = plate_appearance_orders(detail.get("inning_scores") or ())
+    for change in changes:
+        change["moment"] = change_moment(wording, change["inning"], change["half"],
+                                         orders_of_pa.get(change["next_plate_appearance_no"]))
+        change["reason_label"] = reason_text(wording, change.get("reason"), change.get("kind"))
+        # 交代の札：理由のある交代は理由の文言（DH解除・投手交代が続くときはそのまま後ろに）
+        parts = change["label"].split("・")
+        if change.get("reason") and parts and parts[0] == REASON_LABELS.get(change["reason"]):
+            parts[0] = change["reason_label"]
+        change["badge"] = "・".join(parts)
     out["lineup_changes"] = changes
+    out["change_groups"] = group_changes(changes)
     out["has_lineup_record"] = all(lineups.values())
 
     batting_team = {"t": team1, "b": team2}
     highlights = []
+
+    def add(kind, item, school, text, **extra):
+        highlights.append({"kind": kind, "inning": item[1], "half": HALF_LABELS[item[2]],
+                           "school_id": school, "school_name": names(school), "text": text, **extra})
+
     for item in detail.get("highlights") or ():
-        kind, inning, half = item[0], item[1], item[2]
+        kind, half = item[0], item[2]
+        offense = batting_team[half]
+        defense = team2 if offense == team1 else team1
         if kind == "S":
-            school = batting_team[half]
-            highlights.append({
-                "kind": "score", "inning": inning,
-                "half": HALF_LABELS[half], "school_id": school,
-                "school_name": names(school),
-                "player_name": player_name(school, item[3]),
-                "event": EVENT_LABELS.get(item[4], item[4]),
-                "is_home_run": item[4] == "home_run",
-                "runs": item[5],
-            })
+            add("score", item, offense, score_text(wording, item[4], item[5]),
+                player_name=player_name(offense, item[3]), is_home_run=item[4] == "home_run", runs=item[5])
         elif kind == "B":
-            school = batting_team[half]
-            highlights.append({
-                "kind": "steal", "inning": inning,
-                "half": HALF_LABELS[half], "school_id": school,
-                "school_name": names(school),
-                "player_name": player_name(school, item[3]),
-                "event": {"sb": {2: "二盗", 3: "三盗", 4: "本盗"}[item[5]],
-                          "cs": "本盗失敗" if item[5] == 4 else "盗塁死",
-                          "po": "牽制死"}[item[4]],
-                "success": item[4] == "sb",
+            add("steal", item, offense, steal_text(wording, item[4], item[5]),
+                player_name=player_name(offense, item[3]), success=item[4] == "sb",
                 # 本盗の1点（打者の得点の行には入らない）
-                "runs": int(item[4] == "sb" and item[5] == 4),
-            })
+                runs=int(item[4] == "sb" and item[5] == 4))
         elif kind == "W":
-            # 暴投・捕逸（守った側の投手か捕手）
-            school = batting_team[half]
-            defense = team2 if school == team1 else team1
-            highlights.append({
-                "kind": "wild_pitch", "inning": inning,
-                "half": HALF_LABELS[half], "school_id": defense,
-                "school_name": names(defense),
-                "player_name": player_name(defense, item[4]),
-                "event": ("暴投" if item[3] == "wp" else "捕逸") + (f"（{item[5]}点）" if item[5] else ""),
-                "runs": item[5],
-            })
+            # 暴投・捕逸は守った側の投手か捕手。点は攻めた側に入る
+            add("wild_pitch", item, defense, wild_pitch_text(wording, item[3], item[5]),
+                player_name=player_name(defense, item[4]), runs=item[5], scoring_school_id=offense)
         elif kind == "T":
-            school = batting_team[half]
-            highlights.append({
-                "kind": "tactic", "inning": inning,
-                "half": HALF_LABELS[half], "school_id": school,
-                "school_name": names(school),
-                "player_name": player_name(school, item[3]),
-                "event": tactic_label(item[4], item[5]),
-                "success": (item[4], item[5]) == ("squeeze", "ok") or (
-                    item[4] == "hit_and_run" and item[5] in ("single", "double", "triple", "home_run",
-                                                              "walk", "hit_by_pitch", "ground_out")),
-            })
+            text, success = tactic_text(wording, item[4], item[5])
+            add("tactic", item, offense, text, player_name=player_name(offense, item[3]),
+                success=success)
         elif kind == "D":
-            school = batting_team[half]
-            defense = team2 if school == team1 else team1
-            highlights.append({
-                "kind": "double_play", "inning": inning,
-                "half": HALF_LABELS[half], "school_id": defense,
-                "school_name": names(defense),
-                "player_name": player_name(school, item[3]),
-            })
+            # 併殺は打った学校と打者（「伊志田　山崎　併殺打」）
+            add("double_play", item, offense, wording["double_play"],
+                player_name=player_name(offense, item[3]))
         else:
             school = item[3]
-            highlights.append({
-                "kind": "pitching_change", "inning": inning,
-                "half": HALF_LABELS[half], "school_id": school,
-                "school_name": names(school),
-                "player_name": player_name(school, item[4]),
-            })
-    # 采配の交代（代打・代走・守備固め）は交代履歴から要点に足す（段階F2。保存する要点は増やさない）
+            add("pitching_change", item, school,
+                wording["pitching_change"].format(name=player_name(school, item[4])), player_name="")
+    # 采配の交代（代打・代走・守備固め）は交代履歴から足す（段階F2。保存する要点は増やさない）。
+    # 経過では「交代も表示」を選んだときだけ出す（kind が substitution）
     for change in changes:
         if not change.get("reason"):
             continue
@@ -718,18 +663,21 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
         highlights.append({
             "kind": "substitution", "inning": change["inning"], "half": change["half"],
             "school_id": change["school_id"], "school_name": change["school_name"],
-            "player_name": label,
-            "event": REASON_LABELS[change["reason"]], "success": True,
+            "player_name": label, "text": reason_text(wording, change["reason"], change.get("kind")),
+            "success": True,
+            # 交代の場面（「7回表・3番打者の前」）。経過ではその回の出来事のあとにまとめて出す
+            "moment": change.get("moment", ""),
         })
-    highlights.sort(key=lambda h: (h["inning"], 0 if h["half"] == HALF_LABELS["t"] else 1))
+    # 要点は打席の番号を持たず、打者のいない要点（暴投・盗塁・投手交代）と交代の前後は分からないので、
+    # 交代はその回の出来事のあとにまとめる（出来事どうしは記録の順のまま）
+    highlights.sort(key=lambda h: (h["inning"], 0 if h["half"] == HALF_LABELS["t"] else 1,
+                                   h["kind"] == "substitution"))
     # 得点の行に、その時点の点数（先攻−後攻）を付ける
     # 暴投・捕逸の行は守った側の学校なので、点は攻めた側に付ける。本盗の1点も数える
     tally = {team1: 0, team2: 0}
     for item in highlights:
         if item["kind"] == "score" or (item["kind"] in ("wild_pitch", "steal") and item.get("runs")):
-            offense = item["school_id"] if item["kind"] != "wild_pitch" else (
-                team2 if item["school_id"] == team1 else team1)
-            tally[offense] += int(item.get("runs") or 0)
+            tally[item.get("scoring_school_id") or item["school_id"]] += int(item.get("runs") or 0)
             item["score"] = f"{tally[team1]}−{tally[team2]}"
     out["highlights"] = highlights
     # 勝利投手・敗戦投手（決められないときは None）と本塁打

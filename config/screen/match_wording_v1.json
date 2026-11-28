@@ -1,0 +1,84 @@
+{
+  "config_id": "match_wording_v1",
+  "revision": 1,
+  "description_ja": "試合の画面の「経過」と「交代」の文言の対応表（phase2_engine/screen/match_wording.py）。記録の値（打撃結果・作戦の結果・交代の理由）→ 画面の文言。{runs} は点の数、{order} は打順、{label} は打撃結果の名前。",
+  "score": {
+    "single": "適時打で{runs}点",
+    "double": "適時二塁打で{runs}点",
+    "triple": "適時三塁打で{runs}点",
+    "home_run": "本塁打で{runs}点",
+    "ground_out": "内野ゴロの間に{runs}点",
+    "field_out": "凡打の間に{runs}点",
+    "fly_out": "外野フライの間に{runs}点",
+    "double_play": "併殺打の間に{runs}点",
+    "line_drive_double_play": "併殺の間に{runs}点",
+    "fielder_choice": "野選で{runs}点",
+    "reached_on_error": "失策の間に{runs}点",
+    "walk": "押し出し四球で{runs}点",
+    "hit_by_pitch": "押し出し死球で{runs}点",
+    "sacrifice_fly": "犠飛で{runs}点",
+    "sacrifice_bunt": "犠打の間に{runs}点",
+    "bunt_pop_out": "バント小飛球の間に{runs}点",
+    "bunt_double_play": "バント併殺の間に{runs}点",
+    "strikeout": "三振の間に{runs}点",
+    "other": "{label}で{runs}点"
+  },
+  "event_labels": {
+    "single": "安打", "double": "二塁打", "triple": "三塁打", "home_run": "本塁打",
+    "walk": "四球", "hit_by_pitch": "死球", "field_out": "凡打", "ground_out": "内野ゴロ",
+    "fly_out": "飛球", "double_play": "併殺打", "fielder_choice": "野選", "reached_on_error": "失策",
+    "sacrifice_bunt": "犠打", "sacrifice_fly": "犠飛", "strikeout": "三振", "bunt_pop_out": "バント小飛球",
+    "bunt_double_play": "バント併殺", "line_drive_double_play": "飛球で併殺（走者戻れず）"
+  },
+  "wild_pitch": {
+    "wp": "暴投",
+    "pb": "捕逸",
+    "with_runs": "{label}で{runs}点"
+  },
+  "double_play": "併殺打",
+  "steal": {
+    "sb:2": "二盗", "sb:3": "三盗", "sb:4": "本盗",
+    "cs:2": "盗塁死", "cs:3": "盗塁死（三塁）", "cs:4": "本盗失敗",
+    "po:2": "牽制死", "po:3": "牽制死", "po:4": "牽制死"
+  },
+  "tactic": {
+    "bunt:foul": "送りバントを2ストライクから強攻",
+    "bunt:pop": "送りバント失敗：小フライ",
+    "bunt:fc": "送りバント失敗：先の走者がアウト",
+    "bunt:dp": "送りバント失敗：併殺",
+    "squeeze:ok": "スクイズ成功",
+    "squeeze:pop": "スクイズ失敗：小フライ",
+    "squeeze:fc": "スクイズ失敗：本塁でアウト",
+    "squeeze:dp": "スクイズ失敗：小フライで併殺"
+  },
+  "hit_and_run": {
+    "success": ["single", "double", "triple", "home_run", "walk", "hit_by_pitch", "ground_out"],
+    "success_format": "エンドラン成功：{label}",
+    "failure_format": "エンドラン失敗：{label}",
+    "ground_out_label": "内野ゴロで走者が進む"
+  },
+  "pitching_change": "投手交代 → {name}",
+  "change_reasons": {
+    "pinch_hitter": "代打",
+    "pinch_runner": "代走",
+    "defensive_replacement": "守備固め",
+    "pitcher_to_field": "投手が守備へ",
+    "pitcher_return": "再登板",
+    "blowout_rest": "大差のため控えを起用",
+    "none": "選手交代"
+  },
+  "change_kinds": {
+    "pitcher_change": "投手交代",
+    "position_change": "守備変更",
+    "substitution": "選手交代"
+  },
+  "change_moment": "{inning}回{half}・{order}番打者の前",
+  "change_moment_unknown": "{inning}回{half}",
+  "notes_ja": {
+    "score": "得点の行（打撃結果 → 文言）。ない結果は other",
+    "tactic": "作戦の要点（作戦:結果）。送りバントの foul は2ストライクから打った（打席の結果は記録にないので、作戦として残す）",
+    "hit_and_run": "エンドランは結果が success に入っていれば成功。ground_out は内野ゴロで走者が進んだので成功として ground_out_label を出す",
+    "change_reasons": "交代の理由（game_core/match_state.py の LineupChange.reason）。理由のない交代は none。ほかに投手交代・守備変更は change_kinds",
+    "change_moment": "交代の場面。打順は試合の打席の数から出す（アウトカウント・走者は記録にないので出さない）"
+  }
+}
