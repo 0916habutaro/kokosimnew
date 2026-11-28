@@ -34,8 +34,14 @@ def load_config(config_root: str | Path) -> dict:
 
 
 def config_for_data(data_dir: str | Path) -> dict:
-    """``data/`` の隣の ``config/`` から読む（リポジトリの根を data として渡す古い入口では、その下の ``config/``）。"""
-    root = Path(data_dir).resolve()
+    """``data/`` の隣の ``config/`` から読む（リポジトリの根を data として渡す古い入口では、その下の ``config/``）。
+    同じ場所は1回だけ読む（書き換えないこと）。"""
+    return _config_for_data(str(Path(data_dir).resolve()))
+
+
+@lru_cache(maxsize=8)
+def _config_for_data(data_dir: str) -> dict:
+    root = Path(data_dir)
     for config_root in (root.parent / "config", root / "config"):
         if (config_root / CONFIG_PATH).is_file():
             return load_config(config_root)
@@ -275,3 +281,13 @@ def unused_source(source_id: str, active: Iterable[str], competitions: Mapping[s
     return bool(row.get(PARENT_KEY)) or any(
         other.get(PARENT_KEY) == source_id for other in competitions.values()
     )
+
+
+def held_in(config: Mapping | None, competition: Mapping, years: Iterable[int],
+            parents: Mapping[str, dict] | Iterable[str]) -> bool:
+    """その大会が ``years`` の年度のどれかで開かれるか（区分の大会は記念大会の年、もとの大会は
+    ほかの年。ほかの大会はいつでも）。記録の画面の絞り込み・表の行に使う。"""
+    from .school_year import competition_school_year
+
+    base = competition_school_year(competition)
+    return any(in_season(config, competition, year - base, parents) for year in years)

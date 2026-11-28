@@ -250,7 +250,7 @@ class GameScreenData:
             catalog = record_filters.build_catalog(
                 self.service.repo.competitions,
                 _csv_rows(self.service.repo.data_dir, "prefecture_region_memberships.csv"),
-                _level, lambda cid, name: name)
+                _level, lambda cid, name: name, held=lambda c: True)
             self._competition_prefs = {c["competition_id"]: c["prefectures"] for c in catalog}
         return self._competition_prefs
 
@@ -1502,16 +1502,36 @@ class GameScreenData:
     def records_entrants(self, filters=None) -> dict:
         return self._records_history(filters, entrants=True)
 
-    def _record_catalog(self) -> tuple[list[dict], dict]:
-        """記録の画面の大会の一覧（季節・区分・地域・都道府県）と地域の名前。"""
+    def _record_catalog(self, years=None) -> tuple[list[dict], dict]:
+        """記録の画面の大会の一覧（季節・区分・地域・都道府県）と地域の名前。
+
+        ``years`` は記録のある年度。記念大会の年だけの区分の大会（北大阪など）は、その中に
+        記念大会の年があるときだけ入れる（省くとゲームの記録のある年度すべて）。"""
         from .competition_views import _level
 
         memberships = _csv_rows(self.service.repo.data_dir, 'prefecture_region_memberships.csv')
         region_names = {r['region_id']: r['region_name']
                         for r in _csv_rows(self.service.repo.data_dir, 'baseball_regions.csv')}
-        catalog = record_filters.build_catalog(self.service.repo.competitions, memberships, _level,
-                                               self.competition_names)
+        years = list(years) if years is not None else self._record_years()
+        held = self._held_in(years)
+        catalog = record_filters.build_catalog(
+            self.service.repo.competitions, memberships, _level, self.competition_names,
+            held=lambda c: not c.get(commemorative_rules.PARENT_KEY) or held(c))
         return catalog, region_names
+
+    def _record_years(self) -> list[int]:
+        """ゲームの記録のある年度（進行中の年度と閉じた年度）。"""
+        years = list(_seasons(self.state)) if self.session is not None else []
+        bounds = self.service._history_archive(self.session.slot_id).best8_bounds() if self.session else None
+        if bounds:
+            years += list(range(bounds[0], bounds[1] + 1))
+        return sorted(set(years))
+
+    def _held_in(self, years):
+        """大会の行 → ``years`` のどれかで開かれるか（記念大会の区分の大会・もとの大会。commemorative.py）。"""
+        config = commemorative_rules.config_for_data(self.service.repo.data_dir)
+        parents = commemorative_rules.split_parents(self.service.repo.data_dir)
+        return lambda competition: commemorative_rules.held_in(config, competition, years, parents)
 
     @staticmethod
     def _map_picked(catalog, filters) -> dict:
@@ -1554,7 +1574,7 @@ class GameScreenData:
         if first < 1 or last > latest or first > last:
             raise ValueError('開始年度・終了年度を確認してください')
         competitions = self.service.repo.competitions
-        catalog, region_names = self._record_catalog()
+        catalog, region_names = self._record_catalog(range(earliest, latest + 1))
         f = self._map_picked(catalog, f)
         f, options, eligible = record_filters.cascade_filters(catalog, f, region_names, self.prefectures)
         cid = f['competition_id']
@@ -1633,9 +1653,13 @@ class GameScreenData:
                         years_of.get(school['school_id'], ()), row['school_year'])
         competition = competitions.get(cid, {})
         summer = competition.get('competition_type') == 'national_championship'
+        # 夏の代表地区は、表に出す年度（まだ行われていないので隠した年度は除く）に開かれた
+        # 地方大会（記念大会の年は北大阪・南大阪など）
+        held = self._held_in([row['school_year'] for row in rows])
         summer_areas = sorted(
             ([c['competition_id'], c['name'].replace('夏・', '')] for c in catalog
-             if competitions[c['competition_id']].get('competition_type') == 'summer_local_qualifier'),
+             if competitions[c['competition_id']].get('competition_type') == 'summer_local_qualifier'
+             and held(competitions[c['competition_id']])),
             key=lambda area: (competitions[area[0]].get('prefecture_code', ''), area[0]))
         matrix = competition.get('competition_level') in ('national', 'regional')
         axes = None
@@ -1775,8 +1799,9 @@ class GameScreenData:
         # 大会：選んだ年度に記録のある大会（地域・都道府県を選んだら、そこの学校が出られる大会）
         memberships = _csv_rows(self.service.repo.data_dir, "prefecture_region_memberships.csv")
         competitions = self.service.repo.competitions
+        # 記念大会の年だけの区分の大会も入れる（記録のない大会は下で外す）
         catalog = {c["competition_id"]: c for c in record_filters.build_catalog(
-            competitions, memberships, _level, self.competition_names)}
+            competitions, memberships, _level, self.competition_names, held=lambda c: True)}
         # 大会の並び：全国 → 地区 → 都道府県（都道府県コード順）、同じところは春・夏・秋
         levels = {"national": 0, "regional": 1, "local": 2}
         segments = {"spring": 0, "summer": 1, "autumn": 2}
@@ -2179,6 +2204,7 @@ class GameScreenData:
                         champion["school_id"], kind, "championships"
                     )
         representatives = []
+        held = self._held_in([year])
         for cid, competition in sorted(
             competitions.items(),
             key=lambda item: (item[1].get("prefecture_code", ""), item[0]),
@@ -2186,7 +2212,7 @@ class GameScreenData:
             if competition.get("competition_type") != "summer_local_qualifier":
                 continue
             # 記念大会の年はもとの大会、ほかの年は区分の大会が開かれない（commemorative.py）
-            if commemorative_rules.unused_source(cid, by_competition, competitions):
+            if not held(competition):
                 continue
             champion = next(
                 (sid for sid, row in by_competition.get(cid, []) if row["finish"] == "優勝"),
