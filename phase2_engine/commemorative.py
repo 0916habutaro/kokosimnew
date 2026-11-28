@@ -34,8 +34,12 @@ def load_config(config_root: str | Path) -> dict:
 
 
 def config_for_data(data_dir: str | Path) -> dict:
-    """``data/`` の隣の ``config/`` から読む。"""
-    return load_config(Path(data_dir).resolve().parent / "config")
+    """``data/`` の隣の ``config/`` から読む（リポジトリの根を data として渡す古い入口では、その下の ``config/``）。"""
+    root = Path(data_dir).resolve()
+    for config_root in (root.parent / "config", root / "config"):
+        if (config_root / CONFIG_PATH).is_file():
+            return load_config(config_root)
+    return load_config(root.parent / "config")
 
 
 def edition(name: str, year_offset: int) -> int | None:

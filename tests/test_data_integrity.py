@@ -81,7 +81,9 @@ class DataIntegrityTests(unittest.TestCase):
 
     def test_structural_season_runs_every_competition_and_resolves_every_link(self):
         season = self.season
-        self.assertEqual(set(self.repo.competitions), set(season.competition_runs))
+        # 記念大会の年だけの区分の大会（commemorative.py）は2026年には開かれない
+        held = {cid for cid, row in self.repo.competitions.items() if not row.get("commemorative_parent_id")}
+        self.assertEqual(held, set(season.competition_runs))
         self.assertTrue(season.qualification_resolutions)
         self.assertTrue(all(r.status == "PASS" for r in season.qualification_resolutions))
         self.assertFalse(any(r.date_status == "FAIL" for r in season.qualification_resolutions))
