@@ -637,7 +637,7 @@ class GameScreenData:
         }
 
     def _national_entrants(self, year: int, competition_id: str, main) -> list[dict]:
-        """全国大会の出場校（都道府県順）。夏・春は甲子園の通算〇回目つき。"""
+        """全国大会の出場校。夏・春は甲子園の通算〇回目つき。並びは ``_entrant_order``。"""
         competition = self.service.repo.competitions.get(competition_id, {})
         if competition.get("competition_level") != "national" or main is None:
             return []
@@ -667,7 +667,67 @@ class GameScreenData:
                 "appearance_label": self.entry_label(competition_id, year, school_id, history),
             }
             rows.append(row)
-        return sorted(rows, key=lambda row: (row["prefecture_code"], row["name"]))
+        order = self._entrant_order(year, kind, basis)
+        return sorted(rows, key=lambda row: (*order(row["school_id"], row["prefecture_code"]), row["name"]))
+
+    def _entrant_order(self, year: int, kind: str | None, basis: dict[str, str]):
+        """出場校一覧の並びの鍵（学校ID, 都道府県コード → 並べる値）。config の ``entrant_order``。
+
+        - 夏の甲子園：都道府県コード → 区分（北北海道・南北海道、東東京・西東京、記念大会の北大阪・南大阪…）
+        - 選抜：地区（関東の次に東京、中国の次に四国）→ 秋季地区大会の到達点 → 都道府県コード。
+          21世紀枠は最後にまとめて都道府県コード順。地区大会の結果がなければ地区 → 都道府県コード
+        - ほか：都道府県コード"""
+        config = self.config.get("entrant_order", {})
+        if kind == "summer":
+            competitions = self.service.repo.competitions
+            local = self._summer_area_competitions(year)
+            area_codes = {
+                row["area_id"]: row.get("area_code", "")
+                for row in _csv_rows(self.service.repo.data_dir, "competition_areas.csv")
+            }
+            area_order = list(config.get("summer_area_order", ()))
+            districts = commemorative_rules.rule_for(
+                commemorative_rules.config_for_data(self.service.repo.data_dir), "national_championship",
+            ) or {}
+
+            def area_rank(school_id):
+                competition = competitions.get(local.get(school_id, ""), {})
+                district = competition.get(commemorative_rules.DISTRICT_KEY)
+                if district:
+                    names = districts.get("split_prefectures", {}).get(competition.get("prefecture_code", ""), [])
+                    return names.index(district) if district in names else len(names)
+                code = area_codes.get(competition.get("qualifying_area_id", ""), "")
+                return area_order.index(code) if code in area_order else len(area_order)
+
+            return lambda school_id, prefecture: (prefecture, area_rank(school_id))
+        if kind == "spring":
+            regions = list(config.get("invitational_regions", ()))
+            finish = self._autumn_regional_finishes(year)
+
+            def key(school_id, prefecture):
+                if basis.get(school_id) == "century":
+                    return (len(regions) + 1, 0, prefecture)
+                region, depth = finish.get(school_id, (self._regions.get(prefecture, ""), 99))
+                return (regions.index(region) if region in regions else len(regions), depth, prefecture)
+
+            return key
+        return lambda school_id, prefecture: (prefecture,)
+
+    def _autumn_regional_finishes(self, year: int) -> dict[str, tuple[str, int]]:
+        """学校 → (秋季地区大会の地区, 到達点：優勝1・準優勝2・ベスト4は4…)。その年度の秋季地区大会
+        （東京は東京都秋季大会）の順位から。選抜の選考に使った並びと同じ。結果がなければ空。"""
+        from ..seed_draw import best_of
+
+        season = self._season_of(year)
+        out: dict[str, tuple[str, int]] = {}
+        for cid, scheduled in (season.competitions.items() if season is not None else ()):
+            competition = self.service.repo.competitions.get(cid, {})
+            if competition.get("competition_type") != "autumn_regional" or not scheduled.is_complete:
+                continue
+            outcome = scheduled.to_competition_run().outcome
+            for index, school_id in enumerate(outcome.final_ranking_school_ids if outcome else ()):
+                out.setdefault(school_id, (competition.get("region_id", ""), best_of(index)))
+        return out
 
     def _selection_basis(self, year: int, competition_id: str) -> dict[str, str]:
         """選抜の出場校 → 選ばれた枠（jingu・century）。
@@ -825,8 +885,8 @@ class GameScreenData:
         self.abilities.compute(chosen, year, self.session.plan.rng_seed)
         return self.abilities.get(chosen, year)[0]
 
-    def _summer_areas(self, year: int) -> dict[str, str]:
-        """夏の代表校 → 代表になった大会の地区名（北北海道・東東京・青森…）。"""
+    def _summer_area_competitions(self, year: int) -> dict[str, str]:
+        """夏の代表校 → 代表になった夏の地方大会の大会ID。"""
         season = self._season_of(year)
         if season is None:
             return {}
@@ -838,9 +898,18 @@ class GameScreenData:
             main = main_runtime(scheduled)
             if main is None or not main.champion_school_id:
                 continue
-            short = self.competition_names(cid, competition.get("competition_name", cid))
-            out[main.champion_school_id] = short.replace("夏・", "").removesuffix("大会")
+            out[main.champion_school_id] = cid
         return out
+
+    def _summer_areas(self, year: int) -> dict[str, str]:
+        """夏の代表校 → 代表になった大会の地区名（北北海道・東東京・青森…）。"""
+        competitions = self.service.repo.competitions
+        return {
+            school_id: self.competition_names(
+                cid, competitions.get(cid, {}).get("competition_name", cid),
+            ).replace("夏・", "").removesuffix("大会")
+            for school_id, cid in self._summer_area_competitions(year).items()
+        }
 
     def team_name(
         self, school_id: str, competition_id: str, day: str = "", year: int | None = None,

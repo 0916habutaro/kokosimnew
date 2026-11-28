@@ -36,7 +36,12 @@
     "ability_ranks": "学校能力のランク：値がこの数以上ならそのランク（Sから順に見る）。Fの境目より下はG。数値は内部で持ち、画面はランクで出す。境目は全校の中の割合（S 0.1%・A 2.7%・B 16%・C 41%・D 74%・E 92%・F 99%以上）が前と同じになるよう、入部品質を選手ごとの素質に変えたとき（2026-10-31）に合わせた",
     "national_competition_types": "全国大会（夏の甲子園・選抜・神宮）の大会の種類。今日の画面で全国大会を先に並べるのに使う",
     "previous_day_results": "今日の画面の「前の試合日の結果」：今日より前で最後に試合があった日の結果。show_all_competition_types の大会の show_all_stage_codes（本大会）は全試合、それ以外は注目の試合と同じ点の順に other_count 試合まで",
+    "entrant_order": "全国大会の出場校一覧の並び。夏の甲子園は都道府県コード → 区分の順（summer_area_order は北海道・東京の夏の代表区分の area_code の順。記念大会の区分は config/selection/commemorative_v1.json の区分の名前の順）。選抜は invitational_regions の地区の順（秋の地区割りの region_id。関東の次に東京、中国の次に四国）→ 秋季地区大会の到達点（優勝・準優勝・ベスト4…）→ 都道府県コード、21世紀枠は最後にまとめて都道府県コード順。地区大会の結果がない年は地区 → 都道府県コード。ほかの全国大会は都道府県コード順",
     "stage_display_names": "予選の段階名の画面での言い方（ステージID → 名前）。「シード決定イベント」を大会の資料（source_id は data/sources/phase2_sources.csv）の呼び方に合わせる。ないステージは competition_stages.csv の名前のまま"
+  },
+  "entrant_order": {
+    "summer_area_order": ["HKD_NORTH", "HKD_SOUTH", "TYO_EAST", "TYO_WEST"],
+    "invitational_regions": ["REG01", "REG02", "REG03", "REG04", "REG06", "REG05", "REG07", "REG08", "REG09", "REG10"]
   },
   "player_records": {
     "leaders": 20,
