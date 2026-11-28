@@ -227,8 +227,7 @@ class StructuralAnnualInputFactory:
 
     def _read(self, name: str) -> List[dict]:
         with resolve_data_file(self.data_dir, name).open("r", encoding="utf-8-sig", newline="") as f:
-            # 記念大会の年の区分の大会の行を足す（commemorative.py）
-            return commemorative_rules.expand_rows(name, csv.DictReader(f), self.data_dir)
+            return list(csv.DictReader(f))
 
     def prefecture_code(self, competition_id: str) -> str:
         comp = self.repo.competition(competition_id)
@@ -398,8 +397,7 @@ class SeasonOrchestrator:
 
     def _read(self, name: str) -> List[dict]:
         with resolve_data_file(self.data_dir, name).open("r", encoding="utf-8-sig", newline="") as f:
-            # 記念大会の年の区分の大会の行を足す（commemorative.py）
-            return commemorative_rules.expand_rows(name, csv.DictReader(f), self.data_dir)
+            return list(csv.DictReader(f))
 
     def run_structural_season(self, year: int = 2026, rng_seed: int = 2026100501) -> SeasonExecution:
         if year != 2026:

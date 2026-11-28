@@ -469,7 +469,10 @@ class LiveSeasonDependencyRuntimeState:
         rules: dict[str, list[dict]] = {}
         for destination in templates:
             selected = []
-            for rule in repo.access_rules(destination):
+            # 記念大会の年は、もとの大会からの決まりを区分の大会ごとの決まりにする
+            for rule in commemorative_rules.alias_access_rules(
+                repo.access_rules(destination), templates, repo.data_dir,
+            ):
                 if not cls._rule_effective(
                     rule,
                     rules_year(year),

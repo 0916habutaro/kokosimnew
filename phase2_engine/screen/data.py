@@ -16,6 +16,7 @@ from game_core.joint_teams import JointTeam, team_name, union_teams
 from game_core.players import Player
 from game_core.school_reputation import reputation_for
 
+from .. import commemorative as commemorative_rules
 from ..career_state import CareerState
 from ..paths import resolve_data_file
 from ..save_slots import SAVE_KIND_MANUAL
@@ -2183,6 +2184,9 @@ class GameScreenData:
             key=lambda item: (item[1].get("prefecture_code", ""), item[0]),
         ):
             if competition.get("competition_type") != "summer_local_qualifier":
+                continue
+            # 記念大会の年はもとの大会、ほかの年は区分の大会が開かれない（commemorative.py）
+            if commemorative_rules.unused_source(cid, by_competition, competitions):
                 continue
             champion = next(
                 (sid for sid, row in by_competition.get(cid, []) if row["finish"] == "優勝"),

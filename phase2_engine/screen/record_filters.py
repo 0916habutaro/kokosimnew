@@ -26,6 +26,9 @@ def build_catalog(competitions: dict, memberships: list[dict], level_of, name_of
             qualifiers[c.get("prefecture_code", "")] = qualifiers.get(c.get("prefecture_code", ""), 0) + 1
     catalog = []
     for cid, c in competitions.items():
+        # 記念大会の年だけの区分の大会は、記録の絞り込みにまだ出さない
+        if c.get("commemorative_parent_id"):
+            continue
         pref = c.get("prefecture_code", "")
         segment = c.get("season_segment", "")
         level = level_of(c)

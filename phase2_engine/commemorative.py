@@ -87,7 +87,6 @@ _CLONED = {
     "competition_stages.csv": ("competition_id", "stage_id"),
     "competition_seed_rules.csv": ("destination_competition_id", "seed_rule_id"),
     "bracket_generation_policies.csv": ("competition_id", "bracket_policy_id"),
-    "competition_access_rules.csv": ("source_competition_id_2026", "access_rule_id"),
     "qualification_rules.csv": ("source_competition_id", "rule_id"),
     "season_calendar.csv": ("competition_id", "calendar_id"),
 }
@@ -239,6 +238,26 @@ def local_display_name(config: Mapping | None, competition: Mapping, number: int
     if not rule or not competition.get(DISTRICT_KEY) or not number:
         return None
     return rule["local_name_format"].format(edition=number, district=competition[DISTRICT_KEY])
+
+
+def alias_access_rules(rules: Iterable[dict], active: Iterable[str], data_dir: str | Path) -> list[dict]:
+    """秋の不戦勝などの決まり（``competition_access_rules``）の元がもとの大会で、その年度に
+    もとの大会が開かれず区分の大会が開かれるときは、区分の大会ごとの決まりに置き換える
+    （行のIDは後ろに区分の印を付ける）。ほかの決まりはそのまま。"""
+    active = set(active)
+    parents = split_parents(data_dir)
+    out = []
+    for rule in rules:
+        source = rule.get("source_competition_id_2026", "")
+        children = [child for child in parents.get(source, {}).get("children", ())
+                    if child["competition_id"] in active]
+        if source in active or not children:
+            out.append(rule)
+            continue
+        for child in children:
+            out.append({**rule, "source_competition_id_2026": child["competition_id"],
+                        "access_rule_id": rule["access_rule_id"] + child["suffix"]})
+    return out
 
 
 def unused_source(source_id: str, active: Iterable[str], competitions: Mapping[str, Mapping]) -> bool:

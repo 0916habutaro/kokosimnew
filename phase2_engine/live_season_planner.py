@@ -481,7 +481,10 @@ class LiveSeasonGraphPlanner:
             )
             if start <= year <= end:
                 selected.append(row)
-        return selected
+        # 記念大会の年は、もとの大会からの決まりを区分の大会ごとの決まりにする
+        return commemorative_rules.alias_access_rules(
+            selected, self.season_catalog(), self.data_dir,
+        )
 
     def _qualification_rules(
         self,
