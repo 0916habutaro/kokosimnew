@@ -66,75 +66,32 @@ class ChangeTests(unittest.TestCase):
 
 
 class ProgressOrderTests(unittest.TestCase):
-    def test_pinch_hitter_comes_before_his_hit(self):
-        # 7回表：先頭（1番）が三振のあと、2番の打席の前に代打 PH、PH が適時打（2打席目）
+    """経過では、交代はその回の出来事のあとにまとめる（要点は打席の番号を持たず、暴投・盗塁と
+    交代の前後は分からないため）。出来事どうしは記録の順のまま。"""
+
+    def test_changes_come_after_the_events_of_their_half(self):
         from unittest.mock import patch
         from phase2_engine.screen import competition_views as cv
-        row = {"team1_id": "A", "team2_id": "B", "team1_score": 1, "team2_score": 0, "status": "completed"}
-        detail = {"inning_scores": [{"inning": 7, "half": "top", "batting_team_id": "A", "runs": 1,
-                                     "plate_appearances": 4}],
-                  "highlights": [["S", 7, "t", "PH", "single", 1]]}
-        change = {"inning": 7, "half": "表", "next_plate_appearance_no": 2, "school_id": "A",
-                  "school_name": "A高", "reason": "pinch_hitter", "kind": "substitution", "label": "代打",
-                  "outgoing": {"player_id": "S2", "name": "二番"}, "incoming": {"player_id": "PH", "name": "代打"},
-                  "batting_order": 2, "moves": []}
-        lineups = ({"A": None, "B": None}, [change], {"A": {}, "B": {}}, {"A": {"S2": 2, "PH": 2}, "B": {}},
-                   {"A": set(), "B": set()}, {"A": set(), "B": set()})
-        with patch.object(cv, "_match_lineups", return_value=lineups):
-            out = match_detail(row, detail, lambda sid: sid + "高", lambda sid: {})
-        self.assertEqual(["substitution", "score"], [h["kind"] for h in out["highlights"]])
-
-
-    def test_pinch_runner_comes_before_his_steal(self):
-        # 7回表：先頭（1番）が安打で出塁、2番の打席の前に代走 PR、PR が二盗
-        from unittest.mock import patch
-        from phase2_engine.screen import competition_views as cv
-        row = {"team1_id": "A", "team2_id": "B", "team1_score": 0, "team2_score": 0, "status": "completed"}
-        detail = {"inning_scores": [{"inning": 7, "half": "top", "batting_team_id": "A", "runs": 0,
-                                     "plate_appearances": 4}],
-                  "highlights": [["B", 7, "t", "PR", "sb", 2]]}
+        row = {"team1_id": "A", "team2_id": "B", "team1_score": 2, "team2_score": 0, "status": "completed"}
+        detail = {"inning_scores": [{"inning": 7, "half": "top", "batting_team_id": "A", "runs": 2,
+                                     "plate_appearances": 6},
+                                    {"inning": 7, "half": "bottom", "batting_team_id": "B", "runs": 0,
+                                     "plate_appearances": 3}],
+                  # 7回表：代走 PR が入ったあと、暴投で PR が生還、つづけて適時打。7回裏に併殺
+                  "highlights": [["W", 7, "t", "wp", "BP", 1], ["S", 7, "t", "S4", "single", 1],
+                                 ["D", 7, "b", "T1"]]}
         change = {"inning": 7, "half": "表", "next_plate_appearance_no": 2, "school_id": "A",
                   "school_name": "A高", "reason": "pinch_runner", "kind": "substitution", "label": "代走",
                   "outgoing": {"player_id": "S1", "name": "一番"}, "incoming": {"player_id": "PR", "name": "代走"},
                   "batting_order": 1, "moves": []}
-        lineups = ({"A": None, "B": None}, [change], {"A": {}, "B": {}}, {"A": {"S1": 1, "PR": 1}, "B": {}},
+        lineups = ({"A": None, "B": None}, [change], {"A": {}, "B": {}}, {"A": {}, "B": {}},
                    {"A": set(), "B": set()}, {"A": set(), "B": set()})
         with patch.object(cv, "_match_lineups", return_value=lineups):
             out = match_detail(row, detail, lambda sid: sid + "高", lambda sid: {})
-        self.assertEqual(["substitution", "steal"], [h["kind"] for h in out["highlights"]])
-
-
-    def order_of(self, highlights, change):
-        from unittest.mock import patch
-        from phase2_engine.screen import competition_views as cv
-        row = {"team1_id": "A", "team2_id": "B", "team1_score": 1, "team2_score": 4, "status": "completed"}
-        detail = {"inning_scores": [{"inning": 7, "half": "top", "batting_team_id": "A", "runs": 1,
-                                     "plate_appearances": 6}],
-                  "highlights": highlights}
-        slots = {"S1": 1, "S2": 2, "S3": 3, "S4": 4, "PR": 2}
-        lineups = ({"A": None, "B": None}, [change], {"A": {}, "B": {}}, {"A": slots, "B": {}},
-                   {"A": set(), "B": set()}, {"A": set(), "B": set()})
-        with patch.object(cv, "_match_lineups", return_value=lineups):
-            out = match_detail(row, detail, lambda sid: sid + "高", lambda sid: {})
-        return [h["kind"] for h in out["highlights"]]
-
-    # 1番三塁打・2番四球・3番犠飛のあと、4番の打席の前に一塁走者（2番）へ代走
-    PINCH_RUNNER = {"inning": 7, "half": "表", "next_plate_appearance_no": 4, "school_id": "A",
-                    "school_name": "A高", "reason": "pinch_runner", "kind": "substitution", "label": "代走",
-                    "outgoing": {"player_id": "S2", "name": "二番"}, "incoming": {"player_id": "PR", "name": "代走"},
-                    "batting_order": 2, "moves": []}
-
-    def test_steal_by_the_pinch_runner_comes_after_the_change(self):
-        kinds = self.order_of([["S", 7, "t", "S3", "sacrifice_fly", 1], ["B", 7, "t", "PR", "sb", 2]],
-                              self.PINCH_RUNNER)
-        self.assertEqual(["score", "substitution", "steal"], kinds)
-
-    def test_steal_by_the_runner_who_left_comes_before_the_change(self):
-        # 3番の打席の間に2番が二盗し、3番の犠飛のあと4番の前に代走
-        kinds = self.order_of([["B", 7, "t", "S2", "sb", 2], ["S", 7, "t", "S3", "sacrifice_fly", 1]],
-                              self.PINCH_RUNNER)
-        self.assertEqual(["steal", "score", "substitution"], kinds)
-
+        self.assertEqual(["wild_pitch", "score", "substitution", "double_play"],
+                         [h["kind"] for h in out["highlights"]])
+        self.assertEqual(["1−0", "2−0"], [h.get("score") for h in out["highlights"][:2]])
+        self.assertEqual("7回表・2番打者の前", out["highlights"][2]["moment"])
 
 if __name__ == "__main__":
     unittest.main()

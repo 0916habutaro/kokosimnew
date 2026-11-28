@@ -641,62 +641,19 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
     batting_team = {"t": team1, "b": team2}
     highlights = []
 
-    # 要点は打席の番号を持たないので、打者の打順から打席を推し量り、交代（何打席目の前か）と並べる
-    pa_orders = plate_appearance_orders(detail.get("inning_scores") or ())
-    half_pas: dict[tuple, list[int]] = {}
-    number = 1
-    for row_ in detail.get("inning_scores") or ():
-        count = int(row_.get("plate_appearances") or 0)
-        half_pas[(int(row_["inning"]), row_["half"][0])] = list(range(number, number + count))
-        number += count
-    pointer: dict[tuple, int] = {}
-
-    # 交代で入った選手・退いた選手 → 何打席目の前の交代か（盗塁と交代の前後に使う）
-    entered: dict[str, int] = {}
-    left: dict[str, int] = {}
-    for change in changes:
-        for incoming, outgoing in [(change.get("incoming"), change.get("outgoing"))] + [
-                (b.get("incoming"), b.get("outgoing")) for b in change.get("batting_changes") or ()]:
-            if incoming:
-                entered.setdefault(incoming["player_id"], change["next_plate_appearance_no"])
-            if outgoing:
-                left.setdefault(outgoing["player_id"], change["next_plate_appearance_no"])
-
-    def plate_appearance(item, batter_school=None, batter=None, runner=None):
-        """要点の打席の番号の見当。打者のいる要点は、その打者の打順の打席。盗塁は、走者が交代で
-        入った選手ならその交代より後、交代で退いた選手ならその交代より前。ほかは直前の要点と同じ。"""
-        key = (item[1], item[2])
-        pas = half_pas.get(key) or [0]
-        current = pointer.get(key, pas[0])
-        if batter:
-            slot = orders.get(batter_school, {}).get(batter)
-            found = next((pa for pa in pas if slot and pa >= current and pa_orders.get(pa) == slot), None)
-            if found is not None:
-                current = found
-        elif runner:
-            if runner in entered and pas[0] <= entered[runner] <= pas[-1]:
-                current = max(current, entered[runner])
-            elif runner in left and pas[0] <= left[runner] <= pas[-1] + 1 and current >= left[runner]:
-                # 退く前の盗塁：その交代（何打席目の前）より前に置く。並びを戻さないよう打席は進めない
-                return left[runner] - 0.75
-        pointer[key] = current
-        return current
-
-    def add(kind, item, school, text, batter=None, runner=None, **extra):
-        offense_ = batting_team[item[2]]
+    def add(kind, item, school, text, **extra):
         highlights.append({"kind": kind, "inning": item[1], "half": HALF_LABELS[item[2]],
-                           "school_id": school, "school_name": names(school), "text": text,
-                           "_pa": plate_appearance(item, offense_, batter, runner), **extra})
+                           "school_id": school, "school_name": names(school), "text": text, **extra})
 
     for item in detail.get("highlights") or ():
         kind, half = item[0], item[2]
         offense = batting_team[half]
         defense = team2 if offense == team1 else team1
         if kind == "S":
-            add("score", item, offense, score_text(wording, item[4], item[5]), batter=item[3],
+            add("score", item, offense, score_text(wording, item[4], item[5]),
                 player_name=player_name(offense, item[3]), is_home_run=item[4] == "home_run", runs=item[5])
         elif kind == "B":
-            add("steal", item, offense, steal_text(wording, item[4], item[5]), runner=item[3],
+            add("steal", item, offense, steal_text(wording, item[4], item[5]),
                 player_name=player_name(offense, item[3]), success=item[4] == "sb",
                 # 本盗の1点（打者の得点の行には入らない）
                 runs=int(item[4] == "sb" and item[5] == 4))
@@ -706,11 +663,11 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                 player_name=player_name(defense, item[4]), runs=item[5], scoring_school_id=offense)
         elif kind == "T":
             text, success = tactic_text(wording, item[4], item[5])
-            add("tactic", item, offense, text, batter=item[3], player_name=player_name(offense, item[3]),
+            add("tactic", item, offense, text, player_name=player_name(offense, item[3]),
                 success=success)
         elif kind == "D":
             # 併殺は打った学校と打者（「伊志田　山崎　併殺打」）
-            add("double_play", item, offense, wording["double_play"], batter=item[3],
+            add("double_play", item, offense, wording["double_play"],
                 player_name=player_name(offense, item[3]))
         else:
             school = item[3]
@@ -736,12 +693,13 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
             "school_id": change["school_id"], "school_name": change["school_name"],
             "player_name": label, "text": reason_text(wording, change["reason"], change.get("kind")),
             "success": True,
-            # 何打席目の前の交代か（その打席の出来事より前に並べる）
-            "_pa": change["next_plate_appearance_no"] - 0.5,
+            # 交代の場面（「7回表・3番打者の前」）。経過ではその回の出来事のあとにまとめて出す
+            "moment": change.get("moment", ""),
         })
-    highlights.sort(key=lambda h: (h["inning"], 0 if h["half"] == HALF_LABELS["t"] else 1, h["_pa"]))
-    for item in highlights:
-        item.pop("_pa")
+    # 要点は打席の番号を持たず、打者のいない要点（暴投・盗塁・投手交代）と交代の前後は分からないので、
+    # 交代はその回の出来事のあとにまとめる（出来事どうしは記録の順のまま）
+    highlights.sort(key=lambda h: (h["inning"], 0 if h["half"] == HALF_LABELS["t"] else 1,
+                                   h["kind"] == "substitution"))
     # 得点の行に、その時点の点数（先攻−後攻）を付ける
     # 暴投・捕逸の行は守った側の学校なので、点は攻めた側に付ける。本盗の1点も数える
     tally = {team1: 0, team2: 0}

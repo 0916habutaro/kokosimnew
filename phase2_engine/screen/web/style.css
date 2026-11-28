@@ -534,3 +534,5 @@ table.compact-matches td.round { min-width: 7em; }
 table.compact-matches td.team1 { text-align: right; min-width: 12em; }
 table.compact-matches td.score { text-align: center; min-width: 6em; }
 table.compact-matches td.team2 { min-width: 12em; }
+.hl-subs-head { font-size: 12px; margin: 6px 0 0; }
+.hl.sub .what { color: var(--muted); }

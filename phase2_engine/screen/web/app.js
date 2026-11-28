@@ -1682,6 +1682,9 @@ async function renderMatchDetail(content, detail) {
     const who = [h.school_name, h.player_name].filter(Boolean).map(esc).join("　");
     const cls = h.kind === "score" ? `score ${h.is_home_run ? "hr" : ""}` : h.score ? "score" : h.kind === "wild_pitch" ? "dp"
       : h.kind === "pitching_change" ? "pc" : h.kind === "double_play" ? "dp" : (h.success ? "sb" : "dp");
+    if (h.kind === "substitution") {
+      return `<div class="hl sub"><span class="what"><span class="muted">${esc(h.moment || "")}</span>　${who}　${esc(h.text)}</span></div>`;
+    }
     return `<div class="hl ${cls}"><span class="what">${who}　${esc(h.text)}</span>${h.score ? `<span class="now">${esc(h.score)}</span>` : ""}</div>`;
   };
   // 成績の表（行・守備の印・計の行は Python が作る。match_tables.py）。0 は薄く
@@ -1713,11 +1716,15 @@ async function renderMatchDetail(content, detail) {
   const progress = () => {
     let last = "";
     // 選手交代（代打・代走・守備固め・控えと交代）は「交代も表示」のときだけ
+    // 交代はその回の出来事のあとにまとめる（Python で並べてある）
+    let subsHead = "";
     return (m.highlights || []).filter((h) => h.kind !== "substitution" || state.matches.showSubs).map((h) => {
       const when = `${h.inning}回${h.half}`;
       const head = when !== last ? `<h4 class="hl-inning">${esc(when)}</h4>` : "";
+      const subs = h.kind === "substitution" && subsHead !== when ? '<div class="hl-subs-head muted">この回の交代</div>' : "";
+      if (h.kind === "substitution") subsHead = when;
       last = when;
-      return head + highlightRow(h);
+      return head + subs + highlightRow(h);
     }).join("") || '<div class="muted">得点はありませんでした</div>';
   };
   // 交代：同じ回・同じ打席の前の交代を1つの枠に（Python の change_groups）
