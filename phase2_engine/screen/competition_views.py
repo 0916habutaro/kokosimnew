@@ -10,6 +10,7 @@ from dataclasses import replace
 from game_core.match_state import (TeamMatchParticipation, ChangeMoment, CompletedPlateAppearanceMoment,
                                   apply_lineup_change, replay_team_participation)
 
+from .match_tables import batting_table, innings_label, pitching_table
 from .match_summary import called_label, home_runs, pitchers_of_record
 from ..competition_schedule_runtime import SCHEDULE_PENDING
 from ..tournament_runtime import MATCH_BYE, MainTournamentRuntimeState
@@ -380,8 +381,7 @@ def _innings(detail: dict, team1: str, team2: str) -> tuple[list, list]:
 
 
 def _outs_to_innings(outs: int) -> str:
-    whole, rest = divmod(int(outs or 0), 3)
-    return f"{whole}" + (f" {rest}/3" if rest else "")
+    return innings_label(outs)
 
 
 def _dh_match_lineups(detail, teams, names, player_name, year):
@@ -657,6 +657,8 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                           "cs": "本盗失敗" if item[5] == 4 else "盗塁死",
                           "po": "牽制死"}[item[4]],
                 "success": item[4] == "sb",
+                # 本盗の1点（打者の得点の行には入らない）
+                "runs": int(item[4] == "sb" and item[5] == 4),
             })
         elif kind == "W":
             # 暴投・捕逸（守った側の投手か捕手）
@@ -720,6 +722,15 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
             "event": REASON_LABELS[change["reason"]], "success": True,
         })
     highlights.sort(key=lambda h: (h["inning"], 0 if h["half"] == HALF_LABELS["t"] else 1))
+    # 得点の行に、その時点の点数（先攻−後攻）を付ける
+    # 暴投・捕逸の行は守った側の学校なので、点は攻めた側に付ける。本盗の1点も数える
+    tally = {team1: 0, team2: 0}
+    for item in highlights:
+        if item["kind"] == "score" or (item["kind"] in ("wild_pitch", "steal") and item.get("runs")):
+            offense = item["school_id"] if item["kind"] != "wild_pitch" else (
+                team2 if item["school_id"] == team1 else team1)
+            tally[offense] += int(item.get("runs") or 0)
+            item["score"] = f"{tally[team1]}−{tally[team2]}"
     out["highlights"] = highlights
     # 勝利投手・敗戦投手（決められないときは None）と本塁打
     record = pitchers_of_record(detail)
@@ -750,6 +761,7 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                     "at_bats", "hits", "runs", "rbi", "home_runs",
                     "walks", "strikeouts", "stolen_bases", "grounded_into_double_plays",
                     "caught_stealing", "picked_off", "sacrifice_bunts", "passed_balls", "errors",
+                    "doubles", "triples", "hit_by_pitch",
                 )},
             }
             for stat in detail.get("batter_stats") or ()
@@ -766,8 +778,9 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                 **{key: stat.get(key, 0) for key in (
                     "batters_faced", "hits_allowed", "runs_allowed",
                     "earned_runs", "walks", "strikeouts",
-                    "home_runs_allowed", "pitches", "wild_pitches", "errors",
+                    "home_runs_allowed", "pitches", "wild_pitches", "errors", "hit_batters",
                 )},
+                "outs": stat.get("outs_recorded", 0),
                 # 降板時の疲れ（例：疲れ大）。なければ空
                 "fatigue": _fatigue_label(stat.get("exit_fatigue", 0)),
             }
@@ -796,6 +809,17 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                 if table == 'pitching':
                     stat['position'] = position(team, pid)
                     stat['exited'] = pid in exited[team]
+    # 画面の「成績」の表：打順ごとの並び・守備の印・計の行（match_tables.py）
+    out["stat_tables"] = {}
+    for team in (team1, team2):
+        lineup = lineups[team]
+        labels = {pid: [POSITION_LABELS[code] for code in codes] for pid, codes in positions[team].items()}
+        dh = (lineup or {}).get("designated_hitter_id")
+        two_way = {dh} if dh is not None and dh == (lineup or {}).get("starting_pitcher_id") else set()
+        out["stat_tables"][team] = {
+            "batting": batting_table(out["batting"][team], lineup, changes, team, labels),
+            "pitching": pitching_table(out["pitching"][team], two_way),
+        }
     # 連合チームの選手：試合のチーム（代表校）と違う、名簿上の学校（選手の画面へのリンクに使う）
     out['player_schools'] = {
         pid: player.school_id

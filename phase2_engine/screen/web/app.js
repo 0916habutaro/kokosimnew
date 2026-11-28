@@ -19,7 +19,7 @@ const state = {
   busy: false,
   noSession: false, // 起動時にセーブを選ぶ前
   competitions: { filter: { year: "", segment: "", level: "", status: "", pref: "" }, view: null },
-  matches: { date: "", detail: null, tab: "lineups" },
+  matches: { date: "", detail: null, tab: "progress", more: false }, // more：成績の表の「詳しく」
   schools: {
     data: null, view: [], filter: { pref: "", owner: "", result: "", name: "" },
     sortKey: "pref", sortDir: 1, selected: null, detail: null, tab: "overview",
@@ -1609,7 +1609,7 @@ function decisionsLine(m) {
 
 function openMatch(year, competitionId, matchId) {
   state.matches.detail = { year, competitionId, matchId };
-  state.matches.tab = "lineups";
+  state.matches.tab = "progress";
   state.page = "matches";
   renderMenu();
   renderPage();
@@ -1654,25 +1654,49 @@ async function renderMatchDetail(content, detail) {
   const hasDh = Object.values(m.lineups || {}).some((r) => r && r.designated_hitter_id);
   // 連合チームの選手は名簿上の学校（試合のチームは代表校）
   const link = (team, person) => playerLink((m.player_schools || {})[person.player_id] || team, person.player_id, person.name, m.school_year);
-  const highlights = (m.highlights || []).map((h) => h.kind === "score"
-    ? `<div class="hl ${h.is_home_run ? "hr" : ""}"><span class="inn">${h.inning}回${h.half}</span><span class="what">${esc(h.school_name)}　${esc(h.player_name)}　${esc(h.event)}で${h.runs}点</span></div>`
+  const highlightRow = (h) => h.kind === "score"
+    ? `<div class="hl score ${h.is_home_run ? "hr" : ""}"><span class="what">${esc(h.school_name)}　${esc(h.player_name)}　${esc(h.event)}で${h.runs}点</span><span class="now">${esc(h.score || "")}</span></div>`
     : (h.kind === "steal" || h.kind === "tactic" || h.kind === "substitution")
-    ? `<div class="hl ${h.success ? "sb" : "dp"}"><span class="inn">${h.inning}回${h.half}</span><span class="what">${esc(h.school_name)}　${esc(h.player_name)}　${esc(h.event)}</span></div>`
+    ? `<div class="hl ${h.score ? "score" : h.success ? "sb" : "dp"}"><span class="what">${esc(h.school_name)}　${esc(h.player_name)}　${esc(h.event)}</span>${h.score ? `<span class="now">${esc(h.score)}</span>` : ""}</div>`
     : h.kind === "double_play"
-    ? `<div class="hl dp"><span class="inn">${h.inning}回${h.half}</span><span class="what">${esc(h.school_name)}　併殺（${esc(h.player_name)}）</span></div>`
+    ? `<div class="hl dp"><span class="what">${esc(h.school_name)}　併殺（${esc(h.player_name)}）</span></div>`
     : h.kind === "wild_pitch"
-    ? `<div class="hl dp"><span class="inn">${h.inning}回${h.half}</span><span class="what">${esc(h.school_name)}　${esc(h.player_name)}　${esc(h.event)}</span></div>`
-    : `<div class="hl pc"><span class="inn">${h.inning}回${h.half}</span><span class="what">${esc(h.school_name)}　投手交代 → ${esc(h.player_name)}</span></div>`).join("");
-  const batting = (team) => `<div class="match-table-wrap"><table class="stat-table batting-table"><tr><th>打順</th><th>打者</th><th>${hasDh ? "守備・役割" : "守備"}</th><th>打数</th><th>安打</th><th>打点</th><th>本塁打</th><th>四球</th><th>三振</th><th>犠打</th><th>盗塁</th><th>盗塁死</th><th>牽制死</th><th>併殺打</th><th>失策</th></tr>
-    ${(m.batting[team] || []).map((b) => `<tr><td>${b.batting_order || "−"}</td><td>${link(team, b)}${b.exited ? '<small class="appearance">交代済</small>' : ""}${b.role_label ? `<small class="appearance">${esc(b.role_label)}</small>` : ""}${b.passed_balls ? `<small class="appearance">捕逸${b.passed_balls}</small>` : ""}</td><td class="pos">${esc(b.position)}</td><td>${b.at_bats}</td><td>${b.hits}</td><td>${b.rbi}</td><td>${b.home_runs}</td><td>${b.walks}</td><td>${b.strikeouts}</td><td>${b.sacrifice_bunts || 0}</td><td>${b.stolen_bases || 0}</td><td>${b.caught_stealing || 0}</td><td>${b.picked_off || 0}</td><td>${b.grounded_into_double_plays || 0}</td><td>${b.errors || 0}</td></tr>`).join("")}</table></div>`;
-  const pitching = (team) => `<div class="match-table-wrap"><table class="stat-table"><tr><th>投手</th><th>回</th><th>球数</th><th>打者</th><th>安打</th><th>失点</th><th>自責</th><th>四球</th><th>三振</th><th>暴投</th><th>失策</th></tr>
-    ${(m.pitching[team] || []).map((p) => `<tr><td>${link(team, p)}${p.position ? `<small class="appearance">${esc(p.position)}</small>` : ""}${p.role_label ? `<small class="appearance">${esc(p.role_label)}</small>` : ""}${p.exited ? '<small class="appearance">交代済</small>' : ""}</td><td>${esc(p.innings)}</td><td>${p.pitches || ""}${p.fatigue ? `<small class="fatigue">${esc(p.fatigue)}</small>` : ""}</td><td>${p.batters_faced}</td><td>${p.hits_allowed}</td><td>${p.runs_allowed}</td><td>${p.earned_runs}</td><td>${p.walks}</td><td>${p.strikeouts}</td><td>${p.wild_pitches || 0}</td><td>${p.errors || 0}</td></tr>`).join("")}</table></div>`;
+    ? `<div class="hl ${h.score ? "score" : "dp"}"><span class="what">${esc(h.school_name)}　${esc(h.player_name)}　${esc(h.event)}</span>${h.score ? `<span class="now">${esc(h.score)}</span>` : ""}</div>`
+    : `<div class="hl pc"><span class="what">${esc(h.school_name)}　投手交代 → ${esc(h.player_name)}</span></div>`;
+  // 成績の表（行・守備の印・計の行は Python が作る。match_tables.py）。0 は薄く
+  const num = (v) => `<td class="${v ? "" : "zero"}">${v ?? 0}</td>`;
+  const more = Boolean(state.matches.more);
+  const BAT = [["at_bats", "打数"], ["runs", "得点"], ["hits", "安打"], ["rbi", "打点"], ["home_runs", "本塁打"], ["walks_hbp", "四死球"], ["strikeouts", "三振"]];
+  const BAT_MORE = [["doubles", "二塁打"], ["triples", "三塁打"], ["sacrifice_bunts", "犠打"], ["stolen_bases", "盗塁"], ["caught_stealing", "盗塁死"], ["picked_off", "牽制死"], ["grounded_into_double_plays", "併殺打"], ["errors", "失策"], ["passed_balls", "捕逸"]];
+  const PIT = [["pitches", "球数"], ["batters_faced", "打者"], ["hits_allowed", "安打"], ["home_runs_allowed", "被本塁打"], ["walks_hbp", "四死球"], ["strikeouts", "三振"], ["runs_allowed", "失点"], ["earned_runs", "自責"]];
+  const PIT_MORE = [["wild_pitches", "暴投"], ["errors", "失策"]];
+  const batting = (team) => {
+    const table = ((m.stat_tables || {})[team] || {}).batting;
+    if (!table) return "";
+    const cols = more ? [...BAT, ...BAT_MORE] : BAT;
+    return `<table class="stat-table batting-table full"><tr><th class="slot">打順</th><th class="name">打者</th><th class="pos">守備</th>${cols.map(([, label]) => `<th>${label}</th>`).join("")}</tr>
+      ${table.rows.map((b) => `<tr class="${b.sub ? "sub" : ""}"><td class="slot">${b.slot || ""}</td><td class="name">${link(team, b)}</td><td class="pos">${esc(b.mark)}</td>${cols.map(([key]) => num(b[key])).join("")}</tr>`).join("")}
+      <tr class="total"><td></td><td class="name">計</td><td></td>${cols.map(([key]) => num(table.total[key])).join("")}</tr></table>`;
+  };
+  const pitching = (team) => {
+    const table = ((m.stat_tables || {})[team] || {}).pitching;
+    if (!table) return "";
+    const cols = more ? [...PIT, ...PIT_MORE] : PIT;
+    return `<table class="stat-table pitching-table full"><tr><th class="name">投手</th><th>回</th>${cols.map(([, label]) => `<th>${label}</th>`).join("")}</tr>
+      ${table.rows.map((p) => `<tr><td class="name">${link(team, p)}${p.mark ? `<small class="appearance">${esc(p.mark)}</small>` : ""}</td><td>${esc(p.innings)}</td>${cols.map(([key]) => key === "pitches"
+        ? `<td class="${p.pitches ? "" : "zero"}">${p.pitches || 0}${p.fatigue ? `<small class="fatigue">${esc(p.fatigue)}</small>` : ""}</td>` : num(p[key])).join("")}</tr>`).join("")}
+      <tr class="total"><td class="name">計</td><td>${esc(table.total.innings)}</td>${cols.map(([key]) => num(table.total[key])).join("")}</tr></table>`;
+  };
   const teams = [[m.team1_id, m.team1_name], [m.team2_id, m.team2_name]];
-  const lineup = (team) => {
-    const record = (m.lineups || {})[team];
-    if (!record) return '<p class="muted">配置記録なし</p>';
-    return `<table class="list lineup-table${record.designated_hitter_id ? " dh-lineup" : ""}"><thead><tr><th>打順</th><th>${record.designated_hitter_id ? "守備・役割" : "守備"}</th><th>選手</th></tr></thead><tbody>
-      ${[...record.players, ...(record.pitcher ? [record.pitcher] : [])].map((p) => `<tr><td class="num">${p.batting_order || "−"}</td><td class="pos">${esc(p.position)}</td><td>${link(team, p)}</td></tr>`).join("")}</tbody></table>`;
+  // 経過：回ごとの見出し。得点の行のあとにその時点の点数（先攻−後攻）
+  const progress = () => {
+    let last = "";
+    return (m.highlights || []).map((h) => {
+      const when = `${h.inning}回${h.half}`;
+      const head = when !== last ? `<h4 class="hl-inning">${esc(when)}</h4>` : "";
+      last = when;
+      return head + highlightRow(h);
+    }).join("") || '<div class="muted">得点はありませんでした</div>';
   };
   const history = () => {
     if (!m.has_lineup_record) return '<div class="panel muted">配置記録なし</div>';
@@ -1689,7 +1713,7 @@ async function renderMatchDetail(content, detail) {
         ${(c.fully_exited || []).length ? `<div class="dh-change-line">完全退場：${c.fully_exited.map((p) => link(c.school_id, p)).join("、")}</div>` : ""}
       </div></div>`).join("")}</div>`;
   };
-  const tabs = [["lineups", "先発打順・守備配置"], ["changes", "交代履歴"], ["stats", "個人成績"]];
+  const tabs = [["progress", "経過"], ["stats", "成績"], ["changes", "交代"]];
   content.innerHTML = `<div class="head"><button class="btn small" id="m-back">← 試合の一覧</button>
       <h2>${esc(m.competition_name)}　${esc(m.round_name || m.group_name)}</h2>
       <span class="muted num">${fmtDate(m.match_date)}</span>
@@ -1699,7 +1723,6 @@ async function renderMatchDetail(content, detail) {
       ${decisionsLine(m)}
       <p><span class="link" data-school="${esc(m.team1_id)}">${esc(m.team1_name)}</span>　／　<span class="link" data-school="${esc(m.team2_id)}">${esc(m.team2_name)}</span>　<span class="muted">（学校の画面へ）</span></p>
       ${m.has_detail ? `
-        <details class="panel match-highlights"><summary>試合の要点</summary>${highlights || '<div class="muted">得点はありませんでした</div>'}</details>
         <div class="tabs match-tabs" role="tablist" aria-label="試合の記録">${tabs.map(([key, label]) => `<button class="tab" type="button" id="m-tab-${key}" role="tab" data-match-tab="${key}" aria-controls="m-tab-body">${label}</button>`).join("")}</div>
         <div id="m-tab-body" role="tabpanel"></div>`
         : `<p class="muted">${m.status === "completed" ? "この試合の詳しい記録はありません。" : "まだ試合をしていません。"}</p>`}
@@ -1709,7 +1732,9 @@ async function renderMatchDetail(content, detail) {
   content.querySelectorAll(".link[data-school]").forEach((a) => a.addEventListener("click", () => openSchool(a.dataset.school)));
   if (!m.has_detail) return;
   const renderTab = (key) => {
-    if (!tabs.some(([value]) => value === key)) key = "lineups";
+    // 前のタブの名前（先発打順・守備配置）は「成績」に読み替える
+    if (key === "lineups") key = "stats";
+    if (!tabs.some(([value]) => value === key)) key = "progress";
     state.matches.tab = key;
     content.querySelectorAll("[data-match-tab]").forEach((button) => {
       const selected = button.dataset.matchTab === key;
@@ -1718,17 +1743,23 @@ async function renderMatchDetail(content, detail) {
     });
     const body = $("m-tab-body");
     body.setAttribute("aria-labelledby", `m-tab-${key}`);
-    if (key === "lineups") body.innerHTML = `<div class="cols">${teams.map(([team, name]) => `<div class="panel"><h3>${esc(name)}</h3>${lineup(team)}</div>`).join("")}</div>`;
+    if (key === "progress") body.innerHTML = `<div class="panel match-highlights">${progress()}</div>`;
     else if (key === "changes") body.innerHTML = history();
-    else body.innerHTML = `<p class="muted match-note">${hasDh ? "守備・役割欄は当時の配置です。「DH」は打撃専任、「投・DH」は兼任を表します。位置と役割の変化は「→」で表示します。" : m.has_lineup_record ? "守備欄はこの試合で守った位置です。位置の変化は「→」、交代前後の選手は同じ打順で表示します。" : "配置記録なし：この試合の打順・実守備位置は不明です。"}</p>
-      <div class="cols">${teams.map(([team, name]) => `<div class="panel"><h3>${esc(name)}</h3>${batting(team)}<div class="stat-gap"></div>${pitching(team)}</div>`).join("")}</div>`;
+    else {
+      body.innerHTML = `<div class="match-stats-head"><p class="muted match-note">${m.has_lineup_record
+        ? `守備の欄は守った位置の順（「打」＝代打、「走」＝代走、「守」＝守備から出場${hasDh ? "、「DH」＝指名打者、「投・DH」＝投手と打撃の兼任" : ""}）。交代した選手は元の選手の下に字下げで並べます。`
+        : "配置記録なし：この試合の打順・実守備位置は不明です。"}</p>
+        <button class="btn small" type="button" id="m-more">${more ? "基本の列だけ" : "詳しく"}</button></div>
+        ${teams.map(([team, name]) => `<div class="panel match-team"><h3>${esc(name)}</h3>${batting(team)}<div class="stat-gap"></div>${pitching(team)}</div>`).join("")}`;
+      $("m-more").addEventListener("click", () => { state.matches.more = !more; renderPage(); });
+    }
     bindPlayerLinks(body);
     refreshLocation();
   };
   content.querySelectorAll("[data-match-tab]").forEach((button) => button.addEventListener("click", () => renderTab(button.dataset.matchTab)));
   const decisions = content.querySelector("p.decisions");
   if (decisions) bindPlayerLinks(decisions);
-  renderTab(state.matches.tab || "lineups");
+  renderTab(state.matches.tab || "progress");
 }
 
 // ---- 学校：一覧（見えている行だけ描く） → 詳細（タブ） ----

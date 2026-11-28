@@ -504,3 +504,19 @@ label.toggle.off { opacity: .45; }
 /* ランキング：都道府県別の対戦成績 */
 .matchup-games td.nowrap, .matchup-games th.nowrap { white-space: nowrap; }
 .matchup-games td small { white-space: nowrap; }
+
+/* 試合の詳細：経過（回ごとの見出し・点数）と成績の表（2校を上下に全幅で） */
+.hl-inning { margin: 12px 0 2px; font-size: 13px; color: var(--muted); font-weight: 700; }
+.hl-inning:first-child { margin-top: 0; }
+.hl.score .what { color: var(--text); font-weight: 700; }
+.hl .now { margin-left: auto; font-family: var(--num); color: var(--text); font-weight: 700; }
+.match-stats-head { display: flex; align-items: center; gap: 12px; }
+.match-stats-head .match-note { margin: 0; flex: 1; }
+.match-detail .match-team { margin-top: 10px; }
+.match-detail .stat-table.full { width: 100%; table-layout: auto; }
+.match-detail .stat-table.full td.slot, .match-detail .stat-table.full th.slot { text-align: center; width: 3em; }
+.match-detail .stat-table.full td.name, .match-detail .stat-table.full th.name { text-align: left; width: 12em; }
+.match-detail .stat-table.full td.pos, .match-detail .stat-table.full th.pos { text-align: left; width: 5em; color: var(--muted); font-family: var(--ui); }
+.match-detail .stat-table.full tr.sub td.name { padding-left: 2em; }
+.match-detail .stat-table.full tr.total td { border-top: 1px solid var(--line); font-weight: 700; }
+.stat-table td.zero { color: #4f5e6b; }
