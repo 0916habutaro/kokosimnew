@@ -32,6 +32,7 @@ from .competition_views import (
 )
 from .competition_names import CompetitionNames
 from .match_summary import called_label
+from .match_wording import load_wording
 from ..match_facts import actual_match_date
 from .coach_views import CoachHistory, official_record, tournament_record
 from ..competition_records import competition_records
@@ -227,6 +228,8 @@ class GameScreenData:
         )["mercy_rule"]["thresholds"]
         self._stage_names = stage_names(service.repo, self.config)
         self.headline_config = headline_rules.load_config(config_root)
+        # 試合の画面の経過・交代の文言（config/screen/match_wording_v1.json）
+        self.match_wording = load_wording(config_root)
         self._headline_lookups: dict[int, player_records.RosterLookup] = {}
 
     @property
@@ -580,7 +583,7 @@ class GameScreenData:
                 school_id, competition_id, data.get("match_date", ""), int(school_year),
             ),
             lambda school_id: self._players(season, competition_id, school_id),
-            school_year=int(school_year), mercy=self._mercy,
+            school_year=int(school_year), mercy=self._mercy, wording=getattr(self, "match_wording", None),
         )
         out["school_year"] = int(school_year)
         out["competition_name"] = self._competition_name(
@@ -1069,7 +1072,7 @@ class GameScreenData:
                 school_id, competition_id, row.get("match_date", ""), year,
             ),
             lambda school_id: self._union_roster_players(year, competition_id, school_id),
-            school_year=year, mercy=self._mercy,
+            school_year=year, mercy=self._mercy, wording=getattr(self, "match_wording", None),
         )
         out["school_year"] = year
         out["competition_name"] = self.competition_names(

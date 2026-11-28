@@ -19,7 +19,8 @@ const state = {
   busy: false,
   noSession: false, // 起動時にセーブを選ぶ前
   competitions: { filter: { year: "", segment: "", level: "", status: "", pref: "" }, view: null },
-  matches: { date: "", detail: null, tab: "progress", more: false }, // more：成績の表の「詳しく」
+  // more：成績の表の「詳しく」、showSubs：経過に選手交代も出す（画面の状態だけ。保存しない）
+  matches: { date: "", detail: null, tab: "progress", more: false, showSubs: false },
   schools: {
     data: null, view: [], filter: { pref: "", owner: "", result: "", name: "" },
     sortKey: "pref", sortDir: 1, selected: null, detail: null, tab: "overview",
@@ -1654,15 +1655,13 @@ async function renderMatchDetail(content, detail) {
   const hasDh = Object.values(m.lineups || {}).some((r) => r && r.designated_hitter_id);
   // 連合チームの選手は名簿上の学校（試合のチームは代表校）
   const link = (team, person) => playerLink((m.player_schools || {})[person.player_id] || team, person.player_id, person.name, m.school_year);
-  const highlightRow = (h) => h.kind === "score"
-    ? `<div class="hl score ${h.is_home_run ? "hr" : ""}"><span class="what">${esc(h.school_name)}　${esc(h.player_name)}　${esc(h.event)}で${h.runs}点</span><span class="now">${esc(h.score || "")}</span></div>`
-    : (h.kind === "steal" || h.kind === "tactic" || h.kind === "substitution")
-    ? `<div class="hl ${h.success ? "sb" : "dp"}"><span class="what">${esc(h.school_name)}　${esc(h.player_name)}　${esc(h.event)}</span></div>`
-    : h.kind === "double_play"
-    ? `<div class="hl dp"><span class="what">${esc(h.school_name)}　併殺（${esc(h.player_name)}）</span></div>`
-    : h.kind === "wild_pitch"
-    ? `<div class="hl ${h.score ? "score" : "dp"}"><span class="what">${esc(h.school_name)}　${esc(h.player_name)}　${esc(h.event)}</span>${h.score ? `<span class="now">${esc(h.score)}</span>` : ""}</div>`
-    : `<div class="hl pc"><span class="what">${esc(h.school_name)}　投手交代 → ${esc(h.player_name)}</span></div>`;
+  // 経過の1行。文言は Python が対応表（config/screen/match_wording_v1.json）から作る
+  const highlightRow = (h) => {
+    const who = [h.school_name, h.player_name].filter(Boolean).map(esc).join("　");
+    const cls = h.kind === "score" ? `score ${h.is_home_run ? "hr" : ""}` : h.kind === "wild_pitch" ? (h.score ? "score" : "dp")
+      : h.kind === "pitching_change" ? "pc" : h.kind === "double_play" ? "dp" : (h.success ? "sb" : "dp");
+    return `<div class="hl ${cls}"><span class="what">${who}　${esc(h.text)}</span>${h.score ? `<span class="now">${esc(h.score)}</span>` : ""}</div>`;
+  };
   // 成績の表（行・守備の印・計の行は Python が作る。match_tables.py）。0 は薄く
   const num = (v) => `<td class="${v ? "" : "zero"}">${v ?? 0}</td>`;
   const more = Boolean(state.matches.more);
@@ -1691,26 +1690,29 @@ async function renderMatchDetail(content, detail) {
   // 経過：回ごとの見出し。得点の行のあとにその時点の点数（先攻−後攻）
   const progress = () => {
     let last = "";
-    return (m.highlights || []).map((h) => {
+    // 選手交代（代打・代走・守備固め・控えと交代）は「交代も表示」のときだけ
+    return (m.highlights || []).filter((h) => h.kind !== "substitution" || state.matches.showSubs).map((h) => {
       const when = `${h.inning}回${h.half}`;
       const head = when !== last ? `<h4 class="hl-inning">${esc(when)}</h4>` : "";
       last = when;
       return head + highlightRow(h);
     }).join("") || '<div class="muted">得点はありませんでした</div>';
   };
+  // 交代：同じ回・同じ打席の前の交代を1つの枠に（Python の change_groups）
   const history = () => {
     if (!m.has_lineup_record) return '<div class="panel muted">配置記録なし</div>';
-    if (!m.lineup_changes.length) return '<div class="panel muted">この試合の交代・守備変更はありません。</div>';
-    return `<div class="panel change-history">${m.lineup_changes.map((c) => `<div class="lineup-change">
-      <div class="change-when"><b>${c.inning}回${esc(c.half)}</b><small>第${c.next_plate_appearance_no}打席前</small></div>
-      <div class="change-school">${esc(c.school_name)}</div>
-      <div class="change-what"><span class="badge">${esc(c.label)}</span>
+    const groups = m.change_groups || [];
+    if (!groups.length) return '<div class="panel muted">この試合の交代・守備変更はありません。</div>';
+    return `<div class="panel change-history">${groups.map((g) => `<div class="lineup-change">
+      <div class="change-when"><b>${esc(g.moment)}</b></div>
+      <div class="change-school">${esc(g.school_name)}</div>
+      <div class="change-what">${g.changes.map((c) => `<div class="change-item"><span class="badge">${esc(c.badge || c.label)}</span>
         ${c.outgoing && c.incoming ? `<span>${link(c.school_id, c.outgoing)} → ${link(c.school_id, c.incoming)} <span class="muted">（${c.batting_order}番）</span></span>` : ""}
         ${c.moves.length ? `<div class="position-moves">${c.moves.map((p) => `<span>${link(c.school_id, p)} <span class="muted">${esc(p.before)} → ${esc(p.after)}</span></span>`).join("<span class='muted'>／</span>")}</div>` : ""}
         ${c.pitcher_change ? `<div class="dh-change-line">投手：${link(c.school_id, c.pitcher_change.outgoing)} → ${link(c.school_id, c.pitcher_change.incoming)}</div>` : ""}
         ${(c.batting_changes || []).map((b) => `<div class="dh-change-line">${b.batting_order}番：${link(c.school_id, b.outgoing)} → ${link(c.school_id, b.incoming)}</div>`).join("")}
-        ${(c.roles_ended || []).map((p) => `<div class="dh-change-line">${link(c.school_id, p)}：${esc(p.role)}役終了</div>`).join("")}
-        ${(c.fully_exited || []).length ? `<div class="dh-change-line">完全退場：${c.fully_exited.map((p) => link(c.school_id, p)).join("、")}</div>` : ""}
+        ${(c.roles_ended || []).map((p) => `<div class="dh-change-line">${link(c.school_id, p)}：${esc(p.role)}役終了</div>`).join("")}</div>`).join("")}
+        ${(g.fully_exited || []).length ? `<div class="dh-change-line">完全退場：${g.fully_exited.map((p) => link(g.school_id, p)).join("、")}</div>` : ""}
       </div></div>`).join("")}</div>`;
   };
   const tabs = [["progress", "経過"], ["stats", "成績"], ["changes", "交代"]];
@@ -1743,7 +1745,12 @@ async function renderMatchDetail(content, detail) {
     });
     const body = $("m-tab-body");
     body.setAttribute("aria-labelledby", `m-tab-${key}`);
-    if (key === "progress") body.innerHTML = `<div class="panel match-highlights">${progress()}</div>`;
+    if (key === "progress") {
+      body.innerHTML = `<div class="match-stats-head"><div class="spacer"></div>
+        <label class="muted"><input type="checkbox" id="m-subs" ${state.matches.showSubs ? "checked" : ""}> 交代も表示</label></div>
+        <div class="panel match-highlights">${progress()}</div>`;
+      $("m-subs").addEventListener("change", (e) => { state.matches.showSubs = e.target.checked; renderTab("progress"); });
+    }
     else if (key === "changes") body.innerHTML = history();
     else {
       body.innerHTML = `<div class="match-stats-head"><p class="muted match-note">${m.has_lineup_record

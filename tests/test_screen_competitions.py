@@ -212,10 +212,10 @@ class MatchDetailTests(unittest.TestCase):
         self.assertEqual([3] + [None] * 8, out["board"][0]["innings"])
         self.assertEqual(5, out["board"][0]["hits"])
         score, change = out["highlights"]
-        self.assertEqual(("選手A", "本塁打", "表", True),
-                         (score["player_name"], score["event"], score["half"], score["is_home_run"]))
-        self.assertEqual(("pitching_change", "B校", "選手B"),
-                         (change["kind"], change["school_name"], change["player_name"]))
+        self.assertEqual(("選手A", "本塁打で3点", "表", True, "3−0"),
+                         (score["player_name"], score["text"], score["half"], score["is_home_run"], score["score"]))
+        self.assertEqual(("pitching_change", "B校", "投手交代 → 選手B"),
+                         (change["kind"], change["school_name"], change["text"]))
         self.assertEqual("配置記録なし", out["batting"]["A"][0]["position"])
         self.assertEqual("8 1/3", out["pitching"]["B"][0]["innings"])
 
