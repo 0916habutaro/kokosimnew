@@ -651,22 +651,34 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
         number += count
     pointer: dict[tuple, int] = {}
 
+    # 交代で入った選手・退いた選手 → 何打席目の前の交代か（盗塁と交代の前後に使う）
+    entered: dict[str, int] = {}
+    left: dict[str, int] = {}
+    for change in changes:
+        for incoming, outgoing in [(change.get("incoming"), change.get("outgoing"))] + [
+                (b.get("incoming"), b.get("outgoing")) for b in change.get("batting_changes") or ()]:
+            if incoming:
+                entered.setdefault(incoming["player_id"], change["next_plate_appearance_no"])
+            if outgoing:
+                left.setdefault(outgoing["player_id"], change["next_plate_appearance_no"])
+
     def plate_appearance(item, batter_school=None, batter=None, runner=None):
-        """打者（その打者の打席）か走者（その走者が出た打席より後の打席）から推し量った打席の番号。"""
+        """要点の打席の番号の見当。打者のいる要点は、その打者の打順の打席。盗塁は、走者が交代で
+        入った選手ならその交代より後、交代で退いた選手ならその交代より前。ほかは直前の要点と同じ。"""
         key = (item[1], item[2])
         pas = half_pas.get(key) or [0]
         current = pointer.get(key, pas[0])
-        slot = orders.get(batter_school, {}).get(batter or runner) if (batter or runner) else None
-        if slot and batter:
-            found = next((pa for pa in pas if pa >= current and pa_orders.get(pa) == slot), None)
+        if batter:
+            slot = orders.get(batter_school, {}).get(batter)
+            found = next((pa for pa in pas if slot and pa >= current and pa_orders.get(pa) == slot), None)
             if found is not None:
                 current = found
-        elif slot:
-            # 盗塁：走者が打った打席（代走ならその打順の打席）のあと。代走の交代より後に並ぶ
-            batted = [pa for pa in pas if pa_orders.get(pa) == slot]
-            if batted:
-                last = max((pa for pa in batted if pa <= current), default=batted[0])
-                current = max(current, min(last + 1, pas[-1]))
+        elif runner:
+            if runner in entered and pas[0] <= entered[runner] <= pas[-1]:
+                current = max(current, entered[runner])
+            elif runner in left and pas[0] <= left[runner] <= pas[-1] + 1 and current >= left[runner]:
+                # 退く前の盗塁：その交代（何打席目の前）より前に置く。並びを戻さないよう打席は進めない
+                return left[runner] - 0.75
         pointer[key] = current
         return current
 

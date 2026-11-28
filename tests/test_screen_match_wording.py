@@ -104,5 +104,37 @@ class ProgressOrderTests(unittest.TestCase):
         self.assertEqual(["substitution", "steal"], [h["kind"] for h in out["highlights"]])
 
 
+    def order_of(self, highlights, change):
+        from unittest.mock import patch
+        from phase2_engine.screen import competition_views as cv
+        row = {"team1_id": "A", "team2_id": "B", "team1_score": 1, "team2_score": 4, "status": "completed"}
+        detail = {"inning_scores": [{"inning": 7, "half": "top", "batting_team_id": "A", "runs": 1,
+                                     "plate_appearances": 6}],
+                  "highlights": highlights}
+        slots = {"S1": 1, "S2": 2, "S3": 3, "S4": 4, "PR": 2}
+        lineups = ({"A": None, "B": None}, [change], {"A": {}, "B": {}}, {"A": slots, "B": {}},
+                   {"A": set(), "B": set()}, {"A": set(), "B": set()})
+        with patch.object(cv, "_match_lineups", return_value=lineups):
+            out = match_detail(row, detail, lambda sid: sid + "高", lambda sid: {})
+        return [h["kind"] for h in out["highlights"]]
+
+    # 1番三塁打・2番四球・3番犠飛のあと、4番の打席の前に一塁走者（2番）へ代走
+    PINCH_RUNNER = {"inning": 7, "half": "表", "next_plate_appearance_no": 4, "school_id": "A",
+                    "school_name": "A高", "reason": "pinch_runner", "kind": "substitution", "label": "代走",
+                    "outgoing": {"player_id": "S2", "name": "二番"}, "incoming": {"player_id": "PR", "name": "代走"},
+                    "batting_order": 2, "moves": []}
+
+    def test_steal_by_the_pinch_runner_comes_after_the_change(self):
+        kinds = self.order_of([["S", 7, "t", "S3", "sacrifice_fly", 1], ["B", 7, "t", "PR", "sb", 2]],
+                              self.PINCH_RUNNER)
+        self.assertEqual(["score", "substitution", "steal"], kinds)
+
+    def test_steal_by_the_runner_who_left_comes_before_the_change(self):
+        # 3番の打席の間に2番が二盗し、3番の犠飛のあと4番の前に代走
+        kinds = self.order_of([["B", 7, "t", "S2", "sb", 2], ["S", 7, "t", "S3", "sacrifice_fly", 1]],
+                              self.PINCH_RUNNER)
+        self.assertEqual(["steal", "score", "substitution"], kinds)
+
+
 if __name__ == "__main__":
     unittest.main()
