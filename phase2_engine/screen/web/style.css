@@ -522,5 +522,18 @@ label.toggle.off { opacity: .45; }
 .stat-table td.zero { color: #4f5e6b; }
 .change-history .change-item + .change-item { margin-top: 6px; }
 .change-when b { white-space: nowrap; }
+/* 得点板：校名は学校の画面へのリンク。横に小さく「先」「後」 */
+.board td.team span.link { display: inline-block; vertical-align: middle; color: inherit; }
+.board td.team span.link:hover { color: #7fb8ff; }
+.board td.team small.first-or-last { margin-left: 6px; color: var(--muted); font-size: 11px; vertical-align: middle; }
+/* 試合の一覧：大会ごとの枠（見出しで開け閉め）。回戦・学校・スコアを詰めて並べる */
+.match-group .group-toggle { cursor: pointer; background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; }
+.match-group .group-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+table.compact-matches { width: auto; border-collapse: collapse; }
+table.compact-matches td { padding: 5px 8px; white-space: nowrap; }
+table.compact-matches td.round { min-width: 7em; }
+table.compact-matches td.team1 { text-align: right; min-width: 12em; }
+table.compact-matches td.score { text-align: center; min-width: 6em; }
+table.compact-matches td.team2 { min-width: 12em; }
 .hl-subs-head { font-size: 12px; margin: 6px 0 0; }
 .hl.sub .what { color: var(--muted); }
