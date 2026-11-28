@@ -2,7 +2,7 @@
   "config_id": "commemorative_v1",
   "revision": 1,
   "status": "design_default_not_tuned",
-  "description_ja": "記念大会（大会の制度は2026年と同じ、の例外。ADR-046・game_definition.md §8）。回数で記念大会かを決め、その年だけ出場校を増やす（phase2_engine/commemorative.py）。",
+  "description_ja": "記念大会（大会の制度は2026年と同じ、の例外。ADR-046・game_definition.md §8）。回数で記念大会かを決め、その年だけ出場校を増やす（phase2_engine/commemorative.py）。選抜は一般選考の枠を足し、選手権は7府県の地方大会を2つずつに分ける。",
   "invitational": {
     "competition_type": "national_invitational",
     "edition_divisor": 5,
@@ -20,11 +20,34 @@
     ],
     "name_format": "第{edition}回記念選抜高等学校野球大会"
   },
+  "championship": {
+    "competition_type": "national_championship",
+    "edition_divisor": 10,
+    "team_count": 56,
+    "split_prefectures": {
+      "11": ["北埼玉", "南埼玉"],
+      "12": ["東千葉", "西千葉"],
+      "14": ["北神奈川", "南神奈川"],
+      "23": ["東愛知", "西愛知"],
+      "27": ["北大阪", "南大阪"],
+      "28": ["東兵庫", "西兵庫"],
+      "40": ["北福岡", "南福岡"]
+    },
+    "split_data": "commemorative_summer_split_2018.csv",
+    "name_format": "第{edition}回全国高等学校野球選手権記念大会",
+    "local_name_format": "第{edition}回全国高等学校野球選手権記念{district}大会"
+  },
   "notes_ja": {
     "invitational.edition_divisor": "選抜の回数がこの数で割り切れる年（下一桁が0か5。第80・85・90・95回が36校だった。historical_data/koshien_entrants.csv）は記念大会",
     "invitational.extra_general_quota": "記念大会で一般選考に足す枠の数（32校→36校）。21世紀枠・神宮大会枠は変えない",
     "invitational.max_extra_per_unit": "1つの地区（units の1つ）に足す枠の上限。史実でも1地区1枠",
     "invitational.units": "足す枠を配る地区の単位（選抜の地区：北海道・東北・関東東京・北信越・東海・近畿・中国四国・九州）。各地区の通常の枠のあとの次点（地区が2つなら、それぞれの次点のうち良い方）を、秋季地区大会の到達点（優勝・準優勝・ベスト4・ベスト8…）→ 秋のチームの強さの順に並べ、同じならくじで決め、上から extra_general_quota 地区に1枠ずつ足す。増えた4枠の配り方は史実に決まった基準がないので、ゲームの決まりで決める",
-    "invitational.name_format": "記念大会の年の大会名（{edition} は回数）"
+    "invitational.name_format": "記念大会の年の大会名（{edition} は回数）",
+    "championship.edition_divisor": "選手権の回数がこの数で割り切れる年（下一桁が0。第110回＝2028年度、第120回＝2038年度…）は記念大会。下一桁が5の回は増やさない（第85・95・105回は49校）",
+    "championship.team_count": "記念大会の甲子園の出場校の数（2018年の第100回と同じ56校。1回戦24試合、8校は2回戦から）",
+    "championship.split_prefectures": "記念大会の年だけ夏の地方大会を2つに分ける府県（都道府県コード → 区分の名前。2018年と同じ7府県）。もとの府県の大会（日程・ステージ・組み合わせ・シード・代表の決まり）を区分ごとに写して2つの大会にする（phase2_engine/commemorative.py）。区分の名前の並びが大会の並び",
+    "championship.split_data": "学校の区分の割り振り（data/areas/ のファイル名）。2018年からある学校は2018年の組み合わせ表のとおり（出典は source_id）",
+    "championship.name_format": "記念大会の年の甲子園の大会名",
+    "championship.local_name_format": "記念大会の年の、2つに分けた地方大会の名前（{district} は区分の名前）"
   }
 }

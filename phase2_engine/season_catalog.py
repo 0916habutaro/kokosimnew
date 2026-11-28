@@ -89,13 +89,22 @@ def season_competitions(
     """``year`` 年度に開かれる大会（ひな形の大会ID → ずらし方）。
 
     ``commemorative`` は記念大会の決まり（``config/selection/commemorative_v1.json``）。
-    渡すと、記念大会の年の大会名をその決まりの名前にする。"""
+    渡すと、記念大会の年の大会名をその決まりの名前にし、夏の地方大会を2つに分ける府県は
+    区分の大会（``commemorative.expand_rows`` で足した行）を使い、もとの大会を使わない。
+    渡さなければ区分の大会は使わない。"""
+    competitions = list(competitions)
+    parents = {
+        row[commemorative_rules.PARENT_KEY]
+        for row in competitions if row.get(commemorative_rules.PARENT_KEY)
+    }
     out: dict[str, SeasonCompetition] = {}
     for row in competitions:
         if row.get("reference_year") != str(TEMPLATE_YEAR):
             continue
         offset = year - competition_school_year(row)
         if offset < 0:
+            continue
+        if not commemorative_rules.in_season(commemorative, row, offset, parents):
             continue
         shift = calendar_shift_days(offset)
         calendar = calendar_by_competition.get(row["competition_id"], {})
@@ -119,15 +128,19 @@ def season_competitions(
             competition_id=row["competition_id"],
             year_offset=offset,
             shift_days=shift,
-            display_name=(
-                (offset and commemorative_rules.display_name(
-                    commemorative, row.get("competition_type", ""),
-                    commemorative_rules.edition(row["competition_name"], offset),
-                ))
-                or competition_display_name(row["competition_name"], offset)
-            ),
+            display_name=_display_name(row, offset, commemorative),
         )
     return out
+
+
+def _display_name(row: Mapping[str, str], offset: int, commemorative: Mapping | None) -> str:
+    """大会名。記念大会の年は決まりの名前（「第100回記念選抜高等学校野球大会」など）。"""
+    number = commemorative_rules.edition(row["competition_name"], offset)
+    special = offset and (
+        commemorative_rules.local_display_name(commemorative, row, number)
+        or commemorative_rules.display_name(commemorative, row.get("competition_type", ""), number)
+    )
+    return special or competition_display_name(row["competition_name"], offset)
 
 
 def shift_calendar_row(

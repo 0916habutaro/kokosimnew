@@ -384,7 +384,10 @@ class LiveSeasonGraphPlanner:
             encoding="utf-8-sig",
             newline="",
         ) as f:
-            return list(csv.DictReader(f))
+            # 記念大会の年の区分の大会の行を足す（commemorative.py）
+            return commemorative_rules.expand_rows(
+                name, csv.DictReader(f), self.data_dir,
+            )
 
     def _seed(
         self,
@@ -483,6 +486,7 @@ class LiveSeasonGraphPlanner:
     def _qualification_rules(
         self,
     ) -> list[dict]:
+        season = self.season_catalog()
         return [
             row
             for row in self._read(
@@ -490,6 +494,10 @@ class LiveSeasonGraphPlanner:
             )
             if row.get("effective_year")
             == str(self.rules_year)
+            # 記念大会の年はもとの大会、ほかの年は区分の大会の決まりを使わない
+            and not commemorative_rules.unused_source(
+                row.get("source_competition_id", ""), season, self.repo.competitions,
+            )
         ]
 
     def _regional_feeder_rules(

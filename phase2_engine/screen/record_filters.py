@@ -20,7 +20,9 @@ def build_catalog(competitions: dict, memberships: list[dict], level_of, name_of
     # 1つの都道府県から2つに分かれる大会（夏の北北海道・南北海道・東東京・西東京の地方大会）
     qualifiers: dict[str, int] = {}
     for c in competitions.values():
-        if c.get("competition_type") == "summer_local_qualifier" and c.get("qualifying_area_id"):
+        # 記念大会の年だけの区分の大会（commemorative.py）は、地図のマスを分けない
+        if c.get("competition_type") == "summer_local_qualifier" and c.get("qualifying_area_id") \
+                and not c.get("commemorative_parent_id"):
             qualifiers[c.get("prefecture_code", "")] = qualifiers.get(c.get("prefecture_code", ""), 0) + 1
     catalog = []
     for cid, c in competitions.items():
