@@ -23,7 +23,7 @@ import json
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
-from .randomness import rng_for, shuffled
+from .randomness import rng_for, shuffled, uniform_for
 
 
 KANTO_TOKYO_SCOPE = "関東・東京"
@@ -171,14 +171,11 @@ def commemorative_picks(
     地区（``rule["units"]`` の1つ。地区IDの並び）ごとに、まだ選ばれていない最上位の学校
     （次点）を出す。地区が2つ以上なら、その中で良い方。次点どうしを、秋季地区大会の到達点
     → 秋のチームの強さ（高い方）→ くじの順に並べ、上の地区から1枠ずつ足す。1つの地区に
-    足すのは ``max_extra_per_unit`` 枠まで。"""
+    足すのは ``max_extra_per_unit`` 枠まで。くじは学校ごとに引く（関東・東京のように2つの地区を
+    まとめた単位の中でも、設定に書いた地区の順では決めない）。"""
     quota = int(rule["extra_general_quota"])
     per_unit = int(rule["max_extra_per_unit"])
     units = [tuple(unit) for unit in rule["units"]]
-    lottery = {
-        unit: order for order, unit in enumerate(
-            shuffled(units, rng_seed, "senbatsu:commemorative"))
-    }
     taken: set[str] = set(chosen)
     added: dict[tuple, int] = {}
     picks: list[str] = []
@@ -186,7 +183,7 @@ def commemorative_picks(
     def key(unit, index, school_id):
         strength = strength_of(school_id) if strength_of else None
         return (_tier_order(index), -(strength if strength is not None else float("-inf")),
-                lottery[unit])
+                uniform_for(rng_seed, f"senbatsu:commemorative:{school_id}"))
 
     while len(picks) < quota:
         options = []

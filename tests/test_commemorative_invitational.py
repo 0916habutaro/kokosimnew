@@ -68,6 +68,22 @@ class ExtraPickTests(unittest.TestCase):
         # a2 と c2 はどちらも準優勝（R2・R3 は良い方の c2。b3 はベスト4）なので強い c2 が先。R4 の d5 はベスト8で入らない
         self.assertEqual(["c2", "a2"], picks)
 
+    def test_tie_inside_a_combined_unit_is_a_lottery_not_the_config_order(self):
+        # 関東・東京の次点が同じ到達点（ベスト4）で強さもない：設定の地区の順によらずくじで決める
+        rankings = {"K": ["k1", "k2", "k3"], "T": ["t1", "t2", "t3"]}
+        chosen = {"k1", "k2", "t1", "t2"}
+        picked = Counter()
+        for seed in range(200):
+            for units in ([["K", "T"]], [["T", "K"]]):
+                rule = {"extra_general_quota": 1, "max_extra_per_unit": 1, "units": units}
+                pick = commemorative_picks(rule, rankings, chosen, None, rng_seed=seed)
+                picked[pick[0]] += 1
+                # 同じ種なら地区の書き順を変えても同じ学校
+                self.assertEqual(commemorative_picks({**rule, "units": [["K", "T"]]}, rankings, chosen, None,
+                                                     rng_seed=seed), pick)
+        self.assertGreater(picked["k3"], 100)
+        self.assertGreater(picked["t3"], 100)
+
     def test_four_extra_schools_go_to_four_different_units(self):
         basis: dict[str, str] = {}
         selected = select_invitational(
