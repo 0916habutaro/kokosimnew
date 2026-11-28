@@ -12,6 +12,9 @@
   重みは ``config/selection``
 - 神宮枠（``bonus_quota`` の合計）は、その年の神宮大会で優勝した学校の地区に付ける。
   地区ごとの枠は ``base_quota``
+- 記念大会（``commemorative_v1.json``）の年は、一般選考の枠を足す。地区（選抜の地区。
+  関東・東京と中国・四国はそれぞれ1つ）ごとの次点を、秋季地区大会の到達点 → 秋の
+  チームの強さ → くじの順に並べ、上の地区から1枠ずつ足す
 """
 from __future__ import annotations
 
@@ -52,6 +55,7 @@ def select_invitational(
     basis: dict[str, str] | None = None,
     last_koshien_year: Mapping[str, int] | None = None,
     year: int = 0,
+    commemorative: Mapping | None = None,
 ) -> list[str]:
     """``rankings`` は地区 → 秋季地区大会の順位（優勝校が先頭）。
     ``jingu_region`` は神宮大会で優勝した学校の地区。
@@ -60,7 +64,9 @@ def select_invitational(
     ``century_config`` は ``config/selection`` の ``century``（どれも21世紀枠に使う）。
     ``basis`` を渡すと、学校 → 選ばれた枠（``"jingu"`` 神宮枠・``"century"`` 21世紀枠）を
     入れる（画面の札）。``last_koshien_year`` は学校 → 最後に甲子園（春夏）に出た年
-    （実際の記録とゲーム内）、``year`` は選考の年（秋の年）。"""
+    （実際の記録とゲーム内）、``year`` は選考の年（秋の年）。``commemorative`` は記念大会の
+    増枠の決まり（``commemorative_v1.json`` の ``invitational``。記念大会でない年は None）。
+    足した学校の ``basis`` は ``"commemorative"``。"""
     basis = {} if basis is None else basis
     jingu_quota = sum(int(rule.get("bonus_quota") or 0) for rule in rules)
     selected: list[str] = []
@@ -105,6 +111,14 @@ def select_invitational(
         selected.extend(picks)
         chosen.update(picks)
 
+    if commemorative:
+        picks = commemorative_picks(
+            commemorative, rankings, chosen, strength_of, rng_seed,
+        )
+        basis.update(dict.fromkeys(picks, "commemorative"))
+        selected.extend(picks)
+        chosen.update(picks)
+
     for rule in rules:
         if rule.get("selection_method") != CENTURY_METHOD:
             continue
@@ -137,6 +151,66 @@ def _performance_tier(index: int) -> str:
         if index < limit:
             return tier
     return "best16"
+
+
+def _tier_order(index: int) -> int:
+    """到達点の順（優勝0・準優勝1・ベスト4 2・ベスト8 3・それ以下4）。"""
+    return next((order for order, (limit, _) in enumerate(_PERFORMANCE_TIERS) if index < limit),
+                len(_PERFORMANCE_TIERS))
+
+
+def commemorative_picks(
+    rule: Mapping,
+    rankings: Mapping[str, Sequence[str]],
+    chosen: set[str] | frozenset[str],
+    strength_of: Callable[[str], float | None] | None,
+    rng_seed: int,
+) -> list[str]:
+    """記念大会で足す一般選考の学校（足す順）。
+
+    地区（``rule["units"]`` の1つ。地区IDの並び）ごとに、まだ選ばれていない最上位の学校
+    （次点）を出す。地区が2つ以上なら、その中で良い方。次点どうしを、秋季地区大会の到達点
+    → 秋のチームの強さ（高い方）→ くじの順に並べ、上の地区から1枠ずつ足す。1つの地区に
+    足すのは ``max_extra_per_unit`` 枠まで。"""
+    quota = int(rule["extra_general_quota"])
+    per_unit = int(rule["max_extra_per_unit"])
+    units = [tuple(unit) for unit in rule["units"]]
+    lottery = {
+        unit: order for order, unit in enumerate(
+            shuffled(units, rng_seed, "senbatsu:commemorative"))
+    }
+    taken: set[str] = set(chosen)
+    added: dict[tuple, int] = {}
+    picks: list[str] = []
+
+    def key(unit, index, school_id):
+        strength = strength_of(school_id) if strength_of else None
+        return (_tier_order(index), -(strength if strength is not None else float("-inf")),
+                lottery[unit])
+
+    while len(picks) < quota:
+        options = []
+        for unit in units:
+            if added.get(unit, 0) >= per_unit:
+                continue
+            nexts = [
+                (index, school_id)
+                for region in unit
+                for index, school_id in [next(
+                    ((i, sid) for i, sid in enumerate(rankings.get(region, ())) if sid not in taken),
+                    (None, None))]
+                if school_id is not None
+            ]
+            if nexts:
+                index, school_id = min(nexts, key=lambda item: key(unit, *item))
+                options.append((key(unit, index, school_id), unit, school_id))
+        if not options:
+            raise ValueError(f"senbatsu commemorative: picks={len(picks)} quota={quota}")
+        _, unit, school_id = min(options)
+        picks.append(school_id)
+        taken.add(school_id)
+        added[unit] = added.get(unit, 0) + 1
+    return picks
 
 
 def _weighted_pick(items, weights, rng_seed: int, namespace: str):

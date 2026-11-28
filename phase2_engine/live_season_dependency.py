@@ -13,6 +13,7 @@ from .competition_schedule_runtime import (
     ScheduledCompetitionRuntime,
     _iso_date,
 )
+from . import commemorative as commemorative_rules
 from .models import AnnualCompetitionInput
 from .initial_state import fill_by_lot
 from .paths import resolve_data_file
@@ -33,6 +34,7 @@ from .season_catalog import (
     rules_year,
 )
 from .school_year import (
+    competition_school_year,
     in_school_year,
     school_year_end,
     school_year_start,
@@ -874,6 +876,14 @@ class LiveSeasonDependencyRuntimeState:
             )
 
         return strength_of
+
+    def _commemorative_invitational(self, competition_id: str) -> dict | None:
+        """その年度の選抜が記念大会なら増枠の決まり（commemorative.py）。"""
+        competition = self.repo.competition(competition_id)
+        offset = self.year - competition_school_year(competition)
+        return commemorative_rules.invitational_extra(
+            commemorative_rules.config_for_data(self.repo.data_dir), competition, offset,
+        )
 
     def _selection_config(self) -> dict:
         return load_selection_config(
@@ -2168,6 +2178,7 @@ class LiveSeasonDependencyRuntimeState:
             basis=basis,
             last_koshien_year=last_years,
             year=self.year,
+            commemorative=self._commemorative_invitational(competition_id),
         )
         self.history.append({
             "action": "select_invitational",

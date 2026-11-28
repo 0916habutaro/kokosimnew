@@ -107,7 +107,8 @@ class GeneratedSeasonPlanTests(unittest.TestCase):
             cid: entry.display_name
             for cid, entry in self.plan.entries.items()
         }
-        self.assertEqual("第100回選抜高等学校野球大会", names["CMP000001"])
+        # 第100回の選抜は記念大会（ADR-046）
+        self.assertEqual("第100回記念選抜高等学校野球大会", names["CMP000001"])
         self.assertEqual("第109回全国高等学校野球選手権大会", names["CMP000002"])
         self.assertIn("令和9年度", names["CMP000004"])
         # 2026年度の選抜は2027年3月の第99回

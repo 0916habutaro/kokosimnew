@@ -1,0 +1,30 @@
+{
+  "config_id": "commemorative_v1",
+  "revision": 1,
+  "status": "design_default_not_tuned",
+  "description_ja": "記念大会（大会の制度は2026年と同じ、の例外。ADR-046・game_definition.md §8）。回数で記念大会かを決め、その年だけ出場校を増やす（phase2_engine/commemorative.py）。",
+  "invitational": {
+    "competition_type": "national_invitational",
+    "edition_divisor": 5,
+    "extra_general_quota": 4,
+    "max_extra_per_unit": 1,
+    "units": [
+      ["REG01"],
+      ["REG02"],
+      ["REG03", "REG04"],
+      ["REG05"],
+      ["REG06"],
+      ["REG07"],
+      ["REG08", "REG09"],
+      ["REG10"]
+    ],
+    "name_format": "第{edition}回記念選抜高等学校野球大会"
+  },
+  "notes_ja": {
+    "invitational.edition_divisor": "選抜の回数がこの数で割り切れる年（下一桁が0か5。第80・85・90・95回が36校だった。historical_data/koshien_entrants.csv）は記念大会",
+    "invitational.extra_general_quota": "記念大会で一般選考に足す枠の数（32校→36校）。21世紀枠・神宮大会枠は変えない",
+    "invitational.max_extra_per_unit": "1つの地区（units の1つ）に足す枠の上限。史実でも1地区1枠",
+    "invitational.units": "足す枠を配る地区の単位（選抜の地区：北海道・東北・関東東京・北信越・東海・近畿・中国四国・九州）。各地区の通常の枠のあとの次点（地区が2つなら、それぞれの次点のうち良い方）を、秋季地区大会の到達点（優勝・準優勝・ベスト4・ベスト8…）→ 秋のチームの強さの順に並べ、同じならくじで決め、上から extra_general_quota 地区に1枠ずつ足す。増えた4枠の配り方は史実に決まった基準がないので、ゲームの決まりで決める",
+    "invitational.name_format": "記念大会の年の大会名（{edition} は回数）"
+  }
+}

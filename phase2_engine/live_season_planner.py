@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping
 
+from . import commemorative as commemorative_rules
 from .engine import TournamentEngine
 from .initial_state import PriorResults, initial_autumn_ranking, load_prior_results
 from .live_season_dependency import (
@@ -413,6 +414,7 @@ class LiveSeasonGraphPlanner:
                     )
                 },
                 self.year,
+                commemorative_rules.config_for_data(self.repo.data_dir),
             )
         return self._season
 
