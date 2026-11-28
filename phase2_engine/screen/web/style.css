@@ -527,7 +527,8 @@ label.toggle.off { opacity: .45; }
 .board td.team span.link:hover { color: #7fb8ff; }
 .board td.team small.first-or-last { margin-left: 6px; color: var(--muted); font-size: 11px; vertical-align: middle; }
 /* 試合の一覧：大会ごとの枠（見出しで開け閉め）。回戦・学校・スコアを詰めて並べる */
-.match-group .group-toggle { cursor: pointer; }
+.match-group .group-toggle { cursor: pointer; background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; }
+.match-group .group-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 table.compact-matches { width: auto; border-collapse: collapse; }
 table.compact-matches td { padding: 5px 8px; white-space: nowrap; }
 table.compact-matches td.round { min-width: 7em; }

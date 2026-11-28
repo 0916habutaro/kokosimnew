@@ -1650,7 +1650,7 @@ async function renderMatches(content) {
       ${names.length > 1 ? `<select id="d-comp"><option value="">大会すべて</option>${names.map((n) => `<option value="${esc(n)}" ${n === pick ? "selected" : ""}>${esc(n)}（${groups[n].length}）</option>`).join("")}</select>` : ""}
       <div class="spacer"></div><span class="muted num">${data.matches.length} 試合</span></div>
     <div class="scroll">${shown.map(([competition, matches]) => `
-      <div class="panel match-group"><h3 class="group-toggle" data-group="${esc(competition)}">${closed.has(competition) ? "▶" : "▼"} ${esc(competition)} <span class="muted num">${matches.length}試合</span></h3>
+      <div class="panel match-group"><h3><button type="button" class="group-toggle" data-group="${esc(competition)}" aria-expanded="${closed.has(competition) ? "false" : "true"}">${closed.has(competition) ? "▶" : "▼"} ${esc(competition)} <span class="muted num">${matches.length}試合</span></button></h3>
         ${closed.has(competition) ? "" : `<table class="list compact-matches">${matches.map((m) => `<tr class="click" data-year="${m.school_year}" data-cid="${esc(m.competition_id)}" data-id="${esc(m.match_id)}">
         <td class="muted round" title="${esc(m.round_name)}">${esc(m.round_name)}</td>
         <td class="team1 ${m.winner_id === m.team1_id ? "w" : ""}">${esc(m.team1_name)}</td>
@@ -1665,8 +1665,15 @@ async function renderMatches(content) {
     const now = new Set(state.matches.closed || []);
     if (now.has(name)) now.delete(name); else now.add(name);
     state.matches.closed = [...now];
+    renderMatches.focus = name;
     renderPage();
   }));
+  // キーボードで開け閉めしたとき、描き直したあとも同じ見出しにフォーカスを戻す
+  if (renderMatches.focus) {
+    const again = [...content.querySelectorAll("[data-group]")].find((b) => b.dataset.group === renderMatches.focus);
+    renderMatches.focus = "";
+    if (again) again.focus();
+  }
   content.querySelectorAll("tr.click").forEach((tr) => tr.addEventListener("click", () =>
     openMatch(Number(tr.dataset.year), tr.dataset.cid, tr.dataset.id)));
 }

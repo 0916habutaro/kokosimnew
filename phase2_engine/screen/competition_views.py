@@ -345,18 +345,19 @@ def _innings(detail: dict, team1: str, team2: str) -> tuple[list, list]:
     return line(team1), line(team2)
 
 
-def board_cells(line1: list, line2: list, *, home_won: bool) -> tuple[list[str], list[str]]:
+def board_cells(line1: list, line2: list, *, home_won: bool, called: bool = False) -> tuple[list[str], list[str]]:
     """得点板の欄（文字）。行わなかった回は出さない（5回コールドなら1〜5回だけ）。
 
     後攻が最終回の裏を行わなかったときは「x」。後攻が最終回の裏の前にリードしておらず、その裏に
     点を取って勝ったとき（サヨナラ）はその点に「x」（「1x」）。リードしたまま裏を3アウトまで行った
-    コールド勝ちには付けない。"""
+    コールド勝ちには付けない。コールドの試合（``called``）は、今の試合の決まりでは裏を3アウトまで
+    行ってから成立するので、サヨナラの「x」は付けない（行わなかった裏の「x」は付ける）。"""
     played = [index for index, value in enumerate(line1 + line2) if value is not None]
     count = max((index % len(line1) for index in played), default=-1) + 1 if line1 else 0
     top = [("" if value is None else str(value)) for value in line1[:count]]
     away = sum(value or 0 for value in line1[:count])
     home_before = sum(value or 0 for value in line2[:max(count - 1, 0)])
-    walk_off = home_won and home_before <= away
+    walk_off = home_won and home_before <= away and not called
     bottom = []
     for index in range(count):
         value = line2[index] if index < len(line2) else None
@@ -600,7 +601,7 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
     team_stats = {
         stat["school_id"]: stat for stat in detail.get("team_stats") or ()
     }
-    cells = board_cells(line1, line2, home_won=row.get("winner_id") == team2)
+    cells = board_cells(line1, line2, home_won=row.get("winner_id") == team2, called=bool(out["called"]))
     out["board"] = [
         {
             "school_id": team, "name": names(team), "innings": line,

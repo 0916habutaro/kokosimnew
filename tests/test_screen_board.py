@@ -23,6 +23,9 @@ class BoardTests(unittest.TestCase):
         # 後攻が9−0で迎えた5回裏に1点を足して10−0、3アウトでコールド：サヨナラではない
         top, bottom = board_cells([0] * 5 + [None] * 4, [3, 2, 2, 2, 1] + [None] * 4, home_won=True)
         self.assertEqual("1", bottom[-1])
+        # 7−7 で迎えた7回裏に7点を取り、3アウトまで行ってコールド：サヨナラの x は付けない
+        top, bottom = board_cells([1, 1, 1, 1, 1, 1, 1], [0, 0, 0, 0, 0, 7, 7], home_won=True, called=True)
+        self.assertEqual("7", bottom[-1])
         # 同点で迎えた裏に勝ち越せばサヨナラ
         top, bottom = board_cells([1, 0, 0, 0, 0, 0, 0, 0, 1], [0, 0, 1, 0, 0, 0, 0, 1, 1], home_won=True)
         self.assertEqual("1x", bottom[-1])
