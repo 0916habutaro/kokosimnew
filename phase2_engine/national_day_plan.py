@@ -34,11 +34,18 @@ def round_number(key: str, total_rounds: int) -> int:
 
 
 def plan_for(data_dir, competition_type: str, entrant_count: int) -> dict | None:
-    """その大会の計画。出場校の数が計画と違う年は使わない（None）。"""
+    """その大会の計画。出場校の数が計画と違う年は使わない（None）。
+
+    記念大会の年のように出場校の数が違う年の計画は ``variants`` に置く（出場校の数ごと。
+    書いていない項目はもとの計画のまま）。"""
     plan = load_plans(data_dir).get(competition_type)
-    if plan is None or int(plan.get("entrants", 0)) != entrant_count:
+    if plan is None:
         return None
-    return plan
+    base = {key: value for key, value in plan.items() if key != "variants"}
+    for candidate in (plan, *plan.get("variants", ())):
+        if int(candidate.get("entrants", 0)) == entrant_count:
+            return {**base, **candidate} if candidate is not plan else base
+    return None
 
 
 def redraw_rounds(plan: dict | None, total_rounds: int) -> dict[int, int]:

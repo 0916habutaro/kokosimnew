@@ -12,6 +12,8 @@
   年度全体で1つ（大会どうしの前後関係を崩さない）。ただし年度の最後を
   越える大会（3月の選抜）だけは1週早める
 - ルール・所属などのデータは2026年のものを使う（``rules_year``）
+- 例外は記念大会（``commemorative.py``）：回数の決まった年は大会名に「記念」を入れ、
+  その年だけ出場校を増やす
 """
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ from datetime import date, timedelta
 import re
 from typing import Iterable, Mapping
 
+from . import commemorative as commemorative_rules
 from .school_year import competition_school_year, school_year_end
 
 
@@ -81,8 +84,12 @@ def season_competitions(
     competitions: Iterable[Mapping[str, str]],
     calendar_by_competition: Mapping[str, Mapping[str, str]],
     year: int,
+    commemorative: Mapping | None = None,
 ) -> dict[str, SeasonCompetition]:
-    """``year`` 年度に開かれる大会（ひな形の大会ID → ずらし方）。"""
+    """``year`` 年度に開かれる大会（ひな形の大会ID → ずらし方）。
+
+    ``commemorative`` は記念大会の決まり（``config/selection/commemorative_v1.json``）。
+    渡すと、記念大会の年の大会名をその決まりの名前にする。"""
     out: dict[str, SeasonCompetition] = {}
     for row in competitions:
         if row.get("reference_year") != str(TEMPLATE_YEAR):
@@ -112,8 +119,12 @@ def season_competitions(
             competition_id=row["competition_id"],
             year_offset=offset,
             shift_days=shift,
-            display_name=competition_display_name(
-                row["competition_name"], offset
+            display_name=(
+                (offset and commemorative_rules.display_name(
+                    commemorative, row.get("competition_type", ""),
+                    commemorative_rules.edition(row["competition_name"], offset),
+                ))
+                or competition_display_name(row["competition_name"], offset)
             ),
         )
     return out
