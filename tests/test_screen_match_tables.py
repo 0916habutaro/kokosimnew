@@ -75,3 +75,15 @@ class PitchingTableTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RunningScoreTests(unittest.TestCase):
+    def test_home_steal_run_is_counted(self):
+        # 0−0 から本盗で先制し、そのあと適時打で1点：適時打の行は 2−0
+        from phase2_engine.screen.competition_views import match_detail
+        row = {"team1_id": "A", "team2_id": "B", "team1_score": 2, "team2_score": 0, "status": "completed"}
+        detail = {"inning_scores": [{"inning": 1, "half": "top", "batting_team_id": "A", "runs": 2,
+                                     "plate_appearances": 5}],
+                  "highlights": [["B", 1, "t", "R1", "sb", 4], ["S", 1, "t", "H1", "single", 1]]}
+        out = match_detail(row, detail, lambda sid: sid, lambda sid: {})
+        self.assertEqual(["1−0", "2−0"], [h.get("score") for h in out["highlights"]])

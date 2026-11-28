@@ -657,6 +657,8 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
                           "cs": "本盗失敗" if item[5] == 4 else "盗塁死",
                           "po": "牽制死"}[item[4]],
                 "success": item[4] == "sb",
+                # 本盗の1点（打者の得点の行には入らない）
+                "runs": int(item[4] == "sb" and item[5] == 4),
             })
         elif kind == "W":
             # 暴投・捕逸（守った側の投手か捕手）
@@ -721,11 +723,11 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
         })
     highlights.sort(key=lambda h: (h["inning"], 0 if h["half"] == HALF_LABELS["t"] else 1))
     # 得点の行に、その時点の点数（先攻−後攻）を付ける
-    # 暴投・捕逸の行は守った側の学校なので、点は攻めた側に付ける
+    # 暴投・捕逸の行は守った側の学校なので、点は攻めた側に付ける。本盗の1点も数える
     tally = {team1: 0, team2: 0}
     for item in highlights:
-        if item["kind"] == "score" or (item["kind"] == "wild_pitch" and item.get("runs")):
-            offense = item["school_id"] if item["kind"] == "score" else (
+        if item["kind"] == "score" or (item["kind"] in ("wild_pitch", "steal") and item.get("runs")):
+            offense = item["school_id"] if item["kind"] != "wild_pitch" else (
                 team2 if item["school_id"] == team1 else team1)
             tally[offense] += int(item.get("runs") or 0)
             item["score"] = f"{tally[team1]}−{tally[team2]}"

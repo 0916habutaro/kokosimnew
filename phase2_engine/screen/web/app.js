@@ -1657,7 +1657,7 @@ async function renderMatchDetail(content, detail) {
   const highlightRow = (h) => h.kind === "score"
     ? `<div class="hl score ${h.is_home_run ? "hr" : ""}"><span class="what">${esc(h.school_name)}　${esc(h.player_name)}　${esc(h.event)}で${h.runs}点</span><span class="now">${esc(h.score || "")}</span></div>`
     : (h.kind === "steal" || h.kind === "tactic" || h.kind === "substitution")
-    ? `<div class="hl ${h.success ? "sb" : "dp"}"><span class="what">${esc(h.school_name)}　${esc(h.player_name)}　${esc(h.event)}</span></div>`
+    ? `<div class="hl ${h.score ? "score" : h.success ? "sb" : "dp"}"><span class="what">${esc(h.school_name)}　${esc(h.player_name)}　${esc(h.event)}</span>${h.score ? `<span class="now">${esc(h.score)}</span>` : ""}</div>`
     : h.kind === "double_play"
     ? `<div class="hl dp"><span class="what">${esc(h.school_name)}　併殺（${esc(h.player_name)}）</span></div>`
     : h.kind === "wild_pitch"
