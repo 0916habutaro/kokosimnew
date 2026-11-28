@@ -34,8 +34,14 @@ def load_config(config_root: str | Path) -> dict:
 
 
 def config_for_data(data_dir: str | Path) -> dict:
-    """``data/`` の隣の ``config/`` から読む（リポジトリの根を data として渡す古い入口では、その下の ``config/``）。"""
-    root = Path(data_dir).resolve()
+    """``data/`` の隣の ``config/`` から読む（リポジトリの根を data として渡す古い入口では、その下の ``config/``）。
+    同じ場所は1回だけ読む（書き換えないこと）。"""
+    return _config_for_data(str(Path(data_dir).resolve()))
+
+
+@lru_cache(maxsize=8)
+def _config_for_data(data_dir: str) -> dict:
+    root = Path(data_dir)
     for config_root in (root.parent / "config", root / "config"):
         if (config_root / CONFIG_PATH).is_file():
             return load_config(config_root)
