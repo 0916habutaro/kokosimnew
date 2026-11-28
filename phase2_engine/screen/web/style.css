@@ -522,3 +522,5 @@ label.toggle.off { opacity: .45; }
 .stat-table td.zero { color: #4f5e6b; }
 .change-history .change-item + .change-item { margin-top: 6px; }
 .change-when b { white-space: nowrap; }
+.hl-subs-head { font-size: 12px; margin: 6px 0 0; }
+.hl.sub .what { color: var(--muted); }
