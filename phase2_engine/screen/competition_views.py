@@ -345,30 +345,37 @@ def _innings(detail: dict, team1: str, team2: str) -> tuple[list, list]:
     return line(team1), line(team2)
 
 
-def board_cells(line1: list, line2: list, *, home_won: bool, called: bool = False) -> tuple[list[str], list[str]]:
+def board_cells(line1: list, line2: list, *, ended_early: bool = False) -> tuple[list[str], list[str]]:
     """得点板の欄（文字）。行わなかった回は出さない（5回コールドなら1〜5回だけ）。
 
-    後攻が最終回の裏を行わなかったときは「x」。後攻が最終回の裏の前にリードしておらず、その裏に
-    点を取って勝ったとき（サヨナラ）はその点に「x」（「1x」）。リードしたまま裏を3アウトまで行った
-    コールド勝ちには付けない。コールドの試合（``called``）は、今の試合の決まりでは裏を3アウトまで
-    行ってから成立するので、サヨナラの「x」は付けない（行わなかった裏の「x」は付ける）。"""
+    最終回の裏は、行わなかった（省略）なら「x」、攻撃の途中で終わった（``ended_early``：サヨナラ・
+    裏の攻撃中の得点差コールド）ならその回の得点に「x」（「1x」）、3アウトまで行ったなら得点だけ。"""
     played = [index for index, value in enumerate(line1 + line2) if value is not None]
     count = max((index % len(line1) for index in played), default=-1) + 1 if line1 else 0
     top = [("" if value is None else str(value)) for value in line1[:count]]
-    away = sum(value or 0 for value in line1[:count])
-    home_before = sum(value or 0 for value in line2[:max(count - 1, 0)])
-    walk_off = home_won and home_before <= away and not called
     bottom = []
     for index in range(count):
         value = line2[index] if index < len(line2) else None
         last = index == count - 1
         if value is None:
             bottom.append("x" if last else "")
-        elif last and walk_off and value > 0:
+        elif last and ended_early:
             bottom.append(f"{value}x")
         else:
             bottom.append(str(value))
     return top, bottom
+
+
+def bottom_ended_early(detail: dict, home: str) -> bool:
+    """最終回の裏が攻撃の途中（3アウト前）で終わったか。裏を守った先攻の投手のアウトの合計が、
+    行った裏の数×3より少なければ途中で終わった（試合の記録の形は変えずに判別する）。"""
+    halves = [row for row in detail.get("inning_scores") or ()
+              if row.get("batting_team_id") == home and row.get("was_played", True)]
+    stats = detail.get("pitcher_stats") or ()
+    if not halves or not stats:
+        return False
+    outs = sum(int(stat.get("outs_recorded") or 0) for stat in stats if stat.get("school_id") != home)
+    return outs < 3 * len(halves)
 
 
 def _outs_to_innings(outs: int) -> str:
@@ -601,7 +608,7 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
     team_stats = {
         stat["school_id"]: stat for stat in detail.get("team_stats") or ()
     }
-    cells = board_cells(line1, line2, home_won=row.get("winner_id") == team2, called=bool(out["called"]))
+    cells = board_cells(line1, line2, ended_early=bottom_ended_early(detail, team2))
     out["board"] = [
         {
             "school_id": team, "name": names(team), "innings": line,

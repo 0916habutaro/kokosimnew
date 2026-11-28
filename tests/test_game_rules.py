@@ -99,6 +99,53 @@ class GameRulesTests(_TeamsFixture):
             self.assertGreaterEqual(plain.last_inning, 9)
         self.assertGreater(called, 0)
 
+    def test_mercy_ends_in_the_middle_of_the_bottom_half(self):
+        """後攻が裏の攻撃中に規定の点差に達したら、そのプレーで終わる（以降の打席・暴投・盗塁はない）。"""
+        thresholds = dict(RULES.mercy)
+        ended_early = in_play = 0
+        for number in range(200):
+            # 後攻が強い学校（先攻は弱い学校）
+            match_input = self._input(number, 2, 0)
+            result = self.simulator.simulate(match_input, rules=RULES)
+            validate_match_simulation_result(result, match_input, config_dir=MATCH_CONFIG)
+            last = result.events[-1]
+            if result.last_inning >= 9 or last.half != "bottom":
+                continue
+            margin_rule = min(m for i, m in thresholds.items() if result.last_inning >= i)
+            # 最後の出来事の前は規定の点差に届いておらず、最後の出来事で届いた
+            home = sum(e.runs_scored for e in result.events if e.half == "bottom")
+            away = sum(e.runs_scored for e in result.events if e.half == "top")
+            self.assertGreaterEqual(home - away, margin_rule)
+            before = home - last.runs_scored - away
+            if before < margin_rule:
+                in_play += 1
+                # その裏のアウトは3つに届いていない（攻撃の途中で終わった）
+                outs = sum(e.outs_on_play for e in result.events
+                           if e.inning == last.inning and e.half == "bottom")
+                ended_early += outs < 3
+        self.assertGreater(in_play, 0)
+        self.assertGreater(ended_early, 0)
+
+
+    def test_mercy_reached_on_a_wild_pitch_or_passed_ball_ends_there(self):
+        # この種の試合 211（捕逸）・298（暴投）は、裏の暴投・捕逸の得点で規定の点差に届いて終わる
+        for number in (211, 298):
+            match_input = self._input(number, 2, 0)
+            result = self.simulator.simulate(match_input, rules=RULES)
+            validate_match_simulation_result(result, match_input, config_dir=MATCH_CONFIG)
+            last = result.events[-1]
+            metadata = dict(last.metadata)
+            self.assertEqual("bottom", last.half)
+            self.assertIn("advance", metadata)
+            self.assertNotIn("steal", metadata)
+            home = sum(e.runs_scored for e in result.events if e.half == "bottom")
+            away = sum(e.runs_scored for e in result.events if e.half == "top")
+            margin_rule = min(m for i, m in dict(RULES.mercy).items() if result.last_inning >= i)
+            # 打席の得点では届かず、暴投・捕逸の1点で届いた
+            self.assertEqual(margin_rule, home - away)
+            self.assertLess(sum(e.outs_on_play for e in result.events
+                                if e.inning == last.inning and e.half == "bottom"), 3)
+
 
 class RulesForMatchTests(unittest.TestCase):
     @classmethod
