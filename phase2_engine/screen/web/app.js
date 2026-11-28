@@ -20,7 +20,8 @@ const state = {
   noSession: false, // 起動時にセーブを選ぶ前
   competitions: { filter: { year: "", segment: "", level: "", status: "", pref: "" }, view: null },
   // more：成績の表の「詳しく」、showSubs：経過に選手交代も出す（画面の状態だけ。保存しない）
-  matches: { date: "", detail: null, tab: "progress", more: false, showSubs: false },
+  // competition・closed：試合の一覧の大会の絞り込みと閉じた大会の枠
+  matches: { date: "", detail: null, tab: "progress", more: false, showSubs: false, competition: "", closed: [] },
   schools: {
     data: null, view: [], filter: { pref: "", owner: "", result: "", name: "" },
     sortKey: "pref", sortDir: 1, selected: null, detail: null, tab: "overview",
@@ -1584,14 +1585,15 @@ function scoreboard(m, wide = false) {
     { school_id: m.team1_id, name: m.team1_name, innings: [], runs: m.team1_score },
     { school_id: m.team2_id, name: m.team2_name, innings: [], runs: m.team2_score },
   ];
-  const n = Math.max(9, ...board.map((b) => b.innings.length));
-  const cells = (line) => Array.from({ length: n }, (_, i) =>
-    `<td>${line[i] === null ? (i < line.length ? "x" : "") : (line[i] ?? "")}</td>`).join("");
+  // 欄は Python が作る（行わなかった回は出さない・「x」・サヨナラの「1x」）。ない記録は9回まで空欄
+  const n = board[0].cells ? board[0].cells.length : Math.max(9, ...board.map((b) => b.innings.length));
+  const cells = (b) => b.cells ? b.cells.map((v) => `<td>${esc(v)}</td>`).join("")
+    : Array.from({ length: n }, (_, i) => `<td>${b.innings[i] === null ? (i < b.innings.length ? "x" : "") : (b.innings[i] ?? "")}</td>`).join("");
   const hasHits = board.some((b) => b.hits !== undefined && b.hits !== null);
   // 校名は欄が狭いと省略する（マウスを乗せると全部）。回が多くて入らないときは
   // 得点板の中だけ横に動かし、校名と計・安・失は端に留める（右の欄の得点板）
   const rows = board.map((b) => `<tr class="${m.winner_id && m.winner_id !== b.school_id ? "loser" : ""}">
-    <td class="team"><span title="${esc(b.name)}">${esc(b.name)}</span></td>${cells(b.innings)}<td class="total">${b.runs ?? ""}</td>
+    <td class="team"><span class="link" data-school="${esc(b.school_id)}" title="${esc(b.name)}（学校の画面へ）">${esc(b.name)}</span>${b.cells ? `<small class="first-or-last">${b.batting_first ? "先" : "後"}</small>` : ""}</td>${cells(b)}<td class="total">${b.runs ?? ""}</td>
     ${hasHits ? `<td class="sub hits">${b.hits ?? ""}</td><td class="sub errors">${b.errors ?? ""}</td>` : ""}</tr>`).join("");
   return `<div class="board ${wide ? "wide" : ""} ${hasHits ? "" : "no-sub"}"><div class="board-scroll"><table><tr><th class="team"></th>${Array.from({ length: n }, (_, i) => `<th>${i + 1}</th>`).join("")}
     <th class="total">計</th>${hasHits ? '<th class="sub hits">安</th><th class="sub errors">失</th>' : ""}</tr>${rows}</table></div>${m.called ? `<div class="board-called">${esc(m.called)}</div>` : ""}</div>`;
@@ -1632,19 +1634,36 @@ async function renderMatches(content) {
   refreshLocation();
   const groups = {};
   for (const m of data.matches) (groups[m.competition_name] ||= []).push(m);
+  // 大会の絞り込みと、大会ごとの枠の開け閉め（画面の状態として覚える。保存しない）
+  const names = Object.keys(groups);
+  if (state.matches.competition && !names.includes(state.matches.competition)) state.matches.competition = "";
+  const pick = state.matches.competition || "";
+  const closed = new Set(state.matches.closed || []);
+  const shown = Object.entries(groups).filter(([name]) => !pick || name === pick);
   content.innerHTML = `<div class="head"><h2>試合</h2>
       <button class="btn small" id="d-prev" ${data.prev_date ? "" : "disabled"}>← 前の試合日</button>
       <span class="num" style="font-size:16px">${fmtDate(data.date)}</span>
       <button class="btn small" id="d-next" ${data.next_date ? "" : "disabled"}>次の試合日 →</button>
+      ${names.length > 1 ? `<select id="d-comp"><option value="">大会すべて</option>${names.map((n) => `<option value="${esc(n)}" ${n === pick ? "selected" : ""}>${esc(n)}（${groups[n].length}）</option>`).join("")}</select>` : ""}
       <div class="spacer"></div><span class="muted num">${data.matches.length} 試合</span></div>
-    <div class="scroll">${Object.entries(groups).map(([competition, matches]) => `
-      <div class="panel"><h3>${esc(competition)}</h3>${matchTable(matches, (m) => `<tr class="click" data-year="${m.school_year}" data-cid="${esc(m.competition_id)}" data-id="${esc(m.match_id)}">
-        <td class="muted" title="${esc(m.round_name)}">${esc(m.round_name)}</td>
-        <td style="text-align:right" class="${m.winner_id === m.team1_id ? "w" : ""}">${esc(m.team1_name)}</td>
-        <td class="n" style="text-align:center">${m.status === "completed" ? `${m.team1_score} − ${m.team2_score}${calledTag(m)}` : "−"}</td>
-        <td class="${m.winner_id === m.team2_id ? "w" : ""}">${esc(m.team2_name)}</td></tr>`, [300, 0, 90, 0])}</div>`).join("") || '<div class="empty">この日の試合はありません。</div>'}</div>`;
+    <div class="scroll">${shown.map(([competition, matches]) => `
+      <div class="panel match-group"><h3 class="group-toggle" data-group="${esc(competition)}">${closed.has(competition) ? "▶" : "▼"} ${esc(competition)} <span class="muted num">${matches.length}試合</span></h3>
+        ${closed.has(competition) ? "" : `<table class="list compact-matches">${matches.map((m) => `<tr class="click" data-year="${m.school_year}" data-cid="${esc(m.competition_id)}" data-id="${esc(m.match_id)}">
+        <td class="muted round" title="${esc(m.round_name)}">${esc(m.round_name)}</td>
+        <td class="team1 ${m.winner_id === m.team1_id ? "w" : ""}">${esc(m.team1_name)}</td>
+        <td class="n score">${m.status === "completed" ? `${m.team1_score} − ${m.team2_score}${calledTag(m)}` : "−"}</td>
+        <td class="team2 ${m.winner_id === m.team2_id ? "w" : ""}">${esc(m.team2_name)}</td></tr>`).join("")}</table>`}</div>`).join("") || '<div class="empty">この日の試合はありません。</div>'}</div>`;
   if (data.prev_date) $("d-prev").addEventListener("click", () => { state.matches.date = data.prev_date; renderPage(); });
   if (data.next_date) $("d-next").addEventListener("click", () => { state.matches.date = data.next_date; renderPage(); });
+  const comp = $("d-comp");
+  if (comp) comp.addEventListener("change", (e) => { state.matches.competition = e.target.value; renderPage(); });
+  content.querySelectorAll("[data-group]").forEach((h) => h.addEventListener("click", () => {
+    const name = h.dataset.group;
+    const now = new Set(state.matches.closed || []);
+    if (now.has(name)) now.delete(name); else now.add(name);
+    state.matches.closed = [...now];
+    renderPage();
+  }));
   content.querySelectorAll("tr.click").forEach((tr) => tr.addEventListener("click", () =>
     openMatch(Number(tr.dataset.year), tr.dataset.cid, tr.dataset.id)));
 }
@@ -1723,7 +1742,6 @@ async function renderMatchDetail(content, detail) {
     <div class="scroll match-detail">
       ${scoreboard(m, true)}
       ${decisionsLine(m)}
-      <p><span class="link" data-school="${esc(m.team1_id)}">${esc(m.team1_name)}</span>　／　<span class="link" data-school="${esc(m.team2_id)}">${esc(m.team2_name)}</span>　<span class="muted">（学校の画面へ）</span></p>
       ${m.has_detail ? `
         <div class="tabs match-tabs" role="tablist" aria-label="試合の記録">${tabs.map(([key, label]) => `<button class="tab" type="button" id="m-tab-${key}" role="tab" data-match-tab="${key}" aria-controls="m-tab-body">${label}</button>`).join("")}</div>
         <div id="m-tab-body" role="tabpanel"></div>`

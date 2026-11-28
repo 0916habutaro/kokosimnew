@@ -345,6 +345,27 @@ def _innings(detail: dict, team1: str, team2: str) -> tuple[list, list]:
     return line(team1), line(team2)
 
 
+def board_cells(line1: list, line2: list, *, home_won: bool) -> tuple[list[str], list[str]]:
+    """得点板の欄（文字）。行わなかった回は出さない（5回コールドなら1〜5回だけ）。
+
+    後攻が最終回の裏を行わなかったときは「x」。後攻が最終回の裏に点を取って勝ったとき
+    （サヨナラ）はその点に「x」（「1x」）。"""
+    played = [index for index, value in enumerate(line1 + line2) if value is not None]
+    count = max((index % len(line1) for index in played), default=-1) + 1 if line1 else 0
+    top = [("" if value is None else str(value)) for value in line1[:count]]
+    bottom = []
+    for index in range(count):
+        value = line2[index] if index < len(line2) else None
+        last = index == count - 1
+        if value is None:
+            bottom.append("x" if last else "")
+        elif last and home_won and value > 0:
+            bottom.append(f"{value}x")
+        else:
+            bottom.append(str(value))
+    return top, bottom
+
+
 def _outs_to_innings(outs: int) -> str:
     return innings_label(outs)
 
@@ -575,9 +596,12 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
     team_stats = {
         stat["school_id"]: stat for stat in detail.get("team_stats") or ()
     }
+    cells = board_cells(line1, line2, home_won=row.get("winner_id") == team2)
     out["board"] = [
         {
             "school_id": team, "name": names(team), "innings": line,
+            # 得点板の欄（行わなかった回は出さない・「x」・サヨナラの「1x」）と先攻・後攻
+            "cells": cells[number - 1], "batting_first": number == 1,
             "runs": row.get(f"team{number}_score"),
             "hits": team_stats.get(team, {}).get("hits"),
             "errors": team_stats.get(team, {}).get("errors"),
