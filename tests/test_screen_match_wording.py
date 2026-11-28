@@ -85,5 +85,24 @@ class ProgressOrderTests(unittest.TestCase):
         self.assertEqual(["substitution", "score"], [h["kind"] for h in out["highlights"]])
 
 
+    def test_pinch_runner_comes_before_his_steal(self):
+        # 7回表：先頭（1番）が安打で出塁、2番の打席の前に代走 PR、PR が二盗
+        from unittest.mock import patch
+        from phase2_engine.screen import competition_views as cv
+        row = {"team1_id": "A", "team2_id": "B", "team1_score": 0, "team2_score": 0, "status": "completed"}
+        detail = {"inning_scores": [{"inning": 7, "half": "top", "batting_team_id": "A", "runs": 0,
+                                     "plate_appearances": 4}],
+                  "highlights": [["B", 7, "t", "PR", "sb", 2]]}
+        change = {"inning": 7, "half": "表", "next_plate_appearance_no": 2, "school_id": "A",
+                  "school_name": "A高", "reason": "pinch_runner", "kind": "substitution", "label": "代走",
+                  "outgoing": {"player_id": "S1", "name": "一番"}, "incoming": {"player_id": "PR", "name": "代走"},
+                  "batting_order": 1, "moves": []}
+        lineups = ({"A": None, "B": None}, [change], {"A": {}, "B": {}}, {"A": {"S1": 1, "PR": 1}, "B": {}},
+                   {"A": set(), "B": set()}, {"A": set(), "B": set()})
+        with patch.object(cv, "_match_lineups", return_value=lineups):
+            out = match_detail(row, detail, lambda sid: sid + "高", lambda sid: {})
+        self.assertEqual(["substitution", "steal"], [h["kind"] for h in out["highlights"]])
+
+
 if __name__ == "__main__":
     unittest.main()

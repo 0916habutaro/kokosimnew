@@ -623,23 +623,30 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
         number += count
     pointer: dict[tuple, int] = {}
 
-    def plate_appearance(item, batter_school=None, batter=None):
+    def plate_appearance(item, batter_school=None, batter=None, runner=None):
+        """打者（その打者の打席）か走者（その走者が出た打席より後の打席）から推し量った打席の番号。"""
         key = (item[1], item[2])
         pas = half_pas.get(key) or [0]
         current = pointer.get(key, pas[0])
-        slot = orders.get(batter_school, {}).get(batter) if batter else None
-        if slot:
+        slot = orders.get(batter_school, {}).get(batter or runner) if (batter or runner) else None
+        if slot and batter:
             found = next((pa for pa in pas if pa >= current and pa_orders.get(pa) == slot), None)
             if found is not None:
                 current = found
+        elif slot:
+            # 盗塁：走者が打った打席（代走ならその打順の打席）のあと。代走の交代より後に並ぶ
+            batted = [pa for pa in pas if pa_orders.get(pa) == slot]
+            if batted:
+                last = max((pa for pa in batted if pa <= current), default=batted[0])
+                current = max(current, min(last + 1, pas[-1]))
         pointer[key] = current
         return current
 
-    def add(kind, item, school, text, batter=None, **extra):
+    def add(kind, item, school, text, batter=None, runner=None, **extra):
         offense_ = batting_team[item[2]]
         highlights.append({"kind": kind, "inning": item[1], "half": HALF_LABELS[item[2]],
                            "school_id": school, "school_name": names(school), "text": text,
-                           "_pa": plate_appearance(item, offense_, batter), **extra})
+                           "_pa": plate_appearance(item, offense_, batter, runner), **extra})
 
     for item in detail.get("highlights") or ():
         kind, half = item[0], item[2]
@@ -649,7 +656,7 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
             add("score", item, offense, score_text(wording, item[4], item[5]), batter=item[3],
                 player_name=player_name(offense, item[3]), is_home_run=item[4] == "home_run", runs=item[5])
         elif kind == "B":
-            add("steal", item, offense, steal_text(wording, item[4], item[5]),
+            add("steal", item, offense, steal_text(wording, item[4], item[5]), runner=item[3],
                 player_name=player_name(offense, item[3]), success=item[4] == "sb",
                 # 本盗の1点（打者の得点の行には入らない）
                 runs=int(item[4] == "sb" and item[5] == 4))
