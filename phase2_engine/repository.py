@@ -7,6 +7,7 @@ from typing import Dict, Iterable, List, Optional, Set
 
 from .models import Team
 from .paths import resolve_data_file
+from . import commemorative as commemorative_rules
 from .season_catalog import rules_year
 
 
@@ -51,6 +52,9 @@ class DataRepository:
         # 遊んでいるセーブで編集した設置者（学校ID → ownership_type）。
         # マスターは書き換えず、これを優先する（phase2_engine/school_edits.py）
         self.ownership_overrides: Dict[str, str] = {}
+        # 記念大会の年の区分の大会の行を足す（もとの府県の大会を写す。commemorative.py）
+        for name in list(self.tables):
+            self.tables[name] = commemorative_rules.expand_rows(name, self.tables[name], self.data_dir)
         self._index()
 
     @staticmethod

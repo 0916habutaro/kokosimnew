@@ -316,7 +316,10 @@ class LiveSeasonDependencyRuntimeState:
             encoding="utf-8-sig",
             newline="",
         ) as f:
-            return list(csv.DictReader(f))
+            # 記念大会の年の区分の大会の行を足す（commemorative.py）
+            return commemorative_rules.expand_rows(
+                name, csv.DictReader(f), data_dir,
+            )
 
     @classmethod
     def from_annual_templates(
@@ -466,7 +469,10 @@ class LiveSeasonDependencyRuntimeState:
         rules: dict[str, list[dict]] = {}
         for destination in templates:
             selected = []
-            for rule in repo.access_rules(destination):
+            # 記念大会の年は、もとの大会からの決まりを区分の大会ごとの決まりにする
+            for rule in commemorative_rules.alias_access_rules(
+                repo.access_rules(destination), templates, repo.data_dir,
+            ):
                 if not cls._rule_effective(
                     rule,
                     rules_year(year),
@@ -482,6 +488,9 @@ class LiveSeasonDependencyRuntimeState:
                     "",
                 )
                 if not source:
+                    continue
+                # 記念大会の年はもとの大会、ほかの年は区分の大会からの決まりを使わない
+                if commemorative_rules.unused_source(source, templates, repo.competitions):
                     continue
                 # 前の年度の大会（3月の選抜）からのルールは、計画の段階で
                 # 前の年度の結果として解決済み。
@@ -517,6 +526,9 @@ class LiveSeasonDependencyRuntimeState:
                 destination not in templates
                 or row.get("effective_year")
                 != str(rules_year(year))
+                or commemorative_rules.unused_source(
+                    row.get("source_competition_id", ""), templates, repo.competitions,
+                )
             ):
                 continue
             qualification_rules[
@@ -876,6 +888,15 @@ class LiveSeasonDependencyRuntimeState:
             )
 
         return strength_of
+
+    def _expected_team_count(self, competition_id: str) -> int:
+        """出場校の数（記念大会の年は決まりの数。甲子園は56校）。"""
+        competition = self.repo.competition(competition_id)
+        offset = self.year - competition_school_year(competition)
+        special = commemorative_rules.team_count(
+            commemorative_rules.config_for_data(self.repo.data_dir), competition, offset,
+        )
+        return special or int(competition.get("team_count") or 0)
 
     def _commemorative_invitational(self, competition_id: str) -> dict | None:
         """その年度の選抜が記念大会なら増枠の決まり（commemorative.py）。"""
@@ -1766,11 +1787,7 @@ class LiveSeasonDependencyRuntimeState:
             for row in resolutions
             for school_id in row.resolved_school_ids
         ))
-        expected = int(
-            self.repo.competition(
-                competition_id
-            ).get("team_count") or 0
-        )
+        expected = self._expected_team_count(competition_id)
         if expected and len(entrants) != expected:
             return None, [
                 LiveQualificationDependencyResolution(

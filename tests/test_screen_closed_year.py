@@ -45,7 +45,10 @@ class ClosedYearTests(unittest.TestCase):
         db_before = archive.db_path.read_bytes()
         self.assertEqual(self.live_summer, self.data.records_best8(filters)['rows'][0])
         # 162大会の封印がそろい、予選だけの学校を順位へ混ぜない。
-        for cid in self.service.repo.competitions:
+        for cid, competition in self.service.repo.competitions.items():
+            # 記念大会の年だけの区分の大会は2026年には開かれない
+            if competition.get('commemorative_parent_id'):
+                continue
             rows = self.data.records_best8({**filters, 'competition_id': cid})['rows']
             self.assertEqual('完了', rows[0]['status'], cid)
             groups = rows[0]['groups']
@@ -67,7 +70,10 @@ class ClosedYearTests(unittest.TestCase):
         before = archive.db_path.read_bytes()
         for year in (2026, 2027):
             season = self.data._season_of(year)
-            for cid in self.service.repo.competitions:
+            for cid, competition in self.service.repo.competitions.items():
+                # 記念大会の年だけの区分の大会は、この2年度には開かれない
+                if competition.get('commemorative_parent_id'):
+                    continue
                 data = self.data.records_entrants({'competition_id': cid, 'start': year, 'end': year,
                                                    'show_upcoming': True})
                 row = data['rows'][0]
