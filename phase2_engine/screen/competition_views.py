@@ -348,18 +348,22 @@ def _innings(detail: dict, team1: str, team2: str) -> tuple[list, list]:
 def board_cells(line1: list, line2: list, *, home_won: bool) -> tuple[list[str], list[str]]:
     """得点板の欄（文字）。行わなかった回は出さない（5回コールドなら1〜5回だけ）。
 
-    後攻が最終回の裏を行わなかったときは「x」。後攻が最終回の裏に点を取って勝ったとき
-    （サヨナラ）はその点に「x」（「1x」）。"""
+    後攻が最終回の裏を行わなかったときは「x」。後攻が最終回の裏の前にリードしておらず、その裏に
+    点を取って勝ったとき（サヨナラ）はその点に「x」（「1x」）。リードしたまま裏を3アウトまで行った
+    コールド勝ちには付けない。"""
     played = [index for index, value in enumerate(line1 + line2) if value is not None]
     count = max((index % len(line1) for index in played), default=-1) + 1 if line1 else 0
     top = [("" if value is None else str(value)) for value in line1[:count]]
+    away = sum(value or 0 for value in line1[:count])
+    home_before = sum(value or 0 for value in line2[:max(count - 1, 0)])
+    walk_off = home_won and home_before <= away
     bottom = []
     for index in range(count):
         value = line2[index] if index < len(line2) else None
         last = index == count - 1
         if value is None:
             bottom.append("x" if last else "")
-        elif last and home_won and value > 0:
+        elif last and walk_off and value > 0:
             bottom.append(f"{value}x")
         else:
             bottom.append(str(value))

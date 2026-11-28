@@ -1574,6 +1574,9 @@ async function selectMatch(matchId, scroll = false) {
     ${m.status === "completed" ? `<p><span class="link" id="to-match">試合の画面で見る →</span></p>` : '<p class="muted">まだ試合をしていません。</p>'}`);
   const link = $("to-match");
   if (link) link.addEventListener("click", () => openMatch(m.school_year, m.competition_id, m.match_id));
+  // 得点板の校名から学校の画面へ
+  const side = $("b-side");
+  if (side) side.querySelectorAll(".board .link[data-school]").forEach((a) => a.addEventListener("click", () => openSchool(a.dataset.school)));
   // 右の欄を開いて表の幅が狭くなってから、外にあれば動かす
   if (scroll) markMatch(matchId, true);
 }

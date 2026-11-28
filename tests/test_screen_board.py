@@ -19,6 +19,14 @@ class BoardTests(unittest.TestCase):
         top, bottom = board_cells([0] * 9, [0] * 8 + [2], home_won=True)
         self.assertEqual("2x", bottom[-1])
 
+    def test_called_win_with_three_outs_in_the_last_bottom_has_no_x(self):
+        # 後攻が9−0で迎えた5回裏に1点を足して10−0、3アウトでコールド：サヨナラではない
+        top, bottom = board_cells([0] * 5 + [None] * 4, [3, 2, 2, 2, 1] + [None] * 4, home_won=True)
+        self.assertEqual("1", bottom[-1])
+        # 同点で迎えた裏に勝ち越せばサヨナラ
+        top, bottom = board_cells([1, 0, 0, 0, 0, 0, 0, 0, 1], [0, 0, 1, 0, 0, 0, 0, 1, 1], home_won=True)
+        self.assertEqual("1x", bottom[-1])
+
     def test_home_does_not_bat_in_the_last_inning(self):
         top, bottom = board_cells([0] * 9, [1] + [0] * 7 + [None], home_won=True)
         self.assertEqual(("0", "x"), (top[-1], bottom[-1]))
