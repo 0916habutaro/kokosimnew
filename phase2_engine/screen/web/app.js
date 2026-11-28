@@ -1661,7 +1661,7 @@ async function renderMatchDetail(content, detail) {
     : h.kind === "double_play"
     ? `<div class="hl dp"><span class="what">${esc(h.school_name)}　併殺（${esc(h.player_name)}）</span></div>`
     : h.kind === "wild_pitch"
-    ? `<div class="hl dp"><span class="what">${esc(h.school_name)}　${esc(h.player_name)}　${esc(h.event)}</span></div>`
+    ? `<div class="hl ${h.score ? "score" : "dp"}"><span class="what">${esc(h.school_name)}　${esc(h.player_name)}　${esc(h.event)}</span>${h.score ? `<span class="now">${esc(h.score)}</span>` : ""}</div>`
     : `<div class="hl pc"><span class="what">${esc(h.school_name)}　投手交代 → ${esc(h.player_name)}</span></div>`;
   // 成績の表（行・守備の印・計の行は Python が作る。match_tables.py）。0 は薄く
   const num = (v) => `<td class="${v ? "" : "zero"}">${v ?? 0}</td>`;

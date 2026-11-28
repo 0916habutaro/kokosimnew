@@ -52,12 +52,24 @@ def slot_entries(lineup: Mapping | None, changes: Iterable[Mapping], team: str) 
     return slots
 
 
+TWO_WAY = "投・DH"
+# 頭に「守」を付けない最初の位置（救援の投手・DHの役で出た選手）
+NO_ENTRY_MARK = ("投", "DH", TWO_WAY)
+
+
 def position_mark(reason: str | None, kind: str | None, starter: bool, history: Sequence[str]) -> str:
-    """守備の印。``history`` は守った位置（「投」「一」「DH」「投・DH」…）の並び。"""
-    places = "".join(history)
+    """守備の印。``history`` は守った位置（「投」「一」「DH」「投・DH」…）の並び。
+
+    投手とDHの兼任（投・DH）のあとDHだけになったときは「投・DH」のまま。"""
+    places = list(history)
+    if places[:1] == [TWO_WAY]:
+        places = [TWO_WAY] + [p for p in places[1:] if p not in ("DH", TWO_WAY)]
+    text = "".join(places)
     if starter or kind == "pitcher_change":
-        return places
-    return ENTRY_MARKS.get(reason or "", DEFENSIVE_ENTRY) + places
+        return text
+    if reason in ENTRY_MARKS:
+        return ENTRY_MARKS[reason] + text
+    return text if places[:1] and places[0] in NO_ENTRY_MARK else DEFENSIVE_ENTRY + text
 
 
 def _with_sums(row: Mapping) -> dict:
