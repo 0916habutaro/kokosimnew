@@ -2485,6 +2485,12 @@ class MatchSimulator:
             return [player_maps[school_id][state.player_at_order((lineup_index[school_id] + k) % 9 + 1)]
                     for k in range(count)]
 
+        def mercy_reached(inning: int) -> bool:
+            """得点差コールド：後攻がその回の規定の点差以上でリードしている（裏の攻撃中に成立する）。"""
+            margin = team_runs[team2_id] - team_runs[team1_id]
+            return any(inning >= mercy_inning and margin >= mercy_margin
+                       for mercy_inning, mercy_margin in rules.mercy)
+
         for inning in range(1, hard_max + 1):
             last_inning = inning
             for half in ("top", "bottom"):
@@ -2976,11 +2982,12 @@ class MatchSimulator:
                             int(pitcher_stat["hit_batters"]) + 1
                         )
 
-                    # 打席のあとの暴投・捕逸と盗塁（サヨナラ・3アウトのあとはない）
+                    # 打席のあとの暴投・捕逸と盗塁（サヨナラ・裏の攻撃中の得点差コールド・3アウトのあとはない）
                     bases_after_play = list(bases)
                     steal = advance = None
-                    if outs < 3 and not (half == "bottom" and inning >= regulation
-                                         and team_runs[team2_id] > team_runs[team1_id]):
+                    if outs < 3 and not (half == "bottom" and (
+                            (inning >= regulation and team_runs[team2_id] > team_runs[team1_id])
+                            or mercy_reached(inning))):
                         catcher_id = states[defense_id].player_for_position("C")
                         catcher = player_maps[defense_id][catcher_id]
                         # エンドランの空振り三振：走者はもう走っている
@@ -3117,10 +3124,10 @@ class MatchSimulator:
                         states[offense_id].record_completed_plate_appearance(
                             batter_id, moment=CompletedPlateAppearanceMoment(inning, half, pa_no))
 
-                    if (
-                        half == "bottom"
-                        and inning >= regulation
-                        and team_runs[team2_id] > team_runs[team1_id]
+                    if half == "bottom" and (
+                        (inning >= regulation and team_runs[team2_id] > team_runs[team1_id])
+                        # 得点差コールド：後攻が裏の攻撃中に規定の点差に達したプレーで終わる
+                        or mercy_reached(inning)
                     ):
                         ending_half = "bottom"
                         game_over = True
