@@ -1677,7 +1677,7 @@ async function renderMatchDetail(content, detail) {
   // 経過の1行。文言は Python が対応表（config/screen/match_wording_v1.json）から作る
   const highlightRow = (h) => {
     const who = [h.school_name, h.player_name].filter(Boolean).map(esc).join("　");
-    const cls = h.kind === "score" ? `score ${h.is_home_run ? "hr" : ""}` : h.kind === "wild_pitch" ? (h.score ? "score" : "dp")
+    const cls = h.kind === "score" ? `score ${h.is_home_run ? "hr" : ""}` : h.score ? "score" : h.kind === "wild_pitch" ? "dp"
       : h.kind === "pitching_change" ? "pc" : h.kind === "double_play" ? "dp" : (h.success ? "sb" : "dp");
     return `<div class="hl ${cls}"><span class="what">${who}　${esc(h.text)}</span>${h.score ? `<span class="now">${esc(h.score)}</span>` : ""}</div>`;
   };

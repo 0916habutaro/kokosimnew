@@ -637,30 +637,58 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
     batting_team = {"t": team1, "b": team2}
     highlights = []
 
-    def add(kind, item, school, text, **extra):
+    # 要点は打席の番号を持たないので、打者の打順から打席を推し量り、交代（何打席目の前か）と並べる
+    pa_orders = plate_appearance_orders(detail.get("inning_scores") or ())
+    half_pas: dict[tuple, list[int]] = {}
+    number = 1
+    for row_ in detail.get("inning_scores") or ():
+        count = int(row_.get("plate_appearances") or 0)
+        half_pas[(int(row_["inning"]), row_["half"][0])] = list(range(number, number + count))
+        number += count
+    pointer: dict[tuple, int] = {}
+
+    def plate_appearance(item, batter_school=None, batter=None):
+        key = (item[1], item[2])
+        pas = half_pas.get(key) or [0]
+        current = pointer.get(key, pas[0])
+        slot = orders.get(batter_school, {}).get(batter) if batter else None
+        if slot:
+            found = next((pa for pa in pas if pa >= current and pa_orders.get(pa) == slot), None)
+            if found is not None:
+                current = found
+        pointer[key] = current
+        return current
+
+    def add(kind, item, school, text, batter=None, **extra):
+        offense_ = batting_team[item[2]]
         highlights.append({"kind": kind, "inning": item[1], "half": HALF_LABELS[item[2]],
-                           "school_id": school, "school_name": names(school), "text": text, **extra})
+                           "school_id": school, "school_name": names(school), "text": text,
+                           "_pa": plate_appearance(item, offense_, batter), **extra})
 
     for item in detail.get("highlights") or ():
         kind, half = item[0], item[2]
         offense = batting_team[half]
         defense = team2 if offense == team1 else team1
         if kind == "S":
-            add("score", item, offense, score_text(wording, item[4], item[5]),
+            add("score", item, offense, score_text(wording, item[4], item[5]), batter=item[3],
                 player_name=player_name(offense, item[3]), is_home_run=item[4] == "home_run", runs=item[5])
         elif kind == "B":
             add("steal", item, offense, steal_text(wording, item[4], item[5]),
-                player_name=player_name(offense, item[3]), success=item[4] == "sb")
+                player_name=player_name(offense, item[3]), success=item[4] == "sb",
+                # 本盗の1点（打者の得点の行には入らない）
+                runs=int(item[4] == "sb" and item[5] == 4))
         elif kind == "W":
             # 暴投・捕逸は守った側の投手か捕手。点は攻めた側に入る
             add("wild_pitch", item, defense, wild_pitch_text(wording, item[3], item[5]),
                 player_name=player_name(defense, item[4]), runs=item[5], scoring_school_id=offense)
         elif kind == "T":
             text, success = tactic_text(wording, item[4], item[5])
-            add("tactic", item, offense, text, player_name=player_name(offense, item[3]), success=success)
+            add("tactic", item, offense, text, batter=item[3], player_name=player_name(offense, item[3]),
+                success=success)
         elif kind == "D":
             # 併殺は打った学校と打者（「伊志田　山崎　併殺打」）
-            add("double_play", item, offense, wording["double_play"], player_name=player_name(offense, item[3]))
+            add("double_play", item, offense, wording["double_play"], batter=item[3],
+                player_name=player_name(offense, item[3]))
         else:
             school = item[3]
             add("pitching_change", item, school,
@@ -685,13 +713,17 @@ def match_detail(row: dict, detail: dict | None, names, players, *, school_year=
             "school_id": change["school_id"], "school_name": change["school_name"],
             "player_name": label, "text": reason_text(wording, change["reason"], change.get("kind")),
             "success": True,
+            # 何打席目の前の交代か（その打席の出来事より前に並べる）
+            "_pa": change["next_plate_appearance_no"] - 0.5,
         })
-    highlights.sort(key=lambda h: (h["inning"], 0 if h["half"] == HALF_LABELS["t"] else 1))
+    highlights.sort(key=lambda h: (h["inning"], 0 if h["half"] == HALF_LABELS["t"] else 1, h["_pa"]))
+    for item in highlights:
+        item.pop("_pa")
     # 得点の行に、その時点の点数（先攻−後攻）を付ける
-    # 暴投・捕逸の行は守った側の学校なので、点は攻めた側に付ける
+    # 暴投・捕逸の行は守った側の学校なので、点は攻めた側に付ける。本盗の1点も数える
     tally = {team1: 0, team2: 0}
     for item in highlights:
-        if item["kind"] == "score" or (item["kind"] == "wild_pitch" and item.get("runs")):
+        if item["kind"] == "score" or (item["kind"] in ("wild_pitch", "steal") and item.get("runs")):
             tally[item.get("scoring_school_id") or item["school_id"]] += int(item.get("runs") or 0)
             item["score"] = f"{tally[team1]}−{tally[team2]}"
     out["highlights"] = highlights
