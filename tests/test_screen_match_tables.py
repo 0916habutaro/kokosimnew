@@ -73,9 +73,6 @@ class PitchingTableTests(unittest.TestCase):
                                           table["total"]["home_runs_allowed"], table["total"]["walks_hbp"]))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class RunningScoreTests(unittest.TestCase):
     def test_home_steal_run_is_counted(self):
@@ -87,3 +84,7 @@ class RunningScoreTests(unittest.TestCase):
                   "highlights": [["B", 1, "t", "R1", "sb", 4], ["S", 1, "t", "H1", "single", 1]]}
         out = match_detail(row, detail, lambda sid: sid, lambda sid: {})
         self.assertEqual(["1−0", "2−0"], [h.get("score") for h in out["highlights"]])
+
+
+if __name__ == "__main__":
+    unittest.main()
