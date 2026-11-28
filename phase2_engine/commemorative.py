@@ -275,3 +275,13 @@ def unused_source(source_id: str, active: Iterable[str], competitions: Mapping[s
     return bool(row.get(PARENT_KEY)) or any(
         other.get(PARENT_KEY) == source_id for other in competitions.values()
     )
+
+
+def held_in(config: Mapping | None, competition: Mapping, years: Iterable[int],
+            parents: Mapping[str, dict] | Iterable[str]) -> bool:
+    """その大会が ``years`` の年度のどれかで開かれるか（区分の大会は記念大会の年、もとの大会は
+    ほかの年。ほかの大会はいつでも）。記録の画面の絞り込み・表の行に使う。"""
+    from .school_year import competition_school_year
+
+    base = competition_school_year(competition)
+    return any(in_season(config, competition, year - base, parents) for year in years)

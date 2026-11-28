@@ -12,8 +12,12 @@ LEVELS = (("national", "全国"), ("regional", "地区"), ("local", "都道府�
 UNKNOWN_AXIS = "unknown"
 
 
-def build_catalog(competitions: dict, memberships: list[dict], level_of, name_of) -> list[dict]:
+def build_catalog(competitions: dict, memberships: list[dict], level_of, name_of,
+                  held=lambda c: not c.get("commemorative_parent_id")) -> list[dict]:
     """大会ごとの季節・区分・地域・出られる都道府県。
+
+    ``held(大会の行)`` が偽の大会は入れない（既定では、記念大会の年だけの区分の大会を入れない。
+    記録の画面は、記録のある年度の範囲に記念大会の年があれば入れる）。
 
     ``prefectures`` は、都道府県の大会ならその都道府県、地区大会なら地区の都道府県（季節ごとの地区割り）、
     全国大会は空（都道府県では絞らない）。"""
@@ -26,8 +30,7 @@ def build_catalog(competitions: dict, memberships: list[dict], level_of, name_of
             qualifiers[c.get("prefecture_code", "")] = qualifiers.get(c.get("prefecture_code", ""), 0) + 1
     catalog = []
     for cid, c in competitions.items():
-        # 記念大会の年だけの区分の大会は、記録の絞り込みにまだ出さない
-        if c.get("commemorative_parent_id"):
+        if not held(c):
             continue
         pref = c.get("prefecture_code", "")
         segment = c.get("season_segment", "")
