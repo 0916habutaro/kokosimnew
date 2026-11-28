@@ -1653,8 +1653,9 @@ class GameScreenData:
                         years_of.get(school['school_id'], ()), row['school_year'])
         competition = competitions.get(cid, {})
         summer = competition.get('competition_type') == 'national_championship'
-        # 夏の代表地区は、表の年度に開かれた地方大会（記念大会の年は北大阪・南大阪など）
-        held = self._held_in(range(max(first, earliest), last + 1))
+        # 夏の代表地区は、表に出す年度（まだ行われていないので隠した年度は除く）に開かれた
+        # 地方大会（記念大会の年は北大阪・南大阪など）
+        held = self._held_in([row['school_year'] for row in rows])
         summer_areas = sorted(
             ([c['competition_id'], c['name'].replace('夏・', '')] for c in catalog
              if competitions[c['competition_id']].get('competition_type') == 'summer_local_qualifier'
